@@ -1,5 +1,6 @@
 import { defineConfig, lazyPlugins } from "vite-plus";
-import react from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -27,5 +28,8 @@ export default defineConfig({
       },
     ],
   },
-  plugins: lazyPlugins(() => [react()]),
+  plugins: lazyPlugins(() => [
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
+  ]),
 });

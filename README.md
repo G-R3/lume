@@ -9,7 +9,7 @@ Currently, two official plugins are available:
 
 ## React Compiler
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+React Compiler is enabled through Vite's React plugin and Rolldown Babel plugin. See the [React Compiler installation guide](https://react.dev/learn/react-compiler/installation) for setup and verification details.
 
 ## Expanding the Oxlint configuration
 
