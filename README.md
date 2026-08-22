@@ -1,5 +1,8 @@
 # Lume
 
-A web music player for you local media files
+A desktop music player built with Electron, React, and Vite.
 
-create a `/tracks` folder at the root and add local music files
+```sh
+pnpm install
+pnpm dev
+```

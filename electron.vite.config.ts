@@ -1,0 +1,36 @@
+import babel from "@rolldown/plugin-babel";
+import tailwindcss from "@tailwindcss/vite";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import { resolve } from "node:path";
+import { defineConfig } from "electron-vite";
+
+export default defineConfig({
+  main: {
+    build: {
+      rollupOptions: {
+        external: ["electron/main"],
+        input: "electron/main.ts",
+        output: {
+          entryFileNames: "[name].cjs",
+          format: "cjs",
+        },
+      },
+    },
+  },
+  preload: {
+    build: {
+      rollupOptions: {
+        input: "electron/preload.ts",
+      },
+    },
+  },
+  renderer: {
+    root: ".",
+    build: {
+      rollupOptions: {
+        input: resolve(import.meta.dirname, "index.html"),
+      },
+    },
+    plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
+  },
+});

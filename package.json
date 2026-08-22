@@ -3,11 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./out/main/main.cjs",
   "scripts": {
-    "dev": "vp dev",
-    "build": "tsc -b && vp build",
+    "dev": "electron-vite dev",
+    "build": "tsc -b && electron-vite build",
     "lint": "vp lint",
-    "preview": "vp preview"
+    "preview": "electron-vite preview"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -21,6 +22,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "babel-plugin-react-compiler": "^1.0.0",
+    "electron": "^43.4.0",
+    "electron-vite": "^5.0.0",
     "oxlint-tsgolint": "^0.24.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
