@@ -20,7 +20,12 @@ export default defineConfig({
   preload: {
     build: {
       rollupOptions: {
+        external: ["electron/renderer"],
         input: "electron/preload.ts",
+        output: {
+          entryFileNames: "[name].cjs",
+          format: "cjs",
+        },
       },
     },
   },
@@ -31,6 +36,10 @@ export default defineConfig({
         input: resolve(import.meta.dirname, "index.html"),
       },
     },
-    plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
+    plugins: [
+      tailwindcss(),
+      react(),
+      babel({ presets: [reactCompilerPreset()] }),
+    ],
   },
 });
