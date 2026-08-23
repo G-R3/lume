@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, BrowserWindow } from "electron/main";
+import { app, BrowserWindow, ipcMain } from "electron/main";
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -9,7 +9,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: join(__dirname, "../preload/preload.js"),
+      preload: join(__dirname, "../preload/preload.cjs"),
       sandbox: true,
     },
   });
@@ -28,6 +28,8 @@ void app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  ipcMain.handle("ping", () => "pong");
 });
 
 app.on("window-all-closed", () => {
