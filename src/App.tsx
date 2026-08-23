@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 
 function App() {
-  useEffect(async () => {
+  useEffect(() => {
     const ping = async () => {
-      const pong = await (window as any).lume.ping();
+      const pong = await window.lume.ping();
       console.log(pong);
     };
 
