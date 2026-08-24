@@ -8,7 +8,7 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        external: ["electron/main"],
+        external: ["electron"],
         input: "electron/main.ts",
         output: {
           entryFileNames: "[name].cjs",
@@ -20,7 +20,7 @@ export default defineConfig({
   preload: {
     build: {
       rollupOptions: {
-        external: ["electron/renderer"],
+        external: ["electron"],
         input: "electron/preload.ts",
         output: {
           entryFileNames: "[name].cjs",
