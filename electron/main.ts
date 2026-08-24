@@ -1,6 +1,31 @@
 import { join } from "node:path";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  net,
+  protocol,
+  session,
+  type IpcMainInvokeEvent,
+} from "electron";
+import {
+  getRendererUrl,
+  handleRendererRequests,
+  isTrustedRendererEvent,
+  loadRenderer,
+  registerRendererScheme,
+} from "./renderer";
 import { lumeChannels } from "../shared/lib";
+
+app.enableSandbox();
+registerRendererScheme(protocol);
+
+const rendererDirectory = join(__dirname, "../renderer");
+const rendererUrl = getRendererUrl(
+  app.isPackaged,
+  process.env.ELECTRON_RENDERER_URL,
+);
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -15,40 +40,49 @@ function createWindow() {
     },
   });
 
-  window.webContents.setWindowOpenHandler(() => ({
-    action: "deny",
-  }));
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void window.loadURL(process.env.ELECTRON_RENDERER_URL);
-    return;
-  }
-
-  void window.loadFile(join(__dirname, "../renderer/index.html"));
+  loadRenderer(window, rendererUrl);
 }
 
+ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
+  const window = requireTrustedWindow(event);
+  const result = await dialog.showOpenDialog(window, {
+    title: "Choose your music folder",
+    buttonLabel: "Choose Folder",
+    properties: ["openDirectory"],
+  });
+
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+});
+
 void app.whenReady().then(() => {
+  handleRendererRequests(protocol, net, rendererDirectory);
+
+  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, _permission, callback) => callback(false),
+  );
+
   createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-
-  ipcMain.handle(lumeChannels.ping, () => "pong");
-  ipcMain.handle(lumeChannels.selectFolder, async (event) => {
-    const mainWindow = BrowserWindow.fromWebContents(event.sender);
-
-    if (!mainWindow) throw new Error("Requesting window was not found");
-
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: "Select a folder",
-      properties: ["openDirectory"],
-    });
-
-    return result.canceled ? null : result.filePaths[0];
   });
 });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
+function requireTrustedWindow(event: IpcMainInvokeEvent) {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (
+    !window ||
+    window.isDestroyed() ||
+    !isTrustedRendererEvent(event, rendererUrl)
+  ) {
+    throw new Error("Blocked IPC request from an untrusted renderer");
+  }
+
+  return window;
+}
