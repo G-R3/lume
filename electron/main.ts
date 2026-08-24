@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain } from "electron/main";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { lumeChannels } from "../shared/lib";
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -13,6 +14,10 @@ function createWindow() {
       sandbox: true,
     },
   });
+
+  window.webContents.setWindowOpenHandler(() => ({
+    action: "deny",
+  }));
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void window.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -29,7 +34,19 @@ void app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 
-  ipcMain.handle("ping", () => "pong");
+  ipcMain.handle(lumeChannels.ping, () => "pong");
+  ipcMain.handle(lumeChannels.selectFolder, async (event) => {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+
+    if (!mainWindow) throw new Error("Requesting window was not found");
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Select a folder",
+      properties: ["openDirectory"],
+    });
+
+    return result.canceled ? null : result.filePaths[0];
+  });
 });
 
 app.on("window-all-closed", () => {
