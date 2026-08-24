@@ -3,8 +3,9 @@ import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 import { defineConfig } from "electron-vite";
+import type { Plugin } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   main: {
     build: {
       rollupOptions: {
@@ -37,9 +38,31 @@ export default defineConfig({
       },
     },
     plugins: [
+      contentSecurityPolicy(command),
       tailwindcss(),
       react(),
       babel({ presets: [reactCompilerPreset()] }),
     ],
   },
-});
+}));
+
+function contentSecurityPolicy(command: "build" | "serve"): Plugin {
+  const content =
+    command === "serve"
+      ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self' ws:"
+      : "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'none'";
+
+  return {
+    name: "content-security-policy",
+    transformIndexHtml: () => [
+      {
+        tag: "meta",
+        attrs: {
+          "http-equiv": "Content-Security-Policy",
+          content,
+        },
+        injectTo: "head-prepend",
+      },
+    ],
+  };
+}
