@@ -1,18 +1,19 @@
-import { useEffect } from "react";
+import { useState } from "react";
 
 function App() {
-  useEffect(() => {
-    const ping = async () => {
-      const pong = await window.lume.ping();
-      console.log(pong);
-    };
+  const [folder, setFolder] = useState<string | null>(null);
 
-    void ping();
-  }, []);
+  const selectFolder = async () => {
+    const folder = await window.lume.selectFolder();
+
+    setFolder(folder);
+  };
 
   return (
     <main className="grid min-h-screen place-items-center bg-black text-white">
       <h1 className="text-xl font-semibold tracking-tight">Hello, world!</h1>
+      <button onClick={selectFolder}>Select Folder</button>
+      {folder && <p>Selected folder: {folder}</p>}
     </main>
   );
 }
