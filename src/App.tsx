@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { MusicLibrary } from "../shared/lib";
+import { Button } from "@/components/ui/button";
 
 function App() {
   const [library, setLibrary] = useState<MusicLibrary | null>(null);
@@ -34,13 +35,13 @@ function App() {
   return (
     <main className="grid min-h-screen place-items-center bg-black text-white">
       <h1 className="text-xl font-semibold tracking-tight">Hello, world!</h1>
-      <button
+      <Button
         disabled={isLoadingLibrary}
         onClick={chooseMusicFolder}
         type="button"
       >
         {isLoadingLibrary ? "Loading Music Folder..." : "Choose Music Folder"}
-      </button>
+      </Button>
       {library && <p>Selected folder: {library.folder}</p>}
       {library && (
         <p>
