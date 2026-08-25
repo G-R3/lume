@@ -1,72 +1,63 @@
 import { useState } from "react";
-import type { Track } from "../shared/lib";
+import type { MusicLibrary } from "../shared/lib";
 
 function App() {
-  const [folder, setFolder] = useState<string | null>(null);
-  const [tracks, setTracks] = useState<Track[]>([]);
+  const [library, setLibrary] = useState<MusicLibrary | null>(null);
   const [selectedTrackId, setSelectedTrackId] = useState("");
-  const [status, setStatus] = useState<"idle" | "choosing" | "scanning">(
-    "idle",
-  );
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const chooseMusicFolder = async () => {
-    setStatus("choosing");
+    setIsLoadingLibrary(true);
+    setErrorMessage(null);
+
     try {
-      const folder = await window.lume.chooseMusicFolder();
+      const library = await window.lume.chooseMusicFolder();
 
-      if (!folder) return;
+      if (!library) return;
 
-      setFolder(folder);
-      setTracks([]);
-      setSelectedTrackId("");
-      setErrorMessage(null);
-      setStatus("scanning");
-      const tracks = await window.lume.scanLibrary();
-
-      setTracks(tracks);
-      setSelectedTrackId(tracks[0]?.id ?? "");
+      setLibrary(library);
+      setSelectedTrackId(library.tracks[0]?.id ?? "");
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Library scan failed",
       );
     } finally {
-      setStatus("idle");
+      setIsLoadingLibrary(false);
     }
   };
 
-  const selectedTrack = tracks.find((track) => track.id === selectedTrackId);
+  const selectedTrack = library?.tracks.find(
+    (track) => track.id === selectedTrackId,
+  );
 
   return (
     <main className="grid min-h-screen place-items-center bg-black text-white">
       <h1 className="text-xl font-semibold tracking-tight">Hello, world!</h1>
       <button
-        disabled={status !== "idle"}
+        disabled={isLoadingLibrary}
         onClick={chooseMusicFolder}
         type="button"
       >
-        {status === "choosing"
-          ? "Choosing Folder..."
-          : status === "scanning"
-            ? "Scanning Library..."
-            : "Choose Music Folder"}
+        {isLoadingLibrary ? "Loading Music Folder..." : "Choose Music Folder"}
       </button>
-      {folder && <p>Selected folder: {folder}</p>}
-      {folder && status !== "scanning" && (
+      {library && <p>Selected folder: {library.folder}</p>}
+      {library && (
         <p>
-          Found {tracks.length} audio {tracks.length === 1 ? "file" : "files"}
+          Found {library.tracks.length} audio{" "}
+          {library.tracks.length === 1 ? "file" : "files"}
         </p>
       )}
       {errorMessage && <p role="alert">{errorMessage}</p>}
 
-      {tracks.length > 0 && (
+      {library && library.tracks.length > 0 && (
         <>
           <select
             aria-label="Audio file"
             onChange={(event) => setSelectedTrackId(event.target.value)}
             value={selectedTrackId}
           >
-            {tracks.map((track) => (
+            {library.tracks.map((track) => (
               <option key={track.id} value={track.id}>
                 {track.name}
               </option>

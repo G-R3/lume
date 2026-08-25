@@ -13,21 +13,17 @@ const supportedAudioExtensions = new Set([
 ]);
 
 export async function scanAudioFiles(folder: string): Promise<string[]> {
-  const entries = await readdir(folder, { withFileTypes: true });
-  const files = await Promise.all(
-    entries.map(async (entry) => {
-      const path = join(folder, entry.name);
+  const entries = await readdir(folder, {
+    recursive: true,
+    withFileTypes: true,
+  });
 
-      if (entry.isDirectory()) return scanAudioFiles(path);
-      if (
+  return entries
+    .filter(
+      (entry) =>
         entry.isFile() &&
-        supportedAudioExtensions.has(extname(entry.name).toLowerCase())
-      ) {
-        return [path];
-      }
-      return [];
-    }),
-  );
-
-  return files.flat().sort((left, right) => left.localeCompare(right));
+        supportedAudioExtensions.has(extname(entry.name).toLowerCase()),
+    )
+    .map((file) => join(file.parentPath, file.name))
+    .sort((left, right) => left.localeCompare(right));
 }

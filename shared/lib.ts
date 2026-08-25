@@ -4,12 +4,15 @@ export type Track = {
   url: string;
 };
 
+export type MusicLibrary = {
+  folder: string;
+  tracks: Track[];
+};
+
 export type LumeApi = {
-  chooseMusicFolder: () => Promise<string | null>;
-  scanLibrary: () => Promise<Track[]>;
+  chooseMusicFolder: () => Promise<MusicLibrary | null>;
 };
 
 export const lumeChannels = {
   chooseMusicFolder: "lume:choose-music-folder",
-  scanLibrary: "lume:scan-library",
 } as const satisfies Record<keyof LumeApi, string>;

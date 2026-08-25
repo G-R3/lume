@@ -3,10 +3,8 @@ import type { LumeApi } from "../shared/lib";
 import { lumeChannels } from "../shared/lib";
 
 const lumeApi = {
-  chooseMusicFolder: (): Promise<string | null> =>
+  chooseMusicFolder: (): ReturnType<LumeApi["chooseMusicFolder"]> =>
     ipcRenderer.invoke(lumeChannels.chooseMusicFolder),
-  scanLibrary: (): ReturnType<LumeApi["scanLibrary"]> =>
-    ipcRenderer.invoke(lumeChannels.scanLibrary),
 } satisfies LumeApi;
 
 contextBridge.exposeInMainWorld("lume", lumeApi);

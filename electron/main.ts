@@ -39,7 +39,6 @@ const rendererUrl =
   !app.isPackaged && process.env.ELECTRON_RENDERER_URL
     ? process.env.ELECTRON_RENDERER_URL
     : packagedRendererUrl;
-let musicFolder: string | null = null;
 let tracksById = new Map<string, string>();
 
 function createWindow() {
@@ -68,26 +67,13 @@ ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
 
   if (result.canceled) return null;
 
-  musicFolder = result.filePaths[0] ?? null;
-  tracksById.clear();
-  return musicFolder;
-});
+  const folder = result.filePaths[0];
+  if (!folder) return null;
 
-ipcMain.handle(lumeChannels.scanLibrary, async (event) => {
-  requireTrustedWindow(event);
-
-  if (!musicFolder) throw new Error("Choose a music folder before scanning");
-  const scannedFolder = musicFolder;
-  const scannedAudioFiles = await scanAudioFiles(scannedFolder);
-
-  if (scannedFolder !== musicFolder) {
-    throw new Error("Music folder changed during scan");
-  }
-
-  tracksById = new Map();
-  return scannedAudioFiles.map((path) => {
+  const nextTracksById = new Map<string, string>();
+  const tracks = (await scanAudioFiles(folder)).map((path) => {
     const id = randomUUID();
-    tracksById.set(id, path);
+    nextTracksById.set(id, path);
 
     return {
       id,
@@ -95,6 +81,9 @@ ipcMain.handle(lumeChannels.scanLibrary, async (event) => {
       url: getTrackUrl(id),
     };
   });
+
+  tracksById = nextTracksById;
+  return { folder, tracks };
 });
 
 void app.whenReady().then(() => {
