@@ -37,6 +37,11 @@ export default defineConfig(({ command }) => ({
         input: resolve(import.meta.dirname, "index.html"),
       },
     },
+    resolve: {
+      alias: {
+        "@": resolve(import.meta.dirname, "src"),
+      },
+    },
     plugins: [
       contentSecurityPolicy(command),
       tailwindcss(),
