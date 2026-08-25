@@ -7,10 +7,10 @@ import type {
   protocol,
 } from "electron";
 
-const rendererScheme = "lume";
+export const rendererScheme = "lume";
 const packagedRendererUrl = `${rendererScheme}://app/index.html`;
 
-export function registerRendererScheme(electronProtocol: typeof protocol) {
+export function registerLumeScheme(electronProtocol: typeof protocol) {
   electronProtocol.registerSchemesAsPrivileged([
     {
       scheme: rendererScheme,
@@ -32,17 +32,36 @@ export function getRendererUrl(
   return packagedRendererUrl;
 }
 
-export function handleRendererRequests(
+export function handleLumeRequests(
   electronProtocol: typeof protocol,
   electronNet: typeof net,
   rendererDirectory: string,
+  getTracks: () => ReadonlyMap<string, string>,
 ) {
   electronProtocol.handle(rendererScheme, (request) => {
+    const trackRequest = resolveTrackRequest(request.url, getTracks());
+
+    if (trackRequest) {
+      if (!trackRequest.path) return new Response(null, { status: 404 });
+      return electronNet.fetch(pathToFileURL(trackRequest.path).toString(), {
+        headers: request.headers,
+        method: request.method,
+      });
+    }
+
     const assetPath = getRendererAssetPath(rendererDirectory, request.url);
 
     if (!assetPath) return new Response(null, { status: 404 });
     return electronNet.fetch(pathToFileURL(assetPath).toString());
   });
+}
+
+export function getTrackUrl(id: string) {
+  return `${rendererScheme}://app/media/${encodeURIComponent(id)}`;
+}
+
+export function getTrackPath(url: string, tracks: ReadonlyMap<string, string>) {
+  return resolveTrackRequest(url, tracks)?.path ?? null;
 }
 
 export function loadRenderer(window: BrowserWindow, rendererUrl: string) {
@@ -109,5 +128,30 @@ export function getRendererAssetPath(
     return assetPath;
   } catch {
     return null;
+  }
+}
+
+function resolveTrackRequest(url: string, tracks: ReadonlyMap<string, string>) {
+  if (!URL.canParse(url)) return null;
+
+  const parsedUrl = new URL(url);
+
+  if (
+    parsedUrl.protocol !== `${rendererScheme}:` ||
+    parsedUrl.host !== "app" ||
+    !parsedUrl.pathname.startsWith("/media/")
+  ) {
+    return null;
+  }
+
+  try {
+    return {
+      path:
+        tracks.get(
+          decodeURIComponent(parsedUrl.pathname.slice("/media/".length)),
+        ) ?? null,
+    };
+  } catch {
+    return { path: null };
   }
 }

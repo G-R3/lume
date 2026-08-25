@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { basename, extname, join } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -11,21 +12,25 @@ import {
 } from "electron";
 import {
   getRendererUrl,
-  handleRendererRequests,
+  getTrackUrl,
+  handleLumeRequests,
   isTrustedRendererEvent,
   loadRenderer,
-  registerRendererScheme,
+  registerLumeScheme,
 } from "./renderer";
+import { scanAudioFiles } from "./library";
 import { lumeChannels } from "../shared/lib";
 
 app.enableSandbox();
-registerRendererScheme(protocol);
+registerLumeScheme(protocol);
 
 const rendererDirectory = join(__dirname, "../renderer");
 const rendererUrl = getRendererUrl(
   app.isPackaged,
   process.env.ELECTRON_RENDERER_URL,
 );
+let musicFolder: string | null = null;
+let tracksById = new Map<string, string>();
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -51,11 +56,39 @@ ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
     properties: ["openDirectory"],
   });
 
-  return result.canceled ? null : (result.filePaths[0] ?? null);
+  if (result.canceled) return null;
+
+  musicFolder = result.filePaths[0] ?? null;
+  tracksById.clear();
+  return musicFolder;
+});
+
+ipcMain.handle(lumeChannels.scanLibrary, async (event) => {
+  requireTrustedWindow(event);
+
+  if (!musicFolder) throw new Error("Choose a music folder before scanning");
+  const scannedFolder = musicFolder;
+  const scannedAudioFiles = await scanAudioFiles(scannedFolder);
+
+  if (scannedFolder !== musicFolder) {
+    throw new Error("Music folder changed during scan");
+  }
+
+  tracksById = new Map();
+  return scannedAudioFiles.map((path) => {
+    const id = randomUUID();
+    tracksById.set(id, path);
+
+    return {
+      id,
+      name: basename(path, extname(path)),
+      url: getTrackUrl(id),
+    };
+  });
 });
 
 void app.whenReady().then(() => {
-  handleRendererRequests(protocol, net, rendererDirectory);
+  handleLumeRequests(protocol, net, rendererDirectory, () => tracksById);
 
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler(
