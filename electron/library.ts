@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { extname, join } from "node:path";
 
-const audioExtensions = new Set([
+const supportedAudioExtensions = new Set([
   ".aac",
   ".flac",
   ".m4a",
@@ -21,7 +21,7 @@ export async function scanAudioFiles(folder: string): Promise<string[]> {
       if (entry.isDirectory()) return scanAudioFiles(path);
       if (
         entry.isFile() &&
-        audioExtensions.has(extname(entry.name).toLowerCase())
+        supportedAudioExtensions.has(extname(entry.name).toLowerCase())
       ) {
         return [path];
       }

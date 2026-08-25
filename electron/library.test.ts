@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { scanAudioFiles } from "./library";
 
@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 describe("scanAudioFiles", () => {
-  it("recursively returns supported audio files", async () => {
+  it("recursively finds supported audio files", async () => {
     const folder = await mkdtemp(join(tmpdir(), "lume-library-"));
     temporaryFolders.push(folder);
     await mkdir(join(folder, "album"));
