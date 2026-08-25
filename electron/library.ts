@@ -1,15 +1,15 @@
 import { readdir } from "node:fs/promises";
 import { extname, join } from "node:path";
 
-const supportedAudioExtensions = new Set([
-  ".aac",
-  ".flac",
-  ".m4a",
-  ".mp3",
-  ".oga",
-  ".ogg",
-  ".opus",
-  ".wav",
+export const audioContentTypes: ReadonlyMap<string, string> = new Map([
+  [".aac", "audio/aac"],
+  [".flac", "audio/flac"],
+  [".m4a", "audio/mp4"],
+  [".mp3", "audio/mpeg"],
+  [".oga", "audio/ogg"],
+  [".ogg", "audio/ogg"],
+  [".opus", "audio/ogg"],
+  [".wav", "audio/wav"],
 ]);
 
 export async function scanAudioFiles(folder: string): Promise<string[]> {
@@ -22,7 +22,7 @@ export async function scanAudioFiles(folder: string): Promise<string[]> {
     .filter(
       (entry) =>
         entry.isFile() &&
-        supportedAudioExtensions.has(extname(entry.name).toLowerCase()),
+        audioContentTypes.has(extname(entry.name).toLowerCase()),
     )
     .map((file) => join(file.parentPath, file.name))
     .sort((left, right) => left.localeCompare(right));

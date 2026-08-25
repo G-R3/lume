@@ -1,4 +1,7 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import {
   net,
@@ -6,6 +9,7 @@ import {
   type BrowserWindow,
   type IpcMainInvokeEvent,
 } from "electron";
+import { audioContentTypes } from "./library";
 
 export const appScheme = "lume";
 export const packagedRendererUrl = `${appScheme}://app/index.html`;
@@ -14,15 +18,12 @@ export function registerProtocolHandler(
   rendererDirectory: string,
   getTracks: () => ReadonlyMap<string, string>,
 ) {
-  protocol.handle(appScheme, (request) => {
+  protocol.handle(appScheme, async (request) => {
     const trackRequest = resolveTrackRequest(request.url, getTracks());
 
     if (trackRequest) {
       if (!trackRequest.path) return new Response(null, { status: 404 });
-      return net.fetch(pathToFileURL(trackRequest.path).toString(), {
-        headers: request.headers,
-        method: request.method,
-      });
+      return createTrackResponse(trackRequest.path, request);
     }
 
     const assetPath = getRendererAssetPath(rendererDirectory, request.url);
@@ -30,6 +31,71 @@ export function registerProtocolHandler(
     if (!assetPath) return new Response(null, { status: 404 });
     return net.fetch(pathToFileURL(assetPath).toString());
   });
+}
+
+export async function createTrackResponse(path: string, request: Request) {
+  // Tracks can disappear after scanning. For now, we treat every stat failure as a missing file.
+  const file = await stat(path).catch(() => null);
+
+  if (!file?.isFile()) return new Response(null, { status: 404 });
+
+  const headers = new Headers({
+    "Accept-Ranges": "bytes",
+    "Content-Type":
+      audioContentTypes.get(extname(path).toLowerCase()) ??
+      "application/octet-stream",
+  });
+  const rangeHeader = request.headers.get("range");
+  const range =
+    rangeHeader === null ? null : parseByteRange(rangeHeader, file.size);
+
+  if (rangeHeader !== null && !range) {
+    headers.set("Content-Range", `bytes */${file.size}`);
+    return new Response(null, { headers, status: 416 });
+  }
+
+  if (!range) {
+    headers.set("Content-Length", String(file.size));
+    return new Response(Readable.toWeb(createReadStream(path)), { headers });
+  }
+
+  headers.set("Content-Length", String(range.end - range.start + 1));
+  headers.set(
+    "Content-Range",
+    `bytes ${range.start}-${range.end}/${file.size}`,
+  );
+
+  return new Response(Readable.toWeb(createReadStream(path, range)), {
+    headers,
+    status: 206,
+  });
+}
+
+function parseByteRange(header: string, size: number) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+
+  if (!match || size === 0 || (!match[1] && !match[2])) return null;
+
+  if (!match[1]) {
+    const length = Number(match[2]);
+
+    if (!Number.isSafeInteger(length) || length <= 0) return null;
+    return { start: Math.max(size - length, 0), end: size - 1 };
+  }
+
+  const start = Number(match[1]);
+  const requestedEnd = match[2] ? Number(match[2]) : size - 1;
+
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    start >= size ||
+    requestedEnd < start
+  ) {
+    return null;
+  }
+
+  return { start, end: Math.min(requestedEnd, size - 1) };
 }
 
 export function getTrackUrl(id: string) {
