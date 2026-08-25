@@ -2,9 +2,9 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import {
   getRendererAssetPath,
-  getTrackPath,
   getTrackUrl,
   isTrustedRendererUrl,
+  resolveTrackRequest,
 } from "./protocol";
 
 const rendererDirectory = resolve("app", "out", "renderer");
@@ -80,21 +80,26 @@ describe("app protocol track URLs", () => {
       "lume://app/media/48fc51b1-f8e5-46ad-b5f6-4c4b371f9897",
     );
     expect(url).not.toContain(audioPath);
-    expect(getTrackPath(url, tracks)).toBe(audioPath);
+    expect(resolveTrackRequest(url, tracks)).toEqual({ path: audioPath });
   });
 
   it("rejects a track outside the index", () => {
-    expect(
-      getTrackPath("lume://app/media/unknown", tracks),
-    ).toBeNull();
+    expect(resolveTrackRequest("lume://app/media/unknown", tracks)).toEqual({
+      path: null,
+    });
+  });
+
+  it("rejects a malformed track ID", () => {
+    expect(resolveTrackRequest("lume://app/media/%", tracks)).toEqual({
+      path: null,
+    });
   });
 
   it.each([
     `https://app/media/${trackId}`,
     `lume://other/media/${trackId}`,
-    "lume://app/media/%",
     "not a url",
   ])("rejects an invalid track URL: %s", (url) => {
-    expect(getTrackPath(url, tracks)).toBeNull();
+    expect(resolveTrackRequest(url, tracks)).toBeNull();
   });
 });

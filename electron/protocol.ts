@@ -36,10 +36,6 @@ export function getTrackUrl(id: string) {
   return `${appScheme}://app/media/${encodeURIComponent(id)}`;
 }
 
-export function getTrackPath(url: string, tracks: ReadonlyMap<string, string>) {
-  return resolveTrackRequest(url, tracks)?.path ?? null;
-}
-
 export function loadRenderer(window: BrowserWindow, rendererUrl: string) {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
@@ -107,7 +103,10 @@ export function getRendererAssetPath(
   }
 }
 
-function resolveTrackRequest(url: string, tracks: ReadonlyMap<string, string>) {
+export function resolveTrackRequest(
+  url: string,
+  tracks: ReadonlyMap<string, string>,
+) {
   if (!URL.canParse(url)) return null;
 
   const parsedUrl = new URL(url);
