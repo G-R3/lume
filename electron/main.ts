@@ -5,30 +5,40 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
-  net,
   protocol,
   session,
   type IpcMainInvokeEvent,
 } from "electron";
 import {
-  getRendererUrl,
+  appScheme,
   getTrackUrl,
-  handleLumeRequests,
   isTrustedRendererEvent,
   loadRenderer,
-  registerLumeScheme,
-} from "./renderer";
+  packagedRendererUrl,
+  registerProtocolHandler,
+} from "./protocol";
 import { scanAudioFiles } from "./library";
 import { lumeChannels } from "../shared/lib";
 
 app.enableSandbox();
-registerLumeScheme(protocol);
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: appScheme,
+    privileges: {
+      secure: true,
+      standard: true,
+      stream: true,
+      supportFetchAPI: true,
+    },
+  },
+]);
 
 const rendererDirectory = join(__dirname, "../renderer");
-const rendererUrl = getRendererUrl(
-  app.isPackaged,
-  process.env.ELECTRON_RENDERER_URL,
-);
+const rendererUrl =
+  !app.isPackaged && process.env.ELECTRON_RENDERER_URL
+    ? process.env.ELECTRON_RENDERER_URL
+    : packagedRendererUrl;
 let musicFolder: string | null = null;
 let tracksById = new Map<string, string>();
 
@@ -88,7 +98,7 @@ ipcMain.handle(lumeChannels.scanLibrary, async (event) => {
 });
 
 void app.whenReady().then(() => {
-  handleLumeRequests(protocol, net, rendererDirectory, () => tracksById);
+  registerProtocolHandler(rendererDirectory, () => tracksById);
 
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler(

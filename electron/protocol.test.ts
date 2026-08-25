@@ -2,26 +2,13 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import {
   getRendererAssetPath,
-  getRendererUrl,
   getTrackPath,
   getTrackUrl,
   isTrustedRendererUrl,
-} from "./renderer";
+} from "./protocol";
 
 const rendererDirectory = resolve("app", "out", "renderer");
 const packagedRendererUrl = "lume://app/index.html";
-
-describe("getRendererUrl", () => {
-  it("uses the development server only in development", () => {
-    expect(getRendererUrl(false, "http://localhost:5173/")).toBe(
-      "http://localhost:5173/",
-    );
-    expect(getRendererUrl(true, "https://attacker.example/")).toBe(
-      packagedRendererUrl,
-    );
-    expect(getRendererUrl(false, undefined)).toBe(packagedRendererUrl);
-  });
-});
 
 describe("isTrustedRendererUrl", () => {
   it("accepts the configured document URL", () => {
@@ -57,9 +44,9 @@ describe("isTrustedRendererUrl", () => {
 
 describe("getRendererAssetPath", () => {
   it("maps app URLs into the renderer directory", () => {
-    expect(getRendererAssetPath(rendererDirectory, "lume://app/")).toBe(
-      join(rendererDirectory, "index.html"),
-    );
+    expect(
+      getRendererAssetPath(rendererDirectory, "lume://app/"),
+    ).toBe(join(rendererDirectory, "index.html"));
     expect(
       getRendererAssetPath(
         rendererDirectory,
@@ -75,11 +62,13 @@ describe("getRendererAssetPath", () => {
     "lume://app/%",
     "lume://app/%2e%2e%2fsecrets.txt",
   ])("rejects a request outside the renderer: %s", (requestUrl) => {
-    expect(getRendererAssetPath(rendererDirectory, requestUrl)).toBeNull();
+    expect(
+      getRendererAssetPath(rendererDirectory, requestUrl),
+    ).toBeNull();
   });
 });
 
-describe("track URLs", () => {
+describe("app protocol track URLs", () => {
   const trackId = "48fc51b1-f8e5-46ad-b5f6-4c4b371f9897";
   const audioPath = "/Users/listener/Music/Artist/track one.mp3";
   const tracks = new Map([[trackId, audioPath]]);
@@ -95,7 +84,9 @@ describe("track URLs", () => {
   });
 
   it("rejects a track outside the index", () => {
-    expect(getTrackPath("lume://app/media/unknown", tracks)).toBeNull();
+    expect(
+      getTrackPath("lume://app/media/unknown", tracks),
+    ).toBeNull();
   });
 
   it.each([

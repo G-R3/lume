@@ -1,49 +1,25 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import type {
-  BrowserWindow,
-  IpcMainInvokeEvent,
+import {
   net,
   protocol,
+  type BrowserWindow,
+  type IpcMainInvokeEvent,
 } from "electron";
 
-export const rendererScheme = "lume";
-const packagedRendererUrl = `${rendererScheme}://app/index.html`;
+export const appScheme = "lume";
+export const packagedRendererUrl = `${appScheme}://app/index.html`;
 
-export function registerLumeScheme(electronProtocol: typeof protocol) {
-  electronProtocol.registerSchemesAsPrivileged([
-    {
-      scheme: rendererScheme,
-      privileges: {
-        secure: true,
-        standard: true,
-        stream: true,
-        supportFetchAPI: true,
-      },
-    },
-  ]);
-}
-
-export function getRendererUrl(
-  isPackaged: boolean,
-  developmentUrl: string | undefined,
-) {
-  if (!isPackaged && developmentUrl) return developmentUrl;
-  return packagedRendererUrl;
-}
-
-export function handleLumeRequests(
-  electronProtocol: typeof protocol,
-  electronNet: typeof net,
+export function registerProtocolHandler(
   rendererDirectory: string,
   getTracks: () => ReadonlyMap<string, string>,
 ) {
-  electronProtocol.handle(rendererScheme, (request) => {
+  protocol.handle(appScheme, (request) => {
     const trackRequest = resolveTrackRequest(request.url, getTracks());
 
     if (trackRequest) {
       if (!trackRequest.path) return new Response(null, { status: 404 });
-      return electronNet.fetch(pathToFileURL(trackRequest.path).toString(), {
+      return net.fetch(pathToFileURL(trackRequest.path).toString(), {
         headers: request.headers,
         method: request.method,
       });
@@ -52,12 +28,12 @@ export function handleLumeRequests(
     const assetPath = getRendererAssetPath(rendererDirectory, request.url);
 
     if (!assetPath) return new Response(null, { status: 404 });
-    return electronNet.fetch(pathToFileURL(assetPath).toString());
+    return net.fetch(pathToFileURL(assetPath).toString());
   });
 }
 
 export function getTrackUrl(id: string) {
-  return `${rendererScheme}://app/media/${encodeURIComponent(id)}`;
+  return `${appScheme}://app/media/${encodeURIComponent(id)}`;
 }
 
 export function getTrackPath(url: string, tracks: ReadonlyMap<string, string>) {
@@ -108,7 +84,7 @@ export function getRendererAssetPath(
 
   const url = new URL(requestUrl);
 
-  if (url.protocol !== `${rendererScheme}:` || url.host !== "app") return null;
+  if (url.protocol !== `${appScheme}:` || url.host !== "app") return null;
 
   try {
     const assetPath = resolve(
@@ -137,7 +113,7 @@ function resolveTrackRequest(url: string, tracks: ReadonlyMap<string, string>) {
   const parsedUrl = new URL(url);
 
   if (
-    parsedUrl.protocol !== `${rendererScheme}:` ||
+    parsedUrl.protocol !== `${appScheme}:` ||
     parsedUrl.host !== "app" ||
     !parsedUrl.pathname.startsWith("/media/")
   ) {
