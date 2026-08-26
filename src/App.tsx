@@ -1,7 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { MusicLibrary } from "../shared/lib";
 import { Button } from "@/components/ui/button";
-import { formatDuration } from "@/lib/format-duration";
 import {
   Sidebar,
   SidebarContent,
@@ -17,13 +16,14 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { TrackList } from "@/components/track-list";
+import { useAudioPlayer } from "@/hooks/use-audio-player";
 
 function App() {
-  const playerRef = useRef<HTMLAudioElement>(null);
   const [library, setLibrary] = useState<MusicLibrary | null>(null);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+  const audioPlayer = useAudioPlayer();
 
   const chooseMusicFolder = async () => {
     setIsLoadingLibrary(true);
@@ -35,7 +35,6 @@ function App() {
       if (!library) return;
 
       setLibrary(library);
-      setSelectedTrackId(null);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Library scan failed",
@@ -44,8 +43,6 @@ function App() {
       setIsLoadingLibrary(false);
     }
   };
-  const selectedTrack =
-    library?.tracks.find((track) => track.id === selectedTrackId) ?? null;
 
   return (
     <SidebarProvider className="dark bg-black text-white">
@@ -87,68 +84,15 @@ function App() {
           </div>
 
           {errorMessage && <p role="alert">{errorMessage}</p>}
-
-          {library && (
-            <div className="overflow-hidden rounded-md border border-white/10">
-              <table className="w-full table-fixed text-sm">
-                <thead className="border-b border-white/10 text-left text-white/60">
-                  <tr>
-                    <th className="w-14 px-4 py-3 font-medium">#</th>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="w-28 px-4 py-3 font-medium">Format</th>
-                    <th className="w-24 px-4 py-3 text-right font-medium">
-                      Time
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {library.tracks.map((track, index) => (
-                    <tr
-                      className={
-                        selectedTrack?.id === track.id
-                          ? "bg-white/10"
-                          : "hover:bg-white/5"
-                      }
-                      key={track.id}
-                    >
-                      <td className="px-4 py-3 text-white/60">{index + 1}</td>
-                      <td>
-                        <button
-                          className="w-full cursor-pointer truncate px-4 py-3 text-left"
-                          onClick={() => {
-                            if (selectedTrackId !== track.id) {
-                              setSelectedTrackId(track.id);
-                              return;
-                            }
-
-                            void playerRef.current?.play();
-                          }}
-                          type="button"
-                        >
-                          {track.name}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-white/60">
-                        {track.format}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-white/60">
-                        {formatDuration(track.duration)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {audioPlayer.errorMessage && (
+            <p role="alert">{audioPlayer.errorMessage}</p>
+          )}
+          {library?.tracks && library.tracks.length > 0 && (
+            <TrackList tracks={library?.tracks} />
           )}
 
-          {selectedTrack && (
-            <audio
-              autoPlay
-              controls
-              key={selectedTrack.id}
-              ref={playerRef}
-              src={selectedTrack.url}
-            />
+          {audioPlayer.activeTrack && (
+            <span>{audioPlayer.activeTrack.name}</span>
           )}
         </main>
       </SidebarInset>
