@@ -2,6 +2,8 @@ import { readdir } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { Readable } from "node:stream";
 
+type ParseFile = (typeof import("music-metadata"))["parseFile"];
+
 export const audioContentTypes: ReadonlyMap<string, string> = new Map([
   [".aac", "audio/aac"],
   [".flac", "audio/flac"],
@@ -20,25 +22,6 @@ export type ScannedTrack = {
   path: string;
 };
 
-async function scanTrack(path: string): Promise<ScannedTrack> {
-  const { parseFile } = await import("music-metadata");
-
-  const extension = extname(path);
-  const metadata = await parseFile(path, { duration: true }).catch(
-    (error: Error) => {
-      console.warn("Could not read audio metadata", { error, path });
-      return null;
-    },
-  );
-
-  return {
-    duration: metadata?.format.duration ?? null,
-    format: extension.slice(1).toUpperCase(),
-    name: basename(path, extension),
-    path,
-  };
-}
-
 export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
   const entries = await readdir(folder, {
     recursive: true,
@@ -54,5 +37,30 @@ export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
     .map((file) => join(file.parentPath, file.name))
     .sort((left, right) => left.localeCompare(right));
 
-  return Readable.from(audioPaths).map(scanTrack, { concurrency: 8 }).toArray();
+  if (audioPaths.length === 0) return [];
+
+  const { parseFile } = await import("music-metadata");
+  return Readable.from(audioPaths)
+    .map((path) => scanTrack(path, parseFile), { concurrency: 8 })
+    .toArray();
+}
+
+async function scanTrack(
+  path: string,
+  parseFile: ParseFile,
+): Promise<ScannedTrack> {
+  const extension = extname(path);
+  const metadata = await parseFile(path, { duration: true }).catch(
+    (error: Error) => {
+      console.warn("Could not read audio metadata", { error, path });
+      return null;
+    },
+  );
+
+  return {
+    duration: metadata?.format.duration ?? null,
+    format: extension.slice(1).toUpperCase(),
+    name: basename(path, extension),
+    path,
+  };
 }
