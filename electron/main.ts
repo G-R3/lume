@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { basename, extname, join } from "node:path";
+import { join } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -43,8 +43,8 @@ let tracksById = new Map<string, string>();
 
 function createWindow() {
   const window = new BrowserWindow({
-    width: 960,
-    height: 640,
+    width: 2020,
+    height: 1280,
     backgroundColor: "#000000",
     webPreferences: {
       contextIsolation: true,
@@ -71,13 +71,15 @@ ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
   if (!folder) return null;
 
   const nextTracksById = new Map<string, string>();
-  const tracks = (await scanAudioFiles(folder)).map((path) => {
+  const tracks = (await scanAudioFiles(folder)).map((track) => {
     const id = randomUUID();
-    nextTracksById.set(id, path);
+    nextTracksById.set(id, track.path);
 
     return {
+      duration: track.duration,
+      format: track.format,
       id,
-      name: basename(path, extname(path)),
+      name: track.name,
       url: getTrackUrl(id),
     };
   });

@@ -8,9 +8,9 @@ const temporaryFolders: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryFolders.splice(0).map((folder) =>
-      rm(folder, { force: true, recursive: true }),
-    ),
+    temporaryFolders
+      .splice(0)
+      .map((folder) => rm(folder, { force: true, recursive: true })),
   );
 });
 
@@ -27,8 +27,18 @@ describe("scanAudioFiles", () => {
     ]);
 
     await expect(scanAudioFiles(folder)).resolves.toEqual([
-      join(folder, "album", "song-two.flac"),
-      join(folder, "song-one.MP3"),
+      {
+        duration: null,
+        format: "FLAC",
+        name: "song-two",
+        path: join(folder, "album", "song-two.flac"),
+      },
+      {
+        duration: null,
+        format: "MP3",
+        name: "song-one",
+        path: join(folder, "song-one.MP3"),
+      },
     ]);
   });
 
@@ -40,7 +50,48 @@ describe("scanAudioFiles", () => {
       const path = join(folder, `track.${extension}`);
       await writeFile(path, "");
 
-      await expect(scanAudioFiles(folder)).resolves.toEqual([path]);
+      await expect(scanAudioFiles(folder)).resolves.toEqual([
+        {
+          duration: null,
+          format: extension.toUpperCase(),
+          name: "track",
+          path,
+        },
+      ]);
     },
   );
+
+  it("reads track duration from audio metadata", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "lume-library-"));
+    temporaryFolders.push(folder);
+    const path = join(folder, "one-second.wav");
+    await writeFile(path, createWaveAudio());
+
+    await expect(scanAudioFiles(folder)).resolves.toEqual([
+      {
+        duration: 1,
+        format: "WAV",
+        name: "one-second",
+        path,
+      },
+    ]);
+  });
 });
+
+function createWaveAudio() {
+  const sampleRate = 8_000;
+  const audio = Buffer.alloc(44 + sampleRate, 128);
+  audio.write("RIFF", 0);
+  audio.writeUInt32LE(audio.length - 8, 4);
+  audio.write("WAVEfmt ", 8);
+  audio.writeUInt32LE(16, 16);
+  audio.writeUInt16LE(1, 20);
+  audio.writeUInt16LE(1, 22);
+  audio.writeUInt32LE(sampleRate, 24);
+  audio.writeUInt32LE(sampleRate, 28);
+  audio.writeUInt16LE(1, 32);
+  audio.writeUInt16LE(8, 34);
+  audio.write("data", 36);
+  audio.writeUInt32LE(sampleRate, 40);
+  return audio;
+}

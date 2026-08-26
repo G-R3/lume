@@ -1,4 +1,6 @@
 export type Track = {
+  duration: number | null;
+  format: string;
   id: string;
   name: string;
   url: string;
