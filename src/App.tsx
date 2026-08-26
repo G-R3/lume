@@ -18,9 +18,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 function App() {
-  const [library, setLibrary] = useState<MusicLibrary | null>(null);
+  const [_library, setLibrary] = useState<MusicLibrary | null>(null);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [_errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const chooseMusicFolder = async () => {
     setIsLoadingLibrary(true);
@@ -55,6 +55,8 @@ function App() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+
+        <SidebarRail />
       </Sidebar>
 
       <SidebarInset>

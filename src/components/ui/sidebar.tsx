@@ -75,6 +75,7 @@ function SidebarProvider({
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
+      // eslint-disable-next-line anti-slop/no-runtime-typeof
       const openState = typeof value === "function" ? value(open) : value;
       if (setOpenProp) {
         setOpenProp(openState);
@@ -131,6 +132,7 @@ function SidebarProvider({
       <div
         data-slot="sidebar-wrapper"
         style={
+          // SAFETY: React passes valid CSS custom properties through to the DOM.
           {
             "--sidebar-width": SIDEBAR_WIDTH,
             "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
@@ -189,6 +191,7 @@ function Sidebar({
           data-mobile="true"
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
           style={
+            // SAFETY: React passes this valid CSS custom property through to the DOM.
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
             } as React.CSSProperties
@@ -537,6 +540,7 @@ function SidebarMenuButton({
     return comp;
   }
 
+  // eslint-disable-next-line anti-slop/no-runtime-typeof
   if (typeof tooltip === "string") {
     tooltip = {
       children: tooltip,
@@ -632,6 +636,7 @@ function SidebarMenuSkeleton({
         className="h-4 max-w-(--skeleton-width) flex-1"
         data-sidebar="menu-skeleton-text"
         style={
+          // SAFETY: React passes this valid percentage-valued CSS custom property through to the DOM.
           {
             "--skeleton-width": width,
           } as React.CSSProperties
