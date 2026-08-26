@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
+import { Readable } from "node:stream";
 
 export const audioContentTypes: ReadonlyMap<string, string> = new Map([
   [".aac", "audio/aac"],
@@ -19,37 +20,39 @@ export type ScannedTrack = {
   path: string;
 };
 
+async function scanTrack(path: string): Promise<ScannedTrack> {
+  const { parseFile } = await import("music-metadata");
+
+  const extension = extname(path);
+  const metadata = await parseFile(path, { duration: true }).catch(
+    (error: Error) => {
+      console.warn("Could not read audio metadata", { error, path });
+      return null;
+    },
+  );
+
+  return {
+    duration: metadata?.format.duration ?? null,
+    format: extension.slice(1).toUpperCase(),
+    name: basename(path, extension),
+    path,
+  };
+}
+
 export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
   const entries = await readdir(folder, {
     recursive: true,
     withFileTypes: true,
   });
-  const { parseFile } = await import("music-metadata");
 
-  return Promise.all(
-    entries
-      .filter(
-        (entry) =>
-          entry.isFile() &&
-          audioContentTypes.has(extname(entry.name).toLowerCase()),
-      )
-      .map((file) => join(file.parentPath, file.name))
-      .sort((left, right) => left.localeCompare(right))
-      .map(async (path) => {
-      const extension = extname(path);
-      const metadata = await parseFile(path, { duration: true }).catch(
-        (error: Error) => {
-          console.warn("Could not read audio metadata", { error, path });
-          return null;
-        },
-      );
+  const audioPaths = entries
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        audioContentTypes.has(extname(entry.name).toLowerCase()),
+    )
+    .map((file) => join(file.parentPath, file.name))
+    .sort((left, right) => left.localeCompare(right));
 
-        return {
-          duration: metadata?.format.duration ?? null,
-          format: extension.slice(1).toUpperCase(),
-          name: basename(path, extension),
-          path,
-        };
-      }),
-  );
+  return Readable.from(audioPaths).map(scanTrack, { concurrency: 8 }).toArray();
 }
