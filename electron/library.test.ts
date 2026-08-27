@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { scanAudioFiles } from "./library";
+import { readMusicFolder, saveMusicFolder, scanAudioFiles } from "./library";
 
 const temporaryFolders: string[] = [];
 
@@ -16,8 +16,7 @@ afterEach(async () => {
 
 describe("scanAudioFiles", () => {
   it("recursively finds supported audio files", async () => {
-    const folder = await mkdtemp(join(tmpdir(), "lume-library-"));
-    temporaryFolders.push(folder);
+    const folder = await createTemporaryFolder("lume-library-");
     await mkdir(join(folder, "album"));
     await Promise.all([
       writeFile(join(folder, "song-one.MP3"), ""),
@@ -45,8 +44,7 @@ describe("scanAudioFiles", () => {
   it.each(["aac", "flac", "m4a", "mp3", "oga", "ogg", "opus", "wav"])(
     "supports .%s files",
     async (extension) => {
-      const folder = await mkdtemp(join(tmpdir(), "lume-library-"));
-      temporaryFolders.push(folder);
+      const folder = await createTemporaryFolder("lume-library-");
       const path = join(folder, `track.${extension}`);
       await writeFile(path, "");
 
@@ -62,8 +60,7 @@ describe("scanAudioFiles", () => {
   );
 
   it("reads track duration from audio metadata", async () => {
-    const folder = await mkdtemp(join(tmpdir(), "lume-library-"));
-    temporaryFolders.push(folder);
+    const folder = await createTemporaryFolder("lume-library-");
     const path = join(folder, "one-second.wav");
     await writeFile(path, createWaveAudio());
 
@@ -77,6 +74,29 @@ describe("scanAudioFiles", () => {
     ]);
   });
 });
+
+describe("music folder settings", () => {
+  it("returns null before a folder has been saved", async () => {
+    const userDataDirectory = await createTemporaryFolder("lume-settings-");
+
+    await expect(readMusicFolder(userDataDirectory)).resolves.toBeNull();
+  });
+
+  it("remembers the selected folder exactly", async () => {
+    const userDataDirectory = await createTemporaryFolder("lume-settings-");
+    const musicFolder = join(userDataDirectory, "Music library 🎵");
+
+    await saveMusicFolder(userDataDirectory, musicFolder);
+
+    await expect(readMusicFolder(userDataDirectory)).resolves.toBe(musicFolder);
+  });
+});
+
+async function createTemporaryFolder(prefix: string) {
+  const folder = await mkdtemp(join(tmpdir(), prefix));
+  temporaryFolders.push(folder);
+  return folder;
+}
 
 function createWaveAudio() {
   const sampleRate = 8_000;

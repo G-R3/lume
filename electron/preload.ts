@@ -5,6 +5,8 @@ import { lumeChannels } from "../shared/lib";
 const lumeApi = {
   chooseMusicFolder: (): ReturnType<LumeApi["chooseMusicFolder"]> =>
     ipcRenderer.invoke(lumeChannels.chooseMusicFolder),
+  loadMusicLibrary: (): ReturnType<LumeApi["loadMusicLibrary"]> =>
+    ipcRenderer.invoke(lumeChannels.loadMusicLibrary),
 } satisfies LumeApi;
 
 contextBridge.exposeInMainWorld("lume", lumeApi);

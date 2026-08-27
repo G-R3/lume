@@ -17,7 +17,11 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import { scanAudioFiles } from "./library";
+import {
+  readMusicFolder,
+  saveMusicFolder,
+  scanAudioFiles,
+} from "./library";
 import { lumeChannels } from "../shared/lib";
 
 app.enableSandbox();
@@ -59,9 +63,11 @@ function createWindow() {
 
 ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
   const window = requireTrustedWindow(event);
+  const savedFolder = await readMusicFolder(app.getPath("userData"));
   const result = await dialog.showOpenDialog(window, {
     title: "Choose your music folder",
     buttonLabel: "Choose Folder",
+    defaultPath: savedFolder ?? undefined,
     properties: ["openDirectory"],
   });
 
@@ -70,6 +76,24 @@ ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
   const folder = result.filePaths[0];
   if (!folder) return null;
 
+  const nextLibrary = await scanMusicLibrary(folder);
+  await saveMusicFolder(app.getPath("userData"), folder);
+  tracksById = nextLibrary.tracksById;
+  return nextLibrary.library;
+});
+
+ipcMain.handle(lumeChannels.loadMusicLibrary, async (event) => {
+  requireTrustedWindow(event);
+  const folder = await readMusicFolder(app.getPath("userData"));
+
+  if (!folder) return null;
+
+  const nextLibrary = await scanMusicLibrary(folder);
+  tracksById = nextLibrary.tracksById;
+  return nextLibrary.library;
+});
+
+async function scanMusicLibrary(folder: string) {
   const nextTracksById = new Map<string, string>();
   const tracks = (await scanAudioFiles(folder)).map((track) => {
     const id = randomUUID();
@@ -84,9 +108,11 @@ ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
     };
   });
 
-  tracksById = nextTracksById;
-  return { folder, tracks };
-});
+  return {
+    library: { folder, tracks },
+    tracksById: nextTracksById,
+  };
+}
 
 void app.whenReady().then(() => {
   registerProtocolHandler(rendererDirectory, () => tracksById);

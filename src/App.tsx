@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MusicLibrary } from "../shared/lib";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,28 +22,39 @@ import { AudioPlayerControls } from "@/components/audio-player-controls";
 
 function App() {
   const [library, setLibrary] = useState<MusicLibrary | null>(null);
-  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasLoadedSavedLibrary = useRef(false);
   const audioPlayer = useAudioPlayer();
 
-  const chooseMusicFolder = async () => {
-    setIsLoadingLibrary(true);
-    setErrorMessage(null);
+  const scanMusicLibrary = useCallback(
+    async (request: () => Promise<MusicLibrary | null>) => {
+      setIsLoadingLibrary(true);
+      setErrorMessage(null);
 
-    try {
-      const library = await window.lume.chooseMusicFolder();
+      try {
+        const library = await request();
 
-      if (!library) return;
+        if (!library) return;
 
-      setLibrary(library);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Library scan failed",
-      );
-    } finally {
-      setIsLoadingLibrary(false);
-    }
-  };
+        setLibrary(library);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Library scan failed",
+        );
+      } finally {
+        setIsLoadingLibrary(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (hasLoadedSavedLibrary.current) return;
+
+    hasLoadedSavedLibrary.current = true;
+    void scanMusicLibrary(window.lume.loadMusicLibrary);
+  }, [scanMusicLibrary]);
 
   return (
     <div className="flex flex-col">
@@ -73,16 +84,38 @@ function App() {
           </header>
 
           <main className="flex flex-1 flex-col gap-6 p-6 pb-28">
-            <div>
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 disabled={isLoadingLibrary}
-                onClick={chooseMusicFolder}
+                onClick={() =>
+                  void scanMusicLibrary(window.lume.chooseMusicFolder)
+                }
                 type="button"
               >
-                {isLoadingLibrary
-                  ? "Loading Music Folder..."
-                  : "Choose Music Folder"}
+                {library ? "Change Music Folder" : "Choose Music Folder"}
               </Button>
+
+              {library && (
+                <Button
+                  disabled={isLoadingLibrary}
+                  onClick={() =>
+                    void scanMusicLibrary(window.lume.loadMusicLibrary)
+                  }
+                  type="button"
+                  variant="outline"
+                >
+                  {isLoadingLibrary ? "Scanning..." : "Rescan"}
+                </Button>
+              )}
+
+              {library && (
+                <span
+                  className="truncate text-xs text-white/60"
+                  title={library.folder}
+                >
+                  {library.folder}
+                </span>
+              )}
             </div>
 
             {errorMessage && <p role="alert">{errorMessage}</p>}

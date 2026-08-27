@@ -13,8 +13,10 @@ export type MusicLibrary = {
 
 export type LumeApi = {
   chooseMusicFolder: () => Promise<MusicLibrary | null>;
+  loadMusicLibrary: () => Promise<MusicLibrary | null>;
 };
 
 export const lumeChannels = {
   chooseMusicFolder: "lume:choose-music-folder",
-} as const satisfies Record<keyof LumeApi, string>;
+  loadMusicLibrary: "lume:load-music-library",
+} as const;
