@@ -1,4 +1,9 @@
-import React, { useCallback, useContext, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import type { Track } from "../../shared/lib";
 
 type AudioPlayerContextValue = {
@@ -6,12 +11,19 @@ type AudioPlayerContextValue = {
   errorMessage: string | null;
   isPlaying: boolean;
   isMuted: boolean;
+  currentTime: number;
+  duration: number;
+  scrubTime: number | null;
   play: (track?: Track) => void;
   pause: () => void;
   toggleMute: () => void;
+  seek: (time: number) => void;
+  setScrubTime: React.Dispatch<React.SetStateAction<number | null>>;
 };
 
-const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(null);
+const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(
+  null,
+);
 
 export function useAudioPlayer() {
   const context = useContext(AudioPlayerContext);
@@ -23,13 +35,20 @@ export function useAudioPlayer() {
   return context;
 }
 
-export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
+export function AudioPlayerProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const playbackRequestRef = useRef(0);
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
 
   const play = useCallback(
     (track?: Track) => {
@@ -39,6 +58,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       if (track && activeTrack?.id !== track.id) {
         setIsPlaying(false);
         setActiveTrack(track);
+        setCurrentTime(0);
+        setDuration(track.duration ?? 0);
         return;
       }
 
@@ -70,6 +91,19 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setIsMuted((isMuted) => !isMuted);
   }, []);
 
+  const seek = useCallback(
+    (time: number) => {
+      const audio = audioPlayerRef.current;
+
+      if (!audio || !activeTrack) return;
+
+      audio.currentTime = time;
+      setCurrentTime(time);
+      setScrubTime(time);
+    },
+    [activeTrack],
+  );
+
   const contextValue = React.useMemo(
     () =>
       ({
@@ -77,11 +111,29 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         errorMessage,
         isPlaying,
         isMuted,
+        currentTime,
+        duration,
+        scrubTime,
         play,
         pause,
         toggleMute,
+        seek,
+        setScrubTime,
       }) satisfies AudioPlayerContextValue,
-    [activeTrack, errorMessage, isPlaying, isMuted, play, pause, toggleMute],
+    [
+      activeTrack,
+      errorMessage,
+      isPlaying,
+      isMuted,
+      currentTime,
+      duration,
+      scrubTime,
+      play,
+      pause,
+      toggleMute,
+      seek,
+      setScrubTime,
+    ],
   );
 
   return (
@@ -92,15 +144,34 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
           autoPlay
           muted={isMuted}
           key={activeTrack.id}
-          onEnded={() => setIsPlaying(false)}
+          onDurationChange={(event) => {
+            if (!Number.isFinite(event.currentTarget.duration)) return;
+            setDuration(event.currentTarget.duration);
+          }}
+          onEnded={(event) => {
+            setIsPlaying(false);
+            setDuration(event.currentTarget.duration);
+            setCurrentTime(event.currentTarget.duration);
+            setScrubTime(null);
+          }}
           onError={(event) => {
             setIsPlaying(false);
-            setErrorMessage(event.currentTarget.error?.message || "Playback failed");
+            setScrubTime(null);
+            setErrorMessage(
+              event.currentTarget.error?.message || "Playback failed",
+            );
           }}
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}
+          onSeeked={(event) => {
+            setCurrentTime(event.currentTarget.currentTime);
+            setScrubTime(null);
+          }}
           ref={audioPlayerRef}
           src={activeTrack.url}
+          onTimeUpdate={(e) => {
+            setCurrentTime(e.currentTarget.currentTime);
+          }}
         />
       )}
     </AudioPlayerContext.Provider>
