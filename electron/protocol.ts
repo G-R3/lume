@@ -3,12 +3,7 @@ import { stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
-import {
-  net,
-  protocol,
-  type BrowserWindow,
-  type IpcMainInvokeEvent,
-} from "electron";
+import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { audioContentTypes } from "./library";
 
 export const appScheme = "lume";
@@ -42,12 +37,10 @@ export async function createTrackResponse(path: string, request: Request) {
   const headers = new Headers({
     "Accept-Ranges": "bytes",
     "Content-Type":
-      audioContentTypes.get(extname(path).toLowerCase()) ??
-      "application/octet-stream",
+      audioContentTypes.get(extname(path).toLowerCase()) ?? "application/octet-stream",
   });
   const rangeHeader = request.headers.get("range");
-  const range =
-    rangeHeader === null ? null : parseByteRange(rangeHeader, file.size);
+  const range = rangeHeader === null ? null : parseByteRange(rangeHeader, file.size);
 
   if (rangeHeader !== null && !range) {
     headers.set("Content-Range", `bytes */${file.size}`);
@@ -60,10 +53,7 @@ export async function createTrackResponse(path: string, request: Request) {
   }
 
   headers.set("Content-Length", String(range.end - range.start + 1));
-  headers.set(
-    "Content-Range",
-    `bytes ${range.start}-${range.end}/${file.size}`,
-  );
+  headers.set("Content-Range", `bytes ${range.start}-${range.end}/${file.size}`);
 
   return new Response(Readable.toWeb(createReadStream(path, range)), {
     headers,
@@ -112,20 +102,14 @@ export function loadRenderer(window: BrowserWindow, rendererUrl: string) {
   void window.loadURL(rendererUrl);
 }
 
-export function isTrustedRendererEvent(
-  event: IpcMainInvokeEvent,
-  rendererUrl: string,
-) {
+export function isTrustedRendererEvent(event: IpcMainInvokeEvent, rendererUrl: string) {
   return (
     event.senderFrame === event.sender.mainFrame &&
     isTrustedRendererUrl(rendererUrl, event.senderFrame.url)
   );
 }
 
-export function isTrustedRendererUrl(
-  rendererUrl: string,
-  candidateUrl: string,
-) {
+export function isTrustedRendererUrl(rendererUrl: string, candidateUrl: string) {
   if (!URL.canParse(rendererUrl) || !URL.canParse(candidateUrl)) return false;
 
   const trustedUrl = new URL(rendererUrl);
@@ -138,10 +122,7 @@ export function isTrustedRendererUrl(
   );
 }
 
-export function getRendererAssetPath(
-  rendererDirectory: string,
-  requestUrl: string,
-) {
+export function getRendererAssetPath(rendererDirectory: string, requestUrl: string) {
   if (!URL.canParse(requestUrl)) return null;
 
   const url = new URL(requestUrl);
@@ -155,11 +136,7 @@ export function getRendererAssetPath(
     );
     const relativePath = relative(rendererDirectory, assetPath);
 
-    if (
-      relativePath === ".." ||
-      relativePath.startsWith(`..${sep}`) ||
-      isAbsolute(relativePath)
-    ) {
+    if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
       return null;
     }
 
@@ -169,10 +146,7 @@ export function getRendererAssetPath(
   }
 }
 
-export function resolveTrackRequest(
-  url: string,
-  tracks: ReadonlyMap<string, string>,
-) {
+export function resolveTrackRequest(url: string, tracks: ReadonlyMap<string, string>) {
   if (!URL.canParse(url)) return null;
 
   const parsedUrl = new URL(url);
@@ -187,10 +161,7 @@ export function resolveTrackRequest(
 
   try {
     return {
-      path:
-        tracks.get(
-          decodeURIComponent(parsedUrl.pathname.slice("/media/".length)),
-        ) ?? null,
+      path: tracks.get(decodeURIComponent(parsedUrl.pathname.slice("/media/".length))) ?? null,
     };
   } catch {
     return { path: null };

@@ -32,10 +32,7 @@ export async function readMusicFolder(userDataDirectory: string) {
   );
 }
 
-export async function saveMusicFolder(
-  userDataDirectory: string,
-  folder: string,
-) {
+export async function saveMusicFolder(userDataDirectory: string, folder: string) {
   await mkdir(userDataDirectory, { recursive: true });
   await writeFile(join(userDataDirectory, musicFolderFileName), folder, "utf8");
 }
@@ -47,11 +44,7 @@ export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
   });
 
   const audioPaths = entries
-    .filter(
-      (entry) =>
-        entry.isFile() &&
-        audioContentTypes.has(extname(entry.name).toLowerCase()),
-    )
+    .filter((entry) => entry.isFile() && audioContentTypes.has(extname(entry.name).toLowerCase()))
     .map((file) => join(file.parentPath, file.name))
     .sort((left, right) => left.localeCompare(right));
 
@@ -63,17 +56,12 @@ export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
     .toArray();
 }
 
-async function scanTrack(
-  path: string,
-  parseFile: ParseFile,
-): Promise<ScannedTrack> {
+async function scanTrack(path: string, parseFile: ParseFile): Promise<ScannedTrack> {
   const extension = extname(path);
-  const metadata = await parseFile(path, { duration: true }).catch(
-    (error: Error) => {
-      console.warn("Could not read audio metadata", { error, path });
-      return null;
-    },
-  );
+  const metadata = await parseFile(path, { duration: true }).catch((error: Error) => {
+    console.warn("Could not read audio metadata", { error, path });
+    return null;
+  });
 
   return {
     duration: metadata?.format.duration ?? null,

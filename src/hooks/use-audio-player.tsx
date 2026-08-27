@@ -11,9 +11,7 @@ type AudioPlayerContextValue = {
   toggleMute: () => void;
 };
 
-const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(
-  null,
-);
+const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(null);
 
 export function useAudioPlayer() {
   const context = useContext(AudioPlayerContext);
@@ -25,11 +23,7 @@ export function useAudioPlayer() {
   return context;
 }
 
-export function AudioPlayerProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const playbackRequestRef = useRef(0);
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
@@ -101,9 +95,7 @@ export function AudioPlayerProvider({
           onEnded={() => setIsPlaying(false)}
           onError={(event) => {
             setIsPlaying(false);
-            setErrorMessage(
-              event.currentTarget.error?.message || "Playback failed",
-            );
+            setErrorMessage(event.currentTarget.error?.message || "Playback failed");
           }}
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}

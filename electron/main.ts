@@ -17,11 +17,7 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import {
-  readMusicFolder,
-  saveMusicFolder,
-  scanAudioFiles,
-} from "./library";
+import { readMusicFolder, saveMusicFolder, scanAudioFiles } from "./library";
 import { lumeChannels } from "../shared/lib";
 
 app.enableSandbox();
@@ -118,8 +114,8 @@ void app.whenReady().then(() => {
   registerProtocolHandler(rendererDirectory, () => tracksById);
 
   session.defaultSession.setPermissionCheckHandler(() => false);
-  session.defaultSession.setPermissionRequestHandler(
-    (_webContents, _permission, callback) => callback(false),
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
+    callback(false),
   );
 
   createWindow();
@@ -136,11 +132,7 @@ app.on("window-all-closed", () => {
 function requireTrustedWindow(event: IpcMainInvokeEvent) {
   const window = BrowserWindow.fromWebContents(event.sender);
 
-  if (
-    !window ||
-    window.isDestroyed() ||
-    !isTrustedRendererEvent(event, rendererUrl)
-  ) {
+  if (!window || window.isDestroyed() || !isTrustedRendererEvent(event, rendererUrl)) {
     throw new Error("Blocked IPC request from an untrusted renderer");
   }
 

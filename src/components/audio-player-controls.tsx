@@ -29,12 +29,8 @@ export function AudioPlayerControls() {
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
-            {audioPlayer.activeTrack.name}
-          </p>
-          <p className="mt-0.5 text-xs text-white/45">
-            {audioPlayer.activeTrack.format}
-          </p>
+          <p className="truncate text-sm font-medium">{audioPlayer.activeTrack.name}</p>
+          <p className="mt-0.5 text-xs text-white/45">{audioPlayer.activeTrack.format}</p>
         </div>
       </div>
 

@@ -8,9 +8,7 @@ const temporaryFolders: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryFolders
-      .splice(0)
-      .map((folder) => rm(folder, { force: true, recursive: true })),
+    temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
   );
 });
 

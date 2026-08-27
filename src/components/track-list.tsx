@@ -22,9 +22,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
             {tracks.map((track, index) => (
               <tr
                 className={
-                  audioPlayer.activeTrack?.id === track.id
-                    ? "bg-white/10"
-                    : "hover:bg-white/5"
+                  audioPlayer.activeTrack?.id === track.id ? "bg-white/10" : "hover:bg-white/5"
                 }
                 key={track.id}
               >

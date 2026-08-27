@@ -27,27 +27,22 @@ function App() {
   const hasLoadedSavedLibrary = useRef(false);
   const audioPlayer = useAudioPlayer();
 
-  const scanMusicLibrary = useCallback(
-    async (request: () => Promise<MusicLibrary | null>) => {
-      setIsLoadingLibrary(true);
-      setErrorMessage(null);
+  const scanMusicLibrary = useCallback(async (request: () => Promise<MusicLibrary | null>) => {
+    setIsLoadingLibrary(true);
+    setErrorMessage(null);
 
-      try {
-        const library = await request();
+    try {
+      const library = await request();
 
-        if (!library) return;
+      if (!library) return;
 
-        setLibrary(library);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Library scan failed",
-        );
-      } finally {
-        setIsLoadingLibrary(false);
-      }
-    },
-    [],
-  );
+      setLibrary(library);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Library scan failed");
+    } finally {
+      setIsLoadingLibrary(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (hasLoadedSavedLibrary.current) return;
@@ -87,9 +82,7 @@ function App() {
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 disabled={isLoadingLibrary}
-                onClick={() =>
-                  void scanMusicLibrary(window.lume.chooseMusicFolder)
-                }
+                onClick={() => void scanMusicLibrary(window.lume.chooseMusicFolder)}
                 type="button"
               >
                 {library ? "Change Music Folder" : "Choose Music Folder"}
@@ -98,9 +91,7 @@ function App() {
               {library && (
                 <Button
                   disabled={isLoadingLibrary}
-                  onClick={() =>
-                    void scanMusicLibrary(window.lume.loadMusicLibrary)
-                  }
+                  onClick={() => void scanMusicLibrary(window.lume.loadMusicLibrary)}
                   type="button"
                   variant="outline"
                 >
@@ -109,22 +100,15 @@ function App() {
               )}
 
               {library && (
-                <span
-                  className="truncate text-xs text-white/60"
-                  title={library.folder}
-                >
+                <span className="truncate text-xs text-white/60" title={library.folder}>
                   {library.folder}
                 </span>
               )}
             </div>
 
             {errorMessage && <p role="alert">{errorMessage}</p>}
-            {audioPlayer.errorMessage && (
-              <p role="alert">{audioPlayer.errorMessage}</p>
-            )}
-            {library?.tracks && library.tracks.length > 0 && (
-              <TrackList tracks={library?.tracks} />
-            )}
+            {audioPlayer.errorMessage && <p role="alert">{audioPlayer.errorMessage}</p>}
+            {library?.tracks && library.tracks.length > 0 && <TrackList tracks={library?.tracks} />}
           </main>
         </SidebarInset>
       </SidebarProvider>

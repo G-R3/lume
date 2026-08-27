@@ -16,23 +16,16 @@ const temporaryFolders: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryFolders.splice(0).map((folder) =>
-      rm(folder, { force: true, recursive: true }),
-    ),
+    temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
   );
 });
 
 describe("isTrustedRendererUrl", () => {
   it("accepts the configured document URL", () => {
-    expect(isTrustedRendererUrl(packagedRendererUrl, packagedRendererUrl)).toBe(
+    expect(isTrustedRendererUrl(packagedRendererUrl, packagedRendererUrl)).toBe(true);
+    expect(isTrustedRendererUrl("http://localhost:5173/", "http://localhost:5173/#library")).toBe(
       true,
     );
-    expect(
-      isTrustedRendererUrl(
-        "http://localhost:5173/",
-        "http://localhost:5173/#library",
-      ),
-    ).toBe(true);
   });
 
   it.each([
@@ -45,26 +38,18 @@ describe("isTrustedRendererUrl", () => {
   });
 
   it("rejects another development server port", () => {
-    expect(
-      isTrustedRendererUrl(
-        "http://localhost:5173/",
-        "http://localhost:5174/",
-      ),
-    ).toBe(false);
+    expect(isTrustedRendererUrl("http://localhost:5173/", "http://localhost:5174/")).toBe(false);
   });
 });
 
 describe("getRendererAssetPath", () => {
   it("maps app URLs into the renderer directory", () => {
-    expect(
-      getRendererAssetPath(rendererDirectory, "lume://app/"),
-    ).toBe(join(rendererDirectory, "index.html"));
-    expect(
-      getRendererAssetPath(
-        rendererDirectory,
-        "lume://app/assets/application.js",
-      ),
-    ).toBe(join(rendererDirectory, "assets", "application.js"));
+    expect(getRendererAssetPath(rendererDirectory, "lume://app/")).toBe(
+      join(rendererDirectory, "index.html"),
+    );
+    expect(getRendererAssetPath(rendererDirectory, "lume://app/assets/application.js")).toBe(
+      join(rendererDirectory, "assets", "application.js"),
+    );
   });
 
   it.each([
@@ -74,9 +59,7 @@ describe("getRendererAssetPath", () => {
     "lume://app/%",
     "lume://app/%2e%2e%2fsecrets.txt",
   ])("rejects a request outside the renderer: %s", (requestUrl) => {
-    expect(
-      getRendererAssetPath(rendererDirectory, requestUrl),
-    ).toBeNull();
+    expect(getRendererAssetPath(rendererDirectory, requestUrl)).toBeNull();
   });
 });
 
@@ -88,9 +71,7 @@ describe("app protocol track URLs", () => {
   it("resolves an indexed track through the app protocol", () => {
     const url = getTrackUrl(trackId);
 
-    expect(url).toBe(
-      "lume://app/media/48fc51b1-f8e5-46ad-b5f6-4c4b371f9897",
-    );
+    expect(url).toBe("lume://app/media/48fc51b1-f8e5-46ad-b5f6-4c4b371f9897");
     expect(url).not.toContain(audioPath);
     expect(resolveTrackRequest(url, tracks)).toEqual({ path: audioPath });
   });
@@ -107,22 +88,18 @@ describe("app protocol track URLs", () => {
     });
   });
 
-  it.each([
-    `https://app/media/${trackId}`,
-    `lume://other/media/${trackId}`,
-    "not a url",
-  ])("rejects an invalid track URL: %s", (url) => {
-    expect(resolveTrackRequest(url, tracks)).toBeNull();
-  });
+  it.each([`https://app/media/${trackId}`, `lume://other/media/${trackId}`, "not a url"])(
+    "rejects an invalid track URL: %s",
+    (url) => {
+      expect(resolveTrackRequest(url, tracks)).toBeNull();
+    },
+  );
 });
 
 describe("createTrackResponse", () => {
   it("serves a complete audio file with media headers", async () => {
     const path = await createAudioFile("track.mp3");
-    const response = await createTrackResponse(
-      path,
-      new Request("lume://app/media/track"),
-    );
+    const response = await createTrackResponse(path, new Request("lume://app/media/track"));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("accept-ranges")).toBe("bytes");
@@ -146,9 +123,7 @@ describe("createTrackResponse", () => {
     expect(response.status).toBe(206);
     expect(response.headers.get("content-range")).toBe(contentRange);
     expect(response.headers.get("content-length")).toBe(String(body.length));
-    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-      Uint8Array.from(body),
-    );
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(Uint8Array.from(body));
   });
 
   it("rejects an unsatisfiable range", async () => {
