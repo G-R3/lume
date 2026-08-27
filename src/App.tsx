@@ -91,7 +91,7 @@ function App() {
                       >
                         <span>All tracks</span>
                         {library && (
-                          <span className="font-berkeley ml-auto text-[10px] text-neutral-500 tabular-nums">
+                          <span className="font-berkeley ml-auto text-[10px] text-neutral-500 tabular-nums bg-neutral-800 py-1 px-1.5 rounded">
                             {library.tracks.length.toLocaleString()}
                           </span>
                         )}
@@ -127,7 +127,7 @@ function App() {
             />
             <h1 className="text-sm font-semibold tracking-tight">All tracks</h1>
             {library && (
-              <span className="font-berkeley text-[10px] text-neutral-400 tabular-nums">
+              <span className="font-berkeley text-[10px] text-neutral-400 tabular-nums bg-neutral-800 py-1 px-1.5 rounded">
                 {library.tracks.length.toLocaleString()}
               </span>
             )}
