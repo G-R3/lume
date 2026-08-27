@@ -5,7 +5,10 @@ type AudioPlayerContextValue = {
   activeTrack: Track | null;
   errorMessage: string | null;
   isPlaying: boolean;
-  play: (track: Track) => void;
+  isMuted: boolean;
+  play: (track?: Track) => void;
+  pause: () => void;
+  toggleMute: () => void;
 };
 
 const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(
@@ -32,13 +35,14 @@ export function AudioPlayerProvider({
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const play = useCallback(
-    (track: Track) => {
+    (track?: Track) => {
       const playbackRequest = ++playbackRequestRef.current;
       setErrorMessage(null);
 
-      if (activeTrack?.id !== track.id) {
+      if (track && activeTrack?.id !== track.id) {
         setIsPlaying(false);
         setActiveTrack(track);
         return;
@@ -58,14 +62,32 @@ export function AudioPlayerProvider({
     [activeTrack],
   );
 
-  const contextValue = React.useMemo<AudioPlayerContextValue>(
-    () => ({
-      activeTrack,
-      errorMessage,
-      isPlaying,
-      play,
-    }),
-    [activeTrack, errorMessage, isPlaying, play],
+  const pause = useCallback(() => {
+    const audio = audioPlayerRef.current;
+
+    if (!audio || !activeTrack) return;
+
+    ++playbackRequestRef.current;
+    audio.pause();
+    setIsPlaying(false);
+  }, [activeTrack]);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((isMuted) => !isMuted);
+  }, []);
+
+  const contextValue = React.useMemo(
+    () =>
+      ({
+        activeTrack,
+        errorMessage,
+        isPlaying,
+        isMuted,
+        play,
+        pause,
+        toggleMute,
+      }) satisfies AudioPlayerContextValue,
+    [activeTrack, errorMessage, isPlaying, isMuted, play, pause, toggleMute],
   );
 
   return (
@@ -74,6 +96,7 @@ export function AudioPlayerProvider({
       {activeTrack && (
         <audio
           autoPlay
+          muted={isMuted}
           key={activeTrack.id}
           onEnded={() => setIsPlaying(false)}
           onError={(event) => {
