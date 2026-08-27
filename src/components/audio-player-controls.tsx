@@ -88,18 +88,22 @@ export function AudioPlayerControls() {
           <span>
             {formatDuration(displayedTime)}
           </span>
+          <span className="sr-only" id="playback-position-label">
+            Playback position in seconds
+          </span>
           <Slider
-            value={displayedTime}
-            step={0.1}
+            aria-labelledby="playback-position-label"
+            disabled={duration <= 0}
+            max={duration > 0 ? duration : 1}
             min={0}
-            max={duration}
             onValueChange={(value) => {
               audioPlayer.setScrubTime(value);
             }}
             onValueCommitted={(value) => {
               audioPlayer.seek(value);
             }}
-            disabled={duration <= 0}
+            step={0.1}
+            value={displayedTime}
           />
           <span>{formatDuration(duration)}</span>
         </div>

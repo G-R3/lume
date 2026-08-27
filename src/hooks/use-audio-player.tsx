@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useContext, useRef, useState } from "react";
 import type { Track } from "../../shared/lib";
 
 type AudioPlayerContextValue = {
@@ -46,8 +41,9 @@ export function AudioPlayerProvider({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  // Scanned metadata seeds the UI, then the audio element replaces it with decoded duration.
+  const [duration, setDuration] = useState(0);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
 
   const play = useCallback(
@@ -59,7 +55,12 @@ export function AudioPlayerProvider({
         setIsPlaying(false);
         setActiveTrack(track);
         setCurrentTime(0);
-        setDuration(track.duration ?? 0);
+        setDuration(
+          track.duration !== null && Number.isFinite(track.duration) && track.duration > 0
+            ? track.duration
+            : 0,
+        );
+        setScrubTime(null);
         return;
       }
 
@@ -98,8 +99,6 @@ export function AudioPlayerProvider({
       if (!audio || !activeTrack) return;
 
       audio.currentTime = time;
-      setCurrentTime(time);
-      setScrubTime(time);
     },
     [activeTrack],
   );
@@ -132,7 +131,6 @@ export function AudioPlayerProvider({
       pause,
       toggleMute,
       seek,
-      setScrubTime,
     ],
   );
 
@@ -145,12 +143,13 @@ export function AudioPlayerProvider({
           muted={isMuted}
           key={activeTrack.id}
           onDurationChange={(event) => {
-            if (!Number.isFinite(event.currentTarget.duration)) return;
-            setDuration(event.currentTarget.duration);
+            const duration = event.currentTarget.duration;
+
+            if (!Number.isFinite(duration) || duration <= 0) return;
+            setDuration(duration);
           }}
           onEnded={(event) => {
             setIsPlaying(false);
-            setDuration(event.currentTarget.duration);
             setCurrentTime(event.currentTarget.duration);
             setScrubTime(null);
           }}
@@ -164,6 +163,7 @@ export function AudioPlayerProvider({
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}
           onSeeked={(event) => {
+            // clearing scrubTime before `seeked` would briefly flicker the previous progress.
             setCurrentTime(event.currentTarget.currentTime);
             setScrubTime(null);
           }}
