@@ -64,7 +64,6 @@ export function AudioPlayerProvider({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [timeStore] = useState(createAudioPlayerTimeStore);
-  // Scanned metadata seeds the UI, then the audio element replaces it with decoded duration.
   const [duration, setDuration] = useState(0);
 
   const play = useCallback(
@@ -76,6 +75,10 @@ export function AudioPlayerProvider({
         setIsPlaying(false);
         setActiveTrack(track);
         timeStore.set(0);
+
+        // Use track duration metadata until the audio element
+        // reports its decoded duration through onDurationChange
+        // avoid having `0:00` duration on the UI and prevent the timer from exceeding the duration near the end
         setDuration(
           track.duration !== null &&
             Number.isFinite(track.duration) &&
@@ -83,6 +86,7 @@ export function AudioPlayerProvider({
             ? track.duration
             : 0,
         );
+
         return;
       }
 
@@ -121,7 +125,7 @@ export function AudioPlayerProvider({
       if (!audio || !activeTrack) return;
 
       audio.currentTime = time;
-      // Publish before the Slider drops its preview to prevent a flicker to stale progress.
+      // update the timeStore timer before AudioPlayerProgress clears its previewTime to prevent a flicker on the slider.
       timeStore.set(audio.currentTime);
     },
     [activeTrack, timeStore],
