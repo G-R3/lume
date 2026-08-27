@@ -1,5 +1,5 @@
 import { Slider } from "@/components/ui/slider";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { useAudioPlayer, useAudioPlayerTime } from "@/hooks/use-audio-player";
 import { formatDuration } from "@/lib/format-duration";
 import {
   PauseIcon,
@@ -9,17 +9,12 @@ import {
   SpeakerHighIcon,
   SpeakerSlashIcon,
 } from "@phosphor-icons/react";
+import { useId, useState } from "react";
 
 export function AudioPlayerControls() {
   const audioPlayer = useAudioPlayer();
 
   if (!audioPlayer.activeTrack) return null;
-
-  const duration = audioPlayer.duration;
-  const displayedTime = Math.min(
-    audioPlayer.scrubTime ?? audioPlayer.currentTime,
-    duration,
-  );
 
   return (
     <footer className="fixed inset-x-0 bottom-0 z-50 grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 text-neutral-50 shadow-2xl backdrop-blur-sm">
@@ -37,12 +32,8 @@ export function AudioPlayerControls() {
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
-            {audioPlayer.activeTrack.name}
-          </p>
-          <p className="mt-0.5 text-xs text-neutral-400">
-            {audioPlayer.activeTrack.format}
-          </p>
+          <p className="truncate text-sm font-medium">{audioPlayer.activeTrack.name}</p>
+          <p className="mt-0.5 text-xs text-neutral-400">{audioPlayer.activeTrack.format}</p>
         </div>
       </div>
 
@@ -84,29 +75,7 @@ export function AudioPlayerControls() {
           </button>
         </div>
 
-        <div>
-          <span>
-            {formatDuration(displayedTime)}
-          </span>
-          <span className="sr-only" id="playback-position-label">
-            Playback position in seconds
-          </span>
-          <Slider
-            aria-labelledby="playback-position-label"
-            disabled={duration <= 0}
-            max={duration > 0 ? duration : 1}
-            min={0}
-            onValueChange={(value) => {
-              audioPlayer.setScrubTime(value);
-            }}
-            onValueCommitted={(value) => {
-              audioPlayer.seek(value);
-            }}
-            step={0.1}
-            value={displayedTime}
-          />
-          <span>{formatDuration(duration)}</span>
-        </div>
+        <AudioPlayerProgress key={audioPlayer.activeTrack.id} />
       </div>
 
       <div className="flex items-center justify-end gap-3 text-neutral-400">
@@ -128,5 +97,37 @@ export function AudioPlayerControls() {
         />
       </div>
     </footer>
+  );
+}
+
+export function AudioPlayerProgress() {
+  const audioPlayer = useAudioPlayer();
+  const currentTime = useAudioPlayerTime();
+  const labelId = useId();
+  const [previewTime, setPreviewTime] = useState<number | null>(null);
+  const displayedTime = Math.min(previewTime ?? currentTime, audioPlayer.duration);
+
+  return (
+    <div>
+      <span>{formatDuration(displayedTime)}</span>
+      <span className="sr-only" id={labelId}>
+        Playback position in seconds
+      </span>
+      <Slider
+        aria-labelledby={labelId}
+        disabled={audioPlayer.duration <= 0}
+        max={audioPlayer.duration > 0 ? audioPlayer.duration : 1}
+        min={0}
+        onPointerCancel={() => setPreviewTime(null)}
+        onValueChange={setPreviewTime}
+        onValueCommitted={(value) => {
+          audioPlayer.seek(value);
+          setPreviewTime(null);
+        }}
+        step={0.1}
+        value={displayedTime}
+      />
+      <span>{formatDuration(audioPlayer.duration)}</span>
+    </div>
   );
 }

@@ -1,4 +1,10 @@
-import React, { useCallback, useContext, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { Track } from "../../shared/lib";
 
 type AudioPlayerContextValue = {
@@ -6,17 +12,19 @@ type AudioPlayerContextValue = {
   errorMessage: string | null;
   isPlaying: boolean;
   isMuted: boolean;
-  currentTime: number;
   duration: number;
-  scrubTime: number | null;
   play: (track?: Track) => void;
   pause: () => void;
   toggleMute: () => void;
   seek: (time: number) => void;
-  setScrubTime: React.Dispatch<React.SetStateAction<number | null>>;
 };
 
+type AudioPlayerTimeStore = ReturnType<typeof createAudioPlayerTimeStore>;
+
 const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(
+  null,
+);
+const AudioPlayerTimeContext = React.createContext<AudioPlayerTimeStore | null>(
   null,
 );
 
@@ -30,6 +38,20 @@ export function useAudioPlayer() {
   return context;
 }
 
+// split the timer updates to a separate context. This should help consumers of the audio player providers
+// from re-rendering everytime the timer is updated.
+export function useAudioPlayerTime() {
+  const store = useContext(AudioPlayerTimeContext);
+
+  if (!store) {
+    throw new Error(
+      "useAudioPlayerTime must be used within AudioPlayerProvider",
+    );
+  }
+
+  return useSyncExternalStore(store.subscribe, store.getSnapshot);
+}
+
 export function AudioPlayerProvider({
   children,
 }: {
@@ -41,10 +63,9 @@ export function AudioPlayerProvider({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [timeStore] = useState(createAudioPlayerTimeStore);
   // Scanned metadata seeds the UI, then the audio element replaces it with decoded duration.
   const [duration, setDuration] = useState(0);
-  const [scrubTime, setScrubTime] = useState<number | null>(null);
 
   const play = useCallback(
     (track?: Track) => {
@@ -54,13 +75,14 @@ export function AudioPlayerProvider({
       if (track && activeTrack?.id !== track.id) {
         setIsPlaying(false);
         setActiveTrack(track);
-        setCurrentTime(0);
+        timeStore.set(0);
         setDuration(
-          track.duration !== null && Number.isFinite(track.duration) && track.duration > 0
+          track.duration !== null &&
+            Number.isFinite(track.duration) &&
+            track.duration > 0
             ? track.duration
             : 0,
         );
-        setScrubTime(null);
         return;
       }
 
@@ -75,7 +97,7 @@ export function AudioPlayerProvider({
         setErrorMessage(error.message || "Playback failed");
       });
     },
-    [activeTrack],
+    [activeTrack, timeStore],
   );
 
   const pause = useCallback(() => {
@@ -99,8 +121,10 @@ export function AudioPlayerProvider({
       if (!audio || !activeTrack) return;
 
       audio.currentTime = time;
+      // Publish before the Slider drops its preview to prevent a flicker to stale progress.
+      timeStore.set(audio.currentTime);
     },
-    [activeTrack],
+    [activeTrack, timeStore],
   );
 
   const contextValue = React.useMemo(
@@ -110,23 +134,18 @@ export function AudioPlayerProvider({
         errorMessage,
         isPlaying,
         isMuted,
-        currentTime,
         duration,
-        scrubTime,
         play,
         pause,
         toggleMute,
         seek,
-        setScrubTime,
       }) satisfies AudioPlayerContextValue,
     [
       activeTrack,
       errorMessage,
       isPlaying,
       isMuted,
-      currentTime,
       duration,
-      scrubTime,
       play,
       pause,
       toggleMute,
@@ -136,7 +155,9 @@ export function AudioPlayerProvider({
 
   return (
     <AudioPlayerContext.Provider value={contextValue}>
-      {children}
+      <AudioPlayerTimeContext.Provider value={timeStore}>
+        {children}
+      </AudioPlayerTimeContext.Provider>
       {activeTrack && (
         <audio
           autoPlay
@@ -150,12 +171,10 @@ export function AudioPlayerProvider({
           }}
           onEnded={(event) => {
             setIsPlaying(false);
-            setCurrentTime(event.currentTarget.duration);
-            setScrubTime(null);
+            timeStore.set(event.currentTarget.duration);
           }}
           onError={(event) => {
             setIsPlaying(false);
-            setScrubTime(null);
             setErrorMessage(
               event.currentTarget.error?.message || "Playback failed",
             );
@@ -163,17 +182,39 @@ export function AudioPlayerProvider({
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}
           onSeeked={(event) => {
-            // clearing scrubTime before `seeked` would briefly flicker the previous progress.
-            setCurrentTime(event.currentTarget.currentTime);
-            setScrubTime(null);
+            timeStore.set(event.currentTarget.currentTime);
+          }}
+          onSeeking={(event) => {
+            timeStore.set(event.currentTarget.currentTime);
           }}
           ref={audioPlayerRef}
           src={activeTrack.url}
-          onTimeUpdate={(e) => {
-            setCurrentTime(e.currentTarget.currentTime);
+          onTimeUpdate={(event) => {
+            timeStore.set(event.currentTarget.currentTime);
           }}
         />
       )}
     </AudioPlayerContext.Provider>
   );
+}
+
+function createAudioPlayerTimeStore() {
+  const listeners = new Set<() => void>();
+  let currentTime = 0;
+
+  return {
+    getSnapshot: () => currentTime,
+    set: (time: number) => {
+      if (!Number.isFinite(time) || time < 0 || time === currentTime) return;
+
+      currentTime = time;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
 }
