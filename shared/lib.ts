@@ -14,6 +14,7 @@ export type MusicLibrary = {
 export type LumeApi = {
   chooseMusicFolder: () => Promise<MusicLibrary | null>;
   loadMusicLibrary: () => Promise<MusicLibrary | null>;
+  isMac: boolean;
 };
 
 export const lumeChannels = {
