@@ -113,6 +113,12 @@ function AudioPlayerProgress() {
     previewTime ?? currentTime,
     audioPlayer.duration,
   );
+  const progress =
+    audioPlayer.duration > 0
+      ? (displayedTime / audioPlayer.duration) * 100
+      : 0;
+  const textureOffset = 8 - progress * 0.16;
+  const textureMask = `linear-gradient(to right, transparent calc(${progress}% + ${textureOffset - 52}px), black calc(${progress}% + ${textureOffset - 18}px), black calc(${progress}% + ${textureOffset + 18}px), transparent calc(${progress}% + ${textureOffset + 52}px))`;
 
   return (
     <div className="mt-2 grid grid-cols-[2.25rem_minmax(8rem,1fr)_2.25rem] items-center gap-2">
@@ -122,21 +128,32 @@ function AudioPlayerProgress() {
       <span className="sr-only" id={labelId}>
         Playback position in seconds
       </span>
-      <Slider
-        aria-labelledby={labelId}
-        className="**:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
-        disabled={audioPlayer.duration <= 0}
-        max={audioPlayer.duration > 0 ? audioPlayer.duration : 1}
-        min={0}
-        onPointerCancel={() => setPreviewTime(null)}
-        onValueChange={setPreviewTime}
-        onValueCommitted={(value) => {
-          audioPlayer.seek(value);
-          setPreviewTime(null);
-        }}
-        step={0.1}
-        value={displayedTime}
-      />
+      <div className="audio-player-progress relative">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-x-2 top-1/2 h-5 -translate-y-1/2 opacity-0 transition-opacity duration-300 ease-out"
+          data-slot="slider-texture"
+          style={{
+            maskImage: textureMask,
+            WebkitMaskImage: textureMask,
+          }}
+        />
+        <Slider
+          aria-labelledby={labelId}
+          className="relative cursor-pointer **:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
+          disabled={audioPlayer.duration <= 0}
+          max={audioPlayer.duration > 0 ? audioPlayer.duration : 1}
+          min={0}
+          onPointerCancel={() => setPreviewTime(null)}
+          onValueChange={setPreviewTime}
+          onValueCommitted={(value) => {
+            audioPlayer.seek(value);
+            setPreviewTime(null);
+          }}
+          step={0.1}
+          value={displayedTime}
+        />
+      </div>
       <span className="text-right text-[11px] text-neutral-400 tabular-nums">
         {formatDuration(audioPlayer.duration)}
       </span>
