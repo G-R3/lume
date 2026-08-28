@@ -114,9 +114,7 @@ function AudioPlayerProgress() {
     audioPlayer.duration,
   );
   const progress =
-    audioPlayer.duration > 0
-      ? (displayedTime / audioPlayer.duration) * 100
-      : 0;
+    audioPlayer.duration > 0 ? (displayedTime / audioPlayer.duration) * 100 : 0;
   const textureOffset = 8 - progress * 0.16;
   const textureMask = `linear-gradient(to right, transparent calc(${progress}% + ${textureOffset - 52}px), black calc(${progress}% + ${textureOffset - 18}px), black calc(${progress}% + ${textureOffset + 18}px), transparent calc(${progress}% + ${textureOffset + 52}px))`;
 
@@ -135,12 +133,11 @@ function AudioPlayerProgress() {
           data-slot="slider-texture"
           style={{
             maskImage: textureMask,
-            WebkitMaskImage: textureMask,
           }}
         />
         <Slider
           aria-labelledby={labelId}
-          className="relative cursor-pointer **:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
+          className="cursor-pointer **:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
           disabled={audioPlayer.duration <= 0}
           max={audioPlayer.duration > 0 ? audioPlayer.duration : 1}
           min={0}

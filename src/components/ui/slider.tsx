@@ -42,7 +42,7 @@ function Slider<Value extends number | readonly number[]>({
             data-slot="slider-thumb"
             index={index}
             key={index}
-            className="relative block size-3 shrink-0 rounded-md border border-ring bg-white ring-lime-300 ring-offset-1 ring-offset-black transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:ring-2 focus-visible:ring-2 focus-visible:outline-hidden has-focus-visible:ring-2 active:ring-2 disabled:pointer-events-none disabled:opacity-50"
+            className="relative block size-3 shrink-0 rounded-md border border-ring bg-white ring-lime-300 ring-offset-1 ring-offset-black transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:ring-2 has-focus-visible:ring-2 active:ring-2 disabled:pointer-events-none disabled:opacity-50"
           />
         ))}
       </SliderPrimitive.Control>
