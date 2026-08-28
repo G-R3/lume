@@ -60,7 +60,7 @@ function App() {
 
   return (
     <>
-      <SidebarProvider className="dark bg-neutral-950 text-neutral-50">
+      <SidebarProvider className="bg-neutral-950 text-neutral-50">
         <Sidebar className="border-neutral-800">
           <SidebarHeader className={cn("px-4 pb-3", isMac ? "pt-13" : "pt-4")}>
             <div className="flex items-center gap-2.5 px-1 text-sm font-semibold tracking-wide">

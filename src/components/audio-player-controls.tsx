@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useAudioPlayer, useAudioPlayerTime } from "@/hooks/use-audio-player";
 import { formatDuration } from "@/lib/format-duration";
@@ -53,7 +54,7 @@ export function AudioPlayerControls() {
           </button>
           <button
             aria-label={audioPlayer.isPlaying ? "Pause" : "Play"}
-            className="grid size-9 place-items-center rounded-full bg-neutral-50 text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300"
+            className="cursor-pointer grid size-9 place-items-center rounded-full bg-neutral-50 text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300"
             type="button"
             onClick={() => {
               if (audioPlayer.isPlaying) {
@@ -83,18 +84,21 @@ export function AudioPlayerControls() {
       </div>
 
       <div className="flex items-center justify-end gap-3 text-neutral-400">
-        <button
+        <Button
+          variant="ghost"
+          size="icon-sm"
           aria-label={audioPlayer.isMuted ? "Unmute audio" : "Mute audio"}
-          className="grid size-8 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-lime-300"
+          className="cursor-pointer grid size-8 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-lime-300"
           type="button"
           onClick={() => audioPlayer.toggleMute()}
         >
           {audioPlayer.isMuted ? (
-            <SpeakerSlashIcon aria-hidden="true" size={18} />
+            <SpeakerSlashIcon aria-hidden="true" className="size-4.5" />
           ) : (
-            <SpeakerHighIcon aria-hidden="true" size={18} />
+            <SpeakerHighIcon aria-hidden="true" className="size-4.5" />
           )}
-        </button>
+          <span className="sr-only">Toggle mute</span>
+        </Button>
         <div
           aria-hidden="true"
           className="hidden h-0.5 w-20 bg-linear-to-r from-neutral-300 from-60% to-neutral-800 to-60% sm:block"
