@@ -29,27 +29,22 @@ function App() {
   const audioPlayer = useAudioPlayer();
   const isMac = window.lume.isMac;
 
-  const scanMusicLibrary = useCallback(
-    async (request: () => Promise<MusicLibrary | null>) => {
-      setIsLoadingLibrary(true);
-      setErrorMessage(null);
+  const scanMusicLibrary = useCallback(async (request: () => Promise<MusicLibrary | null>) => {
+    setIsLoadingLibrary(true);
+    setErrorMessage(null);
 
-      try {
-        const library = await request();
+    try {
+      const library = await request();
 
-        if (!library) return;
+      if (!library) return;
 
-        setLibrary(library);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Library scan failed",
-        );
-      } finally {
-        setIsLoadingLibrary(false);
-      }
-    },
-    [],
-  );
+      setLibrary(library);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Library scan failed");
+    } finally {
+      setIsLoadingLibrary(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (hasLoadedSavedLibrary.current) return;
@@ -66,11 +61,7 @@ function App() {
             <div className="flex items-center gap-2.5 px-1 text-sm font-semibold tracking-wide">
               <span aria-hidden="true" className="flex h-4 items-end gap-0.5">
                 {[5, 12, 8, 14, 6].map((height) => (
-                  <span
-                    className="w-0.5 rounded-full bg-current"
-                    key={height}
-                    style={{ height }}
-                  />
+                  <span className="w-0.5 rounded-full bg-current" key={height} style={{ height }} />
                 ))}
               </span>
               Lume
@@ -144,9 +135,7 @@ function App() {
               <Button
                 className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
                 disabled={isLoadingLibrary}
-                onClick={() =>
-                  void scanMusicLibrary(window.lume.chooseMusicFolder)
-                }
+                onClick={() => void scanMusicLibrary(window.lume.chooseMusicFolder)}
                 type="button"
                 variant="outline"
               >
@@ -157,9 +146,7 @@ function App() {
                 <Button
                   className="border-lime-800 bg-lime-950 text-lime-300 hover:bg-lime-900 hover:text-lime-200"
                   disabled={isLoadingLibrary}
-                  onClick={() =>
-                    void scanMusicLibrary(window.lume.loadMusicLibrary)
-                  }
+                  onClick={() => void scanMusicLibrary(window.lume.loadMusicLibrary)}
                   type="button"
                   variant="outline"
                 >
@@ -180,9 +167,7 @@ function App() {
                 {audioPlayer.errorMessage}
               </p>
             )}
-            {library?.tracks && library.tracks.length > 0 && (
-              <TrackList tracks={library.tracks} />
-            )}
+            {library?.tracks && library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
           </div>
         </SidebarInset>
       </SidebarProvider>

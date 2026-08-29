@@ -33,12 +33,8 @@ export function AudioPlayerControls() {
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
-            {audioPlayer.activeTrack.name}
-          </p>
-          <p className="mt-0.5 text-xs text-neutral-400">
-            {audioPlayer.activeTrack.format}
-          </p>
+          <p className="truncate text-sm font-medium">{audioPlayer.activeTrack.name}</p>
+          <p className="mt-0.5 text-xs text-neutral-400">{audioPlayer.activeTrack.format}</p>
         </div>
       </div>
 
@@ -108,12 +104,8 @@ function AudioPlayerProgress() {
   const currentTime = useAudioPlayerTime();
   const labelId = useId();
   const [previewTime, setPreviewTime] = useState<number | null>(null);
-  const displayedTime = Math.min(
-    previewTime ?? currentTime,
-    audioPlayer.duration,
-  );
-  const progress =
-    audioPlayer.duration > 0 ? (displayedTime / audioPlayer.duration) * 100 : 0;
+  const displayedTime = Math.min(previewTime ?? currentTime, audioPlayer.duration);
+  const progress = audioPlayer.duration > 0 ? (displayedTime / audioPlayer.duration) * 100 : 0;
   const textureOffset = 8 - progress * 0.16;
   const textureMask = `linear-gradient(to right, transparent calc(${progress}% + ${textureOffset - 52}px), black calc(${progress}% + ${textureOffset - 18}px), black calc(${progress}% + ${textureOffset + 18}px), transparent calc(${progress}% + ${textureOffset + 52}px))`;
 

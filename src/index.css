@@ -149,11 +149,8 @@
 }
 
 /* The dot field stays fixed while the thumb moves its reveal mask. */
-.audio-player-progress:has([data-slot="slider-thumb"]:hover)
-  [data-slot="slider-texture"],
-.audio-player-progress:has([data-slot="slider-thumb"] :focus-visible)
-  [data-slot="slider-texture"],
-.audio-player-progress:has([data-slot="slider"][data-dragging])
-  [data-slot="slider-texture"] {
+.audio-player-progress:has([data-slot="slider-thumb"]:hover) [data-slot="slider-texture"],
+.audio-player-progress:has([data-slot="slider-thumb"] :focus-visible) [data-slot="slider-texture"],
+.audio-player-progress:has([data-slot="slider"][data-dragging]) [data-slot="slider-texture"] {
   opacity: 1;
 }
