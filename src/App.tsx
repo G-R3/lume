@@ -19,6 +19,7 @@ import {
 import { TrackList } from "@/components/track-list";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { AudioPlayerControls } from "@/components/audio-player-controls";
+import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 function App() {
@@ -56,6 +57,7 @@ function App() {
   return (
     <>
       <SidebarProvider className="bg-neutral-950 text-neutral-50">
+        <AppKeyboardShortcuts />
         <Sidebar className="border-neutral-800">
           <SidebarHeader className={cn("px-4 pb-3", isMac ? "pt-13" : "pt-4")}>
             <div className="flex items-center gap-2.5 px-1 text-sm font-semibold tracking-wide">

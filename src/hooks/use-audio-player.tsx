@@ -14,8 +14,7 @@ type AudioPlayerContextValue = {
   duration: number;
   canGoNext: boolean;
   playFrom: (tracks: readonly Track[], index: number) => void;
-  resume: () => void;
-  pause: () => void;
+  togglePlayback: () => void;
   toggleMute: () => void;
   seek: (time: number) => void;
   next: () => void;
@@ -92,6 +91,15 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     audio.pause();
     setIsPlaying(false);
   }, []);
+
+  const togglePlayback = useCallback(() => {
+    if (isPlaying) {
+      pause();
+      return;
+    }
+
+    resume();
+  }, [isPlaying, pause, resume]);
 
   const changeTrack = useCallback(
     (tracks: readonly Track[], index: number) => {
@@ -181,8 +189,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         duration,
         canGoNext,
         playFrom,
-        resume,
-        pause,
+        togglePlayback,
         toggleMute,
         seek,
         next,
@@ -196,8 +203,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       duration,
       canGoNext,
       playFrom,
-      resume,
-      pause,
+      togglePlayback,
       toggleMute,
       seek,
       next,

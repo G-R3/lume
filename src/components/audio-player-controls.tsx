@@ -52,7 +52,7 @@ export function AudioPlayerControls() {
             aria-label={audioPlayer.isPlaying ? "Pause" : "Play"}
             className="cursor-pointer grid size-9 place-items-center rounded-full bg-neutral-50 text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300"
             type="button"
-            onClick={audioPlayer.isPlaying ? audioPlayer.pause : audioPlayer.resume}
+            onClick={audioPlayer.togglePlayback}
           >
             {audioPlayer.isPlaying ? (
               <PauseIcon aria-hidden="true" size={17} weight="fill" />
