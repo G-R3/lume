@@ -181,7 +181,7 @@ function App() {
               </p>
             )}
             {library?.tracks && library.tracks.length > 0 && (
-              <TrackList tracks={library?.tracks} />
+              <TrackList tracks={library.tracks} />
             )}
           </div>
         </SidebarInset>

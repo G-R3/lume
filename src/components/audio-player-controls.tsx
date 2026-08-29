@@ -46,7 +46,7 @@ export function AudioPlayerControls() {
         <div className="flex items-center justify-center gap-4">
           <button
             aria-label="Previous track"
-            className="grid size-8 cursor-pointer place-items-center disabled:text-neutral-600"
+            className="grid size-8 cursor-pointer place-items-center"
             onClick={audioPlayer.previous}
             type="button"
           >
@@ -56,14 +56,7 @@ export function AudioPlayerControls() {
             aria-label={audioPlayer.isPlaying ? "Pause" : "Play"}
             className="cursor-pointer grid size-9 place-items-center rounded-full bg-neutral-50 text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300"
             type="button"
-            onClick={() => {
-              if (audioPlayer.isPlaying) {
-                audioPlayer.pause();
-                return;
-              }
-
-              audioPlayer.resume();
-            }}
+            onClick={audioPlayer.isPlaying ? audioPlayer.pause : audioPlayer.resume}
           >
             {audioPlayer.isPlaying ? (
               <PauseIcon aria-hidden="true" size={17} weight="fill" />
@@ -92,7 +85,7 @@ export function AudioPlayerControls() {
           aria-label={audioPlayer.isMuted ? "Unmute audio" : "Mute audio"}
           className="cursor-pointer grid size-8 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-lime-300"
           type="button"
-          onClick={() => audioPlayer.toggleMute()}
+          onClick={audioPlayer.toggleMute}
         >
           {audioPlayer.isMuted ? (
             <SpeakerSlashIcon aria-hidden="true" className="size-4.5" />
