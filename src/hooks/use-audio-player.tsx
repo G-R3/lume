@@ -7,16 +7,25 @@ import React, {
 } from "react";
 import type { Track } from "../../shared/lib";
 
+type PlaybackSequence = {
+  tracks: readonly Track[];
+  index: number;
+};
+
 type AudioPlayerContextValue = {
   activeTrack: Track | null;
   errorMessage: string | null;
   isPlaying: boolean;
   isMuted: boolean;
   duration: number;
-  play: (track?: Track) => void;
+  canGoNext: boolean;
+  playFrom: (tracks: readonly Track[], index: number) => void;
+  resume: () => void;
   pause: () => void;
   toggleMute: () => void;
   seek: (time: number) => void;
+  next: () => void;
+  previous: () => void;
 };
 
 type AudioPlayerTimeStore = ReturnType<typeof createAudioPlayerTimeStore>;
@@ -28,6 +37,8 @@ const AudioPlayerTimeContext = React.createContext<AudioPlayerTimeStore | null>(
   null,
 );
 
+const previousTrackThreshold = 2;
+
 export function useAudioPlayer() {
   const context = useContext(AudioPlayerContext);
 
@@ -38,8 +49,8 @@ export function useAudioPlayer() {
   return context;
 }
 
-// split the timer updates to a separate context. This should help consumers of the audio player providers
-// from re-rendering everytime the timer is updated.
+// keep frequent timer updates out of the main context so other controls do not
+// rerender every time the audio element reports progress.
 export function useAudioPlayerTime() {
   const store = useContext(AudioPlayerTimeContext);
 
@@ -59,50 +70,37 @@ export function AudioPlayerProvider({
 }) {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const playbackRequestRef = useRef(0);
-  const [activeTrack, setActiveTrack] = useState<Track | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [timeStore] = useState(createAudioPlayerTimeStore);
   const [duration, setDuration] = useState(0);
+  const [playbackSequence, setPlaybackSequence] =
+    useState<PlaybackSequence | null>(null);
 
-  const play = useCallback(
-    (track?: Track) => {
-      const playbackRequest = ++playbackRequestRef.current;
-      setErrorMessage(null);
+  const activeTrack = playbackSequence
+    ? playbackSequence.tracks[playbackSequence.index]
+    : null;
 
-      if (track && activeTrack?.id !== track.id) {
-        setIsPlaying(false);
-        setActiveTrack(track);
-        timeStore.set(0);
+  const canGoNext = playbackSequence
+    ? playbackSequence.index < playbackSequence.tracks.length - 1
+    : false;
 
-        // Use track duration metadata until the audio element
-        // reports its decoded duration through onDurationChange
-        // avoid having `0:00` duration on the UI and prevent the timer from exceeding the duration near the end
-        setDuration(
-          track.duration !== null &&
-            Number.isFinite(track.duration) &&
-            track.duration > 0
-            ? track.duration
-            : 0,
-        );
+  const resume = useCallback(() => {
+    const playbackRequest = ++playbackRequestRef.current;
+    setErrorMessage(null);
 
-        return;
-      }
+    const audio = audioPlayerRef.current;
 
-      const audio = audioPlayerRef.current;
+    if (!audio || !activeTrack) return;
 
-      if (!audio) return;
+    void audio.play().catch((error: DOMException) => {
+      if (playbackRequest !== playbackRequestRef.current) return;
 
-      void audio.play().catch((error: DOMException) => {
-        if (playbackRequest !== playbackRequestRef.current) return;
-
-        setIsPlaying(false);
-        setErrorMessage(error.message || "Playback failed");
-      });
-    },
-    [activeTrack, timeStore],
-  );
+      setIsPlaying(false);
+      setErrorMessage(error.message || "Playback failed");
+    });
+  }, [activeTrack]);
 
   const pause = useCallback(() => {
     const audio = audioPlayerRef.current;
@@ -113,6 +111,45 @@ export function AudioPlayerProvider({
     audio.pause();
     setIsPlaying(false);
   }, [activeTrack]);
+
+  const resetForTrack = useCallback(
+    (track: Track) => {
+      ++playbackRequestRef.current;
+      setErrorMessage(null);
+      setIsPlaying(false);
+      timeStore.set(0);
+
+      // use track duration metadata until the audio element
+      // reports its decoded duration through onDurationChange
+      // avoid having `0:00` duration on the UI and prevent the timer from exceeding the duration near the end
+      setDuration(
+        track.duration !== null &&
+          Number.isFinite(track.duration) &&
+          track.duration > 0
+          ? track.duration
+          : 0,
+      );
+    },
+    [timeStore],
+  );
+
+  const playFrom = useCallback(
+    (tracks: readonly Track[], index: number) => {
+      const track = tracks[index];
+
+      if (!track) return;
+
+      setPlaybackSequence({ tracks, index });
+
+      if (activeTrack?.id === track.id) {
+        resume();
+        return;
+      }
+
+      resetForTrack(track);
+    },
+    [activeTrack?.id, resetForTrack, resume],
+  );
 
   const toggleMute = useCallback(() => {
     setIsMuted((isMuted) => !isMuted);
@@ -131,6 +168,38 @@ export function AudioPlayerProvider({
     [activeTrack, timeStore],
   );
 
+  const next = useCallback(() => {
+    if (!playbackSequence) return;
+
+    const index = playbackSequence.index + 1;
+    const track = playbackSequence.tracks[index];
+
+    if (!track) return;
+
+    setPlaybackSequence({ tracks: playbackSequence.tracks, index });
+    resetForTrack(track);
+  }, [playbackSequence, resetForTrack]);
+
+  const previous = useCallback(() => {
+    if (!playbackSequence) return;
+
+    if (
+      playbackSequence.index === 0 ||
+      Math.floor(timeStore.getSnapshot()) > previousTrackThreshold
+    ) {
+      seek(0);
+      return;
+    }
+
+    const index = playbackSequence.index - 1;
+    const track = playbackSequence.tracks[index];
+
+    if (!track) return;
+
+    setPlaybackSequence({ tracks: playbackSequence.tracks, index });
+    resetForTrack(track);
+  }, [playbackSequence, resetForTrack, seek, timeStore]);
+
   const contextValue = React.useMemo(
     () =>
       ({
@@ -139,10 +208,14 @@ export function AudioPlayerProvider({
         isPlaying,
         isMuted,
         duration,
-        play,
+        canGoNext,
+        playFrom,
+        resume,
         pause,
         toggleMute,
         seek,
+        next,
+        previous,
       }) satisfies AudioPlayerContextValue,
     [
       activeTrack,
@@ -150,10 +223,14 @@ export function AudioPlayerProvider({
       isPlaying,
       isMuted,
       duration,
-      play,
+      canGoNext,
+      playFrom,
+      resume,
       pause,
       toggleMute,
       seek,
+      next,
+      previous,
     ],
   );
 
@@ -162,7 +239,7 @@ export function AudioPlayerProvider({
       <AudioPlayerTimeContext.Provider value={timeStore}>
         {children}
       </AudioPlayerTimeContext.Provider>
-      {activeTrack && (
+      {playbackSequence && activeTrack && (
         <audio
           autoPlay
           muted={isMuted}
@@ -174,6 +251,11 @@ export function AudioPlayerProvider({
             setDuration(duration);
           }}
           onEnded={(event) => {
+            if (canGoNext) {
+              next();
+              return;
+            }
+
             setIsPlaying(false);
             timeStore.set(event.currentTarget.duration);
           }}

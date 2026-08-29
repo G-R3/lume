@@ -46,8 +46,8 @@ export function AudioPlayerControls() {
         <div className="flex items-center justify-center gap-4">
           <button
             aria-label="Previous track"
-            className="grid size-8 place-items-center disabled:text-neutral-600"
-            disabled
+            className="grid size-8 cursor-pointer place-items-center disabled:text-neutral-600"
+            onClick={audioPlayer.previous}
             type="button"
           >
             <SkipBackIcon aria-hidden="true" size={18} weight="fill" />
@@ -59,9 +59,10 @@ export function AudioPlayerControls() {
             onClick={() => {
               if (audioPlayer.isPlaying) {
                 audioPlayer.pause();
-              } else {
-                audioPlayer.play();
+                return;
               }
+
+              audioPlayer.resume();
             }}
           >
             {audioPlayer.isPlaying ? (
@@ -72,8 +73,9 @@ export function AudioPlayerControls() {
           </button>
           <button
             aria-label="Next track"
-            className="grid size-8 place-items-center disabled:text-neutral-600"
-            disabled
+            className="cursor-pointer grid size-8 place-items-center disabled:text-neutral-600 disabled:cursor-not-allowed"
+            disabled={!audioPlayer.canGoNext}
+            onClick={audioPlayer.next}
             type="button"
           >
             <SkipForwardIcon aria-hidden="true" size={18} weight="fill" />

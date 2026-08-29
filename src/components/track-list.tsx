@@ -53,7 +53,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
                       : "cursor-pointer border-b border-l-2 border-neutral-900 border-l-transparent hover:bg-neutral-950 focus-within:bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                   }
                   key={track.id}
-                  onClick={() => audioPlayer.play(track)}
+                  onClick={() => audioPlayer.playFrom(tracks, index)}
                 >
                   <td className="font-berkeley h-10.5 pr-3 pl-5 text-neutral-400 tabular-nums">
                     {isActive && audioPlayer.isPlaying ? (
