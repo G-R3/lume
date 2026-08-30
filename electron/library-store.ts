@@ -64,17 +64,20 @@ export async function saveLibrarySource(
 
   const existing = database.prepare("SELECT id FROM library_sources WHERE path = ?").get(path);
 
-  if (existing) return { id: readString(existing.id, "library_sources.id"), path };
-
-  const overlappingPath = database
-    .prepare("SELECT path FROM library_sources WHERE forgotten_at IS NULL")
-    .all()
-    .map((row) => readString(row.path, "library_sources.path"))
-    .find((sourcePath) => pathsOverlap(sourcePath, path));
-
-  if (overlappingPath) {
-    throw new Error(`This folder overlaps the existing source ${overlappingPath}`);
+  if (existing) {
+    const id = readString(existing.id, "library_sources.id");
+    requireNoOverlappingSource(database, path, id);
+    database
+      .prepare(
+        `UPDATE library_sources
+        SET enabled = 1, forgotten_at = NULL, updated_at = ?
+        WHERE id = ?`,
+      )
+      .run(Date.now(), id);
+    return { id, path };
   }
+
+  requireNoOverlappingSource(database, path);
 
   const id = randomUUID();
   const now = Date.now();
@@ -89,7 +92,43 @@ export async function saveLibrarySource(
   return { id, path };
 }
 
-export function reconcileScannedTracks(
+export function setLibrarySourceEnabled(
+  database: DatabaseSync,
+  sourceId: string,
+  enabled: boolean,
+) {
+  const now = Date.now();
+
+  runInTransaction(database, () => {
+    const result = database
+      .prepare(
+        `UPDATE library_sources
+        SET enabled = ?, updated_at = ?
+        WHERE id = ? AND forgotten_at IS NULL`,
+      )
+      .run(Number(enabled), now, sourceId);
+    requireLibrarySource(result.changes, sourceId);
+    if (!enabled) markSourceTracksUnavailable(database, sourceId, now);
+  });
+}
+
+export function forgetLibrarySource(database: DatabaseSync, sourceId: string) {
+  const now = Date.now();
+
+  runInTransaction(database, () => {
+    const result = database
+      .prepare(
+        `UPDATE library_sources
+        SET enabled = 0, forgotten_at = ?, updated_at = ?
+        WHERE id = ? AND forgotten_at IS NULL`,
+      )
+      .run(now, now, sourceId);
+    requireLibrarySource(result.changes, sourceId);
+    markSourceTracksUnavailable(database, sourceId, now);
+  });
+}
+
+export function applySourceScan(
   database: DatabaseSync,
   sourceId: string,
   tracks: readonly ScannedTrack[],
@@ -105,7 +144,6 @@ export function reconcileScannedTracks(
         available, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       ON CONFLICT(path) DO UPDATE SET
-        source_id = excluded.source_id,
         name = excluded.name,
         duration = excluded.duration,
         format = excluded.format,
@@ -167,6 +205,28 @@ function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, n
       WHERE source_id = ? AND available = 1`,
     )
     .run(now, sourceId);
+}
+
+function requireNoOverlappingSource(database: DatabaseSync, path: string, sourceId?: string) {
+  const overlappingPath = database
+    .prepare("SELECT id, path FROM library_sources")
+    .all()
+    .find(
+      (row) =>
+        readString(row.id, "library_sources.id") !== sourceId &&
+        pathsOverlap(readString(row.path, "library_sources.path"), path),
+    );
+
+  if (overlappingPath) {
+    throw new Error(
+      `This folder overlaps the existing source ${readString(overlappingPath.path, "library_sources.path")}`,
+    );
+  }
+}
+
+function requireLibrarySource(changes: number | bigint, sourceId: string) {
+  if (changes === 1 || changes === 1n) return;
+  throw new Error(`Library source ${sourceId} is not active`);
 }
 
 function pathsOverlap(left: string, right: string) {

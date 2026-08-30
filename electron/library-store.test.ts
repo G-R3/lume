@@ -6,10 +6,12 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
 import {
+  applySourceScan,
+  forgetLibrarySource,
   getAvailableTracks,
   getLibrarySources,
-  reconcileScannedTracks,
   saveLibrarySource,
+  setLibrarySourceEnabled,
 } from "./library-store";
 
 const temporaryFolders: string[] = [];
@@ -53,6 +55,59 @@ describe("library source persistence", () => {
 
     await expect(saveLibrarySource(database, otherParent)).rejects.toThrow("overlaps");
   });
+
+  it("keeps tracks unavailable until a re-enabled source is scanned", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    await writeFile(join(folder, "song.mp3"), "");
+    const source = await saveLibrarySource(database, folder);
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
+
+    setLibrarySourceEnabled(database, source.id, false);
+    expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 0 });
+    expect(getAvailableTracks(database)).toEqual([]);
+
+    setLibrarySourceEnabled(database, source.id, true);
+    expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 1 });
+    expect(getAvailableTracks(database)).toEqual([]);
+
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
+    expect(getAvailableTracks(database)).toHaveLength(1);
+  });
+
+  it("restores forgotten sources with the same track IDs", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    await writeFile(join(folder, "song.mp3"), "");
+    const source = await saveLibrarySource(database, folder);
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
+    const trackId = database.prepare("SELECT id FROM tracks").get()?.id;
+
+    forgetLibrarySource(database, source.id);
+    expect(getLibrarySources(database)).toEqual([]);
+    expect(database.prepare("SELECT id, available FROM tracks").get()).toEqual({
+      available: 0,
+      id: trackId,
+    });
+
+    await expect(saveLibrarySource(database, folder)).resolves.toEqual(source);
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
+    expect(database.prepare("SELECT id, available FROM tracks").get()).toEqual({
+      available: 1,
+      id: trackId,
+    });
+  });
+
+  it("rejects overlap with a forgotten source", async () => {
+    const database = await openTestDatabase();
+    const parent = await createTemporaryFolder("lume-source-");
+    const child = join(parent, "album");
+    await mkdir(child);
+    const source = await saveLibrarySource(database, parent);
+    forgetLibrarySource(database, source.id);
+
+    await expect(saveLibrarySource(database, child)).rejects.toThrow("overlaps");
+  });
 });
 
 describe("track persistence", () => {
@@ -62,14 +117,14 @@ describe("track persistence", () => {
     const trackPath = join(folder, "song.mp3");
     await writeFile(trackPath, "");
     const source = await saveLibrarySource(database, folder);
-    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
     const initialTrackId = database
       .prepare("SELECT id FROM tracks WHERE source_id = ?")
       .get(source.id)?.id;
     expect(initialTrackId).toBeDefined();
 
     await writeFile(trackPath, "changed");
-    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
 
     expect(
       database.prepare("SELECT id, path, file_size FROM tracks WHERE source_id = ?").get(source.id),
@@ -90,7 +145,7 @@ describe("track persistence", () => {
       writeFile(join(folder, "song.flac"), ""),
     ]);
     const source = await saveLibrarySource(database, folder);
-    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
     const tracks = database
       .prepare("SELECT id, path FROM tracks WHERE source_id = ? ORDER BY path")
       .all(source.id);
@@ -105,11 +160,11 @@ describe("track persistence", () => {
     const trackPath = join(folder, "song.mp3");
     await writeFile(trackPath, "original");
     const source = await saveLibrarySource(database, folder);
-    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
     const trackId = database.prepare("SELECT id FROM tracks").get()?.id;
 
     await rm(trackPath);
-    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
     expect(database.prepare("SELECT id, available FROM tracks").get()).toEqual({
       available: 0,
       id: trackId,
@@ -117,7 +172,7 @@ describe("track persistence", () => {
     expect(getAvailableTracks(database)).toEqual([]);
 
     await writeFile(trackPath, "restored");
-    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
     expect(database.prepare("SELECT id, available, file_size FROM tracks").get()).toEqual({
       available: 1,
       file_size: 8,

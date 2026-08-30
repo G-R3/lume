@@ -2,8 +2,8 @@ import type { DatabaseSync } from "node:sqlite";
 import type { LibrarySource } from "../shared/lib";
 import { scanAudioFiles, type ScannedTrack } from "./library";
 import {
+  applySourceScan,
   getEnabledLibrarySources,
-  reconcileScannedTracks,
   recordLibrarySourceScanFailure,
 } from "./library-store";
 
@@ -39,6 +39,6 @@ export async function reconcileLibrarySource(
     return { error: message, sourceId: source.id };
   }
 
-  reconcileScannedTracks(database, source.id, tracks);
+  applySourceScan(database, source.id, tracks);
   return null;
 }

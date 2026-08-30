@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
 import { reconcileEnabledLibrarySources } from "./library-reconciliation";
-import { reconcileScannedTracks, saveLibrarySource } from "./library-store";
+import { applySourceScan, saveLibrarySource } from "./library-store";
 
 const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
@@ -29,7 +29,7 @@ describe("enabled source reconciliation", () => {
     ]);
     const healthySource = await saveLibrarySource(database, healthyFolder);
     const missingSource = await saveLibrarySource(database, missingFolder);
-    reconcileScannedTracks(database, missingSource.id, await scanAudioFiles(missingFolder));
+    applySourceScan(database, missingSource.id, await scanAudioFiles(missingFolder));
     await rm(missingFolder, { recursive: true });
 
     const failures = await reconcileEnabledLibrarySources(database);
@@ -67,7 +67,7 @@ describe("enabled source reconciliation", () => {
     const trackPath = join(folder, "song.mp3");
     await writeFile(trackPath, "");
     const source = await saveLibrarySource(database, folder);
-    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
     database.prepare("UPDATE library_sources SET enabled = 0 WHERE id = ?").run(source.id);
     await rm(trackPath);
 
