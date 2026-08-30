@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import {
   app,
   BrowserWindow,
@@ -17,10 +18,10 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import { readMusicFolder, saveMusicFolder, scanAudioFiles } from "./library";
-import { lumeChannels } from "../shared/lib";
+import { lumeChannels, type MusicLibrary } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
-import { reconcileEnabledLibrarySources } from "./library-reconciliation";
+import { reconcileEnabledLibrarySources, reconcileLibrarySource } from "./library-reconciliation";
+import { getAvailableTracks, getLibrarySources, saveLibrarySource } from "./library-store";
 
 app.enableSandbox();
 
@@ -62,59 +63,6 @@ function createWindow() {
   loadRenderer(window, rendererUrl);
 }
 
-ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
-  const window = requireTrustedWindow(event);
-  const savedFolder = await readMusicFolder(app.getPath("userData"));
-  const result = await dialog.showOpenDialog(window, {
-    title: "Choose your music folder",
-    buttonLabel: "Choose Folder",
-    defaultPath: savedFolder ?? undefined,
-    properties: ["openDirectory"],
-  });
-
-  if (result.canceled) return null;
-
-  const folder = result.filePaths[0];
-  if (!folder) return null;
-
-  const nextLibrary = await scanMusicLibrary(folder);
-  await saveMusicFolder(app.getPath("userData"), folder);
-  tracksById = nextLibrary.tracksById;
-  return nextLibrary.library;
-});
-
-ipcMain.handle(lumeChannels.loadMusicLibrary, async (event) => {
-  requireTrustedWindow(event);
-  const folder = await readMusicFolder(app.getPath("userData"));
-
-  if (!folder) return null;
-
-  const nextLibrary = await scanMusicLibrary(folder);
-  tracksById = nextLibrary.tracksById;
-  return nextLibrary.library;
-});
-
-async function scanMusicLibrary(folder: string) {
-  const nextTracksById = new Map<string, string>();
-  const tracks = (await scanAudioFiles(folder)).map((track) => {
-    const id = randomUUID();
-    nextTracksById.set(id, track.path);
-
-    return {
-      duration: track.duration,
-      format: track.format,
-      id,
-      name: track.name,
-      url: getTrackUrl(id),
-    };
-  });
-
-  return {
-    library: { folder, tracks },
-    tracksById: nextTracksById,
-  };
-}
-
 void app.whenReady().then(startApplication).catch(handleStartupFailure);
 
 async function startApplication() {
@@ -122,6 +70,7 @@ async function startApplication() {
     getLibraryDatabasePath(app.getPath("userData"), app.isPackaged),
   );
   app.once("will-quit", () => database.close());
+  registerLibraryIpc(database);
 
   registerProtocolHandler(rendererDirectory, () => tracksById);
 
@@ -133,6 +82,7 @@ async function startApplication() {
   createWindow();
   void reconcileEnabledLibrarySources(database)
     .then((failures) => {
+      refreshTracksById(database);
       failures.forEach((failure) => console.warn("Could not scan library source", failure));
     })
     .catch((error) => console.error("Could not reconcile the music library", error));
@@ -140,6 +90,68 @@ async function startApplication() {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}
+
+function registerLibraryIpc(database: DatabaseSync) {
+  ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
+    const window = requireTrustedWindow(event);
+    const result = await dialog.showOpenDialog(window, {
+      title: "Choose your music folder",
+      buttonLabel: "Choose Folder",
+      defaultPath: getLibrarySources(database).at(-1)?.path,
+      properties: ["openDirectory"],
+    });
+
+    if (result.canceled) return null;
+
+    const folder = result.filePaths[0];
+    if (!folder) return null;
+
+    const source = await saveLibrarySource(database, folder);
+    await rm(join(app.getPath("userData"), "music-folder"), { force: true }).catch((error: Error) =>
+      console.warn("Could not remove the old music folder setting", error),
+    );
+    const failure = await reconcileLibrarySource(database, source);
+
+    if (failure) throw new Error(failure.error);
+    return readLibrary(database);
+  });
+
+  ipcMain.handle(lumeChannels.loadMusicLibrary, (event) => {
+    requireTrustedWindow(event);
+    return readLibrary(database);
+  });
+
+  ipcMain.handle(lumeChannels.rescanMusicLibrary, async (event) => {
+    requireTrustedWindow(event);
+    const failures = await reconcileEnabledLibrarySources(database);
+    failures.forEach((failure) => console.warn("Could not scan library source", failure));
+    return readLibrary(database);
+  });
+}
+
+function readLibrary(database: DatabaseSync) {
+  const sources = getLibrarySources(database);
+  const storedTracks = refreshTracksById(database);
+
+  if (sources.length === 0) return null;
+
+  return {
+    sources,
+    tracks: storedTracks.map((track) => ({
+      duration: track.duration,
+      format: track.format,
+      id: track.id,
+      name: track.name,
+      url: getTrackUrl(track.id),
+    })),
+  } satisfies MusicLibrary;
+}
+
+function refreshTracksById(database: DatabaseSync) {
+  const tracks = getAvailableTracks(database);
+  tracksById = new Map(tracks.map((track) => [track.id, track.path]));
+  return tracks;
 }
 
 app.on("window-all-closed", () => {

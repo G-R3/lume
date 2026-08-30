@@ -29,8 +29,13 @@ function App() {
   const hasLoadedSavedLibrary = useRef(false);
   const audioPlayer = useAudioPlayer();
   const isMac = window.lume.isMac;
+  const sourcePaths = library?.sources.map((source) => source.path);
+  const sourceSummary =
+    sourcePaths?.length === 1
+      ? sourcePaths[0]
+      : sourcePaths && `${sourcePaths.length.toLocaleString()} sources`;
 
-  const scanMusicLibrary = useCallback(async (request: () => Promise<MusicLibrary | null>) => {
+  const requestLibrary = useCallback(async (request: () => Promise<MusicLibrary | null>) => {
     setIsLoadingLibrary(true);
     setErrorMessage(null);
 
@@ -41,7 +46,7 @@ function App() {
 
       setLibrary(library);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Library scan failed");
+      setErrorMessage(error instanceof Error ? error.message : "Could not load the library");
     } finally {
       setIsLoadingLibrary(false);
     }
@@ -51,8 +56,8 @@ function App() {
     if (hasLoadedSavedLibrary.current) return;
 
     hasLoadedSavedLibrary.current = true;
-    void scanMusicLibrary(window.lume.loadMusicLibrary);
-  }, [scanMusicLibrary]);
+    void requestLibrary(window.lume.loadMusicLibrary);
+  }, [requestLibrary]);
 
   return (
     <>
@@ -126,29 +131,29 @@ function App() {
             )}
 
             <div className="ml-auto flex min-w-0 items-center gap-2">
-              {library && (
+              {sourceSummary && (
                 <span
                   className="hidden max-w-48 truncate text-[10px] text-neutral-400 lg:block"
-                  title={library.folder}
+                  title={sourcePaths?.join("\n")}
                 >
-                  {library.folder}
+                  {sourceSummary}
                 </span>
               )}
               <Button
                 className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
                 disabled={isLoadingLibrary}
-                onClick={() => void scanMusicLibrary(window.lume.chooseMusicFolder)}
+                onClick={() => void requestLibrary(window.lume.chooseMusicFolder)}
                 type="button"
                 variant="outline"
               >
-                {library ? "Change music folder" : "Choose music folder"}
+                {library ? "Add music folder" : "Choose music folder"}
               </Button>
 
               {library && (
                 <Button
                   className="border-lime-800 bg-lime-950 text-lime-300 hover:bg-lime-900 hover:text-lime-200"
                   disabled={isLoadingLibrary}
-                  onClick={() => void scanMusicLibrary(window.lume.loadMusicLibrary)}
+                  onClick={() => void requestLibrary(window.lume.rescanMusicLibrary)}
                   type="button"
                   variant="outline"
                 >
@@ -169,7 +174,7 @@ function App() {
                 {audioPlayer.errorMessage}
               </p>
             )}
-            {library?.tracks && library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
+            {library && library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
           </div>
         </SidebarInset>
       </SidebarProvider>

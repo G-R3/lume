@@ -5,7 +5,12 @@ import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
-import { reconcileScannedTracks, saveLibrarySource } from "./library-store";
+import {
+  getAvailableTracks,
+  getLibrarySources,
+  reconcileScannedTracks,
+  saveLibrarySource,
+} from "./library-store";
 
 const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
@@ -29,9 +34,7 @@ describe("library source persistence", () => {
     const reopenedDatabase = await openLibraryDatabase(databasePath);
     openDatabases.push(reopenedDatabase);
     await expect(saveLibrarySource(reopenedDatabase, folder)).resolves.toEqual(source);
-    expect(reopenedDatabase.prepare("SELECT id, path FROM library_sources").all()).toEqual([
-      source,
-    ]);
+    expect(getLibrarySources(reopenedDatabase)).toEqual([source]);
   });
 
   it("rejects nested and containing source folders", async () => {
@@ -111,6 +114,7 @@ describe("track persistence", () => {
       available: 0,
       id: trackId,
     });
+    expect(getAvailableTracks(database)).toEqual([]);
 
     await writeFile(trackPath, "restored");
     reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
@@ -119,6 +123,15 @@ describe("track persistence", () => {
       file_size: 8,
       id: trackId,
     });
+    expect(getAvailableTracks(database)).toEqual([
+      {
+        duration: null,
+        format: "MP3",
+        id: trackId,
+        name: "song",
+        path: trackPath,
+      },
+    ]);
   });
 });
 

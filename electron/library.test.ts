@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { readMusicFolder, saveMusicFolder, scanAudioFiles } from "./library";
+import { scanAudioFiles } from "./library";
 
 const temporaryFolders: string[] = [];
 
@@ -78,23 +78,6 @@ describe("scanAudioFiles", () => {
         path,
       },
     ]);
-  });
-});
-
-describe("music folder settings", () => {
-  it("returns null before a folder has been saved", async () => {
-    const userDataDirectory = await createTemporaryFolder("lume-settings-");
-
-    await expect(readMusicFolder(userDataDirectory)).resolves.toBeNull();
-  });
-
-  it("remembers the selected folder exactly", async () => {
-    const userDataDirectory = await createTemporaryFolder("lume-settings-");
-    const musicFolder = join(userDataDirectory, "Music library 🎵");
-
-    await saveMusicFolder(userDataDirectory, musicFolder);
-
-    await expect(readMusicFolder(userDataDirectory)).resolves.toBe(musicFolder);
   });
 });
 

@@ -2,15 +2,30 @@ import { randomUUID } from "node:crypto";
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import type { LibrarySource } from "../shared/lib";
 import { runInTransaction } from "./database/transaction";
 import type { ScannedTrack } from "./library";
 
-export type StoredLibrarySource = {
+export type StoredTrack = {
+  duration: number | null;
+  format: string;
   id: string;
+  name: string;
   path: string;
 };
 
-export function getEnabledLibrarySources(database: DatabaseSync): StoredLibrarySource[] {
+export function getLibrarySources(database: DatabaseSync): LibrarySource[] {
+  return database
+    .prepare(
+      `SELECT id, path FROM library_sources
+      WHERE forgotten_at IS NULL
+      ORDER BY created_at`,
+    )
+    .all()
+    .map(readLibrarySource);
+}
+
+export function getEnabledLibrarySources(database: DatabaseSync): LibrarySource[] {
   return database
     .prepare(
       `SELECT id, path FROM library_sources
@@ -18,16 +33,30 @@ export function getEnabledLibrarySources(database: DatabaseSync): StoredLibraryS
       ORDER BY created_at`,
     )
     .all()
+    .map(readLibrarySource);
+}
+
+export function getAvailableTracks(database: DatabaseSync): StoredTrack[] {
+  return database
+    .prepare(
+      `SELECT id, path, name, duration, format FROM tracks
+      WHERE available = 1
+      ORDER BY name COLLATE NOCASE, path`,
+    )
+    .all()
     .map((row) => ({
-      id: readString(row.id, "library_sources.id"),
-      path: readString(row.path, "library_sources.path"),
+      duration: row.duration === null ? null : Number(row.duration),
+      format: readString(row.format, "tracks.format"),
+      id: readString(row.id, "tracks.id"),
+      name: readString(row.name, "tracks.name"),
+      path: readString(row.path, "tracks.path"),
     }));
 }
 
 export async function saveLibrarySource(
   database: DatabaseSync,
   selectedPath: string,
-): Promise<StoredLibrarySource> {
+): Promise<LibrarySource> {
   const path = await realpath(selectedPath);
   const folder = await stat(path);
 
@@ -147,6 +176,13 @@ function pathsOverlap(left: string, right: string) {
 function pathContains(parent: string, child: string) {
   const difference = relative(parent, child);
   return difference === "" || (!difference.startsWith("..") && !isAbsolute(difference));
+}
+
+function readLibrarySource(row: Record<string, SQLOutputValue>): LibrarySource {
+  return {
+    id: readString(row.id, "library_sources.id"),
+    path: readString(row.path, "library_sources.path"),
+  };
 }
 
 function readString(value: SQLOutputValue | undefined, field: string) {

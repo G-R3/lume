@@ -1,9 +1,8 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { Readable } from "node:stream";
 
 type ParseFile = (typeof import("music-metadata"))["parseFile"];
-const musicFolderFileName = "music-folder";
 
 export const audioContentTypes: ReadonlyMap<string, string> = new Map([
   [".aac", "audio/aac"],
@@ -24,20 +23,6 @@ export type ScannedTrack = {
   name: string;
   path: string;
 };
-
-export async function readMusicFolder(userDataDirectory: string) {
-  return readFile(join(userDataDirectory, musicFolderFileName), "utf8").catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    },
-  );
-}
-
-export async function saveMusicFolder(userDataDirectory: string, folder: string) {
-  await mkdir(userDataDirectory, { recursive: true });
-  await writeFile(join(userDataDirectory, musicFolderFileName), folder, "utf8");
-}
 
 export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
   const entries = await readdir(folder, {

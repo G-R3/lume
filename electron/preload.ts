@@ -7,6 +7,8 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.chooseMusicFolder),
   loadMusicLibrary: (): ReturnType<LumeApi["loadMusicLibrary"]> =>
     ipcRenderer.invoke(lumeChannels.loadMusicLibrary),
+  rescanMusicLibrary: (): ReturnType<LumeApi["rescanMusicLibrary"]> =>
+    ipcRenderer.invoke(lumeChannels.rescanMusicLibrary),
   isMac: process.platform === "darwin",
 } satisfies LumeApi;
 
