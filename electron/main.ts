@@ -89,9 +89,7 @@ async function startApplication() {
 
   createWindow();
   void scanEnabledSources(database)
-    .then(() => {
-      refreshTracksById(database);
-    })
+    .then(() => refreshTracksById(database))
     .catch((error) => console.error("Could not scan the music library", error));
 
   app.on("activate", () => {
@@ -108,8 +106,6 @@ function registerLibraryIpc(database: DatabaseSync) {
       defaultPath: getSources(database).at(-1)?.path,
       properties: ["openDirectory"],
     });
-
-    if (result.canceled) return readLibrary(database);
 
     const folder = result.filePaths[0];
     if (!folder) return readLibrary(database);

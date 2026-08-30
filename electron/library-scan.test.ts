@@ -30,6 +30,9 @@ describe("enabled source scanning", () => {
     const healthySource = await saveSource(database, healthyFolder);
     const missingSource = await saveSource(database, missingFolder);
     applySourceScan(database, missingSource.id, await scanAudioFiles(missingFolder));
+    const lastSuccessfulScan = database
+      .prepare("SELECT last_scanned_at FROM library_sources WHERE id = ?")
+      .get(missingSource.id)?.last_scanned_at;
     await rm(missingFolder, { recursive: true });
 
     const failures = await scanEnabledSources(database);
@@ -45,9 +48,12 @@ describe("enabled source scanning", () => {
     ).toEqual({ available: 0 });
     expect(
       database
-        .prepare("SELECT last_scan_error FROM library_sources WHERE id = ?")
-        .get(missingSource.id)?.last_scan_error,
-    ).toEqual(expect.stringContaining("ENOENT"));
+        .prepare("SELECT last_scan_error, last_scanned_at FROM library_sources WHERE id = ?")
+        .get(missingSource.id),
+    ).toEqual({
+      last_scan_error: expect.stringContaining("ENOENT"),
+      last_scanned_at: lastSuccessfulScan,
+    });
     expect(
       database
         .prepare(

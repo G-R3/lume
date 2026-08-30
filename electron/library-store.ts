@@ -217,10 +217,10 @@ export function applyScanFailure(database: DatabaseSync, sourceId: string, error
     database
       .prepare(
         `UPDATE library_sources
-        SET last_scanned_at = ?, last_scan_error = ?, updated_at = ?
+        SET last_scan_error = ?, updated_at = ?
         WHERE id = ?`,
       )
-      .run(now, error, now, sourceId);
+      .run(error, now, sourceId);
   });
 }
 
