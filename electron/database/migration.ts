@@ -48,6 +48,17 @@ export async function applyMigrations(
     throw new Error("Database migration history must have consecutive versions starting at 1");
   }
 
+  const userVersion = readNumber(
+    database.prepare("PRAGMA user_version").get()?.user_version,
+    "PRAGMA user_version",
+  );
+
+  if (userVersion !== appliedMigrations.size) {
+    throw new Error(
+      `Database schema version ${userVersion} does not match migration history ${appliedMigrations.size}`,
+    );
+  }
+
   const pendingMigrations = migrations.filter(
     (migration) => !appliedMigrations.has(migration.version),
   );

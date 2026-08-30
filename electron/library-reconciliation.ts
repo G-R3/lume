@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { scanAudioFiles } from "./library";
+import { scanAudioFiles, type ScannedTrack } from "./library";
 import {
   getEnabledLibrarySources,
   reconcileScannedTracks,
@@ -17,13 +17,18 @@ export async function reconcileEnabledLibrarySources(
   const failures: LibraryScanFailure[] = [];
 
   for (const source of getEnabledLibrarySources(database)) {
+    let tracks: ScannedTrack[];
+
     try {
-      reconcileScannedTracks(database, source.id, await scanAudioFiles(source.path));
+      tracks = await scanAudioFiles(source.path);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       recordLibrarySourceScanFailure(database, source.id, message);
       failures.push({ error: message, sourceId: source.id });
+      continue;
     }
+
+    reconcileScannedTracks(database, source.id, tracks);
   }
 
   return failures;

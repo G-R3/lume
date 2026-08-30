@@ -74,6 +74,25 @@ describe("enabled source reconciliation", () => {
     await expect(reconcileEnabledLibrarySources(database)).resolves.toEqual([]);
     expect(database.prepare("SELECT available FROM tracks").get()).toEqual({ available: 1 });
   });
+
+  it("does not report database failures as source scan errors", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    await writeFile(join(folder, "song.mp3"), "");
+    const source = await saveLibrarySource(database, folder);
+    database.exec(`
+      CREATE TRIGGER reject_track_insert
+      BEFORE INSERT ON tracks
+      BEGIN
+        SELECT RAISE(ABORT, 'track write failed');
+      END;
+    `);
+
+    await expect(reconcileEnabledLibrarySources(database)).rejects.toThrow("track write failed");
+    expect(
+      database.prepare("SELECT last_scan_error FROM library_sources WHERE id = ?").get(source.id),
+    ).toEqual({ last_scan_error: null });
+  });
 });
 
 async function openTestDatabase() {

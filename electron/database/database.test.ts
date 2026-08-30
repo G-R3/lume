@@ -162,6 +162,16 @@ describe("library database migrations", () => {
     ).rejects.toThrow("history must have consecutive versions");
   });
 
+  it("rejects a schema version that disagrees with migration history", async () => {
+    const database = await openLibraryDatabase(":memory:");
+    openDatabases.push(database);
+    database.exec("PRAGMA user_version = 0");
+
+    await expect(applyMigrations(database, libraryMigrations)).rejects.toThrow(
+      "schema version 0 does not match migration history 1",
+    );
+  });
+
   it("rejects migration manifests with gaps", async () => {
     const database = await openLibraryDatabase(":memory:");
     openDatabases.push(database);
