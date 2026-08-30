@@ -20,8 +20,19 @@ import {
 } from "./protocol";
 import { lumeChannels, type MusicLibrary } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
-import { reconcileEnabledLibrarySources, reconcileLibrarySource } from "./library-reconciliation";
-import { getAvailableTracks, getLibrarySources, saveLibrarySource } from "./library-store";
+import {
+  reconcileEnabledLibrarySources,
+  reconcileLibrarySource,
+  type LibraryScanFailure,
+} from "./library-reconciliation";
+import {
+  forgetLibrarySource,
+  getAvailableTracks,
+  getEnabledLibrarySources,
+  getLibrarySources,
+  saveLibrarySource,
+  setLibrarySourceEnabled,
+} from "./library-store";
 
 app.enableSandbox();
 
@@ -83,7 +94,7 @@ async function startApplication() {
   void reconcileEnabledLibrarySources(database)
     .then((failures) => {
       refreshTracksById(database);
-      failures.forEach((failure) => console.warn("Could not scan library source", failure));
+      reportScanFailures(failures);
     })
     .catch((error) => console.error("Could not reconcile the music library", error));
 
@@ -122,12 +133,54 @@ function registerLibraryIpc(database: DatabaseSync) {
     return readLibrary(database);
   });
 
+  ipcMain.handle(lumeChannels.setLibrarySourceEnabled, async (event, sourceId, enabled) => {
+    requireTrustedWindow(event);
+    setLibrarySourceEnabled(database, sourceId, enabled);
+
+    if (enabled) {
+      const failure = await reconcileLibrarySource(
+        database,
+        requireEnabledLibrarySource(database, sourceId),
+      );
+      if (failure) reportScanFailures([failure]);
+    }
+
+    return readLibrary(database);
+  });
+
+  ipcMain.handle(lumeChannels.forgetLibrarySource, (event, sourceId) => {
+    requireTrustedWindow(event);
+    forgetLibrarySource(database, sourceId);
+    return readLibrary(database);
+  });
+
+  ipcMain.handle(lumeChannels.rescanLibrarySource, async (event, sourceId) => {
+    requireTrustedWindow(event);
+    const failure = await reconcileLibrarySource(
+      database,
+      requireEnabledLibrarySource(database, sourceId),
+    );
+    if (failure) reportScanFailures([failure]);
+    return readLibrary(database);
+  });
+
   ipcMain.handle(lumeChannels.rescanMusicLibrary, async (event) => {
     requireTrustedWindow(event);
     const failures = await reconcileEnabledLibrarySources(database);
-    failures.forEach((failure) => console.warn("Could not scan library source", failure));
+    reportScanFailures(failures);
     return readLibrary(database);
   });
+}
+
+function requireEnabledLibrarySource(database: DatabaseSync, sourceId: string) {
+  const source = getEnabledLibrarySources(database).find((source) => source.id === sourceId);
+
+  if (source) return source;
+  throw new Error(`Enabled library source ${sourceId} does not exist`);
+}
+
+function reportScanFailures(failures: readonly LibraryScanFailure[]) {
+  failures.forEach((failure) => console.warn("Could not scan library source", failure));
 }
 
 function readLibrary(database: DatabaseSync) {

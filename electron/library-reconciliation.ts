@@ -27,7 +27,7 @@ export async function reconcileEnabledLibrarySources(
 
 export async function reconcileLibrarySource(
   database: DatabaseSync,
-  source: LibrarySource,
+  source: Pick<LibrarySource, "id" | "path">,
 ): Promise<LibraryScanFailure | null> {
   let tracks: ScannedTrack[];
 

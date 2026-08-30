@@ -17,7 +17,7 @@ export type StoredTrack = {
 export function getLibrarySources(database: DatabaseSync): LibrarySource[] {
   return database
     .prepare(
-      `SELECT id, path FROM library_sources
+      `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
       WHERE forgotten_at IS NULL
       ORDER BY created_at`,
     )
@@ -28,7 +28,7 @@ export function getLibrarySources(database: DatabaseSync): LibrarySource[] {
 export function getEnabledLibrarySources(database: DatabaseSync): LibrarySource[] {
   return database
     .prepare(
-      `SELECT id, path FROM library_sources
+      `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
       WHERE enabled = 1 AND forgotten_at IS NULL
       ORDER BY created_at`,
     )
@@ -56,7 +56,7 @@ export function getAvailableTracks(database: DatabaseSync): StoredTrack[] {
 export async function saveLibrarySource(
   database: DatabaseSync,
   selectedPath: string,
-): Promise<LibrarySource> {
+): Promise<Pick<LibrarySource, "id" | "path">> {
   const path = await realpath(selectedPath);
   const folder = await stat(path);
 
@@ -240,9 +240,30 @@ function pathContains(parent: string, child: string) {
 
 function readLibrarySource(row: Record<string, SQLOutputValue>): LibrarySource {
   return {
+    enabled: readBoolean(row.enabled, "library_sources.enabled"),
     id: readString(row.id, "library_sources.id"),
+    lastScanError:
+      row.last_scan_error === null
+        ? null
+        : readString(row.last_scan_error, "library_sources.last_scan_error"),
+    lastScannedAt: readNullableNumber(row.last_scanned_at, "library_sources.last_scanned_at"),
     path: readString(row.path, "library_sources.path"),
   };
+}
+
+function readBoolean(value: SQLOutputValue | undefined, field: string) {
+  const number = Number(value);
+
+  if (number === 0 || number === 1) return number === 1;
+  throw new Error(`Invalid boolean in ${field}`);
+}
+
+function readNullableNumber(value: SQLOutputValue | undefined, field: string) {
+  if (value === null) return null;
+
+  const number = Number(value);
+  if (Number.isSafeInteger(number)) return number;
+  throw new Error(`Invalid number in ${field}`);
 }
 
 function readString(value: SQLOutputValue | undefined, field: string) {

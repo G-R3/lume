@@ -36,7 +36,15 @@ describe("library source persistence", () => {
     const reopenedDatabase = await openLibraryDatabase(databasePath);
     openDatabases.push(reopenedDatabase);
     await expect(saveLibrarySource(reopenedDatabase, folder)).resolves.toEqual(source);
-    expect(getLibrarySources(reopenedDatabase)).toEqual([source]);
+    expect(getLibrarySources(reopenedDatabase)).toEqual([
+      {
+        enabled: true,
+        id: source.id,
+        lastScanError: null,
+        lastScannedAt: null,
+        path: source.path,
+      },
+    ]);
   });
 
   it("rejects nested and containing source folders", async () => {
