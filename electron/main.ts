@@ -165,7 +165,7 @@ function readLibrary(database: DatabaseSync) {
   const sources = getSources(database);
   const storedTracks = refreshTracksById(database);
 
-  if (!hasStoredSources(database)) return null;
+  if (sources.length === 0 && !hasStoredSources(database)) return null;
 
   return {
     sources,
