@@ -2,6 +2,7 @@ import { GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MusicLibrary } from "../shared/lib";
 import { LibraryEmptyState } from "@/components/library-empty-state";
+import { LibraryStatus } from "@/components/library-status";
 import { SourceSettings } from "@/components/source-settings";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -134,11 +135,9 @@ function App() {
                         >
                           <MusicNotesIcon aria-hidden="true" />
                           <span>All tracks</span>
-                          {library && (
-                            <span className="font-berkeley ml-auto rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-                              {library.tracks.length.toLocaleString()}
-                            </span>
-                          )}
+                          <span className="font-berkeley ml-auto rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                            {library.tracks.length.toLocaleString()}
+                          </span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     )}
@@ -191,7 +190,7 @@ function App() {
             <h1 className="text-sm font-semibold tracking-tight">
               {isSourceSettings ? "Settings" : "All tracks"}
             </h1>
-            {!isSourceSettings && library && (
+            {!isSourceSettings && (
               <span className="font-berkeley text-[10px] text-neutral-400 tabular-nums bg-neutral-800 py-1 px-1.5 rounded">
                 {library.tracks.length.toLocaleString()}
               </span>
@@ -219,10 +218,10 @@ function App() {
                   type="button"
                   variant="outline"
                 >
-                  {library ? "Add music folder" : "Choose music folder"}
+                  Add source
                 </Button>
 
-                {library && (
+                {library.sources.some((source) => source.enabled) && (
                   <Button
                     className="border-lime-800 bg-lime-950 text-lime-300 hover:bg-lime-900 hover:text-lime-200"
                     disabled={isLoadingLibrary}
@@ -255,7 +254,14 @@ function App() {
                 requestLibrary={requestLibrary}
               />
             ) : (
-              library && library.tracks.length > 0 && <TrackList tracks={library.tracks} />
+              <>
+                <LibraryStatus
+                  isLoading={isLoadingLibrary}
+                  library={library}
+                  requestLibrary={requestLibrary}
+                />
+                {library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
+              </>
             )}
           </div>
         </SidebarInset>
