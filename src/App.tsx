@@ -33,8 +33,10 @@ function App() {
   const [route, setRoute] = useState(window.location.hash);
   const hasLoadedSavedLibrary = useRef(false);
   const audioPlayer = useAudioPlayer();
+  const syncTracks = audioPlayer.syncTracks;
   const isMac = window.lume.isMac;
   const sourcePaths = library?.sources.map((source) => source.path);
+  const unavailableTrackCount = library?.tracks.filter((track) => !track.available).length ?? 0;
   const sourceSummary =
     sourcePaths?.length === 1
       ? sourcePaths[0]
@@ -69,6 +71,10 @@ function App() {
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
+
+  useEffect(() => {
+    if (library) syncTracks(library.tracks);
+  }, [library, syncTracks]);
 
   const isSourceSettings = route === "#settings/sources";
 
@@ -188,6 +194,11 @@ function App() {
             {!isSourceSettings && library && (
               <span className="font-berkeley text-[10px] text-neutral-400 tabular-nums bg-neutral-800 py-1 px-1.5 rounded">
                 {library.tracks.length.toLocaleString()}
+              </span>
+            )}
+            {!isSourceSettings && unavailableTrackCount > 0 && (
+              <span className="font-berkeley rounded bg-amber-950 px-1.5 py-1 text-[10px] text-amber-400 tabular-nums">
+                {unavailableTrackCount.toLocaleString()} unavailable
               </span>
             )}
 

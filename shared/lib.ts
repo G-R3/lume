@@ -1,4 +1,5 @@
 export type Track = {
+  available: boolean;
   duration: number | null;
   format: string;
   id: string;

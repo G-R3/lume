@@ -7,6 +7,7 @@ import { runInTransaction } from "./database/transaction";
 import type { ScannedTrack } from "./library";
 
 export type StoredTrack = {
+  available: boolean;
   duration: number | null;
   format: string;
   id: string;
@@ -48,22 +49,26 @@ export function getSource(database: DatabaseSync, sourceId: string): LibrarySour
   throw new Error(`Library source ${sourceId} does not exist`);
 }
 
-export function hasStoredSources(database: DatabaseSync) {
+export function hasForgottenSources(database: DatabaseSync) {
   return readBoolean(
-    database.prepare("SELECT EXISTS(SELECT 1 FROM library_sources) AS value").get()?.value,
-    "library_sources.exists",
+    database
+      .prepare(
+        "SELECT EXISTS(SELECT 1 FROM library_sources WHERE forgotten_at IS NOT NULL) AS value",
+      )
+      .get()?.value,
+    "library_sources.forgotten",
   );
 }
 
-export function getAvailableTracks(database: DatabaseSync): StoredTrack[] {
+export function getTracks(database: DatabaseSync): StoredTrack[] {
   return database
     .prepare(
-      `SELECT id, path, name, duration, format FROM tracks
-      WHERE available = 1
+      `SELECT id, path, name, duration, format, available FROM tracks
       ORDER BY name COLLATE NOCASE, path`,
     )
     .all()
     .map((row) => ({
+      available: readBoolean(row.available, "tracks.available"),
       duration: row.duration === null ? null : Number(row.duration),
       format: readString(row.format, "tracks.format"),
       id: readString(row.id, "tracks.id"),

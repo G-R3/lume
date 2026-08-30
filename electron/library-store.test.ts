@@ -10,10 +10,10 @@ import {
   disableSource,
   enableSource,
   forgetSource,
-  getAvailableTracks,
+  hasForgottenSources,
   getSources,
   getSource,
-  hasStoredSources,
+  getTracks,
   saveSource,
 } from "./library-store";
 
@@ -28,15 +28,15 @@ afterEach(async () => {
 });
 
 describe("library source persistence", () => {
-  it("distinguishes a new library from one with forgotten sources", async () => {
+  it("reports whether a library has forgotten sources", async () => {
     const database = await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
 
-    expect(hasStoredSources(database)).toBe(false);
+    expect(hasForgottenSources(database)).toBe(false);
     const source = await saveSource(database, folder);
-    expect(hasStoredSources(database)).toBe(true);
+    expect(hasForgottenSources(database)).toBe(false);
     forgetSource(database, source.id);
-    expect(hasStoredSources(database)).toBe(true);
+    expect(hasForgottenSources(database)).toBe(true);
   });
 
   it("reuses a source ID after the database is reopened", async () => {
@@ -88,14 +88,14 @@ describe("library source persistence", () => {
     disableSource(database, source.id);
     expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 0 });
     expect(getSource(database, source.id).enabled).toBe(false);
-    expect(getAvailableTracks(database)).toEqual([]);
+    expect(getTracks(database).map((track) => track.available)).toEqual([false]);
 
     enableSource(database, source.id);
     expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 1 });
-    expect(getAvailableTracks(database)).toEqual([]);
+    expect(getTracks(database).map((track) => track.available)).toEqual([false]);
 
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    expect(getAvailableTracks(database)).toHaveLength(1);
+    expect(getTracks(database).map((track) => track.available)).toEqual([true]);
   });
 
   it("restores forgotten sources with the same track IDs", async () => {
@@ -207,7 +207,7 @@ describe("track persistence", () => {
       available: 0,
       id: trackId,
     });
-    expect(getAvailableTracks(database)).toEqual([]);
+    expect(getTracks(database).map((track) => track.available)).toEqual([false]);
 
     await writeFile(trackPath, "restored");
     applySourceScan(database, source.id, await scanAudioFiles(folder));
@@ -216,8 +216,9 @@ describe("track persistence", () => {
       file_size: 8,
       id: trackId,
     });
-    expect(getAvailableTracks(database)).toEqual([
+    expect(getTracks(database)).toEqual([
       {
+        available: true,
         duration: null,
         format: "MP3",
         id: trackId,

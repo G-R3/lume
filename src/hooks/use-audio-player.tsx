@@ -14,6 +14,7 @@ type AudioPlayerContextValue = {
   duration: number;
   canGoNext: boolean;
   playFrom: (tracks: readonly Track[], index: number) => void;
+  syncTracks: (tracks: readonly Track[]) => void;
   togglePlayback: () => void;
   toggleMute: () => void;
   seek: (time: number) => void;
@@ -62,9 +63,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   const activeTrack = playbackSequence ? playbackSequence.tracks[playbackSequence.index] : null;
 
-  const canGoNext = playbackSequence
-    ? playbackSequence.index < playbackSequence.tracks.length - 1
-    : false;
+  const canGoNext = playbackSequence ? findNextAvailableTrackIndex(playbackSequence) !== -1 : false;
 
   const resume = useCallback(() => {
     const playbackRequest = ++playbackRequestRef.current;
@@ -105,7 +104,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     (tracks: readonly Track[], index: number) => {
       const track = tracks[index];
 
-      if (!track) return;
+      if (!track?.available) return;
 
       ++playbackRequestRef.current;
       setPlaybackSequence({ tracks, index });
@@ -129,7 +128,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     (tracks: readonly Track[], index: number) => {
       const track = tracks[index];
 
-      if (!track) return;
+      if (!track?.available) return;
 
       if (activeTrack?.id === track.id) {
         setPlaybackSequence({ tracks, index });
@@ -141,6 +140,18 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     },
     [activeTrack?.id, changeTrack, resume],
   );
+
+  const syncTracks = useCallback((tracks: readonly Track[]) => {
+    setPlaybackSequence((playbackSequence) => {
+      if (!playbackSequence || playbackSequence.tracks === tracks) return playbackSequence;
+
+      const activeTrack = playbackSequence.tracks[playbackSequence.index];
+      if (!activeTrack) return null;
+
+      const index = tracks.findIndex((track) => track.id === activeTrack.id);
+      return index === -1 ? playbackSequence : { tracks, index };
+    });
+  }, []);
 
   const toggleMute = useCallback(() => {
     setIsMuted((isMuted) => !isMuted);
@@ -162,21 +173,22 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const next = useCallback(() => {
     if (!playbackSequence) return;
 
-    changeTrack(playbackSequence.tracks, playbackSequence.index + 1);
+    changeTrack(playbackSequence.tracks, findNextAvailableTrackIndex(playbackSequence));
   }, [changeTrack, playbackSequence]);
 
   const previous = useCallback(() => {
     if (!playbackSequence) return;
 
-    if (
-      playbackSequence.index === 0 ||
-      Math.floor(timeStore.getSnapshot()) > previousTrackThreshold
-    ) {
+    const previousIndex = playbackSequence.tracks.findLastIndex(
+      (track, index) => index < playbackSequence.index && track.available,
+    );
+
+    if (previousIndex === -1 || Math.floor(timeStore.getSnapshot()) > previousTrackThreshold) {
       seek(0);
       return;
     }
 
-    changeTrack(playbackSequence.tracks, playbackSequence.index - 1);
+    changeTrack(playbackSequence.tracks, previousIndex);
   }, [changeTrack, playbackSequence, seek, timeStore]);
 
   const contextValue = React.useMemo(
@@ -189,6 +201,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         duration,
         canGoNext,
         playFrom,
+        syncTracks,
         togglePlayback,
         toggleMute,
         seek,
@@ -203,6 +216,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       duration,
       canGoNext,
       playFrom,
+      syncTracks,
       togglePlayback,
       toggleMute,
       seek,
@@ -244,6 +258,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         />
       )}
     </AudioPlayerContext.Provider>
+  );
+}
+
+function findNextAvailableTrackIndex(playbackSequence: PlaybackSequence) {
+  return playbackSequence.tracks.findIndex(
+    (track, index) => index > playbackSequence.index && track.available,
   );
 }
 

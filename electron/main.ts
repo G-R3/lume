@@ -25,10 +25,10 @@ import {
   disableSource,
   enableSource,
   forgetSource,
-  getAvailableTracks,
+  hasForgottenSources,
   getSources,
   getSource,
-  hasStoredSources,
+  getTracks,
   saveSource,
 } from "./library-store";
 
@@ -165,11 +165,12 @@ function readLibrary(database: DatabaseSync) {
   const sources = getSources(database);
   const storedTracks = refreshTracksById(database);
 
-  if (sources.length === 0 && !hasStoredSources(database)) return null;
+  if (sources.length === 0 && !hasForgottenSources(database)) return null;
 
   return {
     sources,
     tracks: storedTracks.map((track) => ({
+      available: track.available,
       duration: track.duration,
       format: track.format,
       id: track.id,
@@ -180,8 +181,10 @@ function readLibrary(database: DatabaseSync) {
 }
 
 function refreshTracksById(database: DatabaseSync) {
-  const tracks = getAvailableTracks(database);
-  tracksById = new Map(tracks.map((track) => [track.id, track.path]));
+  const tracks = getTracks(database);
+  tracksById = new Map(
+    tracks.filter((track) => track.available).map((track) => [track.id, track.path]),
+  );
   return tracks;
 }
 
