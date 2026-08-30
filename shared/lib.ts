@@ -20,22 +20,22 @@ export type MusicLibrary = {
 };
 
 export type LumeApi = {
-  chooseMusicFolder: () => Promise<MusicLibrary | null>;
+  addSource: () => Promise<MusicLibrary | null>;
   disableSource: (sourceId: string) => Promise<MusicLibrary | null>;
   enableSource: (sourceId: string) => Promise<MusicLibrary | null>;
-  forgetLibrarySource: (sourceId: string) => Promise<MusicLibrary | null>;
-  loadMusicLibrary: () => Promise<MusicLibrary | null>;
-  rescanLibrarySource: (sourceId: string) => Promise<MusicLibrary | null>;
-  rescanMusicLibrary: () => Promise<MusicLibrary | null>;
+  forgetSource: (sourceId: string) => Promise<MusicLibrary | null>;
+  loadLibrary: () => Promise<MusicLibrary | null>;
+  rescanSource: (sourceId: string) => Promise<MusicLibrary | null>;
+  rescanSources: () => Promise<MusicLibrary | null>;
   isMac: boolean;
 };
 
 export const lumeChannels = {
-  chooseMusicFolder: "lume:choose-music-folder",
+  addSource: "lume:add-source",
   disableSource: "lume:disable-source",
   enableSource: "lume:enable-source",
-  forgetLibrarySource: "lume:forget-library-source",
-  loadMusicLibrary: "lume:load-music-library",
-  rescanLibrarySource: "lume:rescan-library-source",
-  rescanMusicLibrary: "lume:rescan-music-library",
+  forgetSource: "lume:forget-source",
+  loadLibrary: "lume:load-library",
+  rescanSource: "lume:rescan-source",
+  rescanSources: "lume:rescan-sources",
 } as const;

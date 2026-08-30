@@ -24,11 +24,11 @@ import { scanEnabledSources, scanSource, type SourceScanFailure } from "./librar
 import {
   disableSource,
   enableSource,
-  forgetLibrarySource,
+  forgetSource,
   getAvailableTracks,
-  getLibrarySources,
+  getSources,
   getSource,
-  saveLibrarySource,
+  saveSource,
 } from "./library-store";
 
 app.enableSandbox();
@@ -101,12 +101,12 @@ async function startApplication() {
 }
 
 function registerLibraryIpc(database: DatabaseSync) {
-  ipcMain.handle(lumeChannels.chooseMusicFolder, async (event) => {
+  ipcMain.handle(lumeChannels.addSource, async (event) => {
     const window = requireTrustedWindow(event);
     const result = await dialog.showOpenDialog(window, {
-      title: "Choose your music folder",
-      buttonLabel: "Choose Folder",
-      defaultPath: getLibrarySources(database).at(-1)?.path,
+      title: "Add a music source",
+      buttonLabel: "Add Source",
+      defaultPath: getSources(database).at(-1)?.path,
       properties: ["openDirectory"],
     });
 
@@ -115,7 +115,7 @@ function registerLibraryIpc(database: DatabaseSync) {
     const folder = result.filePaths[0];
     if (!folder) return null;
 
-    const source = await saveLibrarySource(database, folder);
+    const source = await saveSource(database, folder);
     await rm(join(app.getPath("userData"), "music-folder"), { force: true }).catch((error: Error) =>
       console.warn("Could not remove the old music folder setting", error),
     );
@@ -125,7 +125,7 @@ function registerLibraryIpc(database: DatabaseSync) {
     return readLibrary(database);
   });
 
-  ipcMain.handle(lumeChannels.loadMusicLibrary, (event) => {
+  ipcMain.handle(lumeChannels.loadLibrary, (event) => {
     requireTrustedWindow(event);
     return readLibrary(database);
   });
@@ -145,13 +145,13 @@ function registerLibraryIpc(database: DatabaseSync) {
     return readLibrary(database);
   });
 
-  ipcMain.handle(lumeChannels.forgetLibrarySource, (event, sourceId) => {
+  ipcMain.handle(lumeChannels.forgetSource, (event, sourceId) => {
     requireTrustedWindow(event);
-    forgetLibrarySource(database, sourceId);
+    forgetSource(database, sourceId);
     return readLibrary(database);
   });
 
-  ipcMain.handle(lumeChannels.rescanLibrarySource, async (event, sourceId) => {
+  ipcMain.handle(lumeChannels.rescanSource, async (event, sourceId) => {
     requireTrustedWindow(event);
     const source = getSource(database, sourceId);
 
@@ -162,7 +162,7 @@ function registerLibraryIpc(database: DatabaseSync) {
     return readLibrary(database);
   });
 
-  ipcMain.handle(lumeChannels.rescanMusicLibrary, async (event) => {
+  ipcMain.handle(lumeChannels.rescanSources, async (event) => {
     requireTrustedWindow(event);
     const failures = await scanEnabledSources(database);
     logScanFailures(failures);
@@ -175,7 +175,7 @@ function logScanFailures(failures: readonly SourceScanFailure[]) {
 }
 
 function readLibrary(database: DatabaseSync) {
-  const sources = getLibrarySources(database);
+  const sources = getSources(database);
   const storedTracks = refreshTracksById(database);
 
   if (sources.length === 0) return null;

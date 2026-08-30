@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
 import { scanEnabledSources } from "./library-scan";
-import { applySourceScan, saveLibrarySource } from "./library-store";
+import { applySourceScan, saveSource } from "./library-store";
 
 const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
@@ -27,8 +27,8 @@ describe("enabled source scanning", () => {
       writeFile(join(healthyFolder, "healthy.mp3"), ""),
       writeFile(join(missingFolder, "missing.mp3"), ""),
     ]);
-    const healthySource = await saveLibrarySource(database, healthyFolder);
-    const missingSource = await saveLibrarySource(database, missingFolder);
+    const healthySource = await saveSource(database, healthyFolder);
+    const missingSource = await saveSource(database, missingFolder);
     applySourceScan(database, missingSource.id, await scanAudioFiles(missingFolder));
     await rm(missingFolder, { recursive: true });
 
@@ -66,7 +66,7 @@ describe("enabled source scanning", () => {
     const folder = await createTemporaryFolder("lume-disabled-source-");
     const trackPath = join(folder, "song.mp3");
     await writeFile(trackPath, "");
-    const source = await saveLibrarySource(database, folder);
+    const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
     database.prepare("UPDATE library_sources SET enabled = 0 WHERE id = ?").run(source.id);
     await rm(trackPath);
@@ -79,7 +79,7 @@ describe("enabled source scanning", () => {
     const database = await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
-    const source = await saveLibrarySource(database, folder);
+    const source = await saveSource(database, folder);
     database.exec(`
       CREATE TRIGGER reject_track_insert
       BEFORE INSERT ON tracks

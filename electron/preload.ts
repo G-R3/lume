@@ -3,20 +3,19 @@ import type { LumeApi } from "../shared/lib";
 import { lumeChannels } from "../shared/lib";
 
 const lumeApi = {
-  chooseMusicFolder: (): ReturnType<LumeApi["chooseMusicFolder"]> =>
-    ipcRenderer.invoke(lumeChannels.chooseMusicFolder),
+  addSource: (): ReturnType<LumeApi["addSource"]> => ipcRenderer.invoke(lumeChannels.addSource),
   disableSource: (sourceId): ReturnType<LumeApi["disableSource"]> =>
     ipcRenderer.invoke(lumeChannels.disableSource, sourceId),
   enableSource: (sourceId): ReturnType<LumeApi["enableSource"]> =>
     ipcRenderer.invoke(lumeChannels.enableSource, sourceId),
-  forgetLibrarySource: (sourceId): ReturnType<LumeApi["forgetLibrarySource"]> =>
-    ipcRenderer.invoke(lumeChannels.forgetLibrarySource, sourceId),
-  loadMusicLibrary: (): ReturnType<LumeApi["loadMusicLibrary"]> =>
-    ipcRenderer.invoke(lumeChannels.loadMusicLibrary),
-  rescanLibrarySource: (sourceId): ReturnType<LumeApi["rescanLibrarySource"]> =>
-    ipcRenderer.invoke(lumeChannels.rescanLibrarySource, sourceId),
-  rescanMusicLibrary: (): ReturnType<LumeApi["rescanMusicLibrary"]> =>
-    ipcRenderer.invoke(lumeChannels.rescanMusicLibrary),
+  forgetSource: (sourceId): ReturnType<LumeApi["forgetSource"]> =>
+    ipcRenderer.invoke(lumeChannels.forgetSource, sourceId),
+  loadLibrary: (): ReturnType<LumeApi["loadLibrary"]> =>
+    ipcRenderer.invoke(lumeChannels.loadLibrary),
+  rescanSource: (sourceId): ReturnType<LumeApi["rescanSource"]> =>
+    ipcRenderer.invoke(lumeChannels.rescanSource, sourceId),
+  rescanSources: (): ReturnType<LumeApi["rescanSources"]> =>
+    ipcRenderer.invoke(lumeChannels.rescanSources),
   isMac: process.platform === "darwin",
 } satisfies LumeApi;
 

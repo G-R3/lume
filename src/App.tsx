@@ -56,7 +56,7 @@ function App() {
     if (hasLoadedSavedLibrary.current) return;
 
     hasLoadedSavedLibrary.current = true;
-    void requestLibrary(window.lume.loadMusicLibrary);
+    void requestLibrary(window.lume.loadLibrary);
   }, [requestLibrary]);
 
   return (
@@ -142,7 +142,7 @@ function App() {
               <Button
                 className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
                 disabled={isLoadingLibrary}
-                onClick={() => void requestLibrary(window.lume.chooseMusicFolder)}
+                onClick={() => void requestLibrary(window.lume.addSource)}
                 type="button"
                 variant="outline"
               >
@@ -153,7 +153,7 @@ function App() {
                 <Button
                   className="border-lime-800 bg-lime-950 text-lime-300 hover:bg-lime-900 hover:text-lime-200"
                   disabled={isLoadingLibrary}
-                  onClick={() => void requestLibrary(window.lume.rescanMusicLibrary)}
+                  onClick={() => void requestLibrary(window.lume.rescanSources)}
                   type="button"
                   variant="outline"
                 >

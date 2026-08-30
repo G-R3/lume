@@ -14,7 +14,7 @@ export type StoredTrack = {
   path: string;
 };
 
-export function getLibrarySources(database: DatabaseSync): LibrarySource[] {
+export function getSources(database: DatabaseSync): LibrarySource[] {
   return database
     .prepare(
       `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
@@ -22,10 +22,10 @@ export function getLibrarySources(database: DatabaseSync): LibrarySource[] {
       ORDER BY created_at`,
     )
     .all()
-    .map(readLibrarySource);
+    .map(readSource);
 }
 
-export function getEnabledLibrarySources(database: DatabaseSync): LibrarySource[] {
+export function getEnabledSources(database: DatabaseSync): LibrarySource[] {
   return database
     .prepare(
       `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
@@ -33,7 +33,7 @@ export function getEnabledLibrarySources(database: DatabaseSync): LibrarySource[
       ORDER BY created_at`,
     )
     .all()
-    .map(readLibrarySource);
+    .map(readSource);
 }
 
 export function getSource(database: DatabaseSync, sourceId: string): LibrarySource {
@@ -44,7 +44,7 @@ export function getSource(database: DatabaseSync, sourceId: string): LibrarySour
     )
     .get(sourceId);
 
-  if (source) return readLibrarySource(source);
+  if (source) return readSource(source);
   throw new Error(`Library source ${sourceId} does not exist`);
 }
 
@@ -65,7 +65,7 @@ export function getAvailableTracks(database: DatabaseSync): StoredTrack[] {
     }));
 }
 
-export async function saveLibrarySource(
+export async function saveSource(
   database: DatabaseSync,
   selectedPath: string,
 ): Promise<Pick<LibrarySource, "id" | "path">> {
@@ -78,7 +78,7 @@ export async function saveLibrarySource(
 
   if (existing) {
     const id = readString(existing.id, "library_sources.id");
-    requireNoOverlappingSource(database, path, id);
+    rejectSourceOverlap(database, path, id);
     database
       .prepare(
         `UPDATE library_sources
@@ -89,7 +89,7 @@ export async function saveLibrarySource(
     return { id, path };
   }
 
-  requireNoOverlappingSource(database, path);
+  rejectSourceOverlap(database, path);
 
   const id = randomUUID();
   const now = Date.now();
@@ -138,7 +138,7 @@ export function disableSource(database: DatabaseSync, sourceId: string) {
   });
 }
 
-export function forgetLibrarySource(database: DatabaseSync, sourceId: string) {
+export function forgetSource(database: DatabaseSync, sourceId: string) {
   const now = Date.now();
 
   runInTransaction(database, () => {
@@ -208,11 +208,7 @@ export function applySourceScan(
   });
 }
 
-export function recordLibrarySourceScanFailure(
-  database: DatabaseSync,
-  sourceId: string,
-  error: string,
-) {
+export function applyScanFailure(database: DatabaseSync, sourceId: string, error: string) {
   const now = Date.now();
 
   runInTransaction(database, () => {
@@ -237,7 +233,7 @@ function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, n
     .run(now, sourceId);
 }
 
-function requireNoOverlappingSource(database: DatabaseSync, path: string, sourceId?: string) {
+function rejectSourceOverlap(database: DatabaseSync, path: string, sourceId?: string) {
   const overlappingPath = database
     .prepare("SELECT id, path FROM library_sources")
     .all()
@@ -263,7 +259,7 @@ function pathContains(parent: string, child: string) {
   return difference === "" || (!difference.startsWith("..") && !isAbsolute(difference));
 }
 
-function readLibrarySource(row: Record<string, SQLOutputValue>): LibrarySource {
+function readSource(row: Record<string, SQLOutputValue>): LibrarySource {
   return {
     enabled: readBoolean(row.enabled, "library_sources.enabled"),
     id: readString(row.id, "library_sources.id"),
