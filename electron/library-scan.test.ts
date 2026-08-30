@@ -5,7 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
-import { reconcileEnabledLibrarySources } from "./library-reconciliation";
+import { scanEnabledSources } from "./library-scan";
 import { applySourceScan, saveLibrarySource } from "./library-store";
 
 const temporaryFolders: string[] = [];
@@ -18,7 +18,7 @@ afterEach(async () => {
   );
 });
 
-describe("enabled source reconciliation", () => {
+describe("enabled source scanning", () => {
   it("isolates source failures and records their unavailable tracks", async () => {
     const database = await openTestDatabase();
     const healthyFolder = await createTemporaryFolder("lume-healthy-source-");
@@ -32,7 +32,7 @@ describe("enabled source reconciliation", () => {
     applySourceScan(database, missingSource.id, await scanAudioFiles(missingFolder));
     await rm(missingFolder, { recursive: true });
 
-    const failures = await reconcileEnabledLibrarySources(database);
+    const failures = await scanEnabledSources(database);
 
     expect(failures).toEqual([
       {
@@ -71,7 +71,7 @@ describe("enabled source reconciliation", () => {
     database.prepare("UPDATE library_sources SET enabled = 0 WHERE id = ?").run(source.id);
     await rm(trackPath);
 
-    await expect(reconcileEnabledLibrarySources(database)).resolves.toEqual([]);
+    await expect(scanEnabledSources(database)).resolves.toEqual([]);
     expect(database.prepare("SELECT available FROM tracks").get()).toEqual({ available: 1 });
   });
 
@@ -88,7 +88,7 @@ describe("enabled source reconciliation", () => {
       END;
     `);
 
-    await expect(reconcileEnabledLibrarySources(database)).rejects.toThrow("track write failed");
+    await expect(scanEnabledSources(database)).rejects.toThrow("track write failed");
     expect(
       database.prepare("SELECT last_scan_error FROM library_sources WHERE id = ?").get(source.id),
     ).toEqual({ last_scan_error: null });

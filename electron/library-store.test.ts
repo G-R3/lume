@@ -7,11 +7,13 @@ import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
 import {
   applySourceScan,
+  disableSource,
+  enableSource,
   forgetLibrarySource,
   getAvailableTracks,
   getLibrarySources,
+  getSource,
   saveLibrarySource,
-  setLibrarySourceEnabled,
 } from "./library-store";
 
 const temporaryFolders: string[] = [];
@@ -71,11 +73,12 @@ describe("library source persistence", () => {
     const source = await saveLibrarySource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
 
-    setLibrarySourceEnabled(database, source.id, false);
+    disableSource(database, source.id);
     expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 0 });
+    expect(getSource(database, source.id).enabled).toBe(false);
     expect(getAvailableTracks(database)).toEqual([]);
 
-    setLibrarySourceEnabled(database, source.id, true);
+    enableSource(database, source.id);
     expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 1 });
     expect(getAvailableTracks(database)).toEqual([]);
 

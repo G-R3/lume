@@ -5,6 +5,10 @@ import { lumeChannels } from "../shared/lib";
 const lumeApi = {
   chooseMusicFolder: (): ReturnType<LumeApi["chooseMusicFolder"]> =>
     ipcRenderer.invoke(lumeChannels.chooseMusicFolder),
+  disableSource: (sourceId): ReturnType<LumeApi["disableSource"]> =>
+    ipcRenderer.invoke(lumeChannels.disableSource, sourceId),
+  enableSource: (sourceId): ReturnType<LumeApi["enableSource"]> =>
+    ipcRenderer.invoke(lumeChannels.enableSource, sourceId),
   forgetLibrarySource: (sourceId): ReturnType<LumeApi["forgetLibrarySource"]> =>
     ipcRenderer.invoke(lumeChannels.forgetLibrarySource, sourceId),
   loadMusicLibrary: (): ReturnType<LumeApi["loadMusicLibrary"]> =>
@@ -13,8 +17,6 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.rescanLibrarySource, sourceId),
   rescanMusicLibrary: (): ReturnType<LumeApi["rescanMusicLibrary"]> =>
     ipcRenderer.invoke(lumeChannels.rescanMusicLibrary),
-  setLibrarySourceEnabled: (sourceId, enabled): ReturnType<LumeApi["setLibrarySourceEnabled"]> =>
-    ipcRenderer.invoke(lumeChannels.setLibrarySourceEnabled, sourceId, enabled),
   isMac: process.platform === "darwin",
 } satisfies LumeApi;
 

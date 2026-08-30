@@ -20,18 +20,15 @@ import {
 } from "./protocol";
 import { lumeChannels, type MusicLibrary } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
+import { scanEnabledSources, scanSource, type SourceScanFailure } from "./library-scan";
 import {
-  reconcileEnabledLibrarySources,
-  reconcileLibrarySource,
-  type LibraryScanFailure,
-} from "./library-reconciliation";
-import {
+  disableSource,
+  enableSource,
   forgetLibrarySource,
   getAvailableTracks,
-  getEnabledLibrarySources,
   getLibrarySources,
+  getSource,
   saveLibrarySource,
-  setLibrarySourceEnabled,
 } from "./library-store";
 
 app.enableSandbox();
@@ -91,12 +88,12 @@ async function startApplication() {
   );
 
   createWindow();
-  void reconcileEnabledLibrarySources(database)
+  void scanEnabledSources(database)
     .then((failures) => {
       refreshTracksById(database);
-      reportScanFailures(failures);
+      logScanFailures(failures);
     })
-    .catch((error) => console.error("Could not reconcile the music library", error));
+    .catch((error) => console.error("Could not scan the music library", error));
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -122,7 +119,7 @@ function registerLibraryIpc(database: DatabaseSync) {
     await rm(join(app.getPath("userData"), "music-folder"), { force: true }).catch((error: Error) =>
       console.warn("Could not remove the old music folder setting", error),
     );
-    const failure = await reconcileLibrarySource(database, source);
+    const failure = await scanSource(database, source);
 
     if (failure) throw new Error(failure.error);
     return readLibrary(database);
@@ -133,18 +130,18 @@ function registerLibraryIpc(database: DatabaseSync) {
     return readLibrary(database);
   });
 
-  ipcMain.handle(lumeChannels.setLibrarySourceEnabled, async (event, sourceId, enabled) => {
+  ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
     requireTrustedWindow(event);
-    setLibrarySourceEnabled(database, sourceId, enabled);
+    enableSource(database, sourceId);
+    const failure = await scanSource(database, getSource(database, sourceId));
+    if (failure) logScanFailures([failure]);
 
-    if (enabled) {
-      const failure = await reconcileLibrarySource(
-        database,
-        requireEnabledLibrarySource(database, sourceId),
-      );
-      if (failure) reportScanFailures([failure]);
-    }
+    return readLibrary(database);
+  });
 
+  ipcMain.handle(lumeChannels.disableSource, (event, sourceId) => {
+    requireTrustedWindow(event);
+    disableSource(database, sourceId);
     return readLibrary(database);
   });
 
@@ -156,30 +153,24 @@ function registerLibraryIpc(database: DatabaseSync) {
 
   ipcMain.handle(lumeChannels.rescanLibrarySource, async (event, sourceId) => {
     requireTrustedWindow(event);
-    const failure = await reconcileLibrarySource(
-      database,
-      requireEnabledLibrarySource(database, sourceId),
-    );
-    if (failure) reportScanFailures([failure]);
+    const source = getSource(database, sourceId);
+
+    if (!source.enabled) throw new Error(`Library source ${sourceId} is disabled`);
+
+    const failure = await scanSource(database, source);
+    if (failure) logScanFailures([failure]);
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.rescanMusicLibrary, async (event) => {
     requireTrustedWindow(event);
-    const failures = await reconcileEnabledLibrarySources(database);
-    reportScanFailures(failures);
+    const failures = await scanEnabledSources(database);
+    logScanFailures(failures);
     return readLibrary(database);
   });
 }
 
-function requireEnabledLibrarySource(database: DatabaseSync, sourceId: string) {
-  const source = getEnabledLibrarySources(database).find((source) => source.id === sourceId);
-
-  if (source) return source;
-  throw new Error(`Enabled library source ${sourceId} does not exist`);
-}
-
-function reportScanFailures(failures: readonly LibraryScanFailure[]) {
+function logScanFailures(failures: readonly SourceScanFailure[]) {
   failures.forEach((failure) => console.warn("Could not scan library source", failure));
 }
 

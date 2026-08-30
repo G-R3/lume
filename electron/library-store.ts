@@ -36,6 +36,18 @@ export function getEnabledLibrarySources(database: DatabaseSync): LibrarySource[
     .map(readLibrarySource);
 }
 
+export function getSource(database: DatabaseSync, sourceId: string): LibrarySource {
+  const source = database
+    .prepare(
+      `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
+      WHERE id = ? AND forgotten_at IS NULL`,
+    )
+    .get(sourceId);
+
+  if (source) return readLibrarySource(source);
+  throw new Error(`Library source ${sourceId} does not exist`);
+}
+
 export function getAvailableTracks(database: DatabaseSync): StoredTrack[] {
   return database
     .prepare(
@@ -92,23 +104,37 @@ export async function saveLibrarySource(
   return { id, path };
 }
 
-export function setLibrarySourceEnabled(
-  database: DatabaseSync,
-  sourceId: string,
-  enabled: boolean,
-) {
+export function enableSource(database: DatabaseSync, sourceId: string) {
+  const result = database
+    .prepare(
+      `UPDATE library_sources
+      SET enabled = 1, updated_at = ?
+      WHERE id = ? AND forgotten_at IS NULL`,
+    )
+    .run(Date.now(), sourceId);
+
+  if (result.changes !== 1 && result.changes !== 1n) {
+    throw new Error(`Library source ${sourceId} is not active`);
+  }
+}
+
+export function disableSource(database: DatabaseSync, sourceId: string) {
   const now = Date.now();
 
   runInTransaction(database, () => {
     const result = database
       .prepare(
         `UPDATE library_sources
-        SET enabled = ?, updated_at = ?
+        SET enabled = 0, updated_at = ?
         WHERE id = ? AND forgotten_at IS NULL`,
       )
-      .run(Number(enabled), now, sourceId);
-    requireLibrarySource(result.changes, sourceId);
-    if (!enabled) markSourceTracksUnavailable(database, sourceId, now);
+      .run(now, sourceId);
+
+    if (result.changes !== 1 && result.changes !== 1n) {
+      throw new Error(`Library source ${sourceId} is not active`);
+    }
+
+    markSourceTracksUnavailable(database, sourceId, now);
   });
 }
 
@@ -123,7 +149,11 @@ export function forgetLibrarySource(database: DatabaseSync, sourceId: string) {
         WHERE id = ? AND forgotten_at IS NULL`,
       )
       .run(now, now, sourceId);
-    requireLibrarySource(result.changes, sourceId);
+
+    if (result.changes !== 1 && result.changes !== 1n) {
+      throw new Error(`Library source ${sourceId} is not active`);
+    }
+
     markSourceTracksUnavailable(database, sourceId, now);
   });
 }
@@ -222,11 +252,6 @@ function requireNoOverlappingSource(database: DatabaseSync, path: string, source
       `This folder overlaps the existing source ${readString(overlappingPath.path, "library_sources.path")}`,
     );
   }
-}
-
-function requireLibrarySource(changes: number | bigint, sourceId: string) {
-  if (changes === 1 || changes === 1n) return;
-  throw new Error(`Library source ${sourceId} is not active`);
 }
 
 function pathsOverlap(left: string, right: string) {

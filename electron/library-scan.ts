@@ -7,28 +7,26 @@ import {
   recordLibrarySourceScanFailure,
 } from "./library-store";
 
-export type LibraryScanFailure = {
+export type SourceScanFailure = {
   error: string;
   sourceId: string;
 };
 
-export async function reconcileEnabledLibrarySources(
-  database: DatabaseSync,
-): Promise<LibraryScanFailure[]> {
-  const failures: LibraryScanFailure[] = [];
+export async function scanEnabledSources(database: DatabaseSync): Promise<SourceScanFailure[]> {
+  const failures: SourceScanFailure[] = [];
 
   for (const source of getEnabledLibrarySources(database)) {
-    const failure = await reconcileLibrarySource(database, source);
+    const failure = await scanSource(database, source);
     if (failure) failures.push(failure);
   }
 
   return failures;
 }
 
-export async function reconcileLibrarySource(
+export async function scanSource(
   database: DatabaseSync,
   source: Pick<LibrarySource, "id" | "path">,
-): Promise<LibraryScanFailure | null> {
+): Promise<SourceScanFailure | null> {
   let tracks: ScannedTrack[];
 
   try {
