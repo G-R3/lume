@@ -48,6 +48,13 @@ export function getSource(database: DatabaseSync, sourceId: string): LibrarySour
   throw new Error(`Library source ${sourceId} does not exist`);
 }
 
+export function hasStoredSources(database: DatabaseSync) {
+  return readBoolean(
+    database.prepare("SELECT EXISTS(SELECT 1 FROM library_sources) AS value").get()?.value,
+    "library_sources.exists",
+  );
+}
+
 export function getAvailableTracks(database: DatabaseSync): StoredTrack[] {
   return database
     .prepare(

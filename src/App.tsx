@@ -1,6 +1,7 @@
 import { GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MusicLibrary } from "../shared/lib";
+import { LibraryEmptyState } from "@/components/library-empty-state";
 import { SourceSettings } from "@/components/source-settings";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -26,7 +27,7 @@ import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 function App() {
-  const [library, setLibrary] = useState<MusicLibrary | null>(null);
+  const [library, setLibrary] = useState<MusicLibrary | null>();
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [route, setRoute] = useState(window.location.hash);
@@ -37,7 +38,9 @@ function App() {
   const sourceSummary =
     sourcePaths?.length === 1
       ? sourcePaths[0]
-      : sourcePaths && `${sourcePaths.length.toLocaleString()} sources`;
+      : sourcePaths?.length
+        ? `${sourcePaths.length.toLocaleString()} sources`
+        : null;
 
   const requestLibrary = useCallback(async (request: () => Promise<MusicLibrary | null>) => {
     setIsLoadingLibrary(true);
@@ -68,6 +71,19 @@ function App() {
   }, []);
 
   const isSourceSettings = route === "#settings/sources";
+
+  if (library === undefined) return <div className="min-h-screen bg-black" />;
+
+  if (library === null) {
+    return (
+      <LibraryEmptyState
+        errorMessage={errorMessage}
+        isLoading={isLoadingLibrary}
+        isMac={isMac}
+        onAddSource={() => void requestLibrary(window.lume.addSource)}
+      />
+    );
+  }
 
   return (
     <>

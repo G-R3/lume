@@ -28,6 +28,7 @@ import {
   getAvailableTracks,
   getSources,
   getSource,
+  hasStoredSources,
   saveSource,
 } from "./library-store";
 
@@ -164,7 +165,7 @@ function readLibrary(database: DatabaseSync) {
   const sources = getSources(database);
   const storedTracks = refreshTracksById(database);
 
-  if (sources.length === 0) return null;
+  if (!hasStoredSources(database)) return null;
 
   return {
     sources,

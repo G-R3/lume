@@ -13,7 +13,7 @@ export function SourceSettings({
   requestLibrary,
 }: {
   isLoading: boolean;
-  library: MusicLibrary | null;
+  library: MusicLibrary;
   requestLibrary: (request: () => Promise<MusicLibrary | null>) => Promise<void>;
 }) {
   return (
@@ -37,7 +37,7 @@ export function SourceSettings({
       </header>
 
       <div className="divide-y divide-neutral-800">
-        {library?.sources.map((source) => {
+        {library.sources.map((source) => {
           const name = source.path.split(/[/\\]/).filter(Boolean).at(-1) ?? source.path;
           const status = source.lastScanError
             ? source.lastScanError
@@ -119,7 +119,7 @@ export function SourceSettings({
         })}
       </div>
 
-      {!library && !isLoading && (
+      {library.sources.length === 0 && !isLoading && (
         <div className="border-b border-neutral-800 py-12 text-center">
           <h3 className="text-sm font-medium">No library sources</h3>
           <p className="mt-2 text-xs text-neutral-500">

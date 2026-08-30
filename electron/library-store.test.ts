@@ -13,6 +13,7 @@ import {
   getAvailableTracks,
   getSources,
   getSource,
+  hasStoredSources,
   saveSource,
 } from "./library-store";
 
@@ -27,6 +28,17 @@ afterEach(async () => {
 });
 
 describe("library source persistence", () => {
+  it("distinguishes a new library from one with forgotten sources", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+
+    expect(hasStoredSources(database)).toBe(false);
+    const source = await saveSource(database, folder);
+    expect(hasStoredSources(database)).toBe(true);
+    forgetSource(database, source.id);
+    expect(hasStoredSources(database)).toBe(true);
+  });
+
   it("reuses a source ID after the database is reopened", async () => {
     const folder = await createTemporaryFolder("lume-source-");
     const databaseFolder = await createTemporaryFolder("lume-database-");

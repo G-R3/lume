@@ -6,6 +6,7 @@
   "main": "./out/main/main.cjs",
   "scripts": {
     "dev": "electron-vite dev",
+    "db:drop": "node scripts/drop-dev-database.mjs && pnpm dev",
     "build": "tsc -b && electron-vite build",
     "format": "vp fmt",
     "lint": "vp lint",
