@@ -10,6 +10,20 @@ export type StoredLibrarySource = {
   path: string;
 };
 
+export function getEnabledLibrarySources(database: DatabaseSync): StoredLibrarySource[] {
+  return database
+    .prepare(
+      `SELECT id, path FROM library_sources
+      WHERE enabled = 1 AND forgotten_at IS NULL
+      ORDER BY created_at`,
+    )
+    .all()
+    .map((row) => ({
+      id: readString(row.id, "library_sources.id"),
+      path: readString(row.path, "library_sources.path"),
+    }));
+}
+
 export async function saveLibrarySource(
   database: DatabaseSync,
   selectedPath: string,
@@ -54,13 +68,7 @@ export function reconcileScannedTracks(
   const now = Date.now();
 
   runInTransaction(database, () => {
-    database
-      .prepare(
-        `UPDATE tracks
-        SET available = 0, updated_at = ?
-        WHERE source_id = ? AND available = 1`,
-      )
-      .run(now, sourceId);
+    markSourceTracksUnavailable(database, sourceId, now);
 
     const saveTrack = database.prepare(
       `INSERT INTO tracks (
@@ -92,7 +100,44 @@ export function reconcileScannedTracks(
         now,
       );
     });
+
+    database
+      .prepare(
+        `UPDATE library_sources
+        SET last_scanned_at = ?, last_scan_error = NULL, updated_at = ?
+        WHERE id = ?`,
+      )
+      .run(now, now, sourceId);
   });
+}
+
+export function recordLibrarySourceScanFailure(
+  database: DatabaseSync,
+  sourceId: string,
+  error: string,
+) {
+  const now = Date.now();
+
+  runInTransaction(database, () => {
+    markSourceTracksUnavailable(database, sourceId, now);
+    database
+      .prepare(
+        `UPDATE library_sources
+        SET last_scanned_at = ?, last_scan_error = ?, updated_at = ?
+        WHERE id = ?`,
+      )
+      .run(now, error, now, sourceId);
+  });
+}
+
+function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, now: number) {
+  database
+    .prepare(
+      `UPDATE tracks
+      SET available = 0, updated_at = ?
+      WHERE source_id = ? AND available = 1`,
+    )
+    .run(now, sourceId);
 }
 
 function pathsOverlap(left: string, right: string) {
