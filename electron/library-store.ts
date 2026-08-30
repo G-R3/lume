@@ -46,7 +46,7 @@ export async function saveLibrarySource(
   return { id, path };
 }
 
-export function saveScannedTracks(
+export function reconcileScannedTracks(
   database: DatabaseSync,
   sourceId: string,
   tracks: readonly ScannedTrack[],
@@ -54,6 +54,14 @@ export function saveScannedTracks(
   const now = Date.now();
 
   runInTransaction(database, () => {
+    database
+      .prepare(
+        `UPDATE tracks
+        SET available = 0, updated_at = ?
+        WHERE source_id = ? AND available = 1`,
+      )
+      .run(now, sourceId);
+
     const saveTrack = database.prepare(
       `INSERT INTO tracks (
         id, source_id, path, name, duration, format, file_size, modified_at,

@@ -5,7 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
-import { saveLibrarySource, saveScannedTracks } from "./library-store";
+import { reconcileScannedTracks, saveLibrarySource } from "./library-store";
 
 const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
@@ -59,14 +59,14 @@ describe("track persistence", () => {
     const trackPath = join(folder, "song.mp3");
     await writeFile(trackPath, "");
     const source = await saveLibrarySource(database, folder);
-    saveScannedTracks(database, source.id, await scanAudioFiles(folder));
+    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
     const initialTrackId = database
       .prepare("SELECT id FROM tracks WHERE source_id = ?")
       .get(source.id)?.id;
     expect(initialTrackId).toBeDefined();
 
     await writeFile(trackPath, "changed");
-    saveScannedTracks(database, source.id, await scanAudioFiles(folder));
+    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
 
     expect(
       database.prepare("SELECT id, path, file_size FROM tracks WHERE source_id = ?").get(source.id),
@@ -87,13 +87,38 @@ describe("track persistence", () => {
       writeFile(join(folder, "song.flac"), ""),
     ]);
     const source = await saveLibrarySource(database, folder);
-    saveScannedTracks(database, source.id, await scanAudioFiles(folder));
+    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
     const tracks = database
       .prepare("SELECT id, path FROM tracks WHERE source_id = ? ORDER BY path")
       .all(source.id);
 
     expect(tracks).toHaveLength(3);
     expect(new Set(tracks.map((track) => track.id)).size).toBe(3);
+  });
+
+  it("marks missing tracks unavailable and restores the same record", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    const trackPath = join(folder, "song.mp3");
+    await writeFile(trackPath, "original");
+    const source = await saveLibrarySource(database, folder);
+    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    const trackId = database.prepare("SELECT id FROM tracks").get()?.id;
+
+    await rm(trackPath);
+    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    expect(database.prepare("SELECT id, available FROM tracks").get()).toEqual({
+      available: 0,
+      id: trackId,
+    });
+
+    await writeFile(trackPath, "restored");
+    reconcileScannedTracks(database, source.id, await scanAudioFiles(folder));
+    expect(database.prepare("SELECT id, available, file_size FROM tracks").get()).toEqual({
+      available: 1,
+      file_size: 8,
+      id: trackId,
+    });
   });
 });
 
