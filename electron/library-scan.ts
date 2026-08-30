@@ -1,15 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { LibrarySource } from "../shared/lib";
+import type { LibrarySource, ScanFailure } from "../shared/lib";
 import { scanAudioFiles, type ScannedTrack } from "./library";
 import { applyScanFailure, applySourceScan, getEnabledSources } from "./library-store";
 
-export type SourceScanFailure = {
-  error: string;
-  sourceId: string;
-};
-
-export async function scanEnabledSources(database: DatabaseSync): Promise<SourceScanFailure[]> {
-  const failures: SourceScanFailure[] = [];
+export async function scanEnabledSources(database: DatabaseSync): Promise<ScanFailure[]> {
+  const failures: ScanFailure[] = [];
 
   for (const source of getEnabledSources(database)) {
     const failure = await scanSource(database, source);
@@ -22,7 +17,7 @@ export async function scanEnabledSources(database: DatabaseSync): Promise<Source
 export async function scanSource(
   database: DatabaseSync,
   source: Pick<LibrarySource, "id" | "path">,
-): Promise<SourceScanFailure | null> {
+): Promise<ScanFailure | null> {
   let tracks: ScannedTrack[];
 
   try {

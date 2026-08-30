@@ -1,4 +1,4 @@
-import type { MusicLibrary } from "../../shared/lib";
+import type { LibraryUpdate, MusicLibrary } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
 
 export function LibraryStatus({
@@ -8,7 +8,7 @@ export function LibraryStatus({
 }: {
   isLoading: boolean;
   library: MusicLibrary;
-  requestLibrary: (request: () => Promise<MusicLibrary | null>) => Promise<void>;
+  requestLibrary: (request: () => Promise<LibraryUpdate>) => Promise<void>;
 }) {
   const failedSource = library.sources.find((source) => source.lastScanError);
 

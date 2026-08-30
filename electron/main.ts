@@ -109,39 +109,39 @@ function registerLibraryIpc(database: DatabaseSync) {
     });
 
     const folder = result.filePaths[0];
-    if (!folder) return readLibrary(database);
+    if (!folder) return { library: readLibrary(database), scanFailures: [] };
 
     const source = await saveSource(database, folder);
     await rm(join(app.getPath("userData"), "music-folder"), { force: true }).catch((error: Error) =>
       console.warn("Could not remove the old music folder setting", error),
     );
-    await scanSource(database, source);
-    return readLibrary(database);
+    const failure = await scanSource(database, source);
+    return { library: readLibrary(database), scanFailures: failure ? [failure] : [] };
   });
 
   ipcMain.handle(lumeChannels.loadLibrary, (event) => {
     requireTrustedWindow(event);
-    return readLibrary(database);
+    return { library: readLibrary(database), scanFailures: [] };
   });
 
   ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
     requireTrustedWindow(event);
     enableSource(database, sourceId);
-    await scanSource(database, getSource(database, sourceId));
+    const failure = await scanSource(database, getSource(database, sourceId));
 
-    return readLibrary(database);
+    return { library: readLibrary(database), scanFailures: failure ? [failure] : [] };
   });
 
   ipcMain.handle(lumeChannels.disableSource, (event, sourceId) => {
     requireTrustedWindow(event);
     disableSource(database, sourceId);
-    return readLibrary(database);
+    return { library: readLibrary(database), scanFailures: [] };
   });
 
   ipcMain.handle(lumeChannels.forgetSource, (event, sourceId) => {
     requireTrustedWindow(event);
     forgetSource(database, sourceId);
-    return readLibrary(database);
+    return { library: readLibrary(database), scanFailures: [] };
   });
 
   ipcMain.handle(lumeChannels.rescanSource, async (event, sourceId) => {
@@ -150,14 +150,14 @@ function registerLibraryIpc(database: DatabaseSync) {
 
     if (!source.enabled) throw new Error(`Library source ${sourceId} is disabled`);
 
-    await scanSource(database, source);
-    return readLibrary(database);
+    const failure = await scanSource(database, source);
+    return { library: readLibrary(database), scanFailures: failure ? [failure] : [] };
   });
 
   ipcMain.handle(lumeChannels.rescanSources, async (event) => {
     requireTrustedWindow(event);
-    await scanEnabledSources(database);
-    return readLibrary(database);
+    const scanFailures = await scanEnabledSources(database);
+    return { library: readLibrary(database), scanFailures };
   });
 }
 

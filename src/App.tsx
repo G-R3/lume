@@ -1,8 +1,9 @@
 import { GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MusicLibrary } from "../shared/lib";
+import type { LibraryUpdate, MusicLibrary, ScanFailure } from "../shared/lib";
 import { LibraryEmptyState } from "@/components/library-empty-state";
 import { LibraryStatus } from "@/components/library-status";
+import { ScanErrorToast } from "@/components/scan-error-toast";
 import { SourceSettings } from "@/components/source-settings";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -31,6 +32,7 @@ function App() {
   const [library, setLibrary] = useState<MusicLibrary | null>();
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [scanFailures, setScanFailures] = useState<ScanFailure[]>([]);
   const [route, setRoute] = useState(window.location.hash);
   const hasLoadedSavedLibrary = useRef(false);
   const audioPlayer = useAudioPlayer();
@@ -45,20 +47,24 @@ function App() {
         ? `${sourcePaths.length.toLocaleString()} sources`
         : null;
 
-  const requestLibrary = useCallback(async (request: () => Promise<MusicLibrary | null>) => {
+  const requestLibrary = useCallback(async (request: () => Promise<LibraryUpdate>) => {
     setIsLoadingLibrary(true);
     setErrorMessage(null);
+    setScanFailures([]);
 
     try {
-      const library = await request();
+      const update = await request();
 
-      setLibrary(library);
+      setLibrary(update.library);
+      setScanFailures(update.scanFailures);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not load the library");
     } finally {
       setIsLoadingLibrary(false);
     }
   }, []);
+
+  const dismissScanFailures = useCallback(() => setScanFailures([]), []);
 
   useEffect(() => {
     if (hasLoadedSavedLibrary.current) return;
@@ -268,6 +274,11 @@ function App() {
       </SidebarProvider>
 
       <AudioPlayerControls />
+      <ScanErrorToast
+        failures={scanFailures}
+        onDismiss={dismissScanFailures}
+        sources={library.sources}
+      />
     </>
   );
 }

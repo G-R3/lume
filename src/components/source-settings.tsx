@@ -1,4 +1,4 @@
-import type { MusicLibrary } from "../../shared/lib";
+import type { LibraryUpdate, MusicLibrary } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ export function SourceSettings({
 }: {
   isLoading: boolean;
   library: MusicLibrary;
-  requestLibrary: (request: () => Promise<MusicLibrary | null>) => Promise<void>;
+  requestLibrary: (request: () => Promise<LibraryUpdate>) => Promise<void>;
 }) {
   return (
     <div className="mx-auto w-full max-w-4xl px-8 py-10">
