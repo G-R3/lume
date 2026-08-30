@@ -19,6 +19,7 @@ import {
 } from "./protocol";
 import { readMusicFolder, saveMusicFolder, scanAudioFiles } from "./library";
 import { lumeChannels } from "../shared/lib";
+import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 
 app.enableSandbox();
 
@@ -113,7 +114,14 @@ async function scanMusicLibrary(folder: string) {
   };
 }
 
-void app.whenReady().then(() => {
+void app.whenReady().then(startApplication).catch(handleStartupFailure);
+
+async function startApplication() {
+  const database = await openLibraryDatabase(
+    getLibraryDatabasePath(app.getPath("userData"), app.isPackaged),
+  );
+  app.once("will-quit", () => database.close());
+
   registerProtocolHandler(rendererDirectory, () => tracksById);
 
   session.defaultSession.setPermissionCheckHandler(() => false);
@@ -126,7 +134,7 @@ void app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-});
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
@@ -140,4 +148,10 @@ function requireTrustedWindow(event: IpcMainInvokeEvent) {
   }
 
   return window;
+}
+
+function handleStartupFailure(error: Error) {
+  console.error("Lume could not open its database", error);
+  dialog.showErrorBox("Lume could not start", error.message);
+  app.quit();
 }
