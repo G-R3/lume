@@ -18,7 +18,7 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import { lumeChannels, type MusicLibrary } from "../shared/lib";
+import { lumeChannels, type LibraryUpdate, type MusicLibrary } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
@@ -70,6 +70,7 @@ function createWindow() {
   });
 
   loadRenderer(window, rendererUrl);
+  return window;
 }
 
 void app.whenReady().then(startApplication).catch(handleStartupFailure);
@@ -88,9 +89,12 @@ async function startApplication() {
     callback(false),
   );
 
-  createWindow();
+  const window = createWindow();
   void scanEnabledSources(database)
-    .then(() => refreshTracksById(database))
+    .then((scanFailures) => {
+      const update = { library: readLibrary(database), scanFailures } satisfies LibraryUpdate;
+      if (!window.isDestroyed()) window.webContents.send(lumeChannels.libraryUpdated, update);
+    })
     .catch((error) => console.error("Could not scan the music library", error));
 
   app.on("activate", () => {

@@ -1,6 +1,18 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { LumeApi } from "../shared/lib";
+import type { LibraryUpdate, LumeApi } from "../shared/lib";
 import { lumeChannels } from "../shared/lib";
+
+const libraryUpdateListeners = new Set<(update: LibraryUpdate) => void>();
+let pendingLibraryUpdate: LibraryUpdate | undefined;
+
+ipcRenderer.on(lumeChannels.libraryUpdated, (_event, update: LibraryUpdate) => {
+  if (libraryUpdateListeners.size === 0) {
+    pendingLibraryUpdate = update;
+    return;
+  }
+
+  libraryUpdateListeners.forEach((listener) => listener(update));
+});
 
 const lumeApi = {
   addSource: (): ReturnType<LumeApi["addSource"]> => ipcRenderer.invoke(lumeChannels.addSource),
@@ -12,6 +24,18 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.forgetSource, sourceId),
   loadLibrary: (): ReturnType<LumeApi["loadLibrary"]> =>
     ipcRenderer.invoke(lumeChannels.loadLibrary),
+  onLibraryUpdate: (listener) => {
+    libraryUpdateListeners.add(listener);
+
+    if (pendingLibraryUpdate) {
+      listener(pendingLibraryUpdate);
+      pendingLibraryUpdate = undefined;
+    }
+
+    return () => {
+      libraryUpdateListeners.delete(listener);
+    };
+  },
   rescanSource: (sourceId): ReturnType<LumeApi["rescanSource"]> =>
     ipcRenderer.invoke(lumeChannels.rescanSource, sourceId),
   rescanSources: (): ReturnType<LumeApi["rescanSources"]> =>

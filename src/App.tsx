@@ -34,7 +34,8 @@ function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [scanFailures, setScanFailures] = useState<ScanFailure[]>([]);
   const [route, setRoute] = useState(window.location.hash);
-  const hasLoadedSavedLibrary = useRef(false);
+  const hasRequestedLibrary = useRef(false);
+  const initialLibraryRequest = useRef<Promise<void>>(Promise.resolve());
   const audioPlayer = useAudioPlayer();
   const syncTracks = audioPlayer.syncTracks;
   const isMac = window.lume.isMac;
@@ -67,11 +68,22 @@ function App() {
   const dismissScanFailures = useCallback(() => setScanFailures([]), []);
 
   useEffect(() => {
-    if (hasLoadedSavedLibrary.current) return;
+    if (hasRequestedLibrary.current) return;
 
-    hasLoadedSavedLibrary.current = true;
-    void requestLibrary(window.lume.loadLibrary);
+    hasRequestedLibrary.current = true;
+    initialLibraryRequest.current = requestLibrary(window.lume.loadLibrary);
   }, [requestLibrary]);
+
+  useEffect(
+    () =>
+      window.lume.onLibraryUpdate((update) => {
+        void initialLibraryRequest.current.then(() => {
+          setLibrary(update.library);
+          setScanFailures(update.scanFailures);
+        });
+      }),
+    [],
+  );
 
   useEffect(() => {
     const updateRoute = () => setRoute(window.location.hash);
