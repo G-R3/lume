@@ -26,13 +26,17 @@ describe("scanAudioFiles", () => {
     await expect(scanAudioFiles(folder)).resolves.toEqual([
       {
         duration: null,
+        fileSize: 0,
         format: "FLAC",
+        modifiedAt: expect.any(Number),
         name: "song-two",
         path: join(folder, "album", "song-two.flac"),
       },
       {
         duration: null,
+        fileSize: 0,
         format: "MP3",
+        modifiedAt: expect.any(Number),
         name: "song-one",
         path: join(folder, "song-one.MP3"),
       },
@@ -49,7 +53,9 @@ describe("scanAudioFiles", () => {
       await expect(scanAudioFiles(folder)).resolves.toEqual([
         {
           duration: null,
+          fileSize: 0,
           format: extension.toUpperCase(),
+          modifiedAt: expect.any(Number),
           name: "track",
           path,
         },
@@ -65,7 +71,9 @@ describe("scanAudioFiles", () => {
     await expect(scanAudioFiles(folder)).resolves.toEqual([
       {
         duration: 1,
+        fileSize: 8_044,
         format: "WAV",
+        modifiedAt: expect.any(Number),
         name: "one-second",
         path,
       },

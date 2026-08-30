@@ -1,4 +1,5 @@
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import { runInTransaction } from "./transaction";
 
 export type Migration = {
   readonly name: string;
@@ -76,18 +77,6 @@ function validateManifest(migrations: readonly Migration[]) {
       throw new Error(`Database migration ${migration.version} must have a name`);
     }
   });
-}
-
-function runInTransaction(database: DatabaseSync, action: () => void) {
-  database.exec("BEGIN IMMEDIATE");
-
-  try {
-    action();
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
 }
 
 function readString(value: SQLOutputValue | undefined, field: string) {

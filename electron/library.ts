@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { Readable } from "node:stream";
 
@@ -18,7 +18,9 @@ export const audioContentTypes: ReadonlyMap<string, string> = new Map([
 
 export type ScannedTrack = {
   duration: number | null;
+  fileSize: number;
   format: string;
+  modifiedAt: number;
   name: string;
   path: string;
 };
@@ -58,14 +60,19 @@ export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
 
 async function scanTrack(path: string, parseFile: ParseFile): Promise<ScannedTrack> {
   const extension = extname(path);
-  const metadata = await parseFile(path, { duration: true }).catch((error: Error) => {
-    console.warn("Could not read audio metadata", { error, path });
-    return null;
-  });
+  const [file, metadata] = await Promise.all([
+    stat(path),
+    parseFile(path, { duration: true }).catch((error: Error) => {
+      console.warn("Could not read audio metadata", { error, path });
+      return null;
+    }),
+  ]);
 
   return {
     duration: metadata?.format.duration ?? null,
+    fileSize: file.size,
     format: extension.slice(1).toUpperCase(),
+    modifiedAt: Math.trunc(file.mtimeMs),
     name: basename(path, extension),
     path,
   };
