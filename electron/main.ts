@@ -20,6 +20,7 @@ import {
 import { readMusicFolder, saveMusicFolder, scanAudioFiles } from "./library";
 import { lumeChannels } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
+import { reconcileEnabledLibrarySources } from "./library-reconciliation";
 
 app.enableSandbox();
 
@@ -130,6 +131,11 @@ async function startApplication() {
   );
 
   createWindow();
+  void reconcileEnabledLibrarySources(database)
+    .then((failures) => {
+      failures.forEach((failure) => console.warn("Could not scan library source", failure));
+    })
+    .catch((error) => console.error("Could not reconcile the music library", error));
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
