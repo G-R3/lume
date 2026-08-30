@@ -1,10 +1,13 @@
+import { GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MusicLibrary } from "../shared/lib";
+import { SourceSettings } from "@/components/source-settings";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -26,6 +29,7 @@ function App() {
   const [library, setLibrary] = useState<MusicLibrary | null>(null);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [route, setRoute] = useState(window.location.hash);
   const hasLoadedSavedLibrary = useRef(false);
   const audioPlayer = useAudioPlayer();
   const isMac = window.lume.isMac;
@@ -42,8 +46,6 @@ function App() {
     try {
       const library = await request();
 
-      if (!library) return;
-
       setLibrary(library);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not load the library");
@@ -58,6 +60,14 @@ function App() {
     hasLoadedSavedLibrary.current = true;
     void requestLibrary(window.lume.loadLibrary);
   }, [requestLibrary]);
+
+  useEffect(() => {
+    const updateRoute = () => setRoute(window.location.hash);
+    window.addEventListener("hashchange", updateRoute);
+    return () => window.removeEventListener("hashchange", updateRoute);
+  }, []);
+
+  const isSourceSettings = route === "#settings/sources";
 
   return (
     <>
@@ -78,28 +88,61 @@ function App() {
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupContent>
-                <nav aria-label="Library">
+                <nav aria-label={isSourceSettings ? "Settings" : "Library"}>
                   <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        aria-current="page"
-                        className="text-neutral-400"
-                        isActive
-                        render={<a href="#tracks" />}
-                      >
-                        <span>All tracks</span>
-                        {library && (
-                          <span className="font-berkeley ml-auto text-[10px] text-neutral-500 tabular-nums bg-neutral-800 py-1 px-1.5 rounded">
-                            {library.tracks.length.toLocaleString()}
-                          </span>
-                        )}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    {isSourceSettings ? (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          aria-current="page"
+                          className="text-neutral-400"
+                          isActive
+                          render={<a href="#settings/sources" />}
+                        >
+                          <GearIcon aria-hidden="true" />
+                          <span>Sources</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ) : (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          aria-current="page"
+                          className="text-neutral-400"
+                          isActive
+                          render={<a href="#tracks" />}
+                        >
+                          <MusicNotesIcon aria-hidden="true" />
+                          <span>All tracks</span>
+                          {library && (
+                            <span className="font-berkeley ml-auto rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                              {library.tracks.length.toLocaleString()}
+                            </span>
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
                   </SidebarMenu>
                 </nav>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
+
+          <SidebarFooter>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className="text-neutral-400"
+                  render={<a href={isSourceSettings ? "#tracks" : "#settings/sources"} />}
+                >
+                  {isSourceSettings ? (
+                    <MusicNotesIcon aria-hidden="true" />
+                  ) : (
+                    <GearIcon aria-hidden="true" />
+                  )}
+                  <span>{isSourceSettings ? "Back to library" : "Settings"}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
 
           <SidebarRail />
         </Sidebar>
@@ -123,44 +166,48 @@ function App() {
               className="mx-1 h-4 bg-neutral-800 data-vertical:self-center!"
               orientation="vertical"
             />
-            <h1 className="text-sm font-semibold tracking-tight">All tracks</h1>
-            {library && (
+            <h1 className="text-sm font-semibold tracking-tight">
+              {isSourceSettings ? "Settings" : "All tracks"}
+            </h1>
+            {!isSourceSettings && library && (
               <span className="font-berkeley text-[10px] text-neutral-400 tabular-nums bg-neutral-800 py-1 px-1.5 rounded">
                 {library.tracks.length.toLocaleString()}
               </span>
             )}
 
-            <div className="ml-auto flex min-w-0 items-center gap-2">
-              {sourceSummary && (
-                <span
-                  className="hidden max-w-48 truncate text-[10px] text-neutral-400 lg:block"
-                  title={sourcePaths?.join("\n")}
-                >
-                  {sourceSummary}
-                </span>
-              )}
-              <Button
-                className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
-                disabled={isLoadingLibrary}
-                onClick={() => void requestLibrary(window.lume.addSource)}
-                type="button"
-                variant="outline"
-              >
-                {library ? "Add music folder" : "Choose music folder"}
-              </Button>
-
-              {library && (
+            {!isSourceSettings && (
+              <div className="ml-auto flex min-w-0 items-center gap-2">
+                {sourceSummary && (
+                  <span
+                    className="hidden max-w-48 truncate text-[10px] text-neutral-400 lg:block"
+                    title={sourcePaths?.join("\n")}
+                  >
+                    {sourceSummary}
+                  </span>
+                )}
                 <Button
-                  className="border-lime-800 bg-lime-950 text-lime-300 hover:bg-lime-900 hover:text-lime-200"
+                  className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
                   disabled={isLoadingLibrary}
-                  onClick={() => void requestLibrary(window.lume.rescanSources)}
+                  onClick={() => void requestLibrary(window.lume.addSource)}
                   type="button"
                   variant="outline"
                 >
-                  {isLoadingLibrary ? "Scanning..." : "Rescan"}
+                  {library ? "Add music folder" : "Choose music folder"}
                 </Button>
-              )}
-            </div>
+
+                {library && (
+                  <Button
+                    className="border-lime-800 bg-lime-950 text-lime-300 hover:bg-lime-900 hover:text-lime-200"
+                    disabled={isLoadingLibrary}
+                    onClick={() => void requestLibrary(window.lume.rescanSources)}
+                    type="button"
+                    variant="outline"
+                  >
+                    {isLoadingLibrary ? "Scanning..." : "Rescan"}
+                  </Button>
+                )}
+              </div>
+            )}
           </header>
 
           <div className="flex-1 pb-28">
@@ -174,7 +221,15 @@ function App() {
                 {audioPlayer.errorMessage}
               </p>
             )}
-            {library && library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
+            {isSourceSettings ? (
+              <SourceSettings
+                isLoading={isLoadingLibrary}
+                library={library}
+                requestLibrary={requestLibrary}
+              />
+            ) : (
+              library && library.tracks.length > 0 && <TrackList tracks={library.tracks} />
+            )}
           </div>
         </SidebarInset>
       </SidebarProvider>

@@ -174,6 +174,7 @@ export function applySourceScan(
         available, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       ON CONFLICT(path) DO UPDATE SET
+        source_id = excluded.source_id,
         name = excluded.name,
         duration = excluded.duration,
         format = excluded.format,
@@ -235,7 +236,7 @@ function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, n
 
 function rejectSourceOverlap(database: DatabaseSync, path: string, sourceId?: string) {
   const overlappingPath = database
-    .prepare("SELECT id, path FROM library_sources")
+    .prepare("SELECT id, path FROM library_sources WHERE forgotten_at IS NULL")
     .all()
     .find(
       (row) =>

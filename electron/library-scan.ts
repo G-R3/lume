@@ -28,7 +28,15 @@ export async function scanSource(
   try {
     tracks = await scanAudioFiles(source.path);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    console.warn("Could not read library source", { error, sourceId: source.id });
+    const message =
+      error instanceof Error &&
+      "code" in error &&
+      (error.code === "EACCES" || error.code === "EPERM")
+        ? "Lume does not have permission to read this folder. Allow access in System Settings, then try again."
+        : error instanceof Error
+          ? error.message
+          : String(error);
     applyScanFailure(database, source.id, message);
     return { error: message, sourceId: source.id };
   }

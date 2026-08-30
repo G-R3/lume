@@ -109,15 +109,30 @@ describe("library source persistence", () => {
     });
   });
 
-  it("rejects overlap with a forgotten source", async () => {
+  it("moves preserved tracks when a new source replaces a forgotten overlap", async () => {
     const database = await openTestDatabase();
     const parent = await createTemporaryFolder("lume-source-");
     const child = join(parent, "album");
     await mkdir(child);
-    const source = await saveSource(database, parent);
-    forgetSource(database, source.id);
+    await writeFile(join(child, "song.mp3"), "");
+    const childSource = await saveSource(database, child);
+    applySourceScan(database, childSource.id, await scanAudioFiles(child));
+    const trackId = database.prepare("SELECT id FROM tracks").get()?.id;
+    database.exec("INSERT INTO track_state (track_id, starred_at) SELECT id, 1 FROM tracks");
+    forgetSource(database, childSource.id);
 
-    await expect(saveSource(database, child)).rejects.toThrow("overlaps");
+    const parentSource = await saveSource(database, parent);
+    applySourceScan(database, parentSource.id, await scanAudioFiles(parent));
+
+    expect(database.prepare("SELECT id, source_id, available FROM tracks").get()).toEqual({
+      available: 1,
+      id: trackId,
+      source_id: parentSource.id,
+    });
+    expect(database.prepare("SELECT track_id, starred_at FROM track_state").get()).toEqual({
+      starred_at: 1,
+      track_id: trackId,
+    });
   });
 });
 
