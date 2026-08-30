@@ -19,6 +19,7 @@ import {
   registerProtocolHandler,
 } from "./protocol";
 import { lumeChannels, type LibraryUpdate, type MusicLibrary } from "../shared/lib";
+import { createMigrationBackup, getLibraryBackupDirectory } from "./database/backup";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
@@ -76,8 +77,16 @@ function createWindow() {
 void app.whenReady().then(startApplication).catch(handleStartupFailure);
 
 async function startApplication() {
+  const userDataDirectory = app.getPath("userData");
   const database = await openLibraryDatabase(
-    getLibraryDatabasePath(app.getPath("userData"), app.isPackaged),
+    getLibraryDatabasePath(userDataDirectory, app.isPackaged),
+    {
+      beforeMigrations: (database) =>
+        createMigrationBackup(
+          database,
+          getLibraryBackupDirectory(userDataDirectory, app.isPackaged),
+        ),
+    },
   );
   app.once("will-quit", () => database.close());
   registerLibraryIpc(database);
