@@ -17,22 +17,25 @@ export async function openLibraryDatabase(
   const database = new DatabaseSync(location);
 
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
-
-    if (location !== ":memory:") {
-      database.exec(`
-        PRAGMA journal_mode = WAL;
-        PRAGMA synchronous = NORMAL;
-        PRAGMA wal_checkpoint(PASSIVE);
-      `);
-    }
-
+    configureLibraryDatabase(database);
     await applyMigrations(database, libraryMigrations, options.beforeMigrations);
     return database;
   } catch (error) {
     database.close();
     throw error;
   }
+}
+
+export function configureLibraryDatabase(database: DatabaseSync) {
+  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+
+  if (!database.location()) return;
+
+  database.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
+    PRAGMA wal_checkpoint(PASSIVE);
+  `);
 }
 
 export function getLibraryDatabasePath(userDataDirectory: string, isPackaged: boolean) {

@@ -3,6 +3,7 @@ import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 import { backupKinds, backupLimits, type BackupKind, type LibraryBackup } from "../../shared/lib";
+import { configureLibraryDatabase } from ".";
 import { getAppliedMigrations } from "./migration";
 import { libraryMigrations } from "./migrations";
 
@@ -104,6 +105,36 @@ export function validateBackup(path: string) {
     getAppliedMigrations(database, libraryMigrations);
   } finally {
     database.close();
+  }
+}
+
+export async function restoreDatabaseBackup(
+  database: DatabaseSync,
+  backupDirectory: string,
+  backupId: string,
+) {
+  const databasePath = database.location();
+
+  if (!databasePath) throw new Error("An in-memory database cannot be restored");
+
+  const selectedBackup = await getBackup(backupDirectory, backupId);
+  validateBackup(selectedBackup.path);
+  const backupDatabase = new DatabaseSync(selectedBackup.path, { readOnly: true });
+
+  try {
+    await createBackup(database, backupDirectory, "emergency");
+    database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    database.close();
+    await backup(backupDatabase, databasePath);
+  } catch (error) {
+    if (!database.isOpen) {
+      database.open();
+      configureLibraryDatabase(database);
+    }
+
+    throw error;
+  } finally {
+    backupDatabase.close();
   }
 }
 
