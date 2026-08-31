@@ -32,6 +32,7 @@ import {
   getLibraryBackupDirectory,
   listBackups,
   replaceOldestManualBackup,
+  restoreDatabaseBackup,
   type DatabaseBackup,
 } from "./database/backup";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
@@ -157,6 +158,13 @@ function registerLibraryIpc(
     const backups = await replaceOldestManualBackup(database, backupDirectory);
 
     return backups.map(toLibraryBackup);
+  });
+
+  ipcMain.handle(lumeChannels.restoreBackup, async (event, backupId) => {
+    requireTrustedWindow(event);
+    await restoreDatabaseBackup(database, backupDirectory, backupId);
+    app.relaunch();
+    app.exit(0);
   });
 
   ipcMain.handle(lumeChannels.addSource, async (event) => {

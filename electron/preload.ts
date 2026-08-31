@@ -44,6 +44,8 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.openDataFolder),
   replaceOldestManualBackup: (): ReturnType<LumeApi["replaceOldestManualBackup"]> =>
     ipcRenderer.invoke(lumeChannels.replaceOldestManualBackup),
+  restoreBackup: (backupId): ReturnType<LumeApi["restoreBackup"]> =>
+    ipcRenderer.invoke(lumeChannels.restoreBackup, backupId),
   rescanSource: (sourceId): ReturnType<LumeApi["rescanSource"]> =>
     ipcRenderer.invoke(lumeChannels.rescanSource, sourceId),
   rescanSources: (): ReturnType<LumeApi["rescanSources"]> =>
