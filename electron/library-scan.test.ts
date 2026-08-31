@@ -4,8 +4,8 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
-import { scanAudioFiles } from "./library";
-import { scanEnabledSources, scanSource } from "./library-scan";
+import { scanAudioFiles, type AudioFileScan } from "./library";
+import { blockLibraryScans, scanEnabledSources, scanSource } from "./library-scan";
 import { applySourceScan, saveSource } from "./library-store";
 
 const temporaryFolders: string[] = [];
@@ -19,6 +19,48 @@ afterEach(async () => {
 });
 
 describe("enabled source scanning", () => {
+  it("discards an older scan that finishes after a newer scan", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    const source = await saveSource(database, folder);
+    const olderScan = createDeferred<AudioFileScan>();
+    const olderRequest = scanSource(database, source, () => olderScan.promise);
+
+    await scanSource(database, source, () =>
+      Promise.resolve({
+        skippedFileCount: 0,
+        tracks: [createScannedTrack(join(folder, "new.mp3"), "new")],
+      }),
+    );
+    olderScan.resolve({
+      skippedFileCount: 0,
+      tracks: [createScannedTrack(join(folder, "old.mp3"), "old")],
+    });
+    await olderRequest;
+
+    expect(database.prepare("SELECT name FROM tracks WHERE available = 1").all()).toEqual([
+      { name: "new" },
+    ]);
+  });
+
+  it("invalidates scans that were active when restore started", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    const source = await saveSource(database, folder);
+    const pendingScan = createDeferred<AudioFileScan>();
+    const request = scanSource(database, source, () => pendingScan.promise);
+    const resumeScans = blockLibraryScans(database);
+
+    pendingScan.resolve({
+      skippedFileCount: 0,
+      tracks: [createScannedTrack(join(folder, "stale.mp3"), "stale")],
+    });
+    await request;
+    resumeScans();
+
+    expect(database.prepare("SELECT id FROM tracks").all()).toEqual([]);
+  });
+
   it("isolates source failures and records their unavailable tracks", async () => {
     const database = await openTestDatabase();
     const healthyFolder = await createTemporaryFolder("lume-healthy-source-");
@@ -135,4 +177,23 @@ async function createTemporaryFolder(prefix: string) {
   const folder = await mkdtemp(join(tmpdir(), prefix));
   temporaryFolders.push(folder);
   return folder;
+}
+
+function createScannedTrack(path: string, name: string) {
+  return {
+    duration: null,
+    fileSize: 1,
+    format: "MP3",
+    modifiedAt: 1,
+    name,
+    path,
+  };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }

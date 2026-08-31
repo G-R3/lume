@@ -19,23 +19,25 @@ import {
   registerProtocolHandler,
 } from "./protocol";
 import {
-  backupLimits,
   lumeChannels,
   type LibraryBackup,
   type LibraryUpdate,
   type MusicLibrary,
 } from "../shared/lib";
 import {
-  createBackup,
+  createBackupManager,
   createMigrationBackup,
   getLibraryBackupDirectory,
   listBackups,
-  replaceOldestManualBackup,
-  restoreLibraryDatabase,
   type DatabaseBackup,
 } from "./database/backup";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
-import { scanEnabledSources, scanSource } from "./library-scan";
+import {
+  blockLibraryScans,
+  libraryScansAreBlocked,
+  scanEnabledSources,
+  scanSource,
+} from "./library-scan";
 import {
   disableSource,
   enableSource,
@@ -114,6 +116,8 @@ async function startApplication() {
   const window = createWindow();
   void scanEnabledSources(database)
     .then((scanFailures) => {
+      if (libraryScansAreBlocked(database)) return;
+
       const update = { library: readLibrary(database), scanFailures } satisfies LibraryUpdate;
       if (!window.isDestroyed()) window.webContents.send(lumeChannels.libraryUpdated, update);
     })
@@ -129,6 +133,13 @@ function registerLibraryIpc(
   backupDirectory: string,
   userDataDirectory: string,
 ) {
+  const backupManager = createBackupManager(database, backupDirectory);
+  let restoreInProgress = false;
+
+  function requireDatabaseAvailable() {
+    if (restoreInProgress) throw new Error("Library restore is in progress");
+  }
+
   ipcMain.handle(lumeChannels.openDataFolder, async (event) => {
     requireTrustedWindow(event);
     const errorMessage = await shell.openPath(userDataDirectory);
@@ -143,27 +154,28 @@ function registerLibraryIpc(
 
   ipcMain.handle(lumeChannels.createManualBackup, async (event) => {
     requireTrustedWindow(event);
-    const backups = await listBackups(backupDirectory);
-    const totalBackups = backups.filter((backup) => backup.kind === "manual").length;
-
-    if (totalBackups >= backupLimits.manual) {
-      throw new Error("Manual backup limit reached");
-    }
-
-    const createdBackup = await createBackup(database, backupDirectory, "manual");
-    return [createdBackup, ...backups].map(toLibraryBackup);
+    requireDatabaseAvailable();
+    return (await backupManager.createManual()).map(toLibraryBackup);
   });
 
   ipcMain.handle(lumeChannels.replaceOldestManualBackup, async (event) => {
     requireTrustedWindow(event);
-    const backups = await replaceOldestManualBackup(database, backupDirectory);
-
-    return backups.map(toLibraryBackup);
+    requireDatabaseAvailable();
+    return (await backupManager.replaceOldestManual()).map(toLibraryBackup);
   });
 
   ipcMain.handle(lumeChannels.restoreBackup, async (event, backupId) => {
     requireTrustedWindow(event);
-    await restoreLibraryDatabase(database, backupDirectory, backupId);
+    requireDatabaseAvailable();
+    restoreInProgress = true;
+    const resumeScans = blockLibraryScans(database);
+
+    try {
+      await backupManager.restore(backupId);
+    } finally {
+      restoreInProgress = false;
+      resumeScans();
+    }
 
     if (!app.isPackaged) {
       refreshTracksById(database);
@@ -178,6 +190,7 @@ function registerLibraryIpc(
 
   ipcMain.handle(lumeChannels.addSource, async (event) => {
     const window = requireTrustedWindow(event);
+    requireDatabaseAvailable();
     const result = await dialog.showOpenDialog(window, {
       title: "Add a music source",
       buttonLabel: "Add Source",
@@ -186,51 +199,62 @@ function registerLibraryIpc(
     });
 
     const folder = result.filePaths[0];
+    requireDatabaseAvailable();
     if (!folder) return { library: readLibrary(database), scanFailures: [] };
 
     const source = await saveSource(database, folder);
     const failure = await scanSource(database, source);
+    requireDatabaseAvailable();
     return { library: readLibrary(database), scanFailures: failure ? [failure] : [] };
   });
 
   ipcMain.handle(lumeChannels.loadLibrary, (event) => {
     requireTrustedWindow(event);
+    requireDatabaseAvailable();
     return { library: readLibrary(database), scanFailures: [] };
   });
 
   ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
     requireTrustedWindow(event);
+    requireDatabaseAvailable();
     enableSource(database, sourceId);
     const failure = await scanSource(database, getSource(database, sourceId));
+    requireDatabaseAvailable();
 
     return { library: readLibrary(database), scanFailures: failure ? [failure] : [] };
   });
 
   ipcMain.handle(lumeChannels.disableSource, (event, sourceId) => {
     requireTrustedWindow(event);
+    requireDatabaseAvailable();
     disableSource(database, sourceId);
     return { library: readLibrary(database), scanFailures: [] };
   });
 
   ipcMain.handle(lumeChannels.forgetSource, (event, sourceId) => {
     requireTrustedWindow(event);
+    requireDatabaseAvailable();
     forgetSource(database, sourceId);
     return { library: readLibrary(database), scanFailures: [] };
   });
 
   ipcMain.handle(lumeChannels.rescanSource, async (event, sourceId) => {
     requireTrustedWindow(event);
+    requireDatabaseAvailable();
     const source = getSource(database, sourceId);
 
     if (!source.enabled) throw new Error(`Library source ${sourceId} is disabled`);
 
     const failure = await scanSource(database, source);
+    requireDatabaseAvailable();
     return { library: readLibrary(database), scanFailures: failure ? [failure] : [] };
   });
 
   ipcMain.handle(lumeChannels.rescanSources, async (event) => {
     requireTrustedWindow(event);
+    requireDatabaseAvailable();
     const scanFailures = await scanEnabledSources(database);
+    requireDatabaseAvailable();
     return { library: readLibrary(database), scanFailures };
   });
 }

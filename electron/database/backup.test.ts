@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   createBackup,
+  createBackupManager,
   createMigrationBackup,
   getBackup,
   getLibraryBackupDirectory,
@@ -98,6 +99,26 @@ describe("database backups", () => {
     expect(await listBackups(folder)).toEqual([]);
   });
 
+  it("enforces the manual backup limit across concurrent requests", async () => {
+    const folder = await createTemporaryFolder();
+    const database = await openLibraryDatabase(":memory:");
+    openDatabases.push(database);
+    await mkdir(join(folder, "manual"));
+    await Promise.all(
+      [1, 2, 3, 4].map((createdAt) =>
+        writeFile(join(folder, "manual", `${createdAt}-backup.sqlite`), ""),
+      ),
+    );
+    const backupManager = createBackupManager(database, folder);
+
+    const firstBackup = backupManager.createManual();
+    const secondBackup = backupManager.createManual();
+
+    await expect(firstBackup).resolves.toHaveLength(5);
+    await expect(secondBackup).rejects.toThrow("Manual backup limit reached");
+    expect(await listBackups(folder, "manual")).toHaveLength(5);
+  });
+
   it("uses separate development and packaged backup directories", () => {
     expect(getLibraryBackupDirectory("/data", false)).toBe(join("/data", "backups-dev"));
     expect(getLibraryBackupDirectory("/data", true)).toBe(join("/data", "backups"));
@@ -129,6 +150,57 @@ describe("database backups", () => {
     expect(() => validateBackup(path)).toThrow(
       "Database migration 2_future is not supported by this build",
     );
+  });
+
+  it("rejects a backup with missing application schema before changing the live database", async () => {
+    const folder = await createTemporaryFolder();
+    const backupDirectory = join(folder, "backups");
+    const invalidDatabase = await openLibraryDatabase(join(folder, "invalid.sqlite"));
+    openDatabases.push(invalidDatabase);
+    invalidDatabase.exec("DROP TABLE track_state; DROP TABLE tracks");
+    const selectedBackup = await createBackup(invalidDatabase, backupDirectory, "manual");
+    const database = await openLibraryDatabase(join(folder, "library.sqlite"));
+    openDatabases.push(database);
+    database
+      .prepare(
+        "INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (?, ?, 1, 1, 1)",
+      )
+      .run("current-source", "/Current");
+
+    await expect(
+      restoreLibraryDatabase(database, backupDirectory, selectedBackup.id),
+    ).rejects.toThrow();
+
+    expect(database.prepare("SELECT id FROM library_sources").all()).toEqual([
+      { id: "current-source" },
+    ]);
+    expect(await listBackups(backupDirectory, "emergency")).toEqual([]);
+  });
+
+  it("rejects a backup with foreign key failures before changing the live database", async () => {
+    const folder = await createTemporaryFolder();
+    const backupDirectory = join(folder, "backups");
+    const invalidDatabase = await openLibraryDatabase(join(folder, "invalid.sqlite"));
+    openDatabases.push(invalidDatabase);
+    invalidDatabase.exec("PRAGMA foreign_keys = OFF");
+    invalidDatabase
+      .prepare(
+        `INSERT INTO tracks (
+          id, source_id, path, name, duration, format, file_size, modified_at,
+          available, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, NULL, ?, 1, 1, 1, 1, 1)`,
+      )
+      .run("orphan-track", "missing-source", "/orphan.mp3", "orphan", "MP3");
+    const selectedBackup = await createBackup(invalidDatabase, backupDirectory, "manual");
+    const database = await openLibraryDatabase(join(folder, "library.sqlite"));
+    openDatabases.push(database);
+
+    await expect(
+      restoreLibraryDatabase(database, backupDirectory, selectedBackup.id),
+    ).rejects.toThrow("foreign key check");
+
+    expect(database.prepare("SELECT id FROM tracks").all()).toEqual([]);
+    expect(await listBackups(backupDirectory, "emergency")).toEqual([]);
   });
 
   it("restores a backup after preserving the current database", async () => {

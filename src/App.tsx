@@ -99,7 +99,41 @@ function App() {
   const isSettings = route.startsWith("#settings/");
   const isBackupSettings = route === "#settings/backups";
 
-  if (library === undefined) return <div className="min-h-screen bg-black" />;
+  if (library === undefined) {
+    if (!errorMessage) return <div className="min-h-screen bg-black" />;
+
+    return (
+      <main className="grid min-h-screen place-items-center bg-black px-6 text-neutral-50">
+        <div className="max-w-md text-center">
+          <h1 className="text-xl font-semibold tracking-tight">Lume could not load your library</h1>
+          <p className="mt-3 text-sm leading-6 text-red-300" role="alert">
+            {errorMessage}
+          </p>
+          <div className="mt-7 flex justify-center gap-2">
+            <Button
+              className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
+              onClick={() => void requestLibrary(window.lume.loadLibrary)}
+              type="button"
+            >
+              Try again
+            </Button>
+            <Button
+              className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+              onClick={() =>
+                void window.lume
+                  .openDataFolder()
+                  .catch((error: Error) => setErrorMessage(error.message))
+              }
+              type="button"
+              variant="outline"
+            >
+              Open data folder
+            </Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (library === null) {
     return (

@@ -1,15 +1,44 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, rename, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 import { backupKinds, backupLimits, type BackupKind, type LibraryBackup } from "../../shared/lib";
-import { configureLibraryDatabase } from ".";
-import { applyMigrations, getAppliedMigrations } from "./migration";
+import { configureLibraryDatabase, openLibraryDatabase, validateCurrentLibraryDatabase } from ".";
+import { getAppliedMigrations } from "./migration";
 import { libraryMigrations } from "./migrations";
 
 export type DatabaseBackup = LibraryBackup & {
   path: string;
 };
+
+export function createBackupManager(database: DatabaseSync, backupDirectory: string) {
+  let pendingOperation = Promise.resolve();
+
+  function run<T>(operation: () => Promise<T>) {
+    const result = pendingOperation.then(operation, operation);
+    pendingOperation = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  return {
+    createManual: () =>
+      run(async () => {
+        const backups = await listBackups(backupDirectory);
+
+        if (backups.filter((backup) => backup.kind === "manual").length >= backupLimits.manual) {
+          throw new Error("Manual backup limit reached");
+        }
+
+        return [await createBackup(database, backupDirectory, "manual"), ...backups];
+      }),
+    replaceOldestManual: () => run(() => replaceOldestManualBackup(database, backupDirectory)),
+    restore: (backupId: string) =>
+      run(() => restoreLibraryDatabase(database, backupDirectory, backupId)),
+  };
+}
 
 export async function createBackup(
   database: DatabaseSync,
@@ -115,19 +144,25 @@ export async function restoreLibraryDatabase(
   if (!databasePath) throw new Error("An in-memory database cannot be restored");
 
   const selectedBackup = await getBackup(backupDirectory, backupId);
-  validateBackup(selectedBackup.path);
-  const backupDatabase = new DatabaseSync(selectedBackup.path, { readOnly: true });
+  await mkdir(backupDirectory, { recursive: true });
+  const temporaryDirectory = await mkdtemp(join(backupDirectory, "restore-"));
+  const candidatePath = join(temporaryDirectory, "candidate.sqlite");
+  let backupDatabase: DatabaseSync | undefined;
+  let candidateDatabase: DatabaseSync | undefined;
 
   try {
+    backupDatabase = new DatabaseSync(selectedBackup.path, { readOnly: true });
+    await backup(backupDatabase, candidatePath);
+    validateBackup(candidatePath);
+    candidateDatabase = await openLibraryDatabase(candidatePath);
+
     await createBackup(database, backupDirectory, "emergency");
     database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     database.close();
-    await backup(backupDatabase, databasePath);
+    await backup(candidateDatabase, databasePath);
     database.open();
     configureLibraryDatabase(database);
-    await applyMigrations(database, libraryMigrations, (database) =>
-      createMigrationBackup(database, backupDirectory),
-    );
+    validateCurrentLibraryDatabase(database);
   } catch (error) {
     if (!database.isOpen) {
       database.open();
@@ -136,7 +171,9 @@ export async function restoreLibraryDatabase(
 
     throw error;
   } finally {
-    backupDatabase.close();
+    if (candidateDatabase?.isOpen) candidateDatabase.close();
+    if (backupDatabase?.isOpen) backupDatabase.close();
+    await rm(temporaryDirectory, { force: true, recursive: true });
   }
 }
 
