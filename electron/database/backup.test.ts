@@ -76,11 +76,22 @@ describe("database backups", () => {
       ),
     );
 
-    await replaceOldestManualBackup(database, folder);
-    const backups = await listBackups(folder, "manual");
+    const backups = await replaceOldestManualBackup(database, folder);
 
     expect(backups).toHaveLength(5);
     expect(backups.some((backup) => backup.createdAt === 1)).toBe(false);
+    expect(await listBackups(folder, "manual")).toEqual(backups);
+  });
+
+  it("does not replace a manual backup before reaching the limit", async () => {
+    const folder = await createTemporaryFolder();
+    const database = await openLibraryDatabase(":memory:");
+    openDatabases.push(database);
+
+    await expect(replaceOldestManualBackup(database, folder)).rejects.toThrow(
+      "Manual backup limit has not been reached",
+    );
+    expect(await listBackups(folder)).toEqual([]);
   });
 
   it("uses separate development and packaged backup directories", () => {

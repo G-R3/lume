@@ -27,7 +27,7 @@ import {
   type MusicLibrary,
 } from "../shared/lib";
 import {
-  createManualBackup,
+  createBackup,
   createMigrationBackup,
   getLibraryBackupDirectory,
   listBackups,
@@ -141,24 +141,22 @@ function registerLibraryIpc(
 
   ipcMain.handle(lumeChannels.createManualBackup, async (event) => {
     requireTrustedWindow(event);
+    const backups = await listBackups(backupDirectory);
+    const totalBackups = backups.filter((backup) => backup.kind === "manual").length;
 
-    if ((await listBackups(backupDirectory, "manual")).length >= backupLimits.manual) {
+    if (totalBackups >= backupLimits.manual) {
       throw new Error("Manual backup limit reached");
     }
 
-    await createManualBackup(database, backupDirectory);
-    return (await listBackups(backupDirectory)).map(toLibraryBackup);
+    const createdBackup = await createBackup(database, backupDirectory, "manual");
+    return [createdBackup, ...backups].map(toLibraryBackup);
   });
 
   ipcMain.handle(lumeChannels.replaceOldestManualBackup, async (event) => {
     requireTrustedWindow(event);
+    const backups = await replaceOldestManualBackup(database, backupDirectory);
 
-    if ((await listBackups(backupDirectory, "manual")).length < backupLimits.manual) {
-      throw new Error("Manual backup limit has not been reached");
-    }
-
-    await replaceOldestManualBackup(database, backupDirectory);
-    return (await listBackups(backupDirectory)).map(toLibraryBackup);
+    return backups.map(toLibraryBackup);
   });
 
   ipcMain.handle(lumeChannels.addSource, async (event) => {

@@ -43,20 +43,22 @@ export async function createMigrationBackup(database: DatabaseSync, backupDirect
   );
 }
 
-export function createManualBackup(database: DatabaseSync, backupDirectory: string) {
-  return createBackup(database, backupDirectory, "manual");
-}
-
 export async function replaceOldestManualBackup(
   database: DatabaseSync,
   backupDirectory: string,
 ) {
-  await createManualBackup(database, backupDirectory);
-  await Promise.all(
-    (await listBackups(backupDirectory, "manual"))
-      .slice(backupLimits.manual)
-      .map((backup) => rm(backup.path)),
-  );
+  const backups = await listBackups(backupDirectory);
+  const manualBackups = backups.filter((backup) => backup.kind === "manual");
+
+  if (manualBackups.length < backupLimits.manual) {
+    throw new Error("Manual backup limit has not been reached");
+  }
+
+  const backupsToRemove = manualBackups.slice(backupLimits.manual - 1);
+  const createdBackup = await createBackup(database, backupDirectory, "manual");
+  await Promise.all(backupsToRemove.map((backup) => rm(backup.path)));
+
+  return [createdBackup, ...backups.filter((backup) => !backupsToRemove.includes(backup))];
 }
 
 export async function listBackups(backupDirectory: string, kind?: BackupKind) {
