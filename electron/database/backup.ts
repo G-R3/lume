@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { backup, type DatabaseSync } from "node:sqlite";
 
 const backupKinds = ["manual", "migration", "emergency"] as const;
+const manualBackupLimit = 5;
 const migrationBackupLimit = 3;
 
 export type BackupKind = (typeof backupKinds)[number];
@@ -44,6 +45,28 @@ export async function createMigrationBackup(database: DatabaseSync, backupDirect
       .slice(migrationBackupLimit)
       .map((backup) => rm(backup.path)),
   );
+}
+
+export async function createManualBackup(
+  database: DatabaseSync,
+  backupDirectory: string,
+  replaceOldest = false,
+) {
+  const manualBackups = await listBackups(backupDirectory, "manual");
+  const oldestBackup = manualBackups.at(-1);
+
+  if (manualBackups.length >= manualBackupLimit && oldestBackup && !replaceOldest) {
+    return { oldestBackup, status: "confirmation-required" } as const;
+  }
+
+  const createdBackup = await createBackup(database, backupDirectory, "manual");
+  await Promise.all(
+    (await listBackups(backupDirectory, "manual"))
+      .slice(manualBackupLimit)
+      .map((backup) => rm(backup.path)),
+  );
+
+  return { backup: createdBackup, status: "created" } as const;
 }
 
 export async function listBackups(backupDirectory: string, kind?: BackupKind) {

@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   createBackup,
+  createManualBackup,
   createMigrationBackup,
   getLibraryBackupDirectory,
   listBackups,
@@ -57,6 +58,49 @@ describe("database backups", () => {
     await createMigrationBackup(database, folder);
 
     expect(await listBackups(folder, "migration")).toHaveLength(3);
+  });
+
+  it("requires confirmation before replacing the oldest manual backup", async () => {
+    const folder = await createTemporaryFolder();
+    const database = await openLibraryDatabase(":memory:");
+    openDatabases.push(database);
+    await mkdir(join(folder, "manual"));
+    await Promise.all(
+      [1, 2, 3, 4, 5].map((createdAt) =>
+        writeFile(join(folder, "manual", `${createdAt}-backup.sqlite`), ""),
+      ),
+    );
+
+    const result = await createManualBackup(database, folder);
+
+    expect(result).toEqual({
+      oldestBackup: {
+        createdAt: 1,
+        kind: "manual",
+        path: join(folder, "manual", "1-backup.sqlite"),
+      },
+      status: "confirmation-required",
+    });
+    expect(await listBackups(folder, "manual")).toHaveLength(5);
+  });
+
+  it("replaces the oldest manual backup after confirmation", async () => {
+    const folder = await createTemporaryFolder();
+    const database = await openLibraryDatabase(":memory:");
+    openDatabases.push(database);
+    await mkdir(join(folder, "manual"));
+    await Promise.all(
+      [1, 2, 3, 4, 5].map((createdAt) =>
+        writeFile(join(folder, "manual", `${createdAt}-backup.sqlite`), ""),
+      ),
+    );
+
+    const result = await createManualBackup(database, folder, true);
+    const backups = await listBackups(folder, "manual");
+
+    expect(result.status).toBe("created");
+    expect(backups).toHaveLength(5);
+    expect(backups.some((backup) => backup.createdAt === 1)).toBe(false);
   });
 
   it("uses separate development and packaged backup directories", () => {
