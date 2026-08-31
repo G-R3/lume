@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { backup, type DatabaseSync } from "node:sqlite";
+import { backup, DatabaseSync } from "node:sqlite";
 import { backupKinds, backupLimits, type BackupKind, type LibraryBackup } from "../../shared/lib";
+import { validateMigrationHistory } from "./migration";
+import { libraryMigrations } from "./migrations";
 
 export type DatabaseBackup = LibraryBackup & {
   path: string;
@@ -84,6 +86,29 @@ export async function listBackups(backupDirectory: string, kind?: BackupKind) {
   );
 
   return backups.flat().sort((left, right) => right.createdAt - left.createdAt);
+}
+
+export async function getBackup(backupDirectory: string, id: string) {
+  const backup = (await listBackups(backupDirectory)).find((backup) => backup.id === id);
+
+  if (backup) return backup;
+  throw new Error(`Backup ${id} does not exist`);
+}
+
+export function validateBackup(path: string) {
+  const database = new DatabaseSync(path, { readOnly: true });
+
+  try {
+    const integrityCheck = database.prepare("PRAGMA integrity_check").all();
+
+    if (integrityCheck.length !== 1 || integrityCheck[0]?.integrity_check !== "ok") {
+      throw new Error("Backup failed its SQLite integrity check");
+    }
+
+    validateMigrationHistory(database, libraryMigrations);
+  } finally {
+    database.close();
+  }
 }
 
 export function getLibraryBackupDirectory(userDataDirectory: string, isPackaged: boolean) {

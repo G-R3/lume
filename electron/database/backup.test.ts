@@ -7,8 +7,10 @@ import {
   createBackup,
   createManualBackup,
   createMigrationBackup,
+  getBackup,
   getLibraryBackupDirectory,
   listBackups,
+  validateBackup,
 } from "./backup";
 import { openLibraryDatabase } from ".";
 
@@ -33,7 +35,8 @@ describe("database backups", () => {
       )
       .run("source-1", "/Music", 1, 1);
 
-    const createdBackup = await createBackup(database, join(folder, "backups"), "manual");
+    const backupDirectory = join(folder, "backups");
+    const createdBackup = await createBackup(database, backupDirectory, "manual");
     database.prepare("DELETE FROM library_sources WHERE id = ?").run("source-1");
 
     const restoredDatabase = new DatabaseSync(createdBackup.path, { readOnly: true });
@@ -45,6 +48,8 @@ describe("database backups", () => {
       id: "source-1",
       path: "/Music",
     });
+    expect(() => validateBackup(createdBackup.path)).not.toThrow();
+    await expect(getBackup(backupDirectory, createdBackup.id)).resolves.toEqual(createdBackup);
   });
 
   it("keeps the three newest migration backups", async () => {
@@ -107,6 +112,34 @@ describe("database backups", () => {
   it("uses separate development and packaged backup directories", () => {
     expect(getLibraryBackupDirectory("/data", false)).toBe(join("/data", "backups-dev"));
     expect(getLibraryBackupDirectory("/data", true)).toBe(join("/data", "backups"));
+  });
+
+  it("rejects corrupt and unknown backups", async () => {
+    const folder = await createTemporaryFolder();
+    const backupDirectory = join(folder, "backups");
+    await mkdir(join(backupDirectory, "manual"), { recursive: true });
+    const corruptBackupPath = join(backupDirectory, "manual", "1-corrupt.sqlite");
+    await writeFile(corruptBackupPath, "not a database");
+
+    expect(() => validateBackup(corruptBackupPath)).toThrow();
+    await expect(getBackup(backupDirectory, "missing.sqlite")).rejects.toThrow(
+      "Backup missing.sqlite does not exist",
+    );
+  });
+
+  it("rejects backups created by an unsupported database version", async () => {
+    const folder = await createTemporaryFolder();
+    const path = join(folder, "future.sqlite");
+    const database = await openLibraryDatabase(path);
+    database
+      .prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (2, 'future', 1)")
+      .run();
+    database.exec("PRAGMA user_version = 2");
+    database.close();
+
+    expect(() => validateBackup(path)).toThrow(
+      "Database migration 2_future is not supported by this build",
+    );
   });
 });
 

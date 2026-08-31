@@ -26,6 +26,32 @@ export async function applyMigrations(
     ) STRICT;
   `);
 
+  const appliedMigrations = getAppliedMigrations(database, migrations);
+  const pendingMigrations = migrations.filter(
+    (migration) => !appliedMigrations.has(migration.version),
+  );
+
+  if (appliedMigrations.size > 0 && pendingMigrations.length > 0 && beforeMigrations) {
+    await beforeMigrations(database, pendingMigrations);
+  }
+
+  pendingMigrations.forEach((migration) => {
+    runInTransaction(database, () => {
+      migration.up(database);
+      database
+        .prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)")
+        .run(migration.version, migration.name, Date.now());
+      database.exec(`PRAGMA user_version = ${migration.version}`);
+    });
+  });
+}
+
+export function validateMigrationHistory(database: DatabaseSync, migrations: readonly Migration[]) {
+  validateManifest(migrations);
+  getAppliedMigrations(database, migrations);
+}
+
+function getAppliedMigrations(database: DatabaseSync, migrations: readonly Migration[]) {
   const appliedMigrations = new Map(
     database
       .prepare("SELECT version, name FROM schema_migrations ORDER BY version")
@@ -59,23 +85,7 @@ export async function applyMigrations(
     );
   }
 
-  const pendingMigrations = migrations.filter(
-    (migration) => !appliedMigrations.has(migration.version),
-  );
-
-  if (appliedMigrations.size > 0 && pendingMigrations.length > 0 && beforeMigrations) {
-    await beforeMigrations(database, pendingMigrations);
-  }
-
-  pendingMigrations.forEach((migration) => {
-    runInTransaction(database, () => {
-      migration.up(database);
-      database
-        .prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)")
-        .run(migration.version, migration.name, Date.now());
-      database.exec(`PRAGMA user_version = ${migration.version}`);
-    });
-  });
+  return appliedMigrations;
 }
 
 function validateManifest(migrations: readonly Migration[]) {
