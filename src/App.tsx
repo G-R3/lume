@@ -1,6 +1,7 @@
-import { GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
+import { DatabaseIcon, FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LibraryUpdate, MusicLibrary, ScanFailure } from "../shared/lib";
+import { BackupSettings } from "@/components/backup-settings";
 import { LibraryEmptyState } from "@/components/library-empty-state";
 import { LibraryStatus } from "@/components/library-status";
 import { ScanErrorToast } from "@/components/scan-error-toast";
@@ -95,7 +96,8 @@ function App() {
     if (library) syncTracks(library.tracks);
   }, [library, syncTracks]);
 
-  const isSourceSettings = route === "#settings/sources";
+  const isSettings = route.startsWith("#settings/");
+  const isBackupSettings = route === "#settings/backups";
 
   if (library === undefined) return <div className="min-h-screen bg-black" />;
 
@@ -129,20 +131,33 @@ function App() {
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupContent>
-                <nav aria-label={isSourceSettings ? "Settings" : "Library"}>
+                <nav aria-label={isSettings ? "Settings" : "Library"}>
                   <SidebarMenu>
-                    {isSourceSettings ? (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          aria-current="page"
-                          className="text-neutral-400"
-                          isActive
-                          render={<a href="#settings/sources" />}
-                        >
-                          <GearIcon aria-hidden="true" />
-                          <span>Sources</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                    {isSettings ? (
+                      <>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            aria-current={!isBackupSettings ? "page" : undefined}
+                            className="text-neutral-400"
+                            isActive={!isBackupSettings}
+                            render={<a href="#settings/sources" />}
+                          >
+                            <FolderOpenIcon aria-hidden="true" />
+                            <span>Sources</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            aria-current={isBackupSettings ? "page" : undefined}
+                            className="text-neutral-400"
+                            isActive={isBackupSettings}
+                            render={<a href="#settings/backups" />}
+                          >
+                            <DatabaseIcon aria-hidden="true" />
+                            <span>Backups</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      </>
                     ) : (
                       <SidebarMenuItem>
                         <SidebarMenuButton
@@ -170,14 +185,14 @@ function App() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   className="text-neutral-400"
-                  render={<a href={isSourceSettings ? "#tracks" : "#settings/sources"} />}
+                  render={<a href={isSettings ? "#tracks" : "#settings/sources"} />}
                 >
-                  {isSourceSettings ? (
+                  {isSettings ? (
                     <MusicNotesIcon aria-hidden="true" />
                   ) : (
                     <GearIcon aria-hidden="true" />
                   )}
-                  <span>{isSourceSettings ? "Back to library" : "Settings"}</span>
+                  <span>{isSettings ? "Back to library" : "Settings"}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -206,20 +221,20 @@ function App() {
               orientation="vertical"
             />
             <h1 className="text-sm font-semibold tracking-tight">
-              {isSourceSettings ? "Settings" : "All tracks"}
+              {isSettings ? "Settings" : "All tracks"}
             </h1>
-            {!isSourceSettings && (
+            {!isSettings && (
               <span className="font-berkeley text-[10px] text-neutral-400 tabular-nums bg-neutral-800 py-1 px-1.5 rounded">
                 {library.tracks.length.toLocaleString()}
               </span>
             )}
-            {!isSourceSettings && unavailableTrackCount > 0 && (
+            {!isSettings && unavailableTrackCount > 0 && (
               <span className="font-berkeley rounded bg-amber-950 px-1.5 py-1 text-[10px] text-amber-400 tabular-nums">
                 {unavailableTrackCount.toLocaleString()} unavailable
               </span>
             )}
 
-            {!isSourceSettings && (
+            {!isSettings && (
               <div className="ml-auto flex min-w-0 items-center gap-2">
                 {sourceSummary && (
                   <span
@@ -265,7 +280,9 @@ function App() {
                 {audioPlayer.errorMessage}
               </p>
             )}
-            {isSourceSettings ? (
+            {isBackupSettings ? (
+              <BackupSettings />
+            ) : isSettings ? (
               <SourceSettings
                 isLoading={isLoadingLibrary}
                 library={library}
