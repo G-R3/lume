@@ -45,13 +45,9 @@ export type LibraryBackup = {
   kind: BackupKind;
 };
 
-export type ManualBackupResult =
-  | { backups: LibraryBackup[]; status: "created" }
-  | { oldestBackup: LibraryBackup; status: "confirmation-required" };
-
 export type LumeApi = {
   addSource: () => Promise<LibraryUpdate>;
-  createManualBackup: (replaceOldest: boolean) => Promise<ManualBackupResult>;
+  createManualBackup: () => Promise<LibraryBackup[]>;
   disableSource: (sourceId: string) => Promise<LibraryUpdate>;
   enableSource: (sourceId: string) => Promise<LibraryUpdate>;
   forgetSource: (sourceId: string) => Promise<LibraryUpdate>;
@@ -59,6 +55,7 @@ export type LumeApi = {
   loadLibrary: () => Promise<LibraryUpdate>;
   onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   openDataFolder: () => Promise<void>;
+  replaceOldestManualBackup: () => Promise<LibraryBackup[]>;
   rescanSource: (sourceId: string) => Promise<LibraryUpdate>;
   rescanSources: () => Promise<LibraryUpdate>;
   isMac: boolean;
@@ -74,6 +71,7 @@ export const lumeChannels = {
   libraryUpdated: "lume:library-updated",
   loadBackups: "lume:load-backups",
   openDataFolder: "lume:open-data-folder",
+  replaceOldestManualBackup: "lume:replace-oldest-manual-backup",
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
 } as const;

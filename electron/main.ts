@@ -20,6 +20,7 @@ import {
   registerProtocolHandler,
 } from "./protocol";
 import {
+  backupLimits,
   lumeChannels,
   type LibraryBackup,
   type LibraryUpdate,
@@ -30,6 +31,7 @@ import {
   createMigrationBackup,
   getLibraryBackupDirectory,
   listBackups,
+  replaceOldestManualBackup,
   type DatabaseBackup,
 } from "./database/backup";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
@@ -137,18 +139,26 @@ function registerLibraryIpc(
     return (await listBackups(backupDirectory)).map(toLibraryBackup);
   });
 
-  ipcMain.handle(lumeChannels.createManualBackup, async (event, replaceOldest) => {
+  ipcMain.handle(lumeChannels.createManualBackup, async (event) => {
     requireTrustedWindow(event);
-    const result = await createManualBackup(database, backupDirectory, replaceOldest);
 
-    if (result.status === "confirmation-required") {
-      return { oldestBackup: toLibraryBackup(result.oldestBackup), status: result.status };
+    if ((await listBackups(backupDirectory, "manual")).length >= backupLimits.manual) {
+      throw new Error("Manual backup limit reached");
     }
 
-    return {
-      backups: (await listBackups(backupDirectory)).map(toLibraryBackup),
-      status: result.status,
-    };
+    await createManualBackup(database, backupDirectory);
+    return (await listBackups(backupDirectory)).map(toLibraryBackup);
+  });
+
+  ipcMain.handle(lumeChannels.replaceOldestManualBackup, async (event) => {
+    requireTrustedWindow(event);
+
+    if ((await listBackups(backupDirectory, "manual")).length < backupLimits.manual) {
+      throw new Error("Manual backup limit has not been reached");
+    }
+
+    await replaceOldestManualBackup(database, backupDirectory);
+    return (await listBackups(backupDirectory)).map(toLibraryBackup);
   });
 
   ipcMain.handle(lumeChannels.addSource, async (event) => {

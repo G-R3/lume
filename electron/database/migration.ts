@@ -46,12 +46,7 @@ export async function applyMigrations(
   });
 }
 
-export function validateMigrationHistory(database: DatabaseSync, migrations: readonly Migration[]) {
-  validateManifest(migrations);
-  getAppliedMigrations(database, migrations);
-}
-
-function getAppliedMigrations(database: DatabaseSync, migrations: readonly Migration[]) {
+export function getAppliedMigrations(database: DatabaseSync, migrations: readonly Migration[]) {
   const appliedMigrations = new Map(
     database
       .prepare("SELECT version, name FROM schema_migrations ORDER BY version")

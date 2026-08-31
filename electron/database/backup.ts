@@ -3,7 +3,7 @@ import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 import { backupKinds, backupLimits, type BackupKind, type LibraryBackup } from "../../shared/lib";
-import { validateMigrationHistory } from "./migration";
+import { getAppliedMigrations } from "./migration";
 import { libraryMigrations } from "./migrations";
 
 export type DatabaseBackup = LibraryBackup & {
@@ -43,26 +43,20 @@ export async function createMigrationBackup(database: DatabaseSync, backupDirect
   );
 }
 
-export async function createManualBackup(
+export function createManualBackup(database: DatabaseSync, backupDirectory: string) {
+  return createBackup(database, backupDirectory, "manual");
+}
+
+export async function replaceOldestManualBackup(
   database: DatabaseSync,
   backupDirectory: string,
-  replaceOldest = false,
 ) {
-  const manualBackups = await listBackups(backupDirectory, "manual");
-  const oldestBackup = manualBackups.at(-1);
-
-  if (manualBackups.length >= backupLimits.manual && oldestBackup && !replaceOldest) {
-    return { oldestBackup, status: "confirmation-required" } as const;
-  }
-
-  await createBackup(database, backupDirectory, "manual");
+  await createManualBackup(database, backupDirectory);
   await Promise.all(
     (await listBackups(backupDirectory, "manual"))
       .slice(backupLimits.manual)
       .map((backup) => rm(backup.path)),
   );
-
-  return { status: "created" } as const;
 }
 
 export async function listBackups(backupDirectory: string, kind?: BackupKind) {
@@ -105,7 +99,7 @@ export function validateBackup(path: string) {
       throw new Error("Backup failed its SQLite integrity check");
     }
 
-    validateMigrationHistory(database, libraryMigrations);
+    getAppliedMigrations(database, libraryMigrations);
   } finally {
     database.close();
   }

@@ -16,9 +16,11 @@ const backupLabels = {
 
 export function BackupSettings() {
   const [backups, setBackups] = useState<LibraryBackup[]>([]);
-  const [oldestBackup, setOldestBackup] = useState<LibraryBackup | null>(null);
+  const [isConfirmingReplacement, setIsConfirmingReplacement] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const manualBackups = backups.filter((backup) => backup.kind === "manual");
+  const oldestManualBackup = manualBackups.at(-1);
 
   useEffect(() => {
     let active = true;
@@ -40,20 +42,13 @@ export function BackupSettings() {
     };
   }, []);
 
-  async function createManualBackup(replaceOldest: boolean) {
+  async function runBackup(createBackup: () => Promise<LibraryBackup[]>) {
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const result = await window.lume.createManualBackup(replaceOldest);
-
-      if (result.status === "confirmation-required") {
-        setOldestBackup(result.oldestBackup);
-        return;
-      }
-
-      setBackups(result.backups);
-      setOldestBackup(null);
+      setBackups(await createBackup());
+      setIsConfirmingReplacement(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not create backup");
     } finally {
@@ -86,7 +81,14 @@ export function BackupSettings() {
           <Button
             className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
             disabled={isLoading}
-            onClick={() => void createManualBackup(false)}
+            onClick={() => {
+              if (manualBackups.length >= backupLimits.manual) {
+                setIsConfirmingReplacement(true);
+                return;
+              }
+
+              void runBackup(window.lume.createManualBackup);
+            }}
             type="button"
           >
             {isLoading ? "Working..." : "Back Up Now"}
@@ -149,9 +151,9 @@ export function BackupSettings() {
 
       <Dialog.Root
         onOpenChange={(open) => {
-          if (!open && !isLoading) setOldestBackup(null);
+          if (!open && !isLoading) setIsConfirmingReplacement(false);
         }}
-        open={oldestBackup !== null}
+        open={isConfirmingReplacement}
       >
         <Dialog.Portal>
           <Dialog.Backdrop className="fixed inset-0 z-60 bg-black/80" />
@@ -164,11 +166,11 @@ export function BackupSettings() {
               backup.
             </Dialog.Description>
 
-            {oldestBackup && (
+            {oldestManualBackup && (
               <div className="mt-5 rounded-md border border-neutral-800 bg-black p-3">
                 <p className="text-xs font-medium text-neutral-300">Oldest backup</p>
                 <p className="font-berkeley mt-1 text-[10px] text-neutral-500">
-                  Manual · {backupDateFormatter.format(oldestBackup.createdAt)}
+                  Manual · {backupDateFormatter.format(oldestManualBackup.createdAt)}
                 </p>
               </div>
             )}
@@ -177,7 +179,7 @@ export function BackupSettings() {
               <Button
                 className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
                 disabled={isLoading}
-                onClick={() => setOldestBackup(null)}
+                onClick={() => setIsConfirmingReplacement(false)}
                 type="button"
                 variant="outline"
               >
@@ -186,7 +188,7 @@ export function BackupSettings() {
               <Button
                 className="bg-amber-300 text-neutral-950 hover:bg-amber-200"
                 disabled={isLoading}
-                onClick={() => void createManualBackup(true)}
+                onClick={() => void runBackup(window.lume.replaceOldestManualBackup)}
                 type="button"
               >
                 {isLoading ? "Creating..." : "Replace oldest"}
