@@ -4,7 +4,7 @@ import { isAbsolute, relative } from "node:path";
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
 import type { LibrarySource } from "../shared/lib";
 import { runInTransaction } from "./database/transaction";
-import type { ScannedTrack } from "./library";
+import type { ScannedTrack, TrackMetadata } from "./library";
 
 export type StoredTrack = {
   available: boolean;
@@ -75,6 +75,25 @@ export function getTracks(database: DatabaseSync): StoredTrack[] {
       name: readString(row.name, "tracks.name"),
       path: readString(row.path, "tracks.path"),
     }));
+}
+
+export function getTrackMetadata(database: DatabaseSync, sourceId: string) {
+  return new Map<string, TrackMetadata>(
+    database
+      .prepare(
+        `SELECT path, duration, file_size, modified_at FROM tracks
+        WHERE source_id = ?`,
+      )
+      .all(sourceId)
+      .map((row) => [
+        readString(row.path, "tracks.path"),
+        {
+          duration: row.duration === null ? null : Number(row.duration),
+          fileSize: readNumber(row.file_size, "tracks.file_size"),
+          modifiedAt: readNumber(row.modified_at, "tracks.modified_at"),
+        },
+      ]),
+  );
 }
 
 export async function saveSource(
@@ -295,6 +314,10 @@ function readBoolean(value: SQLOutputValue | undefined, field: string) {
 function readNullableNumber(value: SQLOutputValue | undefined, field: string) {
   if (value === null) return null;
 
+  return readNumber(value, field);
+}
+
+function readNumber(value: SQLOutputValue | undefined, field: string) {
   const number = Number(value);
   if (Number.isSafeInteger(number)) return number;
   throw new Error(`Invalid number in ${field}`);

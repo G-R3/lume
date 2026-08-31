@@ -24,7 +24,12 @@ export type ScannedTrack = {
   path: string;
 };
 
-export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
+export type TrackMetadata = Pick<ScannedTrack, "duration" | "fileSize" | "modifiedAt">;
+
+export async function scanAudioFiles(
+  folder: string,
+  storedTracks: ReadonlyMap<string, TrackMetadata> = new Map(),
+): Promise<ScannedTrack[]> {
   const entries = await readdir(folder, {
     recursive: true,
     withFileTypes: true,
@@ -39,25 +44,35 @@ export async function scanAudioFiles(folder: string): Promise<ScannedTrack[]> {
 
   const { parseFile } = await import("music-metadata");
   return Readable.from(audioPaths)
-    .map((path) => scanTrack(path, parseFile), { concurrency: 8 })
+    .map((path) => scanTrack(path, storedTracks.get(path), parseFile), {
+      concurrency: 8,
+    })
     .toArray();
 }
 
-async function scanTrack(path: string, parseFile: ParseFile): Promise<ScannedTrack> {
+async function scanTrack(
+  path: string,
+  storedTrack: TrackMetadata | undefined,
+  parseFile: ParseFile,
+): Promise<ScannedTrack> {
+  const file = await stat(path);
   const extension = extname(path);
-  const [file, metadata] = await Promise.all([
-    stat(path),
-    parseFile(path, { duration: true }).catch((error: Error) => {
-      console.warn("Could not read audio metadata", { error, path });
-      return null;
-    }),
-  ]);
+  const modifiedAt = Math.trunc(file.mtimeMs);
+  const duration =
+    storedTrack?.fileSize === file.size && storedTrack.modifiedAt === modifiedAt
+      ? storedTrack.duration
+      : await parseFile(path, { duration: true })
+          .then((metadata) => metadata.format.duration ?? null)
+          .catch((error: Error) => {
+            console.warn("Could not read audio metadata", { error, path });
+            return null;
+          });
 
   return {
-    duration: metadata?.format.duration ?? null,
+    duration,
     fileSize: file.size,
     format: extension.slice(1).toUpperCase(),
-    modifiedAt: Math.trunc(file.mtimeMs),
+    modifiedAt,
     name: basename(path, extension),
     path,
   };

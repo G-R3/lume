@@ -79,6 +79,24 @@ describe("scanAudioFiles", () => {
       },
     ]);
   });
+
+  it("reuses stored metadata until a file changes", async () => {
+    const folder = await createTemporaryFolder("lume-library-");
+    const path = join(folder, "track.mp3");
+    await writeFile(path, "original");
+    const [scannedTrack] = await scanAudioFiles(folder);
+    expect(scannedTrack).toBeDefined();
+    if (!scannedTrack) return;
+
+    const storedTrack = { ...scannedTrack, duration: 123 };
+    const storedTracks = new Map([[path, storedTrack]]);
+
+    await expect(scanAudioFiles(folder, storedTracks)).resolves.toEqual([storedTrack]);
+
+    await writeFile(path, "changed file contents");
+    const [changedTrack] = await scanAudioFiles(folder, storedTracks);
+    expect(changedTrack).toMatchObject({ duration: null, fileSize: 21, path });
+  });
 });
 
 async function createTemporaryFolder(prefix: string) {

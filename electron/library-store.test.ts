@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -226,6 +226,27 @@ describe("track persistence", () => {
         path: trackPath,
       },
     ]);
+  });
+
+  it("creates a new track after a file is renamed", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    const originalPath = join(folder, "before.mp3");
+    await writeFile(originalPath, "");
+    const source = await saveSource(database, folder);
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
+    const originalId = database.prepare("SELECT id FROM tracks").get()?.id;
+    expect(originalId).toBeDefined();
+
+    await rename(originalPath, join(folder, "after.mp3"));
+    applySourceScan(database, source.id, await scanAudioFiles(folder));
+
+    const tracks = database.prepare("SELECT id, name, available FROM tracks ORDER BY name").all();
+    expect(tracks).toEqual([
+      { available: 1, id: expect.any(String), name: "after" },
+      { available: 0, id: originalId, name: "before" },
+    ]);
+    expect(tracks[0]?.id).not.toBe(originalId);
   });
 });
 

@@ -44,10 +44,7 @@ export async function createMigrationBackup(database: DatabaseSync, backupDirect
   );
 }
 
-export async function replaceOldestManualBackup(
-  database: DatabaseSync,
-  backupDirectory: string,
-) {
+export async function replaceOldestManualBackup(database: DatabaseSync, backupDirectory: string) {
   const backups = await listBackups(backupDirectory);
   const manualBackups = backups.filter((backup) => backup.kind === "manual");
 

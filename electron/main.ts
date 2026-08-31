@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -190,9 +189,6 @@ function registerLibraryIpc(
     if (!folder) return { library: readLibrary(database), scanFailures: [] };
 
     const source = await saveSource(database, folder);
-    await rm(join(app.getPath("userData"), "music-folder"), { force: true }).catch((error: Error) =>
-      console.warn("Could not remove the old music folder setting", error),
-    );
     const failure = await scanSource(database, source);
     return { library: readLibrary(database), scanFailures: failure ? [failure] : [] };
   });
@@ -264,9 +260,7 @@ function readLibrary(database: DatabaseSync) {
 
 function refreshTracksById(database: DatabaseSync) {
   const tracks = getTracks(database);
-  tracksById = new Map(
-    tracks.filter((track) => track.available).map((track) => [track.id, track.path]),
-  );
+  tracksById = new Map(tracks.map((track) => [track.id, track.path]));
   return tracks;
 }
 
@@ -284,8 +278,23 @@ function requireTrustedWindow(event: IpcMainInvokeEvent) {
   return window;
 }
 
-function handleStartupFailure(error: Error) {
+async function handleStartupFailure(error: Error) {
   console.error("Lume could not open its database", error);
-  dialog.showErrorBox("Lume could not start", error.message);
+
+  const response = dialog.showMessageBoxSync({
+    buttons: ["Open data folder", "Quit"],
+    cancelId: 1,
+    defaultId: 1,
+    detail: error.message,
+    message: "Lume could not open its database.",
+    title: "Lume could not start",
+    type: "error",
+  });
+
+  if (response === 0) {
+    const openError = await shell.openPath(app.getPath("userData"));
+    if (openError) dialog.showErrorBox("Lume could not open its data folder", openError);
+  }
+
   app.quit();
 }
