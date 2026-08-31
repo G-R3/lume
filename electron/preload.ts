@@ -16,8 +16,6 @@ ipcRenderer.on(lumeChannels.libraryUpdated, (_event, update: LibraryUpdate) => {
 
 const lumeApi = {
   addSource: (): ReturnType<LumeApi["addSource"]> => ipcRenderer.invoke(lumeChannels.addSource),
-  createManualBackup: (): ReturnType<LumeApi["createManualBackup"]> =>
-    ipcRenderer.invoke(lumeChannels.createManualBackup),
   disableSource: (sourceId): ReturnType<LumeApi["disableSource"]> =>
     ipcRenderer.invoke(lumeChannels.disableSource, sourceId),
   enableSource: (sourceId): ReturnType<LumeApi["enableSource"]> =>
@@ -26,8 +24,6 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.forgetSource, sourceId),
   loadLibrary: (): ReturnType<LumeApi["loadLibrary"]> =>
     ipcRenderer.invoke(lumeChannels.loadLibrary),
-  loadBackups: (): ReturnType<LumeApi["loadBackups"]> =>
-    ipcRenderer.invoke(lumeChannels.loadBackups),
   onLibraryUpdate: (listener) => {
     libraryUpdateListeners.add(listener);
 
@@ -42,10 +38,6 @@ const lumeApi = {
   },
   openDataFolder: (): ReturnType<LumeApi["openDataFolder"]> =>
     ipcRenderer.invoke(lumeChannels.openDataFolder),
-  replaceOldestManualBackup: (): ReturnType<LumeApi["replaceOldestManualBackup"]> =>
-    ipcRenderer.invoke(lumeChannels.replaceOldestManualBackup),
-  restoreBackup: (backupId): ReturnType<LumeApi["restoreBackup"]> =>
-    ipcRenderer.invoke(lumeChannels.restoreBackup, backupId),
   rescanSource: (sourceId): ReturnType<LumeApi["rescanSource"]> =>
     ipcRenderer.invoke(lumeChannels.rescanSource, sourceId),
   rescanSources: (): ReturnType<LumeApi["rescanSources"]> =>

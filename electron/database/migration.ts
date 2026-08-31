@@ -7,16 +7,7 @@ export type Migration = {
   readonly version: number;
 };
 
-export type BeforeMigrations = (
-  database: DatabaseSync,
-  pendingMigrations: readonly Migration[],
-) => Promise<void>;
-
-export async function applyMigrations(
-  database: DatabaseSync,
-  migrations: readonly Migration[],
-  beforeMigrations?: BeforeMigrations,
-) {
+export function applyMigrations(database: DatabaseSync, migrations: readonly Migration[]) {
   validateManifest(migrations);
   database.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -30,10 +21,6 @@ export async function applyMigrations(
   const pendingMigrations = migrations.filter(
     (migration) => !appliedMigrations.has(migration.version),
   );
-
-  if (appliedMigrations.size > 0 && pendingMigrations.length > 0 && beforeMigrations) {
-    await beforeMigrations(database, pendingMigrations);
-  }
 
   pendingMigrations.forEach((migration) => {
     runInTransaction(database, () => {

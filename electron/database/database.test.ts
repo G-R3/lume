@@ -19,12 +19,7 @@ afterEach(async () => {
 
 describe("library database lifecycle", () => {
   it("creates the current schema and configures SQLite", async () => {
-    const callbackCalls: number[] = [];
-    const database = await openLibraryDatabase(":memory:", {
-      beforeMigrations: async () => {
-        callbackCalls.push(1);
-      },
-    });
+    const database = await openLibraryDatabase(":memory:");
     openDatabases.push(database);
 
     expect(database.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 });
@@ -45,7 +40,6 @@ describe("library database lifecycle", () => {
       { name: "initial-library", version: 1 },
     ]);
     expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 1 });
-    expect(callbackCalls).toEqual([]);
   });
 
   it("persists data after closing and reopening a file-backed database", async () => {
@@ -79,26 +73,10 @@ describe("library database migrations", () => {
     expect(currentSchemaVersion).toBe(1);
   });
 
-  it("upgrades an existing schema and calls the backup boundary first", async () => {
+  it("upgrades an existing schema", async () => {
     const database = await openLibraryDatabase(":memory:");
     openDatabases.push(database);
-    const observations: string[] = [];
-
-    await applyMigrations(
-      database,
-      [...libraryMigrations, addSourceColorMigration],
-      async (database, pendingMigrations) => {
-        observations.push("before");
-        expect(pendingMigrations.map((migration) => migration.version)).toEqual([2]);
-        expect(
-          database
-            .prepare("SELECT name FROM pragma_table_info('library_sources') WHERE name = 'color'")
-            .get(),
-        ).toBeUndefined();
-      },
-    );
-
-    expect(observations).toEqual(["before"]);
+    applyMigrations(database, [...libraryMigrations, addSourceColorMigration]);
     expect(
       database
         .prepare("SELECT name FROM pragma_table_info('library_sources') WHERE name = 'color'")
@@ -124,9 +102,9 @@ describe("library database migrations", () => {
       },
     } satisfies Migration;
 
-    await expect(
-      applyMigrations(database, [...libraryMigrations, failingMigration]),
-    ).rejects.toThrow("Migration failed on purpose");
+    expect(() => applyMigrations(database, [...libraryMigrations, failingMigration])).toThrow(
+      "Migration failed on purpose",
+    );
     expect(
       database.prepare("SELECT name FROM sqlite_master WHERE name = 'should_not_survive'").get(),
     ).toBeUndefined();
@@ -143,7 +121,7 @@ describe("library database migrations", () => {
       .prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (2, 'future', 1)")
       .run();
 
-    await expect(applyMigrations(database, libraryMigrations)).rejects.toThrow(
+    expect(() => applyMigrations(database, libraryMigrations)).toThrow(
       "Database migration 2_future is not supported by this build",
     );
   });
@@ -157,9 +135,9 @@ describe("library database migrations", () => {
       )
       .run();
 
-    await expect(
+    expect(() =>
       applyMigrations(database, [...libraryMigrations, addSourceColorMigration, thirdMigration]),
-    ).rejects.toThrow("history must have consecutive versions");
+    ).toThrow("history must have consecutive versions");
   });
 
   it("rejects a schema version that disagrees with migration history", async () => {
@@ -167,7 +145,7 @@ describe("library database migrations", () => {
     openDatabases.push(database);
     database.exec("PRAGMA user_version = 0");
 
-    await expect(applyMigrations(database, libraryMigrations)).rejects.toThrow(
+    expect(() => applyMigrations(database, libraryMigrations)).toThrow(
       "schema version 0 does not match migration history 1",
     );
   });
@@ -176,9 +154,9 @@ describe("library database migrations", () => {
     const database = await openLibraryDatabase(":memory:");
     openDatabases.push(database);
 
-    await expect(
+    expect(() =>
       applyMigrations(database, [libraryMigrations[0], { ...addSourceColorMigration, version: 3 }]),
-    ).rejects.toThrow("consecutive versions");
+    ).toThrow("consecutive versions");
   });
 });
 

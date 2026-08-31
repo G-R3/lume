@@ -45,16 +45,12 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
 
   return {
     addSource: () => emptyLibrary,
-    createManualBackup: () => Promise.resolve([]),
     disableSource: () => emptyLibrary,
     enableSource: () => emptyLibrary,
     forgetSource: () => emptyLibrary,
-    loadBackups: () => Promise.resolve([]),
     loadLibrary,
     onLibraryUpdate: () => () => {},
     openDataFolder: () => Promise.resolve(),
-    replaceOldestManualBackup: () => Promise.resolve([]),
-    restoreBackup: () => Promise.resolve(),
     rescanSource: () => emptyLibrary,
     rescanSources: () => emptyLibrary,
     isMac: false,

@@ -18,20 +18,7 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import {
-  lumeChannels,
-  type LibraryBackup,
-  type LibraryUpdate,
-  type MusicLibrary,
-} from "../shared/lib";
-import {
-  createBackupManager,
-  createMigrationBackup,
-  getLibraryBackupDirectory,
-  installPendingLibraryRestore,
-  listBackups,
-  type DatabaseBackup,
-} from "./database/backup";
+import { lumeChannels, type LibraryUpdate, type MusicLibrary } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
@@ -90,16 +77,12 @@ void app.whenReady().then(startApplication).catch(handleStartupFailure);
 
 async function startApplication() {
   const userDataDirectory = app.getPath("userData");
-  const backupDirectory = getLibraryBackupDirectory(userDataDirectory, app.isPackaged);
   const databasePath = getLibraryDatabasePath(userDataDirectory, app.isPackaged);
-  await installPendingLibraryRestore(databasePath, backupDirectory);
-  const database = await openLibraryDatabase(databasePath, {
-    beforeMigrations: (database) => createMigrationBackup(database, backupDirectory),
-  });
+  const database = await openLibraryDatabase(databasePath);
   app.once("will-quit", () => {
     if (database.isOpen) database.close();
   });
-  registerLibraryIpc(database, backupDirectory, userDataDirectory);
+  registerLibraryIpc(database, userDataDirectory);
 
   registerProtocolHandler(rendererDirectory, () => tracksById);
 
@@ -121,41 +104,12 @@ async function startApplication() {
   });
 }
 
-function registerLibraryIpc(
-  database: DatabaseSync,
-  backupDirectory: string,
-  userDataDirectory: string,
-) {
-  const backupManager = createBackupManager(database, backupDirectory);
-
+function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
   ipcMain.handle(lumeChannels.openDataFolder, async (event) => {
     requireTrustedWindow(event);
     const errorMessage = await shell.openPath(userDataDirectory);
 
     if (errorMessage) throw new Error(errorMessage);
-  });
-
-  ipcMain.handle(lumeChannels.loadBackups, async (event) => {
-    requireTrustedWindow(event);
-    return (await listBackups(backupDirectory)).map(toLibraryBackup);
-  });
-
-  ipcMain.handle(lumeChannels.createManualBackup, async (event) => {
-    requireTrustedWindow(event);
-    return (await backupManager.createManual()).map(toLibraryBackup);
-  });
-
-  ipcMain.handle(lumeChannels.replaceOldestManualBackup, async (event) => {
-    requireTrustedWindow(event);
-    return (await backupManager.replaceOldestManual()).map(toLibraryBackup);
-  });
-
-  ipcMain.handle(lumeChannels.restoreBackup, async (event, backupId) => {
-    requireTrustedWindow(event);
-    await backupManager.prepareRestore(backupId);
-    database.close();
-    app.relaunch();
-    app.exit(0);
   });
 
   ipcMain.handle(lumeChannels.addSource, async (event) => {
@@ -215,10 +169,6 @@ function registerLibraryIpc(
     const scanFailures = await scanEnabledSources(database);
     return { library: readLibrary(database), scanFailures };
   });
-}
-
-function toLibraryBackup(backup: DatabaseBackup): LibraryBackup {
-  return { createdAt: backup.createdAt, id: backup.id, kind: backup.kind };
 }
 
 function readLibrary(database: DatabaseSync) {

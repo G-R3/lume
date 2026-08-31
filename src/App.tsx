@@ -1,7 +1,6 @@
-import { DatabaseIcon, FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
+import { FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LibraryUpdate, MusicLibrary, ScanFailure } from "../shared/lib";
-import { BackupSettings } from "@/components/backup-settings";
 import { LibraryEmptyState } from "@/components/library-empty-state";
 import { LibraryStatus } from "@/components/library-status";
 import { ScanErrorToast } from "@/components/scan-error-toast";
@@ -97,7 +96,6 @@ function App() {
   }, [library, syncTracks]);
 
   const isSettings = route.startsWith("#settings/");
-  const isBackupSettings = route === "#settings/backups";
 
   if (library === undefined) {
     if (!errorMessage) return <div className="min-h-screen bg-black" />;
@@ -168,30 +166,17 @@ function App() {
                 <nav aria-label={isSettings ? "Settings" : "Library"}>
                   <SidebarMenu>
                     {isSettings ? (
-                      <>
-                        <SidebarMenuItem>
-                          <SidebarMenuButton
-                            aria-current={!isBackupSettings ? "page" : undefined}
-                            className="text-neutral-400"
-                            isActive={!isBackupSettings}
-                            render={<a href="#settings/sources" />}
-                          >
-                            <FolderOpenIcon aria-hidden="true" />
-                            <span>Sources</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                          <SidebarMenuButton
-                            aria-current={isBackupSettings ? "page" : undefined}
-                            className="text-neutral-400"
-                            isActive={isBackupSettings}
-                            render={<a href="#settings/backups" />}
-                          >
-                            <DatabaseIcon aria-hidden="true" />
-                            <span>Backups</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      </>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          aria-current="page"
+                          className="text-neutral-400"
+                          isActive
+                          render={<a href="#settings/sources" />}
+                        >
+                          <FolderOpenIcon aria-hidden="true" />
+                          <span>Sources</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
                     ) : (
                       <SidebarMenuItem>
                         <SidebarMenuButton
@@ -314,9 +299,7 @@ function App() {
                 {audioPlayer.errorMessage}
               </p>
             )}
-            {isBackupSettings ? (
-              <BackupSettings />
-            ) : isSettings ? (
+            {isSettings ? (
               <SourceSettings
                 isLoading={isLoadingLibrary}
                 library={library}

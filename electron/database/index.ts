@@ -1,23 +1,16 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { applyMigrations, getAppliedMigrations, type BeforeMigrations } from "./migration";
+import { applyMigrations, getAppliedMigrations } from "./migration";
 import { libraryMigrations } from "./migrations";
 
-export type OpenLibraryDatabaseOptions = {
-  readonly beforeMigrations?: BeforeMigrations;
-};
-
-export async function openLibraryDatabase(
-  location: string,
-  options: OpenLibraryDatabaseOptions = {},
-) {
+export async function openLibraryDatabase(location: string) {
   if (location !== ":memory:") await mkdir(dirname(location), { recursive: true });
 
   const database = new DatabaseSync(location);
   try {
     configureLibraryDatabase(database);
-    await applyMigrations(database, libraryMigrations, options.beforeMigrations);
+    applyMigrations(database, libraryMigrations);
     validateCurrentLibraryDatabase(database);
     return database;
   } catch (error) {
