@@ -9,9 +9,10 @@ import {
   createMigrationBackup,
   getBackup,
   getLibraryBackupDirectory,
+  installPendingLibraryRestore,
   listBackups,
+  prepareLibraryRestore,
   replaceOldestManualBackup,
-  restoreLibraryDatabase,
   validateBackup,
 } from "./backup";
 import { openLibraryDatabase } from ".";
@@ -168,7 +169,7 @@ describe("database backups", () => {
       .run("current-source", "/Current");
 
     await expect(
-      restoreLibraryDatabase(database, backupDirectory, selectedBackup.id),
+      prepareLibraryRestore(database, backupDirectory, selectedBackup.id),
     ).rejects.toThrow();
 
     expect(database.prepare("SELECT id FROM library_sources").all()).toEqual([
@@ -196,14 +197,14 @@ describe("database backups", () => {
     openDatabases.push(database);
 
     await expect(
-      restoreLibraryDatabase(database, backupDirectory, selectedBackup.id),
+      prepareLibraryRestore(database, backupDirectory, selectedBackup.id),
     ).rejects.toThrow("foreign key check");
 
     expect(database.prepare("SELECT id FROM tracks").all()).toEqual([]);
     expect(await listBackups(backupDirectory, "emergency")).toEqual([]);
   });
 
-  it("restores a backup after preserving the current database", async () => {
+  it("prepares a restore without changing the live database and installs it once", async () => {
     const folder = await createTemporaryFolder();
     const databasePath = join(folder, "library.sqlite");
     const backupDirectory = join(folder, "backups");
@@ -217,11 +218,11 @@ describe("database backups", () => {
     database.prepare("DELETE FROM library_sources").run();
     saveSource.run("source-2", "/Second");
 
-    await restoreLibraryDatabase(database, backupDirectory, selectedBackup.id);
+    await prepareLibraryRestore(database, backupDirectory, selectedBackup.id);
 
     expect(database.isOpen).toBe(true);
     expect(database.prepare("SELECT id, path FROM library_sources").all()).toEqual([
-      { id: "source-1", path: "/First" },
+      { id: "source-2", path: "/Second" },
     ]);
 
     const emergencyBackup = (await listBackups(backupDirectory, "emergency"))[0];
@@ -231,42 +232,51 @@ describe("database backups", () => {
     expect(emergencyDatabase.prepare("SELECT id, path FROM library_sources").all()).toEqual([
       { id: "source-2", path: "/Second" },
     ]);
+
+    database.close();
+    await expect(installPendingLibraryRestore(databasePath, backupDirectory)).resolves.toBe(true);
+    await expect(installPendingLibraryRestore(databasePath, backupDirectory)).resolves.toBe(false);
+    const restoredDatabase = await openLibraryDatabase(databasePath);
+    openDatabases.push(restoredDatabase);
+    expect(restoredDatabase.prepare("SELECT id, path FROM library_sources").all()).toEqual([
+      { id: "source-1", path: "/First" },
+    ]);
   });
 
-  it("leaves the current database open when restore validation fails", async () => {
+  it("does not publish a restore when validation fails", async () => {
     const folder = await createTemporaryFolder();
+    const databasePath = join(folder, "library.sqlite");
     const backupDirectory = join(folder, "backups");
     await mkdir(join(backupDirectory, "manual"), { recursive: true });
     await writeFile(join(backupDirectory, "manual", "1-corrupt.sqlite"), "not a database");
-    const database = await openLibraryDatabase(join(folder, "library.sqlite"));
+    const database = await openLibraryDatabase(databasePath);
     openDatabases.push(database);
 
     await expect(
-      restoreLibraryDatabase(database, backupDirectory, "1-corrupt.sqlite"),
+      prepareLibraryRestore(database, backupDirectory, "1-corrupt.sqlite"),
     ).rejects.toThrow();
 
     expect(database.isOpen).toBe(true);
     expect(await listBackups(backupDirectory, "emergency")).toEqual([]);
+    await expect(installPendingLibraryRestore(databasePath, backupDirectory)).resolves.toBe(false);
   });
 
-  it("reopens the current database when the restore write fails", async () => {
+  it("consumes a pending restore when installation fails", async () => {
     const folder = await createTemporaryFolder();
     const databasePath = join(folder, "library.sqlite");
     const backupDirectory = join(folder, "backups");
     const database = await openLibraryDatabase(databasePath);
     openDatabases.push(database);
-    database.exec("PRAGMA busy_timeout = 1");
     const selectedBackup = await createBackup(database, backupDirectory, "manual");
+    await prepareLibraryRestore(database, backupDirectory, selectedBackup.id);
+    database.close();
     const blockingDatabase = new DatabaseSync(databasePath);
     openDatabases.push(blockingDatabase);
-    blockingDatabase.exec("PRAGMA journal_mode = WAL; BEGIN IMMEDIATE");
+    blockingDatabase.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1; BEGIN IMMEDIATE");
 
-    await expect(
-      restoreLibraryDatabase(database, backupDirectory, selectedBackup.id),
-    ).rejects.toThrow();
+    await expect(installPendingLibraryRestore(databasePath, backupDirectory)).rejects.toThrow();
+    await expect(installPendingLibraryRestore(databasePath, backupDirectory)).resolves.toBe(false);
 
-    expect(database.isOpen).toBe(true);
-    expect(database.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 });
     blockingDatabase.exec("ROLLBACK");
   });
 });

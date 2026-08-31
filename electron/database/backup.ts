@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 import { backupKinds, backupLimits, type BackupKind, type LibraryBackup } from "../../shared/lib";
-import { configureLibraryDatabase, openLibraryDatabase, validateCurrentLibraryDatabase } from ".";
+import { openLibraryDatabase } from ".";
 import { getAppliedMigrations } from "./migration";
 import { libraryMigrations } from "./migrations";
 
@@ -35,8 +35,8 @@ export function createBackupManager(database: DatabaseSync, backupDirectory: str
         return [await createBackup(database, backupDirectory, "manual"), ...backups];
       }),
     replaceOldestManual: () => run(() => replaceOldestManualBackup(database, backupDirectory)),
-    restore: (backupId: string) =>
-      run(() => restoreLibraryDatabase(database, backupDirectory, backupId)),
+    prepareRestore: (backupId: string) =>
+      run(() => prepareLibraryRestore(database, backupDirectory, backupId)),
   };
 }
 
@@ -134,19 +134,17 @@ export function validateBackup(path: string) {
   }
 }
 
-export async function restoreLibraryDatabase(
+export async function prepareLibraryRestore(
   database: DatabaseSync,
   backupDirectory: string,
   backupId: string,
 ) {
-  const databasePath = database.location();
-
-  if (!databasePath) throw new Error("An in-memory database cannot be restored");
+  if (!database.location()) throw new Error("An in-memory database cannot be restored");
 
   const selectedBackup = await getBackup(backupDirectory, backupId);
   await mkdir(backupDirectory, { recursive: true });
-  const temporaryDirectory = await mkdtemp(join(backupDirectory, "restore-"));
-  const candidatePath = join(temporaryDirectory, "candidate.sqlite");
+  const candidatePath = join(backupDirectory, `${randomUUID()}.restore.tmp`);
+  const pendingRestorePath = join(backupDirectory, "pending-restore.sqlite");
   let backupDatabase: DatabaseSync | undefined;
   let candidateDatabase: DatabaseSync | undefined;
 
@@ -155,26 +153,50 @@ export async function restoreLibraryDatabase(
     await backup(backupDatabase, candidatePath);
     validateBackup(candidatePath);
     candidateDatabase = await openLibraryDatabase(candidatePath);
+    candidateDatabase.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    candidateDatabase.close();
 
     await createBackup(database, backupDirectory, "emergency");
-    database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-    database.close();
-    await backup(candidateDatabase, databasePath);
-    database.open();
-    configureLibraryDatabase(database);
-    validateCurrentLibraryDatabase(database);
-  } catch (error) {
-    if (!database.isOpen) {
-      database.open();
-      configureLibraryDatabase(database);
-    }
-
-    throw error;
+    await removeDatabaseFiles(pendingRestorePath);
+    await rename(candidatePath, pendingRestorePath);
   } finally {
     if (candidateDatabase?.isOpen) candidateDatabase.close();
     if (backupDatabase?.isOpen) backupDatabase.close();
-    await rm(temporaryDirectory, { force: true, recursive: true });
+    await removeDatabaseFiles(candidatePath);
   }
+}
+
+export async function installPendingLibraryRestore(databasePath: string, backupDirectory: string) {
+  const pendingRestorePath = join(backupDirectory, "pending-restore.sqlite");
+  const restoreAttemptPath = join(backupDirectory, `${randomUUID()}.restore-attempt.sqlite`);
+  // Claim the candidate first so a failed installation is never retried automatically.
+  const hasPendingRestore = await rename(pendingRestorePath, restoreAttemptPath).then(
+    () => true,
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    },
+  );
+
+  if (!hasPendingRestore) return false;
+
+  let candidateDatabase: DatabaseSync | undefined;
+
+  try {
+    candidateDatabase = new DatabaseSync(restoreAttemptPath, { readOnly: true });
+    await Promise.all(
+      [`${databasePath}-shm`, `${databasePath}-wal`].map((path) => rm(path, { force: true })),
+    );
+    await backup(candidateDatabase, databasePath);
+    return true;
+  } finally {
+    if (candidateDatabase?.isOpen) candidateDatabase.close();
+    await removeDatabaseFiles(restoreAttemptPath);
+  }
+}
+
+async function removeDatabaseFiles(path: string) {
+  await Promise.all([path, `${path}-shm`, `${path}-wal`].map((file) => rm(file, { force: true })));
 }
 
 export function getLibraryBackupDirectory(userDataDirectory: string, isPackaged: boolean) {

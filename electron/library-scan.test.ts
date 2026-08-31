@@ -5,7 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles, type AudioFileScan } from "./library";
-import { blockLibraryScans, scanEnabledSources, scanSource } from "./library-scan";
+import { scanEnabledSources, scanSource } from "./library-scan";
 import { applySourceScan, saveSource } from "./library-store";
 
 const temporaryFolders: string[] = [];
@@ -41,24 +41,6 @@ describe("enabled source scanning", () => {
     expect(database.prepare("SELECT name FROM tracks WHERE available = 1").all()).toEqual([
       { name: "new" },
     ]);
-  });
-
-  it("invalidates scans that were active when restore started", async () => {
-    const database = await openTestDatabase();
-    const folder = await createTemporaryFolder("lume-source-");
-    const source = await saveSource(database, folder);
-    const pendingScan = createDeferred<AudioFileScan>();
-    const request = scanSource(database, source, () => pendingScan.promise);
-    const resumeScans = blockLibraryScans(database);
-
-    pendingScan.resolve({
-      skippedFileCount: 0,
-      tracks: [createScannedTrack(join(folder, "stale.mp3"), "stale")],
-    });
-    await request;
-    resumeScans();
-
-    expect(database.prepare("SELECT id FROM tracks").all()).toEqual([]);
   });
 
   it("isolates source failures and records their unavailable tracks", async () => {

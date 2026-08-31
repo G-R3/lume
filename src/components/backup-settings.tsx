@@ -235,8 +235,8 @@ export function BackupSettings() {
           <Dialog.Popup className="fixed top-1/2 left-1/2 z-60 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-neutral-700 bg-neutral-950 p-6 text-neutral-100 shadow-2xl outline-none">
             <Dialog.Title className="text-base font-semibold">Restore this backup?</Dialog.Title>
             <Dialog.Description className="mt-2 text-sm leading-6 text-neutral-400">
-              Changes made after this backup will be replaced. Lume will save an emergency copy of
-              the current database, restore the selected backup, and restart.
+              Lume will verify this backup, save an emergency copy of the current database, and
+              restart. Changes made after restore begins may not be preserved.
             </Dialog.Description>
 
             {backupToRestore && (
@@ -266,7 +266,7 @@ export function BackupSettings() {
                 onClick={() => void restoreBackup()}
                 type="button"
               >
-                {isLoading ? "Restoring..." : "Restore and restart"}
+                {isLoading ? "Preparing..." : "Restore and restart"}
               </Button>
             </div>
           </Dialog.Popup>

@@ -8,13 +8,7 @@ import {
   getTrackMetadata,
 } from "./library-store";
 
-type ScanState = {
-  blocked: boolean;
-  epoch: number;
-  sourceVersions: Map<string, number>;
-};
-
-const scanStates = new WeakMap<DatabaseSync, ScanState>();
+const scanVersions = new WeakMap<DatabaseSync, Map<string, number>>();
 
 export async function scanEnabledSources(database: DatabaseSync): Promise<ScanFailure[]> {
   const failures: ScanFailure[] = [];
@@ -32,18 +26,15 @@ export async function scanSource(
   source: Pick<LibrarySource, "id" | "path">,
   scanFiles = scanAudioFiles,
 ): Promise<ScanFailure | null> {
-  const state = getScanState(database);
-  if (state.blocked) return null;
-
-  const epoch = state.epoch;
-  const sourceVersion = (state.sourceVersions.get(source.id) ?? 0) + 1;
-  state.sourceVersions.set(source.id, sourceVersion);
+  const versions = getScanVersions(database);
+  const version = (versions.get(source.id) ?? 0) + 1;
+  versions.set(source.id, version);
   let scan: Awaited<ReturnType<typeof scanAudioFiles>>;
 
   try {
     scan = await scanFiles(source.path, getTrackMetadata(database, source.id));
   } catch (error) {
-    if (!scanIsCurrent(state, source.id, epoch, sourceVersion)) return null;
+    if (versions.get(source.id) !== version) return null;
 
     console.warn("Could not read library source", { error, sourceId: source.id });
     const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
@@ -51,40 +42,20 @@ export async function scanSource(
     return { error: message, sourceId: source.id };
   }
 
-  if (!scanIsCurrent(state, source.id, epoch, sourceVersion)) return null;
+  if (versions.get(source.id) !== version) return null;
 
   const error = getSkippedFilesMessage(scan.skippedFileCount);
   if (!applySourceScan(database, source.id, scan, error)) return null;
   return error ? { error, sourceId: source.id } : null;
 }
 
-export function blockLibraryScans(database: DatabaseSync) {
-  const state = getScanState(database);
-  state.blocked = true;
-  state.epoch += 1;
-
-  return () => {
-    state.blocked = false;
-  };
-}
-
-export function libraryScansAreBlocked(database: DatabaseSync) {
-  return getScanState(database).blocked;
-}
-
-function getScanState(database: DatabaseSync) {
-  const existing = scanStates.get(database);
+function getScanVersions(database: DatabaseSync) {
+  const existing = scanVersions.get(database);
   if (existing) return existing;
 
-  const state = { blocked: false, epoch: 0, sourceVersions: new Map<string, number>() };
-  scanStates.set(database, state);
-  return state;
-}
-
-function scanIsCurrent(state: ScanState, sourceId: string, epoch: number, sourceVersion: number) {
-  return (
-    !state.blocked && state.epoch === epoch && state.sourceVersions.get(sourceId) === sourceVersion
-  );
+  const versions = new Map<string, number>();
+  scanVersions.set(database, versions);
+  return versions;
 }
 
 function getScanErrorMessage(error: Error) {
