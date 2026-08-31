@@ -76,6 +76,7 @@ describe("database backups", () => {
     expect(result).toEqual({
       oldestBackup: {
         createdAt: 1,
+        id: "1-backup.sqlite",
         kind: "manual",
         path: join(folder, "manual", "1-backup.sqlite"),
       },

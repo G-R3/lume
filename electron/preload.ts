@@ -16,6 +16,8 @@ ipcRenderer.on(lumeChannels.libraryUpdated, (_event, update: LibraryUpdate) => {
 
 const lumeApi = {
   addSource: (): ReturnType<LumeApi["addSource"]> => ipcRenderer.invoke(lumeChannels.addSource),
+  createManualBackup: (replaceOldest): ReturnType<LumeApi["createManualBackup"]> =>
+    ipcRenderer.invoke(lumeChannels.createManualBackup, replaceOldest),
   disableSource: (sourceId): ReturnType<LumeApi["disableSource"]> =>
     ipcRenderer.invoke(lumeChannels.disableSource, sourceId),
   enableSource: (sourceId): ReturnType<LumeApi["enableSource"]> =>
@@ -24,6 +26,8 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.forgetSource, sourceId),
   loadLibrary: (): ReturnType<LumeApi["loadLibrary"]> =>
     ipcRenderer.invoke(lumeChannels.loadLibrary),
+  loadBackups: (): ReturnType<LumeApi["loadBackups"]> =>
+    ipcRenderer.invoke(lumeChannels.loadBackups),
   onLibraryUpdate: (listener) => {
     libraryUpdateListeners.add(listener);
 

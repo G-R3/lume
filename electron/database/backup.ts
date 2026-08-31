@@ -2,16 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { backup, type DatabaseSync } from "node:sqlite";
+import { backupKinds, backupLimits, type BackupKind, type LibraryBackup } from "../../shared/lib";
 
-const backupKinds = ["manual", "migration", "emergency"] as const;
-const manualBackupLimit = 5;
-const migrationBackupLimit = 3;
-
-export type BackupKind = (typeof backupKinds)[number];
-
-export type DatabaseBackup = {
-  createdAt: number;
-  kind: BackupKind;
+export type DatabaseBackup = LibraryBackup & {
   path: string;
 };
 
@@ -22,7 +15,8 @@ export async function createBackup(
 ) {
   const createdAt = Date.now();
   const directory = join(backupDirectory, kind);
-  const path = join(directory, `${createdAt}-${randomUUID()}.sqlite`);
+  const id = `${createdAt}-${randomUUID()}.sqlite`;
+  const path = join(directory, id);
   const temporaryPath = `${path}.tmp`;
 
   await mkdir(directory, { recursive: true });
@@ -35,14 +29,14 @@ export async function createBackup(
     throw error;
   }
 
-  return { createdAt, kind, path } satisfies DatabaseBackup;
+  return { createdAt, id, kind, path } satisfies DatabaseBackup;
 }
 
 export async function createMigrationBackup(database: DatabaseSync, backupDirectory: string) {
   await createBackup(database, backupDirectory, "migration");
   await Promise.all(
     (await listBackups(backupDirectory, "migration"))
-      .slice(migrationBackupLimit)
+      .slice(backupLimits.migration)
       .map((backup) => rm(backup.path)),
   );
 }
@@ -55,18 +49,18 @@ export async function createManualBackup(
   const manualBackups = await listBackups(backupDirectory, "manual");
   const oldestBackup = manualBackups.at(-1);
 
-  if (manualBackups.length >= manualBackupLimit && oldestBackup && !replaceOldest) {
+  if (manualBackups.length >= backupLimits.manual && oldestBackup && !replaceOldest) {
     return { oldestBackup, status: "confirmation-required" } as const;
   }
 
-  const createdBackup = await createBackup(database, backupDirectory, "manual");
+  await createBackup(database, backupDirectory, "manual");
   await Promise.all(
     (await listBackups(backupDirectory, "manual"))
-      .slice(manualBackupLimit)
+      .slice(backupLimits.manual)
       .map((backup) => rm(backup.path)),
   );
 
-  return { backup: createdBackup, status: "created" } as const;
+  return { status: "created" } as const;
 }
 
 export async function listBackups(backupDirectory: string, kind?: BackupKind) {
@@ -84,7 +78,7 @@ export async function listBackups(backupDirectory: string, kind?: BackupKind) {
         const createdAt = Number(/^(\d+)-.+\.sqlite$/.exec(entry.name)?.[1]);
 
         if (!entry.isFile() || !Number.isSafeInteger(createdAt)) return [];
-        return [{ createdAt, kind: backupKind, path: join(directory, entry.name) }];
+        return [{ createdAt, id: entry.name, kind: backupKind, path: join(directory, entry.name) }];
       });
     }),
   );

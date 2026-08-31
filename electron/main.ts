@@ -18,8 +18,19 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import { lumeChannels, type LibraryUpdate, type MusicLibrary } from "../shared/lib";
-import { createMigrationBackup, getLibraryBackupDirectory } from "./database/backup";
+import {
+  lumeChannels,
+  type LibraryBackup,
+  type LibraryUpdate,
+  type MusicLibrary,
+} from "../shared/lib";
+import {
+  createManualBackup,
+  createMigrationBackup,
+  getLibraryBackupDirectory,
+  listBackups,
+  type DatabaseBackup,
+} from "./database/backup";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
@@ -78,18 +89,15 @@ void app.whenReady().then(startApplication).catch(handleStartupFailure);
 
 async function startApplication() {
   const userDataDirectory = app.getPath("userData");
+  const backupDirectory = getLibraryBackupDirectory(userDataDirectory, app.isPackaged);
   const database = await openLibraryDatabase(
     getLibraryDatabasePath(userDataDirectory, app.isPackaged),
     {
-      beforeMigrations: (database) =>
-        createMigrationBackup(
-          database,
-          getLibraryBackupDirectory(userDataDirectory, app.isPackaged),
-        ),
+      beforeMigrations: (database) => createMigrationBackup(database, backupDirectory),
     },
   );
   app.once("will-quit", () => database.close());
-  registerLibraryIpc(database);
+  registerLibraryIpc(database, backupDirectory);
 
   registerProtocolHandler(rendererDirectory, () => tracksById);
 
@@ -111,7 +119,26 @@ async function startApplication() {
   });
 }
 
-function registerLibraryIpc(database: DatabaseSync) {
+function registerLibraryIpc(database: DatabaseSync, backupDirectory: string) {
+  ipcMain.handle(lumeChannels.loadBackups, async (event) => {
+    requireTrustedWindow(event);
+    return (await listBackups(backupDirectory)).map(toLibraryBackup);
+  });
+
+  ipcMain.handle(lumeChannels.createManualBackup, async (event, replaceOldest) => {
+    requireTrustedWindow(event);
+    const result = await createManualBackup(database, backupDirectory, replaceOldest);
+
+    if (result.status === "confirmation-required") {
+      return { oldestBackup: toLibraryBackup(result.oldestBackup), status: result.status };
+    }
+
+    return {
+      backups: (await listBackups(backupDirectory)).map(toLibraryBackup),
+      status: result.status,
+    };
+  });
+
   ipcMain.handle(lumeChannels.addSource, async (event) => {
     const window = requireTrustedWindow(event);
     const result = await dialog.showOpenDialog(window, {
@@ -172,6 +199,10 @@ function registerLibraryIpc(database: DatabaseSync) {
     const scanFailures = await scanEnabledSources(database);
     return { library: readLibrary(database), scanFailures };
   });
+}
+
+function toLibraryBackup(backup: DatabaseBackup): LibraryBackup {
+  return { createdAt: backup.createdAt, id: backup.id, kind: backup.kind };
 }
 
 function readLibrary(database: DatabaseSync) {

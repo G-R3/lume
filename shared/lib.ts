@@ -30,11 +30,32 @@ export type LibraryUpdate = {
   scanFailures: ScanFailure[];
 };
 
+export const backupKinds = ["manual", "migration", "emergency"] as const;
+export type BackupKind = (typeof backupKinds)[number];
+
+export const backupLimits = {
+  manual: 5,
+  migration: 3,
+  emergency: null, // No retention rule yet.
+} as const satisfies Record<BackupKind, number | null>;
+
+export type LibraryBackup = {
+  createdAt: number;
+  id: string;
+  kind: BackupKind;
+};
+
+export type ManualBackupResult =
+  | { backups: LibraryBackup[]; status: "created" }
+  | { oldestBackup: LibraryBackup; status: "confirmation-required" };
+
 export type LumeApi = {
   addSource: () => Promise<LibraryUpdate>;
+  createManualBackup: (replaceOldest: boolean) => Promise<ManualBackupResult>;
   disableSource: (sourceId: string) => Promise<LibraryUpdate>;
   enableSource: (sourceId: string) => Promise<LibraryUpdate>;
   forgetSource: (sourceId: string) => Promise<LibraryUpdate>;
+  loadBackups: () => Promise<LibraryBackup[]>;
   loadLibrary: () => Promise<LibraryUpdate>;
   onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   rescanSource: (sourceId: string) => Promise<LibraryUpdate>;
@@ -44,11 +65,13 @@ export type LumeApi = {
 
 export const lumeChannels = {
   addSource: "lume:add-source",
+  createManualBackup: "lume:create-manual-backup",
   disableSource: "lume:disable-source",
   enableSource: "lume:enable-source",
   forgetSource: "lume:forget-source",
   loadLibrary: "lume:load-library",
   libraryUpdated: "lume:library-updated",
+  loadBackups: "lume:load-backups",
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
 } as const;
