@@ -16,6 +16,7 @@ const backupLabels = {
 
 export function BackupSettings() {
   const [backups, setBackups] = useState<LibraryBackup[]>([]);
+  const [backupToRestore, setBackupToRestore] = useState<LibraryBackup | null>(null);
   const [isConfirmingReplacement, setIsConfirmingReplacement] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -52,6 +53,21 @@ export function BackupSettings() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not create backup");
     } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function restoreBackup() {
+    if (!backupToRestore) return;
+
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      await window.lume.restoreBackup(backupToRestore.id);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not restore backup");
+      setBackupToRestore(null);
       setIsLoading(false);
     }
   }
@@ -130,6 +146,16 @@ export function BackupSettings() {
                         {backupLabels[kind]} backup
                       </p>
                     </div>
+                    <Button
+                      className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+                      disabled={isLoading}
+                      onClick={() => setBackupToRestore(backup)}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Restore
+                    </Button>
                   </article>
                 ))}
 
@@ -192,6 +218,55 @@ export function BackupSettings() {
                 type="button"
               >
                 {isLoading ? "Creating..." : "Replace oldest"}
+              </Button>
+            </div>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root
+        onOpenChange={(open) => {
+          if (!open && !isLoading) setBackupToRestore(null);
+        }}
+        open={backupToRestore !== null}
+      >
+        <Dialog.Portal>
+          <Dialog.Backdrop className="fixed inset-0 z-60 bg-black/80" />
+          <Dialog.Popup className="fixed top-1/2 left-1/2 z-60 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-neutral-700 bg-neutral-950 p-6 text-neutral-100 shadow-2xl outline-none">
+            <Dialog.Title className="text-base font-semibold">Restore this backup?</Dialog.Title>
+            <Dialog.Description className="mt-2 text-sm leading-6 text-neutral-400">
+              Changes made after this backup will be replaced. Lume will save an emergency copy of
+              the current database, restore the selected backup, and restart.
+            </Dialog.Description>
+
+            {backupToRestore && (
+              <div className="mt-5 rounded-md border border-neutral-800 bg-black p-3">
+                <p className="text-xs font-medium text-neutral-300">
+                  {backupLabels[backupToRestore.kind]} backup
+                </p>
+                <p className="font-berkeley mt-1 text-[10px] text-neutral-500">
+                  {backupDateFormatter.format(backupToRestore.createdAt)}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+                disabled={isLoading}
+                onClick={() => setBackupToRestore(null)}
+                type="button"
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-400 text-neutral-950 hover:bg-red-300"
+                disabled={isLoading}
+                onClick={() => void restoreBackup()}
+                type="button"
+              >
+                {isLoading ? "Restoring..." : "Restore and restart"}
               </Button>
             </div>
           </Dialog.Popup>

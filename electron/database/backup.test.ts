@@ -10,7 +10,7 @@ import {
   getLibraryBackupDirectory,
   listBackups,
   replaceOldestManualBackup,
-  restoreDatabaseBackup,
+  restoreLibraryDatabase,
   validateBackup,
 } from "./backup";
 import { openLibraryDatabase } from ".";
@@ -145,11 +145,10 @@ describe("database backups", () => {
     database.prepare("DELETE FROM library_sources").run();
     saveSource.run("source-2", "/Second");
 
-    await restoreDatabaseBackup(database, backupDirectory, selectedBackup.id);
+    await restoreLibraryDatabase(database, backupDirectory, selectedBackup.id);
 
-    const restoredDatabase = await openLibraryDatabase(databasePath);
-    openDatabases.push(restoredDatabase);
-    expect(restoredDatabase.prepare("SELECT id, path FROM library_sources").all()).toEqual([
+    expect(database.isOpen).toBe(true);
+    expect(database.prepare("SELECT id, path FROM library_sources").all()).toEqual([
       { id: "source-1", path: "/First" },
     ]);
 
@@ -171,7 +170,7 @@ describe("database backups", () => {
     openDatabases.push(database);
 
     await expect(
-      restoreDatabaseBackup(database, backupDirectory, "1-corrupt.sqlite"),
+      restoreLibraryDatabase(database, backupDirectory, "1-corrupt.sqlite"),
     ).rejects.toThrow();
 
     expect(database.isOpen).toBe(true);
@@ -191,7 +190,7 @@ describe("database backups", () => {
     blockingDatabase.exec("PRAGMA journal_mode = WAL; BEGIN IMMEDIATE");
 
     await expect(
-      restoreDatabaseBackup(database, backupDirectory, selectedBackup.id),
+      restoreLibraryDatabase(database, backupDirectory, selectedBackup.id),
     ).rejects.toThrow();
 
     expect(database.isOpen).toBe(true);

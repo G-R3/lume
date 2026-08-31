@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 import { backupKinds, backupLimits, type BackupKind, type LibraryBackup } from "../../shared/lib";
 import { configureLibraryDatabase } from ".";
-import { getAppliedMigrations } from "./migration";
+import { applyMigrations, getAppliedMigrations } from "./migration";
 import { libraryMigrations } from "./migrations";
 
 export type DatabaseBackup = LibraryBackup & {
@@ -108,7 +108,7 @@ export function validateBackup(path: string) {
   }
 }
 
-export async function restoreDatabaseBackup(
+export async function restoreLibraryDatabase(
   database: DatabaseSync,
   backupDirectory: string,
   backupId: string,
@@ -126,6 +126,11 @@ export async function restoreDatabaseBackup(
     database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     database.close();
     await backup(backupDatabase, databasePath);
+    database.open();
+    configureLibraryDatabase(database);
+    await applyMigrations(database, libraryMigrations, (database) =>
+      createMigrationBackup(database, backupDirectory),
+    );
   } catch (error) {
     if (!database.isOpen) {
       database.open();

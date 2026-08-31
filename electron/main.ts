@@ -32,7 +32,7 @@ import {
   getLibraryBackupDirectory,
   listBackups,
   replaceOldestManualBackup,
-  restoreDatabaseBackup,
+  restoreLibraryDatabase,
   type DatabaseBackup,
 } from "./database/backup";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
@@ -100,7 +100,9 @@ async function startApplication() {
       beforeMigrations: (database) => createMigrationBackup(database, backupDirectory),
     },
   );
-  app.once("will-quit", () => database.close());
+  app.once("will-quit", () => {
+    if (database.isOpen) database.close();
+  });
   registerLibraryIpc(database, backupDirectory, userDataDirectory);
 
   registerProtocolHandler(rendererDirectory, () => tracksById);
@@ -162,7 +164,15 @@ function registerLibraryIpc(
 
   ipcMain.handle(lumeChannels.restoreBackup, async (event, backupId) => {
     requireTrustedWindow(event);
-    await restoreDatabaseBackup(database, backupDirectory, backupId);
+    await restoreLibraryDatabase(database, backupDirectory, backupId);
+
+    if (!app.isPackaged) {
+      refreshTracksById(database);
+      BrowserWindow.getAllWindows().forEach((window) => window.webContents.reload());
+      return;
+    }
+
+    database.close();
     app.relaunch();
     app.exit(0);
   });

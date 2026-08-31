@@ -15,7 +15,6 @@ export async function openLibraryDatabase(
   if (location !== ":memory:") await mkdir(dirname(location), { recursive: true });
 
   const database = new DatabaseSync(location);
-
   try {
     configureLibraryDatabase(database);
     await applyMigrations(database, libraryMigrations, options.beforeMigrations);
