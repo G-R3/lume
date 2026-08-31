@@ -1,11 +1,11 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
-import { scanEnabledSources } from "./library-scan";
+import { scanEnabledSources, scanSource } from "./library-scan";
 import { applySourceScan, saveSource } from "./library-store";
 
 const temporaryFolders: string[] = [];
@@ -99,6 +99,30 @@ describe("enabled source scanning", () => {
       database.prepare("SELECT last_scan_error FROM library_sources WHERE id = ?").get(source.id),
     ).toEqual({ last_scan_error: null });
   });
+
+  it.runIf(process.platform !== "win32" && process.getuid?.() !== 0)(
+    "reports one skipped file without discarding readable tracks",
+    async () => {
+      const database = await openTestDatabase();
+      const folder = await createTemporaryFolder("lume-source-");
+      const inaccessiblePath = join(folder, "inaccessible.wav");
+      await Promise.all([
+        writeFile(join(folder, "readable.mp3"), ""),
+        writeFile(inaccessiblePath, ""),
+      ]);
+      await chmod(inaccessiblePath, 0o000);
+      const source = await saveSource(database, folder);
+
+      await expect(scanSource(database, source)).resolves.toEqual({
+        error: "1 audio file was skipped",
+        sourceId: source.id,
+      });
+      expect(database.prepare("SELECT name FROM tracks").all()).toEqual([{ name: "readable" }]);
+      expect(
+        database.prepare("SELECT last_scan_error FROM library_sources WHERE id = ?").get(source.id),
+      ).toEqual({ last_scan_error: "1 audio file was skipped" });
+    },
+  );
 });
 
 async function openTestDatabase() {

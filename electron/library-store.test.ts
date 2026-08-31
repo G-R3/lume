@@ -57,6 +57,7 @@ describe("library source persistence", () => {
         lastScanError: null,
         lastScannedAt: null,
         path: source.path,
+        trackCount: 0,
       },
     ]);
   });
@@ -84,17 +85,20 @@ describe("library source persistence", () => {
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
+    expect(getSource(database, source.id).trackCount).toBe(1);
 
     disableSource(database, source.id);
     expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 0 });
     expect(getSource(database, source.id).enabled).toBe(false);
+    expect(getTracks(database).map((track) => track.available)).toEqual([false]);
+    expect(applySourceScan(database, source.id, await scanAudioFiles(folder))).toBe(false);
     expect(getTracks(database).map((track) => track.available)).toEqual([false]);
 
     enableSource(database, source.id);
     expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 1 });
     expect(getTracks(database).map((track) => track.available)).toEqual([false]);
 
-    applySourceScan(database, source.id, await scanAudioFiles(folder));
+    expect(applySourceScan(database, source.id, await scanAudioFiles(folder))).toBe(true);
     expect(getTracks(database).map((track) => track.available)).toEqual([true]);
   });
 

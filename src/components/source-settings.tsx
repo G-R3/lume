@@ -43,9 +43,11 @@ export function SourceSettings({
             ? source.lastScanError
             : !source.enabled
               ? "Disabled"
-              : source.lastScannedAt
-                ? `Last scanned ${scanDateFormatter.format(source.lastScannedAt)}`
-                : "Not scanned yet";
+              : source.lastScannedAt !== null && source.trackCount === 0
+                ? "No supported audio found"
+                : source.lastScannedAt
+                  ? `Last scanned ${scanDateFormatter.format(source.lastScannedAt)}`
+                  : "Not scanned yet";
 
           return (
             <article className="flex items-center gap-8 py-5" key={source.id}>

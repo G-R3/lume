@@ -23,19 +23,20 @@ export async function scanSource(
   database: DatabaseSync,
   source: Pick<LibrarySource, "id" | "path">,
 ): Promise<ScanFailure | null> {
-  let tracks: Awaited<ReturnType<typeof scanAudioFiles>>;
+  let scan: Awaited<ReturnType<typeof scanAudioFiles>>;
 
   try {
-    tracks = await scanAudioFiles(source.path, getTrackMetadata(database, source.id));
+    scan = await scanAudioFiles(source.path, getTrackMetadata(database, source.id));
   } catch (error) {
     console.warn("Could not read library source", { error, sourceId: source.id });
     const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
-    applyScanFailure(database, source.id, message);
+    if (!applyScanFailure(database, source.id, message)) return null;
     return { error: message, sourceId: source.id };
   }
 
-  applySourceScan(database, source.id, tracks);
-  return null;
+  const error = getSkippedFilesMessage(scan.skippedFileCount);
+  if (!applySourceScan(database, source.id, scan, error)) return null;
+  return error ? { error, sourceId: source.id } : null;
 }
 
 function getScanErrorMessage(error: Error) {
@@ -44,4 +45,9 @@ function getScanErrorMessage(error: Error) {
   }
 
   return error.message;
+}
+
+function getSkippedFilesMessage(count: number) {
+  if (count === 0) return null;
+  return `${count.toLocaleString()} audio ${count === 1 ? "file was" : "files were"} skipped`;
 }

@@ -4,7 +4,7 @@ import { isAbsolute, relative } from "node:path";
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
 import type { LibrarySource } from "../shared/lib";
 import { runInTransaction } from "./database/transaction";
-import type { ScannedTrack, TrackMetadata } from "./library";
+import type { AudioFileScan, TrackMetadata } from "./library";
 
 export type StoredTrack = {
   available: boolean;
@@ -15,10 +15,21 @@ export type StoredTrack = {
   path: string;
 };
 
+const sourceColumns = `
+  library_sources.id,
+  library_sources.path,
+  library_sources.enabled,
+  library_sources.last_scanned_at,
+  library_sources.last_scan_error,
+  (
+    SELECT COUNT(*) FROM tracks
+    WHERE tracks.source_id = library_sources.id AND tracks.available = 1
+  ) AS track_count`;
+
 export function getSources(database: DatabaseSync): LibrarySource[] {
   return database
     .prepare(
-      `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
+      `SELECT ${sourceColumns} FROM library_sources
       WHERE forgotten_at IS NULL
       ORDER BY created_at`,
     )
@@ -29,7 +40,7 @@ export function getSources(database: DatabaseSync): LibrarySource[] {
 export function getEnabledSources(database: DatabaseSync): LibrarySource[] {
   return database
     .prepare(
-      `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
+      `SELECT ${sourceColumns} FROM library_sources
       WHERE enabled = 1 AND forgotten_at IS NULL
       ORDER BY created_at`,
     )
@@ -40,7 +51,7 @@ export function getEnabledSources(database: DatabaseSync): LibrarySource[] {
 export function getSource(database: DatabaseSync, sourceId: string): LibrarySource {
   const source = database
     .prepare(
-      `SELECT id, path, enabled, last_scanned_at, last_scan_error FROM library_sources
+      `SELECT ${sourceColumns} FROM library_sources
       WHERE id = ? AND forgotten_at IS NULL`,
     )
     .get(sourceId);
@@ -192,8 +203,11 @@ export function forgetSource(database: DatabaseSync, sourceId: string) {
 export function applySourceScan(
   database: DatabaseSync,
   sourceId: string,
-  tracks: readonly ScannedTrack[],
+  scan: AudioFileScan,
+  scanError: string | null = null,
 ) {
+  if (!sourceCanScan(database, sourceId)) return false;
+
   const now = Date.now();
 
   runInTransaction(database, () => {
@@ -215,7 +229,7 @@ export function applySourceScan(
         updated_at = excluded.updated_at`,
     );
 
-    tracks.forEach((track) => {
+    scan.tracks.forEach((track) => {
       saveTrack.run(
         randomUUID(),
         sourceId,
@@ -233,14 +247,18 @@ export function applySourceScan(
     database
       .prepare(
         `UPDATE library_sources
-        SET last_scanned_at = ?, last_scan_error = NULL, updated_at = ?
+        SET last_scanned_at = ?, last_scan_error = ?, updated_at = ?
         WHERE id = ?`,
       )
-      .run(now, now, sourceId);
+      .run(now, scanError, now, sourceId);
   });
+
+  return true;
 }
 
 export function applyScanFailure(database: DatabaseSync, sourceId: string, error: string) {
+  if (!sourceCanScan(database, sourceId)) return false;
+
   const now = Date.now();
 
   runInTransaction(database, () => {
@@ -253,6 +271,20 @@ export function applyScanFailure(database: DatabaseSync, sourceId: string, error
       )
       .run(error, now, sourceId);
   });
+
+  return true;
+}
+
+function sourceCanScan(database: DatabaseSync, sourceId: string) {
+  const source = database
+    .prepare("SELECT enabled, forgotten_at FROM library_sources WHERE id = ?")
+    .get(sourceId);
+
+  return (
+    source !== undefined &&
+    readBoolean(source.enabled, "library_sources.enabled") &&
+    source.forgotten_at === null
+  );
 }
 
 function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, now: number) {
@@ -301,6 +333,7 @@ function readSource(row: Record<string, SQLOutputValue>): LibrarySource {
         : readString(row.last_scan_error, "library_sources.last_scan_error"),
     lastScannedAt: readNullableNumber(row.last_scanned_at, "library_sources.last_scanned_at"),
     path: readString(row.path, "library_sources.path"),
+    trackCount: readNumber(row.track_count, "library_sources.track_count"),
   };
 }
 

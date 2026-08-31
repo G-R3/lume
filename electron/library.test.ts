@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
@@ -23,24 +23,27 @@ describe("scanAudioFiles", () => {
       writeFile(join(folder, "album", "cover.jpg"), ""),
     ]);
 
-    await expect(scanAudioFiles(folder)).resolves.toEqual([
-      {
-        duration: null,
-        fileSize: 0,
-        format: "FLAC",
-        modifiedAt: expect.any(Number),
-        name: "song-two",
-        path: join(folder, "album", "song-two.flac"),
-      },
-      {
-        duration: null,
-        fileSize: 0,
-        format: "MP3",
-        modifiedAt: expect.any(Number),
-        name: "song-one",
-        path: join(folder, "song-one.MP3"),
-      },
-    ]);
+    await expect(scanAudioFiles(folder)).resolves.toEqual({
+      skippedFileCount: 0,
+      tracks: [
+        {
+          duration: null,
+          fileSize: 0,
+          format: "FLAC",
+          modifiedAt: expect.any(Number),
+          name: "song-two",
+          path: join(folder, "album", "song-two.flac"),
+        },
+        {
+          duration: null,
+          fileSize: 0,
+          format: "MP3",
+          modifiedAt: expect.any(Number),
+          name: "song-one",
+          path: join(folder, "song-one.MP3"),
+        },
+      ],
+    });
   });
 
   it.each(["aac", "flac", "m4a", "mp3", "oga", "ogg", "opus", "wav"])(
@@ -50,16 +53,19 @@ describe("scanAudioFiles", () => {
       const path = join(folder, `track.${extension}`);
       await writeFile(path, "");
 
-      await expect(scanAudioFiles(folder)).resolves.toEqual([
-        {
-          duration: null,
-          fileSize: 0,
-          format: extension.toUpperCase(),
-          modifiedAt: expect.any(Number),
-          name: "track",
-          path,
-        },
-      ]);
+      await expect(scanAudioFiles(folder)).resolves.toEqual({
+        skippedFileCount: 0,
+        tracks: [
+          {
+            duration: null,
+            fileSize: 0,
+            format: extension.toUpperCase(),
+            modifiedAt: expect.any(Number),
+            name: "track",
+            path,
+          },
+        ],
+      });
     },
   );
 
@@ -68,35 +74,56 @@ describe("scanAudioFiles", () => {
     const path = join(folder, "one-second.wav");
     await writeFile(path, createWaveAudio());
 
-    await expect(scanAudioFiles(folder)).resolves.toEqual([
-      {
-        duration: 1,
-        fileSize: 8_044,
-        format: "WAV",
-        modifiedAt: expect.any(Number),
-        name: "one-second",
-        path,
-      },
-    ]);
+    await expect(scanAudioFiles(folder)).resolves.toEqual({
+      skippedFileCount: 0,
+      tracks: [
+        {
+          duration: 1,
+          fileSize: 8_044,
+          format: "WAV",
+          modifiedAt: expect.any(Number),
+          name: "one-second",
+          path,
+        },
+      ],
+    });
   });
 
   it("reuses stored metadata until a file changes", async () => {
     const folder = await createTemporaryFolder("lume-library-");
     const path = join(folder, "track.mp3");
     await writeFile(path, "original");
-    const [scannedTrack] = await scanAudioFiles(folder);
+    const [scannedTrack] = (await scanAudioFiles(folder)).tracks;
     expect(scannedTrack).toBeDefined();
     if (!scannedTrack) return;
 
     const storedTrack = { ...scannedTrack, duration: 123 };
     const storedTracks = new Map([[path, storedTrack]]);
 
-    await expect(scanAudioFiles(folder, storedTracks)).resolves.toEqual([storedTrack]);
+    await expect(scanAudioFiles(folder, storedTracks)).resolves.toEqual({
+      skippedFileCount: 0,
+      tracks: [storedTrack],
+    });
 
     await writeFile(path, "changed file contents");
-    const [changedTrack] = await scanAudioFiles(folder, storedTracks);
+    const [changedTrack] = (await scanAudioFiles(folder, storedTracks)).tracks;
     expect(changedTrack).toMatchObject({ duration: null, fileSize: 21, path });
   });
+
+  it.runIf(process.platform !== "win32" && process.getuid?.() !== 0)(
+    "skips inaccessible audio files",
+    async () => {
+      const folder = await createTemporaryFolder("lume-library-");
+      const path = join(folder, "inaccessible.wav");
+      await writeFile(path, createWaveAudio());
+      await chmod(path, 0o000);
+
+      await expect(scanAudioFiles(folder)).resolves.toEqual({
+        skippedFileCount: 1,
+        tracks: [],
+      });
+    },
+  );
 });
 
 async function createTemporaryFolder(prefix: string) {

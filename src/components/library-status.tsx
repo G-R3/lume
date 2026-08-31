@@ -65,12 +65,13 @@ export function LibraryStatus({
     );
   }
 
-  if (library.tracks.length > 0 || library.sources.length === 0) return null;
+  const emptySource = library.sources.find(
+    (source) => source.enabled && source.lastScannedAt !== null && source.trackCount === 0,
+  );
 
-  const sourceName =
-    library.sources.length === 1
-      ? (library.sources[0]?.path.split(/[/\\]/).filter(Boolean).at(-1) ?? "this source")
-      : "your sources";
+  if (!emptySource) return null;
+
+  const sourceName = emptySource.path.split(/[/\\]/).filter(Boolean).at(-1) ?? "this source";
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-24 text-center">
@@ -85,7 +86,7 @@ export function LibraryStatus({
         <Button
           className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
           disabled={isLoading}
-          onClick={() => void requestLibrary(window.lume.rescanSources)}
+          onClick={() => void requestLibrary(() => window.lume.rescanSource(emptySource.id))}
           type="button"
         >
           Rescan

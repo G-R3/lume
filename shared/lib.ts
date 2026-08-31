@@ -13,6 +13,7 @@ export type LibrarySource = {
   lastScanError: string | null;
   lastScannedAt: number | null;
   path: string;
+  trackCount: number;
 };
 
 export type MusicLibrary = {
