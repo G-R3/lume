@@ -70,14 +70,28 @@ export function BackupSettings() {
             Backups contain your Lume library data and settings. Audio files are not copied.
           </p>
         </div>
-        <Button
-          className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
-          disabled={isLoading}
-          onClick={() => void createManualBackup(false)}
-          type="button"
-        >
-          {isLoading ? "Working..." : "Back Up Now"}
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+            onClick={() =>
+              void window.lume
+                .openDataFolder()
+                .catch((error: Error) => setErrorMessage(error.message))
+            }
+            type="button"
+            variant="outline"
+          >
+            Open data folder
+          </Button>
+          <Button
+            className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
+            disabled={isLoading}
+            onClick={() => void createManualBackup(false)}
+            type="button"
+          >
+            {isLoading ? "Working..." : "Back Up Now"}
+          </Button>
+        </div>
       </header>
 
       {errorMessage && (

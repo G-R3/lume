@@ -8,6 +8,7 @@ import {
   ipcMain,
   protocol,
   session,
+  shell,
   type IpcMainInvokeEvent,
 } from "electron";
 import {
@@ -97,7 +98,7 @@ async function startApplication() {
     },
   );
   app.once("will-quit", () => database.close());
-  registerLibraryIpc(database, backupDirectory);
+  registerLibraryIpc(database, backupDirectory, userDataDirectory);
 
   registerProtocolHandler(rendererDirectory, () => tracksById);
 
@@ -119,7 +120,18 @@ async function startApplication() {
   });
 }
 
-function registerLibraryIpc(database: DatabaseSync, backupDirectory: string) {
+function registerLibraryIpc(
+  database: DatabaseSync,
+  backupDirectory: string,
+  userDataDirectory: string,
+) {
+  ipcMain.handle(lumeChannels.openDataFolder, async (event) => {
+    requireTrustedWindow(event);
+    const errorMessage = await shell.openPath(userDataDirectory);
+
+    if (errorMessage) throw new Error(errorMessage);
+  });
+
   ipcMain.handle(lumeChannels.loadBackups, async (event) => {
     requireTrustedWindow(event);
     return (await listBackups(backupDirectory)).map(toLibraryBackup);

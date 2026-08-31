@@ -58,6 +58,7 @@ export type LumeApi = {
   loadBackups: () => Promise<LibraryBackup[]>;
   loadLibrary: () => Promise<LibraryUpdate>;
   onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
+  openDataFolder: () => Promise<void>;
   rescanSource: (sourceId: string) => Promise<LibraryUpdate>;
   rescanSources: () => Promise<LibraryUpdate>;
   isMac: boolean;
@@ -72,6 +73,7 @@ export const lumeChannels = {
   loadLibrary: "lume:load-library",
   libraryUpdated: "lume:library-updated",
   loadBackups: "lume:load-backups",
+  openDataFolder: "lume:open-data-folder",
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
 } as const;

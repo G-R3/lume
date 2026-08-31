@@ -40,6 +40,8 @@ const lumeApi = {
       libraryUpdateListeners.delete(listener);
     };
   },
+  openDataFolder: (): ReturnType<LumeApi["openDataFolder"]> =>
+    ipcRenderer.invoke(lumeChannels.openDataFolder),
   rescanSource: (sourceId): ReturnType<LumeApi["rescanSource"]> =>
     ipcRenderer.invoke(lumeChannels.rescanSource, sourceId),
   rescanSources: (): ReturnType<LumeApi["rescanSources"]> =>
