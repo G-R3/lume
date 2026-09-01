@@ -11,10 +11,10 @@ export const packagedRendererUrl = `${appScheme}://app/index.html`;
 
 export function registerProtocolHandler(
   rendererDirectory: string,
-  getTracks: () => ReadonlyMap<string, string>,
+  getTrackPath: (trackId: string) => string | null,
 ) {
   protocol.handle(appScheme, async (request) => {
-    const trackRequest = resolveTrackRequest(request.url, getTracks());
+    const trackRequest = resolveTrackRequest(request.url, getTrackPath);
 
     if (trackRequest) {
       if (!trackRequest.path) return new Response(null, { status: 404 });
@@ -146,7 +146,7 @@ export function getRendererAssetPath(rendererDirectory: string, requestUrl: stri
   }
 }
 
-export function resolveTrackRequest(url: string, tracks: ReadonlyMap<string, string>) {
+export function resolveTrackRequest(url: string, getTrackPath: (trackId: string) => string | null) {
   if (!URL.canParse(url)) return null;
 
   const parsedUrl = new URL(url);
@@ -161,7 +161,7 @@ export function resolveTrackRequest(url: string, tracks: ReadonlyMap<string, str
 
   try {
     return {
-      path: tracks.get(decodeURIComponent(parsedUrl.pathname.slice("/media/".length))) ?? null,
+      path: getTrackPath(decodeURIComponent(parsedUrl.pathname.slice("/media/".length))),
     };
   } catch {
     return { path: null };

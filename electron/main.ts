@@ -18,7 +18,7 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import { lumeChannels, type MusicLibrary } from "../shared/lib";
+import { lumeChannels, type LibrarySnapshot } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
@@ -27,6 +27,7 @@ import {
   forgetSource,
   hasForgottenSources,
   getSources,
+  getTrackPath,
   getTracks,
   saveSource,
 } from "./library-store";
@@ -50,7 +51,7 @@ const rendererUrl =
   !app.isPackaged && process.env.ELECTRON_RENDERER_URL
     ? process.env.ELECTRON_RENDERER_URL
     : packagedRendererUrl;
-let tracksById = new Map<string, string>();
+const sourceIdPattern = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu;
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -72,7 +73,25 @@ function createWindow() {
   return window;
 }
 
-void app.whenReady().then(startApplication).catch(handleStartupFailure);
+void startPrimaryInstance().catch(handleStartupFailure);
+
+async function startPrimaryInstance() {
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
+
+  app.on("second-instance", () => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (!window) return;
+
+    if (window.isMinimized()) window.restore();
+    window.focus();
+  });
+
+  await app.whenReady();
+  await startApplication();
+}
 
 async function startApplication() {
   const userDataDirectory = app.getPath("userData");
@@ -83,7 +102,7 @@ async function startApplication() {
   });
   registerLibraryIpc(database, userDataDirectory);
 
-  registerProtocolHandler(rendererDirectory, () => tracksById);
+  registerProtocolHandler(rendererDirectory, (trackId) => getTrackPath(database, trackId));
 
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
@@ -136,26 +155,27 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
   ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
     requireTrustedWindow(event);
-    enableSource(database, sourceId);
-    await scanSource(database, sourceId);
+    const parsedSourceId = requireSourceId(sourceId);
+    enableSource(database, parsedSourceId);
+    await scanSource(database, parsedSourceId);
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.disableSource, (event, sourceId) => {
     requireTrustedWindow(event);
-    disableSource(database, sourceId);
+    disableSource(database, requireSourceId(sourceId));
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.forgetSource, (event, sourceId) => {
     requireTrustedWindow(event);
-    forgetSource(database, sourceId);
+    forgetSource(database, requireSourceId(sourceId));
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.rescanSource, async (event, sourceId) => {
     requireTrustedWindow(event);
-    await scanSource(database, sourceId);
+    await scanSource(database, requireSourceId(sourceId));
     return readLibrary(database);
   });
 
@@ -168,11 +188,14 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
 function readLibrary(database: DatabaseSync) {
   const sources = getSources(database);
-  const storedTracks = refreshTracksById(database);
+  const storedTracks = getTracks(database);
 
-  if (sources.length === 0 && !hasForgottenSources(database)) return null;
+  if (sources.length === 0 && !hasForgottenSources(database)) {
+    return { kind: "first-run" } satisfies LibrarySnapshot;
+  }
 
   return {
+    kind: "library",
     sources,
     tracks: storedTracks.map((track) => ({
       available: track.available,
@@ -182,13 +205,7 @@ function readLibrary(database: DatabaseSync) {
       name: track.name,
       url: getTrackUrl(track.id),
     })),
-  } satisfies MusicLibrary;
-}
-
-function refreshTracksById(database: DatabaseSync) {
-  const tracks = getTracks(database);
-  tracksById = new Map(tracks.map((track) => [track.id, track.path]));
-  return tracks;
+  } satisfies LibrarySnapshot;
 }
 
 app.on("window-all-closed", () => {
@@ -203,6 +220,11 @@ function requireTrustedWindow(event: IpcMainInvokeEvent) {
   }
 
   return window;
+}
+
+function requireSourceId(sourceId: string) {
+  if (sourceIdPattern.test(sourceId)) return sourceId;
+  throw new Error("Invalid library source ID");
 }
 
 async function handleStartupFailure(error: Error) {

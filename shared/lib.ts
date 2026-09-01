@@ -17,20 +17,23 @@ export type LibrarySource = {
 };
 
 export type MusicLibrary = {
+  kind: "library";
   sources: LibrarySource[];
   tracks: Track[];
 };
 
+export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
+
 export type LumeApi = {
-  addSource: () => Promise<MusicLibrary | null>;
-  disableSource: (sourceId: string) => Promise<MusicLibrary | null>;
-  enableSource: (sourceId: string) => Promise<MusicLibrary | null>;
-  forgetSource: (sourceId: string) => Promise<MusicLibrary | null>;
-  loadLibrary: () => Promise<MusicLibrary | null>;
-  onLibraryUpdate: (listener: (library: MusicLibrary | null) => void) => () => void;
+  addSource: () => Promise<LibrarySnapshot>;
+  disableSource: (sourceId: string) => Promise<LibrarySnapshot>;
+  enableSource: (sourceId: string) => Promise<LibrarySnapshot>;
+  forgetSource: (sourceId: string) => Promise<LibrarySnapshot>;
+  loadLibrary: () => Promise<LibrarySnapshot>;
+  onLibraryUpdate: (listener: (library: LibrarySnapshot) => void) => () => void;
   openDataFolder: () => Promise<void>;
-  rescanSource: (sourceId: string) => Promise<MusicLibrary | null>;
-  rescanSources: () => Promise<MusicLibrary | null>;
+  rescanSource: (sourceId: string) => Promise<LibrarySnapshot>;
+  rescanSources: () => Promise<LibrarySnapshot>;
   isMac: boolean;
 };
 

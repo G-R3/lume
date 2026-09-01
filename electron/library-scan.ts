@@ -3,16 +3,16 @@ import { scanAudioFiles } from "./library";
 import {
   applyScanFailure,
   applySourceScan,
+  getEnabledSource,
   getEnabledSources,
-  getSource,
   getTrackMetadata,
 } from "./library-store";
 
 const scanVersions = new WeakMap<DatabaseSync, Map<string, number>>();
 
-export async function scanEnabledSources(database: DatabaseSync) {
+export async function scanEnabledSources(database: DatabaseSync, scanFiles = scanAudioFiles) {
   for (const source of getEnabledSources(database)) {
-    await scanSource(database, source.id);
+    await scanSource(database, source.id, scanFiles);
   }
 }
 
@@ -21,8 +21,8 @@ export async function scanSource(
   sourceId: string,
   scanFiles = scanAudioFiles, // Injectable so overlapping scans can be tested without timing-dependent filesystem work
 ): Promise<void> {
-  const source = getSource(database, sourceId);
-  if (!source.enabled) throw new Error(`Library source ${sourceId} is disabled`);
+  const source = getEnabledSource(database, sourceId);
+  if (!source) return;
 
   const versions = getScanVersions(database);
   const version = (versions.get(sourceId) ?? 0) + 1;

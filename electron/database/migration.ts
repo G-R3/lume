@@ -28,7 +28,6 @@ export function applyMigrations(database: DatabaseSync, migrations: readonly Mig
       database
         .prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)")
         .run(migration.version, migration.name, Date.now());
-      database.exec(`PRAGMA user_version = ${migration.version}`);
     });
   });
 }
@@ -54,17 +53,6 @@ export function getAppliedMigrations(database: DatabaseSync, migrations: readonl
 
   if ([...appliedMigrations.keys()].some((version, index) => version !== index + 1)) {
     throw new Error("Database migration history must have consecutive versions starting at 1");
-  }
-
-  const userVersion = readNumber(
-    database.prepare("PRAGMA user_version").get()?.user_version,
-    "PRAGMA user_version",
-  );
-
-  if (userVersion !== appliedMigrations.size) {
-    throw new Error(
-      `Database schema version ${userVersion} does not match migration history ${appliedMigrations.size}`,
-    );
   }
 
   return appliedMigrations;

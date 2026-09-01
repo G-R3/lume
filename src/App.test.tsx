@@ -3,18 +3,18 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it } from "vite-plus/test";
-import type { LumeApi } from "../shared/lib";
+import type { LibrarySnapshot, LumeApi } from "../shared/lib";
 import App from "./App";
 import { AudioPlayerProvider } from "@/hooks/use-audio-player";
 
 describe("App library startup", () => {
   it("shows a recoverable error when the initial library request fails", async () => {
-    const emptyLibrary = null;
+    const firstRun = { kind: "first-run" } satisfies LibrarySnapshot;
     const responses = [
       () => Promise.reject(new Error("Database read failed")),
-      () => Promise.resolve(emptyLibrary),
+      () => Promise.resolve(firstRun),
     ];
-    window.lume = createLumeApi(() => responses.shift()?.() ?? Promise.resolve(emptyLibrary));
+    window.lume = createLumeApi(() => responses.shift()?.() ?? Promise.resolve(firstRun));
     const container = document.createElement("div");
     const root = createRoot(container);
 
@@ -41,18 +41,18 @@ describe("App library startup", () => {
 });
 
 function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
-  const emptyLibrary = Promise.resolve(null);
+  const firstRun = Promise.resolve({ kind: "first-run" } satisfies LibrarySnapshot);
 
   return {
-    addSource: () => emptyLibrary,
-    disableSource: () => emptyLibrary,
-    enableSource: () => emptyLibrary,
-    forgetSource: () => emptyLibrary,
+    addSource: () => firstRun,
+    disableSource: () => firstRun,
+    enableSource: () => firstRun,
+    forgetSource: () => firstRun,
     loadLibrary,
     onLibraryUpdate: () => () => {},
     openDataFolder: () => Promise.resolve(),
-    rescanSource: () => emptyLibrary,
-    rescanSources: () => emptyLibrary,
+    rescanSource: () => firstRun,
+    rescanSources: () => firstRun,
     isMac: false,
   };
 }

@@ -60,6 +60,17 @@ export function getSource(database: DatabaseSync, sourceId: string): LibrarySour
   throw new Error(`Library source ${sourceId} does not exist`);
 }
 
+export function getEnabledSource(database: DatabaseSync, sourceId: string): LibrarySource | null {
+  const source = database
+    .prepare(
+      `SELECT ${sourceColumns} FROM library_sources
+      WHERE id = ? AND enabled = 1 AND forgotten_at IS NULL`,
+    )
+    .get(sourceId);
+
+  return source ? readSource(source) : null;
+}
+
 export function hasForgottenSources(database: DatabaseSync) {
   return readBoolean(
     database
@@ -86,6 +97,11 @@ export function getTracks(database: DatabaseSync): StoredTrack[] {
       name: readString(row.name, "tracks.name"),
       path: readString(row.path, "tracks.path"),
     }));
+}
+
+export function getTrackPath(database: DatabaseSync, trackId: string) {
+  const track = database.prepare("SELECT path FROM tracks WHERE id = ?").get(trackId);
+  return track ? readString(track.path, "tracks.path") : null;
 }
 
 export function getTrackMetadata(database: DatabaseSync, sourceId: string) {
@@ -124,7 +140,12 @@ export async function saveSource(
     database
       .prepare(
         `UPDATE library_sources
-        SET enabled = 1, forgotten_at = NULL, updated_at = ?
+        SET enabled = 1,
+          forgotten_at = NULL,
+          updated_at = CASE
+            WHEN enabled = 0 OR forgotten_at IS NOT NULL THEN ?
+            ELSE updated_at
+          END
         WHERE id = ?`,
       )
       .run(Date.now(), id);
@@ -150,7 +171,8 @@ export function enableSource(database: DatabaseSync, sourceId: string) {
   const result = database
     .prepare(
       `UPDATE library_sources
-      SET enabled = 1, updated_at = ?
+      SET enabled = 1,
+        updated_at = CASE WHEN enabled = 0 THEN ? ELSE updated_at END
       WHERE id = ? AND forgotten_at IS NULL`,
     )
     .run(Date.now(), sourceId);
@@ -167,7 +189,8 @@ export function disableSource(database: DatabaseSync, sourceId: string) {
     const result = database
       .prepare(
         `UPDATE library_sources
-        SET enabled = 0, updated_at = ?
+        SET enabled = 0,
+          updated_at = CASE WHEN enabled = 1 THEN ? ELSE updated_at END
         WHERE id = ? AND forgotten_at IS NULL`,
       )
       .run(now, sourceId);
@@ -187,13 +210,18 @@ export function forgetSource(database: DatabaseSync, sourceId: string) {
     const result = database
       .prepare(
         `UPDATE library_sources
-        SET enabled = 0, forgotten_at = ?, updated_at = ?
-        WHERE id = ? AND forgotten_at IS NULL`,
+        SET enabled = 0,
+          forgotten_at = COALESCE(forgotten_at, ?),
+          updated_at = CASE
+            WHEN enabled = 1 OR forgotten_at IS NULL THEN ?
+            ELSE updated_at
+          END
+        WHERE id = ?`,
       )
       .run(now, now, sourceId);
 
     if (result.changes !== 1 && result.changes !== 1n) {
-      throw new Error(`Library source ${sourceId} is not active`);
+      throw new Error(`Library source ${sourceId} does not exist`);
     }
 
     markSourceTracksUnavailable(database, sourceId, now);

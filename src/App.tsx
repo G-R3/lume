@@ -1,6 +1,6 @@
 import { FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MusicLibrary } from "../shared/lib";
+import type { LibrarySnapshot } from "../shared/lib";
 import { LibraryEmptyState } from "@/components/library-empty-state";
 import { LibraryStatus } from "@/components/library-status";
 import { SourceSettings } from "@/components/source-settings";
@@ -28,7 +28,7 @@ import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 function App() {
-  const [library, setLibrary] = useState<MusicLibrary | null>();
+  const [library, setLibrary] = useState<LibrarySnapshot>();
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [route, setRoute] = useState(window.location.hash);
@@ -37,8 +37,10 @@ function App() {
   const audioPlayer = useAudioPlayer();
   const syncTracks = audioPlayer.syncTracks;
   const isMac = window.lume.isMac;
-  const sourcePaths = library?.sources.map((source) => source.path);
-  const unavailableTrackCount = library?.tracks.filter((track) => !track.available).length ?? 0;
+  const sourcePaths =
+    library?.kind === "library" ? library.sources.map((source) => source.path) : null;
+  const unavailableTrackCount =
+    library?.kind === "library" ? library.tracks.filter((track) => !track.available).length : 0;
   const sourceSummary =
     sourcePaths?.length === 1
       ? sourcePaths[0]
@@ -46,7 +48,7 @@ function App() {
         ? `${sourcePaths.length.toLocaleString()} sources`
         : null;
 
-  const requestLibrary = useCallback(async (request: () => Promise<MusicLibrary | null>) => {
+  const requestLibrary = useCallback(async (request: () => Promise<LibrarySnapshot>) => {
     setIsLoadingLibrary(true);
     setErrorMessage(null);
 
@@ -83,7 +85,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (library) syncTracks(library.tracks);
+    if (library?.kind === "library") syncTracks(library.tracks);
   }, [library, syncTracks]);
 
   const isSettings = route.startsWith("#settings/");
@@ -124,7 +126,7 @@ function App() {
     );
   }
 
-  if (library === null) {
+  if (library.kind === "first-run") {
     return (
       <LibraryEmptyState
         errorMessage={errorMessage}

@@ -1,4 +1,4 @@
-import type { MusicLibrary } from "../../shared/lib";
+import type { LibrarySnapshot, MusicLibrary } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
 import { getSourceName } from "@/lib/source-name";
 
@@ -9,7 +9,7 @@ export function LibraryStatus({
 }: {
   isLoading: boolean;
   library: MusicLibrary;
-  requestLibrary: (request: () => Promise<MusicLibrary | null>) => Promise<void>;
+  requestLibrary: (request: () => Promise<LibrarySnapshot>) => Promise<void>;
 }) {
   const failedSource = library.sources.find((source) => source.lastScanError);
 

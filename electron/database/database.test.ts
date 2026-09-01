@@ -5,7 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { getLibraryDatabasePath, openLibraryDatabase } from ".";
 import { applyMigrations, type Migration } from "./migration";
-import { currentSchemaVersion, libraryMigrations } from "./migrations";
+import { libraryMigrations } from "./migrations";
 
 const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
@@ -39,7 +39,6 @@ describe("library database lifecycle", () => {
     expect(database.prepare("SELECT version, name FROM schema_migrations").all()).toEqual([
       { name: "initial-library", version: 1 },
     ]);
-    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 1 });
   });
 
   it("persists data after closing and reopening a file-backed database", async () => {
@@ -68,11 +67,6 @@ describe("library database lifecycle", () => {
 });
 
 describe("library database migrations", () => {
-  it("keeps the declared schema version aligned with the migration manifest", () => {
-    expect(libraryMigrations.map((migration) => migration.version)).toEqual([1]);
-    expect(currentSchemaVersion).toBe(1);
-  });
-
   it("upgrades an existing schema", async () => {
     const database = await openLibraryDatabase(":memory:");
     openDatabases.push(database);
@@ -111,7 +105,6 @@ describe("library database migrations", () => {
     expect(
       database.prepare("SELECT version FROM schema_migrations ORDER BY version").all(),
     ).toEqual([{ version: 1 }]);
-    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 1 });
   });
 
   it("rejects migration history that this build does not recognize", async () => {
@@ -138,16 +131,6 @@ describe("library database migrations", () => {
     expect(() =>
       applyMigrations(database, [...libraryMigrations, addSourceColorMigration, thirdMigration]),
     ).toThrow("history must have consecutive versions");
-  });
-
-  it("rejects a schema version that disagrees with migration history", async () => {
-    const database = await openLibraryDatabase(":memory:");
-    openDatabases.push(database);
-    database.exec("PRAGMA user_version = 0");
-
-    expect(() => applyMigrations(database, libraryMigrations)).toThrow(
-      "schema version 0 does not match migration history 1",
-    );
   });
 
   it("rejects migration manifests with gaps", async () => {

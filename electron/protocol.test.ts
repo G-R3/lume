@@ -66,24 +66,24 @@ describe("getRendererAssetPath", () => {
 describe("app protocol track URLs", () => {
   const trackId = "48fc51b1-f8e5-46ad-b5f6-4c4b371f9897";
   const audioPath = "/Users/listener/Music/Artist/track one.mp3";
-  const tracks = new Map([[trackId, audioPath]]);
+  const getTrackPath = (candidateId: string) => (candidateId === trackId ? audioPath : null);
 
   it("resolves an indexed track through the app protocol", () => {
     const url = getTrackUrl(trackId);
 
     expect(url).toBe("lume://app/media/48fc51b1-f8e5-46ad-b5f6-4c4b371f9897");
     expect(url).not.toContain(audioPath);
-    expect(resolveTrackRequest(url, tracks)).toEqual({ path: audioPath });
+    expect(resolveTrackRequest(url, getTrackPath)).toEqual({ path: audioPath });
   });
 
   it("rejects a track outside the index", () => {
-    expect(resolveTrackRequest("lume://app/media/unknown", tracks)).toEqual({
+    expect(resolveTrackRequest("lume://app/media/unknown", getTrackPath)).toEqual({
       path: null,
     });
   });
 
   it("rejects a malformed track ID", () => {
-    expect(resolveTrackRequest("lume://app/media/%", tracks)).toEqual({
+    expect(resolveTrackRequest("lume://app/media/%", getTrackPath)).toEqual({
       path: null,
     });
   });
@@ -91,7 +91,7 @@ describe("app protocol track URLs", () => {
   it.each([`https://app/media/${trackId}`, `lume://other/media/${trackId}`, "not a url"])(
     "rejects an invalid track URL: %s",
     (url) => {
-      expect(resolveTrackRequest(url, tracks)).toBeNull();
+      expect(resolveTrackRequest(url, getTrackPath)).toBeNull();
     },
   );
 });

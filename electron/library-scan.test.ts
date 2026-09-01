@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles, type ScannedTrack } from "./library";
 import { scanEnabledSources, scanSource } from "./library-scan";
-import { applySourceScan, saveSource } from "./library-store";
+import { applySourceScan, disableSource, saveSource } from "./library-store";
 
 const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
@@ -88,9 +88,35 @@ describe("enabled source scanning", () => {
     database.prepare("UPDATE library_sources SET enabled = 0 WHERE id = ?").run(source.id);
     await rm(trackPath);
 
-    await expect(scanSource(database, source.id)).rejects.toThrow("disabled");
+    await expect(scanSource(database, source.id)).resolves.toBeUndefined();
     await expect(scanEnabledSources(database)).resolves.toBeUndefined();
     expect(database.prepare("SELECT available FROM tracks").get()).toEqual({ available: 1 });
+  });
+
+  it("continues after a later source is disabled during a batch", async () => {
+    const database = await openTestDatabase();
+    const firstFolder = await createTemporaryFolder("lume-first-source-");
+    const disabledFolder = await createTemporaryFolder("lume-disabled-source-");
+    const lastFolder = await createTemporaryFolder("lume-last-source-");
+    const firstSource = await saveSource(database, firstFolder);
+    const disabledSource = await saveSource(database, disabledFolder);
+    const lastSource = await saveSource(database, lastFolder);
+    const setCreatedAt = database.prepare("UPDATE library_sources SET created_at = ? WHERE id = ?");
+    setCreatedAt.run(1, firstSource.id);
+    setCreatedAt.run(2, disabledSource.id);
+    setCreatedAt.run(3, lastSource.id);
+    const scannedFolders: string[] = [];
+
+    await scanEnabledSources(database, async (folder) => {
+      scannedFolders.push(folder);
+      if (folder === firstSource.path) disableSource(database, disabledSource.id);
+      return [createScannedTrack(join(folder, "song.mp3"), folder)];
+    });
+
+    expect(scannedFolders).toEqual([firstSource.path, lastSource.path]);
+    expect(database.prepare("SELECT source_id FROM tracks ORDER BY source_id").all()).toEqual(
+      [firstSource.id, lastSource.id].sort().map((sourceId) => ({ source_id: sourceId })),
+    );
   });
 
   it("does not report database failures as source scan errors", async () => {
