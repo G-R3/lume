@@ -23,15 +23,10 @@ export type ScannedTrack = {
 };
 
 export type TrackMetadata = Pick<ScannedTrack, "duration" | "fileSize" | "modifiedAt">;
-export type AudioFileScan = {
-  skippedFileCount: number;
-  tracks: ScannedTrack[];
-};
-
 export async function scanAudioFiles(
   folder: string,
   storedTracks: ReadonlyMap<string, TrackMetadata> = new Map(),
-): Promise<AudioFileScan> {
+): Promise<ScannedTrack[]> {
   const entries = await readdir(folder, {
     recursive: true,
     withFileTypes: true,
@@ -42,7 +37,7 @@ export async function scanAudioFiles(
     .map((file) => join(file.parentPath, file.name))
     .sort((left, right) => left.localeCompare(right));
 
-  if (audioPaths.length === 0) return { skippedFileCount: 0, tracks: [] };
+  if (audioPaths.length === 0) return [];
 
   // Node streams reject null chunks, so keep nullable scan results inside an object.
   const results = await Readable.from(audioPaths)
@@ -50,12 +45,7 @@ export async function scanAudioFiles(
       concurrency: 8,
     })
     .toArray();
-  const tracks = results.flatMap((result) => (result.track ? [result.track] : []));
-
-  return {
-    skippedFileCount: results.length - tracks.length,
-    tracks,
-  };
+  return results.flatMap((result) => (result.track ? [result.track] : []));
 }
 
 async function scanTrack(

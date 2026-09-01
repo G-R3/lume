@@ -21,26 +21,16 @@ export type MusicLibrary = {
   tracks: Track[];
 };
 
-export type ScanFailure = {
-  error: string;
-  sourceId: string;
-};
-
-export type LibraryUpdate = {
-  library: MusicLibrary | null;
-  scanFailures: ScanFailure[];
-};
-
 export type LumeApi = {
-  addSource: () => Promise<LibraryUpdate>;
-  disableSource: (sourceId: string) => Promise<LibraryUpdate>;
-  enableSource: (sourceId: string) => Promise<LibraryUpdate>;
-  forgetSource: (sourceId: string) => Promise<LibraryUpdate>;
-  loadLibrary: () => Promise<LibraryUpdate>;
-  onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
+  addSource: () => Promise<MusicLibrary | null>;
+  disableSource: (sourceId: string) => Promise<MusicLibrary | null>;
+  enableSource: (sourceId: string) => Promise<MusicLibrary | null>;
+  forgetSource: (sourceId: string) => Promise<MusicLibrary | null>;
+  loadLibrary: () => Promise<MusicLibrary | null>;
+  onLibraryUpdate: (listener: (library: MusicLibrary | null) => void) => () => void;
   openDataFolder: () => Promise<void>;
-  rescanSource: (sourceId: string) => Promise<LibraryUpdate>;
-  rescanSources: () => Promise<LibraryUpdate>;
+  rescanSource: (sourceId: string) => Promise<MusicLibrary | null>;
+  rescanSources: () => Promise<MusicLibrary | null>;
   isMac: boolean;
 };
 

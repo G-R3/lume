@@ -1,52 +1,47 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { LibrarySource, ScanFailure } from "../shared/lib";
 import { scanAudioFiles } from "./library";
 import {
   applyScanFailure,
   applySourceScan,
   getEnabledSources,
+  getSource,
   getTrackMetadata,
 } from "./library-store";
 
 const scanVersions = new WeakMap<DatabaseSync, Map<string, number>>();
 
-export async function scanEnabledSources(database: DatabaseSync): Promise<ScanFailure[]> {
-  const failures: ScanFailure[] = [];
-
+export async function scanEnabledSources(database: DatabaseSync) {
   for (const source of getEnabledSources(database)) {
-    const failure = await scanSource(database, source);
-    if (failure) failures.push(failure);
+    await scanSource(database, source.id);
   }
-
-  return failures;
 }
 
 export async function scanSource(
   database: DatabaseSync,
-  source: Pick<LibrarySource, "id" | "path">,
-  scanFiles = scanAudioFiles,
-): Promise<ScanFailure | null> {
+  sourceId: string,
+  scanFiles = scanAudioFiles, // Injectable so overlapping scans can be tested without timing-dependent filesystem work
+): Promise<void> {
+  const source = getSource(database, sourceId);
+  if (!source.enabled) throw new Error(`Library source ${sourceId} is disabled`);
+
   const versions = getScanVersions(database);
-  const version = (versions.get(source.id) ?? 0) + 1;
-  versions.set(source.id, version);
+  const version = (versions.get(sourceId) ?? 0) + 1;
+  versions.set(sourceId, version);
   let scan: Awaited<ReturnType<typeof scanAudioFiles>>;
 
   try {
-    scan = await scanFiles(source.path, getTrackMetadata(database, source.id));
+    scan = await scanFiles(source.path, getTrackMetadata(database, sourceId));
   } catch (error) {
-    if (versions.get(source.id) !== version) return null;
+    if (versions.get(sourceId) !== version) return;
 
-    console.warn("Could not read library source", { error, sourceId: source.id });
+    console.warn("Could not read library source", { error, sourceId });
     const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
-    if (!applyScanFailure(database, source.id, message)) return null;
-    return { error: message, sourceId: source.id };
+    applyScanFailure(database, sourceId, message);
+    return;
   }
 
-  if (versions.get(source.id) !== version) return null;
-
-  const error = getSkippedFilesMessage(scan.skippedFileCount);
-  if (!applySourceScan(database, source.id, scan, error)) return null;
-  return error ? { error, sourceId: source.id } : null;
+  if (versions.get(sourceId) !== version) return;
+  applySourceScan(database, sourceId, scan);
 }
 
 function getScanVersions(database: DatabaseSync) {
@@ -64,9 +59,4 @@ function getScanErrorMessage(error: Error) {
   }
 
   return error.message;
-}
-
-function getSkippedFilesMessage(count: number) {
-  if (count === 0) return null;
-  return `${count.toLocaleString()} audio ${count === 1 ? "file was" : "files were"} skipped`;
 }

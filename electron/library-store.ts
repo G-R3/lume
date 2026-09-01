@@ -4,7 +4,7 @@ import { isAbsolute, relative } from "node:path";
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
 import type { LibrarySource } from "../shared/lib";
 import { runInTransaction } from "./database/transaction";
-import type { AudioFileScan, TrackMetadata } from "./library";
+import type { ScannedTrack, TrackMetadata } from "./library";
 
 export type StoredTrack = {
   available: boolean;
@@ -203,10 +203,9 @@ export function forgetSource(database: DatabaseSync, sourceId: string) {
 export function applySourceScan(
   database: DatabaseSync,
   sourceId: string,
-  scan: AudioFileScan,
-  scanError: string | null = null,
+  tracks: readonly ScannedTrack[],
 ) {
-  if (!sourceCanScan(database, sourceId)) return false;
+  if (!isSourceScannable(database, sourceId)) return false;
 
   const now = Date.now();
 
@@ -229,7 +228,7 @@ export function applySourceScan(
         updated_at = excluded.updated_at`,
     );
 
-    scan.tracks.forEach((track) => {
+    tracks.forEach((track) => {
       saveTrack.run(
         randomUUID(),
         sourceId,
@@ -247,17 +246,17 @@ export function applySourceScan(
     database
       .prepare(
         `UPDATE library_sources
-        SET last_scanned_at = ?, last_scan_error = ?, updated_at = ?
+        SET last_scanned_at = ?, last_scan_error = NULL, updated_at = ?
         WHERE id = ?`,
       )
-      .run(now, scanError, now, sourceId);
+      .run(now, now, sourceId);
   });
 
   return true;
 }
 
 export function applyScanFailure(database: DatabaseSync, sourceId: string, error: string) {
-  if (!sourceCanScan(database, sourceId)) return false;
+  if (!isSourceScannable(database, sourceId)) return false;
 
   const now = Date.now();
 
@@ -275,7 +274,7 @@ export function applyScanFailure(database: DatabaseSync, sourceId: string, error
   return true;
 }
 
-function sourceCanScan(database: DatabaseSync, sourceId: string) {
+function isSourceScannable(database: DatabaseSync, sourceId: string) {
   const source = database
     .prepare("SELECT enabled, forgotten_at FROM library_sources WHERE id = ?")
     .get(sourceId);

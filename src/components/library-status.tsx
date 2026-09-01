@@ -1,5 +1,6 @@
-import type { LibraryUpdate, MusicLibrary } from "../../shared/lib";
+import type { MusicLibrary } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
+import { getSourceName } from "@/lib/source-name";
 
 export function LibraryStatus({
   isLoading,
@@ -8,12 +9,12 @@ export function LibraryStatus({
 }: {
   isLoading: boolean;
   library: MusicLibrary;
-  requestLibrary: (request: () => Promise<LibraryUpdate>) => Promise<void>;
+  requestLibrary: (request: () => Promise<MusicLibrary | null>) => Promise<void>;
 }) {
   const failedSource = library.sources.find((source) => source.lastScanError);
 
   if (failedSource) {
-    const name = failedSource.path.split(/[/\\]/).filter(Boolean).at(-1) ?? failedSource.path;
+    const name = getSourceName(failedSource.path);
 
     return (
       <div className="flex items-center gap-4 border-b border-amber-900/60 bg-amber-950/30 px-5 py-3 text-xs">
@@ -71,7 +72,7 @@ export function LibraryStatus({
 
   if (!emptySource) return null;
 
-  const sourceName = emptySource.path.split(/[/\\]/).filter(Boolean).at(-1) ?? "this source";
+  const sourceName = getSourceName(emptySource.path);
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-24 text-center">

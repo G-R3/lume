@@ -1,6 +1,7 @@
-import type { LibraryUpdate, MusicLibrary } from "../../shared/lib";
+import type { MusicLibrary } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getSourceName } from "@/lib/source-name";
 
 const scanDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -14,7 +15,7 @@ export function SourceSettings({
 }: {
   isLoading: boolean;
   library: MusicLibrary;
-  requestLibrary: (request: () => Promise<LibraryUpdate>) => Promise<void>;
+  requestLibrary: (request: () => Promise<MusicLibrary | null>) => Promise<void>;
 }) {
   return (
     <div className="mx-auto w-full max-w-4xl px-8 py-10">
@@ -38,7 +39,7 @@ export function SourceSettings({
 
       <div className="divide-y divide-neutral-800">
         {library.sources.map((source) => {
-          const name = source.path.split(/[/\\]/).filter(Boolean).at(-1) ?? source.path;
+          const name = getSourceName(source.path);
           const status = source.lastScanError
             ? source.lastScanError
             : !source.enabled

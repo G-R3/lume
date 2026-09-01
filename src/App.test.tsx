@@ -3,13 +3,13 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it } from "vite-plus/test";
-import type { LibraryUpdate, LumeApi } from "../shared/lib";
+import type { LumeApi } from "../shared/lib";
 import App from "./App";
 import { AudioPlayerProvider } from "@/hooks/use-audio-player";
 
 describe("App library startup", () => {
   it("shows a recoverable error when the initial library request fails", async () => {
-    const emptyLibrary = { library: null, scanFailures: [] } satisfies LibraryUpdate;
+    const emptyLibrary = null;
     const responses = [
       () => Promise.reject(new Error("Database read failed")),
       () => Promise.resolve(emptyLibrary),
@@ -41,7 +41,7 @@ describe("App library startup", () => {
 });
 
 function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
-  const emptyLibrary = Promise.resolve({ library: null, scanFailures: [] });
+  const emptyLibrary = Promise.resolve(null);
 
   return {
     addSource: () => emptyLibrary,

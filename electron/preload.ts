@@ -1,17 +1,17 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { LibraryUpdate, LumeApi } from "../shared/lib";
+import type { LumeApi, MusicLibrary } from "../shared/lib";
 import { lumeChannels } from "../shared/lib";
 
-const libraryUpdateListeners = new Set<(update: LibraryUpdate) => void>();
-let pendingLibraryUpdate: LibraryUpdate | undefined;
+const libraryUpdateListeners = new Set<(library: MusicLibrary | null) => void>();
+let pendingLibraryUpdate: MusicLibrary | null | undefined;
 
-ipcRenderer.on(lumeChannels.libraryUpdated, (_event, update: LibraryUpdate) => {
+ipcRenderer.on(lumeChannels.libraryUpdated, (_event, library: MusicLibrary | null) => {
   if (libraryUpdateListeners.size === 0) {
-    pendingLibraryUpdate = update;
+    pendingLibraryUpdate = library;
     return;
   }
 
-  libraryUpdateListeners.forEach((listener) => listener(update));
+  libraryUpdateListeners.forEach((listener) => listener(library));
 });
 
 const lumeApi = {
@@ -27,7 +27,7 @@ const lumeApi = {
   onLibraryUpdate: (listener) => {
     libraryUpdateListeners.add(listener);
 
-    if (pendingLibraryUpdate) {
+    if (pendingLibraryUpdate !== undefined) {
       listener(pendingLibraryUpdate);
       pendingLibraryUpdate = undefined;
     }
