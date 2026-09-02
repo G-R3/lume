@@ -1,7 +1,7 @@
 import { PlusIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import type { LibrarySnapshot, PlaylistCreationInput } from "../../shared/lib";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -16,6 +16,7 @@ import { Field, FieldError, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { SidebarGroupAction } from "@/components/ui/sidebar";
 
 type CreatePlaylistDialogProps = {
   onCreated: (library: LibrarySnapshot) => void;
@@ -77,11 +78,18 @@ export function CreatePlaylistDialog({ onCreated }: CreatePlaylistDialogProps) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          <Button variant="ghost" size="icon" className="-mr-2">
-            <PlusIcon />
-          </Button>
+          <SidebarGroupAction
+            aria-label="Create playlist"
+            className={buttonVariants({
+              className: "top-1.5 right-2",
+              size: "icon",
+              variant: "ghost",
+            })}
+          />
         }
-      />
+      >
+        <PlusIcon aria-hidden="true" />
+      </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Create playlist</DialogTitle>

@@ -17,6 +17,7 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -170,29 +171,27 @@ function App() {
                         >
                           <MusicNotesIcon aria-hidden="true" />
                           <span>All tracks</span>
-                          <span className="font-berkeley ml-auto rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-                            {library.tracks.length.toLocaleString()}
-                          </span>
                         </SidebarMenuButton>
+                        <SidebarMenuBadge className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                          {library.tracks.length.toLocaleString()}
+                        </SidebarMenuBadge>
                       </SidebarMenuItem>
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </SidebarGroup>
                 <SidebarGroup>
-                  <SidebarGroupLabel className="flex items-center justify-between text-neutral-500">
-                    Playlists
-                    <CreatePlaylistDialog onCreated={setLibrary} />
-                  </SidebarGroupLabel>
+                  <SidebarGroupLabel className="text-neutral-500">Playlists</SidebarGroupLabel>
+                  <CreatePlaylistDialog onCreated={setLibrary} />
                   <SidebarGroupContent>
                     <SidebarMenu>
                       {library.playlists.map((playlist) => (
                         <SidebarMenuItem key={playlist.id}>
                           <SidebarMenuButton className="text-neutral-400">
-                            {playlist.title}
-                            <span className="font-berkeley ml-auto rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-                              {playlist.entryCount.toLocaleString()}
-                            </span>
+                            <span>{playlist.title}</span>
                           </SidebarMenuButton>
+                          <SidebarMenuBadge className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                            {playlist.entryCount.toLocaleString()}
+                          </SidebarMenuBadge>
                         </SidebarMenuItem>
                       ))}
                     </SidebarMenu>
