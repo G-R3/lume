@@ -1,4 +1,4 @@
-import type { LibrarySnapshot, MusicLibrary } from "../../shared/lib";
+import type { LibrarySnapshot, MusicLibrary } from "../../../shared/lib";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
         )}
         <Button
           className="text-amber-400 hover:bg-amber-950 hover:text-amber-200"
-          render={<Link to="/settings/sources" />}
+          render={<Link to="/settings" />}
           variant="ghost"
         >
           Manage sources
@@ -70,7 +70,7 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
         </p>
         <Button
           className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
-          render={<Link to="/settings/sources" />}
+          render={<Link to="/settings" />}
           variant="outline"
         >
           Manage sources
@@ -116,7 +116,7 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
         </Button>
         <Button
           className="text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
-          render={<Link to="/settings/sources" />}
+          render={<Link to="/settings" />}
           variant="ghost"
         >
           Manage sources

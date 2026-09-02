@@ -1,6 +1,6 @@
 import { LockSimpleIcon } from "@phosphor-icons/react";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
-import type { Track } from "../../shared/lib";
+import type { Track } from "../../../shared/lib";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
 

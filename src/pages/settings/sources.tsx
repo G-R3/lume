@@ -1,4 +1,4 @@
-import type { LibrarySnapshot, MusicLibrary } from "../../shared/lib";
+import type { LibrarySnapshot, MusicLibrary } from "../../../shared/lib";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
