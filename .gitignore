@@ -25,4 +25,4 @@ out
 *.sw?
 
 artifacts/
-tracks/
+tracks-sample/
