@@ -228,14 +228,17 @@ function requireSourceId(sourceId: string) {
 }
 
 async function handleStartupFailure(error: Error) {
-  console.error("Lume could not open its database", error);
+  if (app.isPackaged) console.error("Lume could not start");
+  else console.error("Lume could not start", error);
 
   const response = dialog.showMessageBoxSync({
     buttons: ["Open data folder", "Quit"],
     cancelId: 1,
     defaultId: 1,
-    detail: error.message,
-    message: "Lume could not open its database.",
+    ...(!app.isPackaged && {
+      detail: error.message,
+    }),
+    message: "Lume encountered a problem while starting.",
     title: "Lume could not start",
     type: "error",
   });
