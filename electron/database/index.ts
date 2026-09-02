@@ -33,6 +33,9 @@ export function validateCurrentLibraryDatabase(database: DatabaseSync) {
     `SELECT id, source_id, path, name, duration, format, file_size, modified_at,
       available, created_at, updated_at FROM tracks LIMIT 0`,
     "SELECT track_id, starred_at FROM track_state LIMIT 0",
+    "SELECT id, title, description, created_at, updated_at FROM playlists LIMIT 0",
+    `SELECT id, playlist_id, track_id, position, created_at
+      FROM playlist_entries LIMIT 0`,
   ].forEach((query) => database.prepare(query).all());
 }
 

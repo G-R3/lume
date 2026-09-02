@@ -16,8 +16,21 @@ export type LibrarySource = {
   trackCount: number;
 };
 
+export type PlaylistSummary = {
+  description: string | null;
+  entryCount: number;
+  id: string;
+  title: string;
+};
+
+export type PlaylistCreationInput = {
+  description: string | null;
+  title: string;
+};
+
 export type MusicLibrary = {
   kind: "library";
+  playlists: PlaylistSummary[];
   sources: LibrarySource[];
   tracks: Track[];
 };
@@ -26,6 +39,7 @@ export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
 
 export type LumeApi = {
   addSource: () => Promise<LibrarySnapshot>;
+  createPlaylist: (input: PlaylistCreationInput) => Promise<LibrarySnapshot>;
   disableSource: (sourceId: string) => Promise<LibrarySnapshot>;
   enableSource: (sourceId: string) => Promise<LibrarySnapshot>;
   forgetSource: (sourceId: string) => Promise<LibrarySnapshot>;
@@ -39,6 +53,7 @@ export type LumeApi = {
 
 export const lumeChannels = {
   addSource: "lume:add-source",
+  createPlaylist: "lume:create-playlist",
   disableSource: "lume:disable-source",
   enableSource: "lume:enable-source",
   forgetSource: "lume:forget-source",

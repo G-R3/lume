@@ -18,9 +18,10 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import { lumeChannels, type LibrarySnapshot } from "../shared/lib";
+import { lumeChannels, type LibrarySnapshot, type PlaylistCreationInput } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
+import { createPlaylist, getPlaylists } from "./playlist-store";
 import {
   disableSource,
   enableSource,
@@ -153,6 +154,12 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
     return readLibrary(database);
   });
 
+  ipcMain.handle(lumeChannels.createPlaylist, (event, input) => {
+    requireTrustedWindow(event);
+    createPlaylist(database, requirePlaylistCreationInput(input));
+    return readLibrary(database);
+  });
+
   ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
     requireTrustedWindow(event);
     const parsedSourceId = requireSourceId(sourceId);
@@ -196,6 +203,7 @@ function readLibrary(database: DatabaseSync) {
 
   return {
     kind: "library",
+    playlists: getPlaylists(database),
     sources,
     tracks: storedTracks.map((track) => ({
       available: track.available,
@@ -225,6 +233,32 @@ function requireTrustedWindow(event: IpcMainInvokeEvent) {
 function requireSourceId(sourceId: string) {
   if (sourceIdPattern.test(sourceId)) return sourceId;
   throw new Error("Invalid library source ID");
+}
+
+function requirePlaylistCreationInput(input: PlaylistCreationInput) {
+  if (
+    input === null ||
+    Array.isArray(input) ||
+    Object.prototype.toString.call(input) !== "[object Object]" ||
+    Object.prototype.toString.call(input.title) !== "[object String]" ||
+    (input.description !== null &&
+      Object.prototype.toString.call(input.description) !== "[object String]")
+  ) {
+    throw new Error("Invalid playlist creation input");
+  }
+
+  const title = input.title.trim();
+  const description = input.description?.trim() ? input.description : null;
+
+  if (title.length === 0 || title.length > 100) {
+    throw new Error("Playlist titles must contain between 1 and 100 characters");
+  }
+
+  if (description !== null && description.length > 300) {
+    throw new Error("Playlist descriptions cannot exceed 300 characters");
+  }
+
+  return { description, title } satisfies PlaylistCreationInput;
 }
 
 async function handleStartupFailure(error: Error) {

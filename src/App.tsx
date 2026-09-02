@@ -2,6 +2,7 @@ import { FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react"
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LibrarySnapshot } from "../shared/lib";
 import { LibraryEmptyState } from "@/components/library-empty-state";
+import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { LibraryStatus } from "@/components/library-status";
 import { SourceSettings } from "@/components/source-settings";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -154,23 +156,11 @@ function App() {
           </SidebarHeader>
 
           <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <nav aria-label={isSettings ? "Settings" : "Library"}>
-                  <SidebarMenu>
-                    {isSettings ? (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          aria-current="page"
-                          className="text-neutral-400"
-                          isActive
-                          render={<a href="#settings/sources" />}
-                        >
-                          <FolderOpenIcon aria-hidden="true" />
-                          <span>Sources</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ) : (
+            {!isSettings ? (
+              <>
+                <SidebarGroup>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           aria-current="page"
@@ -185,11 +175,49 @@ function App() {
                           </span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                    )}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+                <SidebarGroup>
+                  <SidebarGroupLabel className="flex items-center justify-between text-neutral-500">
+                    Playlists
+                    <CreatePlaylistDialog onCreated={setLibrary} />
+                  </SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {library.playlists.map((playlist) => (
+                        <SidebarMenuItem key={playlist.id}>
+                          <SidebarMenuButton className="text-neutral-400">
+                            {playlist.title}
+                            <span className="font-berkeley ml-auto rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                              {playlist.entryCount.toLocaleString()}
+                            </span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </>
+            ) : (
+              <SidebarGroup>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        aria-current="page"
+                        className="text-neutral-400"
+                        isActive
+                        render={<a href="#settings/sources" />}
+                      >
+                        <FolderOpenIcon aria-hidden="true" />
+                        <span>Sources</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
                   </SidebarMenu>
-                </nav>
-              </SidebarGroupContent>
-            </SidebarGroup>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
           </SidebarContent>
 
           <SidebarFooter>
