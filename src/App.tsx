@@ -1,6 +1,8 @@
 import { FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { LibrarySnapshot } from "../shared/lib";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createContext, useContext, useEffect, useState } from "react";
+import type { LibrarySnapshot, MusicLibrary } from "../shared/lib";
 import { LibraryEmptyState } from "@/components/library-empty-state";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { LibraryStatus } from "@/components/library-status";
@@ -28,85 +30,30 @@ import { TrackList } from "@/components/track-list";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { AudioPlayerControls } from "@/components/audio-player-controls";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
+import { libraryQuery } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
 function App() {
-  const [library, setLibrary] = useState<LibrarySnapshot>();
-  const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [route, setRoute] = useState(window.location.hash);
-  const hasRequestedLibrary = useRef(false);
-  const initialLibraryRequest = useRef<Promise<void>>(Promise.resolve());
-  const audioPlayer = useAudioPlayer();
-  const syncTracks = audioPlayer.syncTracks;
-  const isMac = window.lume.isMac;
-  const sourcePaths =
-    library?.kind === "library" ? library.sources.map((source) => source.path) : null;
-  const unavailableTrackCount =
-    library?.kind === "library" ? library.tracks.filter((track) => !track.available).length : 0;
-  const sourceSummary =
-    sourcePaths?.length === 1
-      ? sourcePaths[0]
-      : sourcePaths?.length
-        ? `${sourcePaths.length.toLocaleString()} sources`
-        : null;
+  const library = useQuery(libraryQuery);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
-  const requestLibrary = useCallback(async (request: () => Promise<LibrarySnapshot>) => {
-    setIsLoadingLibrary(true);
-    setErrorMessage(null);
-
-    try {
-      setLibrary(await request());
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not load the library");
-    } finally {
-      setIsLoadingLibrary(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (hasRequestedLibrary.current) return;
-
-    hasRequestedLibrary.current = true;
-    initialLibraryRequest.current = requestLibrary(window.lume.loadLibrary);
-  }, [requestLibrary]);
-
-  useEffect(
-    () =>
-      window.lume.onLibraryUpdate((library) => {
-        void initialLibraryRequest.current.then(() => {
-          setLibrary(library);
-        });
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    const updateRoute = () => setRoute(window.location.hash);
-    window.addEventListener("hashchange", updateRoute);
-    return () => window.removeEventListener("hashchange", updateRoute);
-  }, []);
-
-  useEffect(() => {
-    if (library?.kind === "library") syncTracks(library.tracks);
-  }, [library, syncTracks]);
-
-  const isSettings = route.startsWith("#settings/");
-
-  if (library === undefined) {
-    if (!errorMessage) return <div className="min-h-screen bg-black" />;
+  if (library.data === undefined) {
+    if (!library.error) return <div className="min-h-screen bg-black" />;
 
     return (
       <main className="grid min-h-screen place-items-center bg-black px-6 text-neutral-50">
         <div className="max-w-md text-center">
           <h1 className="text-xl font-semibold tracking-tight">Lume could not load your library</h1>
           <p className="mt-3 text-sm leading-6 text-red-300" role="alert">
-            {errorMessage}
+            {recoveryError ?? library.error.message}
           </p>
           <div className="mt-7 flex justify-center gap-2">
             <Button
               className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
-              onClick={() => void requestLibrary(window.lume.loadLibrary)}
+              onClick={() => {
+                setRecoveryError(null);
+                void library.refetch();
+              }}
               type="button"
             >
               Try again
@@ -116,7 +63,7 @@ function App() {
               onClick={() =>
                 void window.lume
                   .openDataFolder()
-                  .catch((error: Error) => setErrorMessage(error.message))
+                  .catch((error: Error) => setRecoveryError(error.message))
               }
               type="button"
               variant="outline"
@@ -129,19 +76,69 @@ function App() {
     );
   }
 
-  if (library.kind === "first-run") {
-    return (
-      <LibraryEmptyState
-        errorMessage={errorMessage}
-        isLoading={isLoadingLibrary}
-        isMac={isMac}
-        onAddSource={() => void requestLibrary(window.lume.addSource)}
-      />
-    );
-  }
+  if (library.data.kind === "first-run") return <FirstRun />;
+
+  return <LibraryApp library={library.data} />;
+}
+
+function FirstRun() {
+  const queryClient = useQueryClient();
+  const addSource = useMutation({
+    mutationFn: window.lume.addSource,
+    networkMode: "always",
+    scope: { id: "library" },
+    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
+  });
 
   return (
-    <>
+    <LibraryEmptyState
+      errorMessage={addSource.error?.message ?? null}
+      isLoading={addSource.isPending}
+      isMac={window.lume.isMac}
+      onAddSource={() => addSource.mutate()}
+    />
+  );
+}
+
+const MusicLibraryContext = createContext<MusicLibrary | null>(null);
+
+function LibraryApp({ library }: { library: MusicLibrary }) {
+  const queryClient = useQueryClient();
+  const libraryMutation = useMutation({
+    mutationFn: (request: () => Promise<LibrarySnapshot>) => request(),
+    networkMode: "always",
+    scope: { id: "library" },
+    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
+  });
+  const audioPlayer = useAudioPlayer();
+  const syncTracks = audioPlayer.syncTracks;
+  const isMac = window.lume.isMac;
+  const isSettings = useRouterState({
+    select: (state) => state.location.pathname === "/settings/sources",
+  });
+  const sourcePaths = library.sources.map((source) => source.path);
+  const unavailableTrackCount = library.tracks.filter((track) => !track.available).length;
+  const sourceSummary =
+    sourcePaths.length === 1
+      ? sourcePaths[0]
+      : sourcePaths.length
+        ? `${sourcePaths.length.toLocaleString()} sources`
+        : null;
+
+  useEffect(
+    () =>
+      window.lume.onLibraryUpdate((library) => {
+        queryClient.setQueryData(libraryQuery.queryKey, library);
+      }),
+    [queryClient],
+  );
+
+  useEffect(() => {
+    syncTracks(library.tracks);
+  }, [library.tracks, syncTracks]);
+
+  return (
+    <MusicLibraryContext.Provider value={library}>
       <SidebarProvider className="bg-neutral-950 text-neutral-50">
         <AppKeyboardShortcuts />
         <Sidebar className="border-neutral-800">
@@ -167,7 +164,7 @@ function App() {
                           aria-current="page"
                           className="text-neutral-400"
                           isActive
-                          render={<a href="#tracks" />}
+                          render={<Link to="/tracks" />}
                         >
                           <MusicNotesIcon aria-hidden="true" />
                           <span>All tracks</span>
@@ -181,7 +178,7 @@ function App() {
                 </SidebarGroup>
                 <SidebarGroup>
                   <SidebarGroupLabel className="text-neutral-500">Playlists</SidebarGroupLabel>
-                  <CreatePlaylistDialog onCreated={setLibrary} />
+                  <CreatePlaylistDialog />
                   <SidebarGroupContent>
                     <SidebarMenu>
                       {library.playlists.map((playlist) => (
@@ -207,7 +204,7 @@ function App() {
                         aria-current="page"
                         className="text-neutral-400"
                         isActive
-                        render={<a href="#settings/sources" />}
+                        render={<Link to="/settings/sources" />}
                       >
                         <FolderOpenIcon aria-hidden="true" />
                         <span>Sources</span>
@@ -224,7 +221,7 @@ function App() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   className="text-neutral-400"
-                  render={<a href={isSettings ? "#tracks" : "#settings/sources"} />}
+                  render={isSettings ? <Link to="/tracks" /> : <Link to="/settings/sources" />}
                 >
                   {isSettings ? (
                     <MusicNotesIcon aria-hidden="true" />
@@ -285,8 +282,8 @@ function App() {
                 )}
                 <Button
                   className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
-                  disabled={isLoadingLibrary}
-                  onClick={() => void requestLibrary(window.lume.addSource)}
+                  disabled={libraryMutation.isPending}
+                  onClick={() => libraryMutation.mutate(window.lume.addSource)}
                   type="button"
                   variant="outline"
                 >
@@ -296,12 +293,12 @@ function App() {
                 {library.sources.some((source) => source.enabled) && (
                   <Button
                     className="border-lime-800 bg-lime-950 text-lime-300 hover:bg-lime-900 hover:text-lime-200"
-                    disabled={isLoadingLibrary}
-                    onClick={() => void requestLibrary(window.lume.rescanSources)}
+                    disabled={libraryMutation.isPending}
+                    onClick={() => libraryMutation.mutate(window.lume.rescanSources)}
                     type="button"
                     variant="outline"
                   >
-                    {isLoadingLibrary ? "Scanning..." : "Rescan"}
+                    {libraryMutation.isPending ? "Scanning..." : "Rescan"}
                   </Button>
                 )}
               </div>
@@ -309,9 +306,9 @@ function App() {
           </header>
 
           <div className="flex-1 pb-28">
-            {errorMessage && (
+            {libraryMutation.error && (
               <p className="m-4 text-sm text-red-300" role="alert">
-                {errorMessage}
+                {libraryMutation.error.message}
               </p>
             )}
             {audioPlayer.errorMessage && (
@@ -319,29 +316,38 @@ function App() {
                 {audioPlayer.errorMessage}
               </p>
             )}
-            {isSettings ? (
-              <SourceSettings
-                isLoading={isLoadingLibrary}
-                library={library}
-                requestLibrary={requestLibrary}
-              />
-            ) : (
-              <>
-                <LibraryStatus
-                  isLoading={isLoadingLibrary}
-                  library={library}
-                  requestLibrary={requestLibrary}
-                />
-                {library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
-              </>
-            )}
+            <Outlet />
           </div>
         </SidebarInset>
       </SidebarProvider>
 
       <AudioPlayerControls />
+    </MusicLibraryContext.Provider>
+  );
+}
+
+export function TracksRoute() {
+  const library = useMusicLibrary();
+
+  return (
+    <>
+      <LibraryStatus library={library} />
+      {library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
     </>
   );
+}
+
+export function SourcesRoute() {
+  const library = useMusicLibrary();
+
+  return <SourceSettings library={library} />;
+}
+
+function useMusicLibrary() {
+  const library = useContext(MusicLibraryContext);
+
+  if (!library) throw new Error("Library routes must render within LibraryApp");
+  return library;
 }
 
 export default App;

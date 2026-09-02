@@ -1,6 +1,7 @@
 import { PlusIcon } from "@phosphor-icons/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { LibrarySnapshot, PlaylistCreationInput } from "../../shared/lib";
+import type { PlaylistCreationInput } from "../../shared/lib";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,24 +18,30 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SidebarGroupAction } from "@/components/ui/sidebar";
-
-type CreatePlaylistDialogProps = {
-  onCreated: (library: LibrarySnapshot) => void;
-};
+import { libraryQuery } from "@/lib/library-query";
 
 type CreateForm = {
   description: string;
   title: string;
 };
 
-export function CreatePlaylistDialog({ onCreated }: CreatePlaylistDialogProps) {
+export function CreatePlaylistDialog() {
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const queryClient = useQueryClient();
+  const createPlaylist = useMutation({
+    mutationFn: window.lume.createPlaylist,
+    networkMode: "always",
+    scope: { id: "library" },
+    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
+  });
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && isCreating) return;
-    if (!nextOpen) setErrorMessage(null);
+    if (!nextOpen && createPlaylist.isPending) return;
+    if (!nextOpen) {
+      setErrorMessage(null);
+      createPlaylist.reset();
+    }
     setOpen(nextOpen);
   };
 
@@ -59,18 +66,14 @@ export function CreatePlaylistDialog({ onCreated }: CreatePlaylistDialogProps) {
       title,
     } satisfies PlaylistCreationInput;
 
-    setIsCreating(true);
     setErrorMessage(null);
 
     try {
-      onCreated(await window.lume.createPlaylist(input));
+      await createPlaylist.mutateAsync(input);
       form.reset();
-      setErrorMessage(null);
       setOpen(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not create the playlist");
-    } finally {
-      setIsCreating(false);
     }
   };
 
@@ -122,9 +125,12 @@ export function CreatePlaylistDialog({ onCreated }: CreatePlaylistDialogProps) {
         </form>
         <FieldError>{errorMessage}</FieldError>
         <DialogFooter className="flex flex-col">
-          <DialogClose disabled={isCreating} render={<Button variant="outline">Cancel</Button>} />
-          <Button disabled={isCreating} form="create-playlist" type="submit">
-            {isCreating ? "Saving..." : "Save"}
+          <DialogClose
+            disabled={createPlaylist.isPending}
+            render={<Button variant="outline">Cancel</Button>}
+          />
+          <Button disabled={createPlaylist.isPending} form="create-playlist" type="submit">
+            {createPlaylist.isPending ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

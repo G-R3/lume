@@ -1,6 +1,8 @@
 import type { LibrarySnapshot, MusicLibrary } from "../../shared/lib";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { libraryQuery } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 
 const scanDateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -8,15 +10,15 @@ const scanDateFormatter = new Intl.DateTimeFormat(undefined, {
   timeStyle: "short",
 });
 
-export function SourceSettings({
-  isLoading,
-  library,
-  requestLibrary,
-}: {
-  isLoading: boolean;
-  library: MusicLibrary;
-  requestLibrary: (request: () => Promise<LibrarySnapshot>) => Promise<void>;
-}) {
+export function SourceSettings({ library }: { library: MusicLibrary }) {
+  const queryClient = useQueryClient();
+  const libraryMutation = useMutation({
+    mutationFn: (request: () => Promise<LibrarySnapshot>) => request(),
+    networkMode: "always",
+    scope: { id: "library" },
+    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
+  });
+
   return (
     <div className="mx-auto w-full max-w-4xl px-8 py-10">
       <header className="flex items-start justify-between gap-8 border-b border-neutral-800 pb-8">
@@ -29,13 +31,19 @@ export function SourceSettings({
         </div>
         <Button
           className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
-          disabled={isLoading}
-          onClick={() => void requestLibrary(window.lume.addSource)}
+          disabled={libraryMutation.isPending}
+          onClick={() => libraryMutation.mutate(window.lume.addSource)}
           type="button"
         >
           Add source
         </Button>
       </header>
+
+      {libraryMutation.error && (
+        <p className="border-b border-red-950 py-4 text-sm text-red-300" role="alert">
+          {libraryMutation.error.message}
+        </p>
+      )}
 
       <div className="divide-y divide-neutral-800">
         {library.sources.map((source) => {
@@ -71,8 +79,10 @@ export function SourceSettings({
                 {source.enabled && (
                   <Button
                     className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
-                    disabled={isLoading}
-                    onClick={() => void requestLibrary(() => window.lume.rescanSource(source.id))}
+                    disabled={libraryMutation.isPending}
+                    onClick={() =>
+                      libraryMutation.mutate(() => window.lume.rescanSource(source.id))
+                    }
                     type="button"
                     variant="outline"
                   >
@@ -81,8 +91,8 @@ export function SourceSettings({
                 )}
                 <Button
                   className="text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
-                  disabled={isLoading}
-                  onClick={() => void requestLibrary(() => window.lume.forgetSource(source.id))}
+                  disabled={libraryMutation.isPending}
+                  onClick={() => libraryMutation.mutate(() => window.lume.forgetSource(source.id))}
                   type="button"
                   variant="ghost"
                 >
@@ -97,9 +107,9 @@ export function SourceSettings({
                       ? "border-lime-300 bg-lime-300"
                       : "border-neutral-700 bg-neutral-800",
                   )}
-                  disabled={isLoading}
+                  disabled={libraryMutation.isPending}
                   onClick={() =>
-                    void requestLibrary(() =>
+                    libraryMutation.mutate(() =>
                       source.enabled
                         ? window.lume.disableSource(source.id)
                         : window.lume.enableSource(source.id),
@@ -122,7 +132,7 @@ export function SourceSettings({
         })}
       </div>
 
-      {library.sources.length === 0 && !isLoading && (
+      {library.sources.length === 0 && !libraryMutation.isPending && (
         <div className="border-b border-neutral-800 py-12 text-center">
           <h3 className="text-sm font-medium">No library sources</h3>
           <p className="mt-2 text-xs text-neutral-500">

@@ -1,17 +1,30 @@
 import type { LibrarySnapshot, MusicLibrary } from "../../shared/lib";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { libraryQuery } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 
-export function LibraryStatus({
-  isLoading,
-  library,
-  requestLibrary,
-}: {
-  isLoading: boolean;
-  library: MusicLibrary;
-  requestLibrary: (request: () => Promise<LibrarySnapshot>) => Promise<void>;
-}) {
+export function LibraryStatus({ library }: { library: MusicLibrary }) {
+  const queryClient = useQueryClient();
+  const libraryMutation = useMutation({
+    mutationFn: (request: () => Promise<LibrarySnapshot>) => request(),
+    networkMode: "always",
+    scope: { id: "library" },
+    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
+  });
   const failedSource = library.sources.find((source) => source.lastScanError);
+
+  if (libraryMutation.error) {
+    return (
+      <p
+        className="border-b border-red-950 bg-red-950/30 px-5 py-3 text-xs text-red-300"
+        role="alert"
+      >
+        {libraryMutation.error.message}
+      </p>
+    );
+  }
 
   if (failedSource) {
     const name = getSourceName(failedSource.path);
@@ -30,8 +43,8 @@ export function LibraryStatus({
         {failedSource.enabled && (
           <Button
             className="border-amber-800 bg-amber-950 text-amber-300 hover:bg-amber-900"
-            disabled={isLoading}
-            onClick={() => void requestLibrary(() => window.lume.rescanSource(failedSource.id))}
+            disabled={libraryMutation.isPending}
+            onClick={() => libraryMutation.mutate(() => window.lume.rescanSource(failedSource.id))}
             type="button"
             variant="outline"
           >
@@ -40,7 +53,7 @@ export function LibraryStatus({
         )}
         <Button
           className="text-amber-400 hover:bg-amber-950 hover:text-amber-200"
-          render={<a href="#settings/sources" />}
+          render={<Link to="/settings/sources" />}
           variant="ghost"
         >
           Manage sources
@@ -57,7 +70,7 @@ export function LibraryStatus({
         </p>
         <Button
           className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
-          render={<a href="#settings/sources" />}
+          render={<Link to="/settings/sources" />}
           variant="outline"
         >
           Manage sources
@@ -86,16 +99,16 @@ export function LibraryStatus({
       <div className="mt-6 flex items-center gap-2">
         <Button
           className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
-          disabled={isLoading}
-          onClick={() => void requestLibrary(() => window.lume.rescanSource(emptySource.id))}
+          disabled={libraryMutation.isPending}
+          onClick={() => libraryMutation.mutate(() => window.lume.rescanSource(emptySource.id))}
           type="button"
         >
           Rescan
         </Button>
         <Button
           className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
-          disabled={isLoading}
-          onClick={() => void requestLibrary(window.lume.addSource)}
+          disabled={libraryMutation.isPending}
+          onClick={() => libraryMutation.mutate(window.lume.addSource)}
           type="button"
           variant="outline"
         >
@@ -103,7 +116,7 @@ export function LibraryStatus({
         </Button>
         <Button
           className="text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
-          render={<a href="#settings/sources" />}
+          render={<Link to="/settings/sources" />}
           variant="ghost"
         >
           Manage sources
