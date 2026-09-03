@@ -1,18 +1,14 @@
-import type { LibrarySnapshot, MusicLibrary } from "../../../shared/lib";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MusicLibrary } from "../../../shared/lib";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { libraryQuery } from "@/lib/library-query";
+import { useLibrary } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 
 export function LibraryStatus({ library }: { library: MusicLibrary }) {
-  const queryClient = useQueryClient();
-  const libraryMutation = useMutation({
-    mutationFn: (request: () => Promise<LibrarySnapshot>) => request(),
-    networkMode: "always",
-    scope: { id: "library" },
-    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
-  });
+  const libraryMutation = useLibrary((request: () => ReturnType<typeof window.lume.addSource>) =>
+    request(),
+  );
+
   const failedSource = library.sources.find((source) => source.lastScanError);
 
   if (libraryMutation.error) {

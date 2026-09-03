@@ -1,20 +1,14 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { LibrarySnapshot } from "../../../shared/lib";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { libraryQuery } from "@/lib/library-query";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { useLibrary } from "@/lib/library-query";
 
 export function AppHeader({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
-  const queryClient = useQueryClient();
-  const libraryMutation = useMutation({
-    mutationFn: (request: () => Promise<LibrarySnapshot>) => request(),
-    networkMode: "always",
-    scope: { id: "library" },
-    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
-  });
+  const libraryMutation = useLibrary((request: () => ReturnType<typeof window.lume.addSource>) =>
+    request(),
+  );
   const sourcePaths = library.sources.map((source) => source.path);
   const unavailableTrackCount = library.tracks.filter((track) => !track.available).length;
   const sourceSummary =

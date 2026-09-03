@@ -1,14 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LibraryEmptyState } from "@/components/library-empty-state";
 import { Button } from "@/components/ui/button";
-import { libraryQuery } from "@/lib/library-query";
+import { libraryQueryOptions, useAddSource } from "@/lib/library-query";
 import { MusicLibraryContext } from "@/hooks/use-music-library";
 
 export function AppRoot() {
-  const library = useQuery(libraryQuery);
+  const queryClient = useQueryClient();
+  const library = useQuery(libraryQueryOptions);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
+
+  useEffect(
+    () =>
+      window.lume.onLibraryUpdate((library) => {
+        queryClient.setQueryData(libraryQueryOptions.queryKey, library);
+      }),
+    [queryClient],
+  );
 
   if (library.data === undefined) {
     if (!library.error) return <div className="min-h-screen bg-black" />;
@@ -59,13 +68,7 @@ export function AppRoot() {
 }
 
 function FirstRun() {
-  const queryClient = useQueryClient();
-  const addSource = useMutation({
-    mutationFn: window.lume.addSource,
-    networkMode: "always",
-    scope: { id: "library" },
-    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
-  });
+  const addSource = useAddSource();
 
   return (
     <LibraryEmptyState

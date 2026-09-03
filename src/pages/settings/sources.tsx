@@ -1,8 +1,7 @@
-import type { LibrarySnapshot, MusicLibrary } from "../../../shared/lib";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MusicLibrary } from "../../../shared/lib";
 import { Button } from "@/components/ui/button";
+import { useLibrary } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
-import { libraryQuery } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 
 const scanDateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -11,13 +10,9 @@ const scanDateFormatter = new Intl.DateTimeFormat(undefined, {
 });
 
 export function SourceSettings({ library }: { library: MusicLibrary }) {
-  const queryClient = useQueryClient();
-  const libraryMutation = useMutation({
-    mutationFn: (request: () => Promise<LibrarySnapshot>) => request(),
-    networkMode: "always",
-    scope: { id: "library" },
-    onSuccess: (library) => queryClient.setQueryData(libraryQuery.queryKey, library),
-  });
+  const libraryMutation = useLibrary((request: () => ReturnType<typeof window.lume.addSource>) =>
+    request(),
+  );
 
   return (
     <div className="mx-auto w-full max-w-4xl px-8 py-10">

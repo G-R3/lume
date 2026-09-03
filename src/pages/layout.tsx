@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
@@ -7,27 +6,17 @@ import { AppHeader } from "@/pages/layout/header";
 import { AppSidebar } from "@/pages/layout/sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
-import { libraryQuery } from "@/lib/library-query";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
   const library = useMusicLibrary();
-  const queryClient = useQueryClient();
   const audioPlayer = useAudioPlayer();
   const syncTracks = audioPlayer.syncTracks;
   const isSettings = useLocation({
     select: (location) =>
       location.pathname === "/settings" || location.pathname.startsWith("/settings/"),
   });
-
-  useEffect(
-    () =>
-      window.lume.onLibraryUpdate((library) => {
-        queryClient.setQueryData(libraryQuery.queryKey, library);
-      }),
-    [queryClient],
-  );
 
   useEffect(() => {
     syncTracks(library.tracks);
