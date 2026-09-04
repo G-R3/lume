@@ -1,6 +1,6 @@
 # Lume
 
-A desktop music player built with Electron, React, and Vite.
+Lume is a private, local-first home for listening to, organizing, and rediscovering the music you own.
 
 ```sh
 pnpm install
