@@ -18,6 +18,8 @@ const lumeApi = {
   addSource: (): ReturnType<LumeApi["addSource"]> => ipcRenderer.invoke(lumeChannels.addSource),
   createPlaylist: (input): ReturnType<LumeApi["createPlaylist"]> =>
     ipcRenderer.invoke(lumeChannels.createPlaylist, input),
+  deletePlaylist: (playlistId): ReturnType<LumeApi["deletePlaylist"]> =>
+    ipcRenderer.invoke(lumeChannels.deletePlaylist, playlistId),
   disableSource: (sourceId): ReturnType<LumeApi["disableSource"]> =>
     ipcRenderer.invoke(lumeChannels.disableSource, sourceId),
   enableSource: (sourceId): ReturnType<LumeApi["enableSource"]> =>

@@ -1,4 +1,4 @@
-import { FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import {
@@ -10,6 +10,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -17,9 +18,19 @@ import {
 } from "@/components/ui/sidebar";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useLibrary } from "@/lib/library-query";
 
 export function AppSidebar({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
+  const libraryMutation = useLibrary(
+    (request: () => ReturnType<typeof window.lume.deletePlaylist>) => request(),
+  );
 
   return (
     <Sidebar className="border-neutral-800">
@@ -67,9 +78,29 @@ export function AppSidebar({ isSettings }: { isSettings: boolean }) {
                       <SidebarMenuButton className="text-neutral-400">
                         <span>{playlist.title}</span>
                       </SidebarMenuButton>
-                      <SidebarMenuBadge className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                      <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
                         {playlist.entryCount.toLocaleString()}
                       </SidebarMenuBadge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <SidebarMenuAction showOnHover>
+                              <DotsThreeIcon />
+                              <span className="sr-only">More</span>
+                            </SidebarMenuAction>
+                          }
+                        ></DropdownMenuTrigger>
+
+                        <DropdownMenuContent finalFocus={false} className="w-32 rounded-lg">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              libraryMutation.mutate(() => window.lume.deletePlaylist(playlist.id))
+                            }
+                          >
+                            <span>Delete</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>

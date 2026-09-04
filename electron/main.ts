@@ -21,7 +21,7 @@ import {
 import { lumeChannels, type LibrarySnapshot, type PlaylistCreationInput } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
-import { createPlaylist, getPlaylists } from "./playlist-store";
+import { createPlaylist, deletePlaylist, getPlaylists } from "./playlist-store";
 import {
   disableSource,
   enableSource,
@@ -157,6 +157,12 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
   ipcMain.handle(lumeChannels.createPlaylist, (event, input) => {
     requireTrustedWindow(event);
     createPlaylist(database, requirePlaylistCreationInput(input));
+    return readLibrary(database);
+  });
+
+  ipcMain.handle(lumeChannels.deletePlaylist, (event, playlistId) => {
+    requireTrustedWindow(event);
+    deletePlaylist(database, playlistId);
     return readLibrary(database);
   });
 
