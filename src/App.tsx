@@ -3,7 +3,7 @@ import { Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LibraryEmptyState } from "@/components/library-empty-state";
 import { Button } from "@/components/ui/button";
-import { libraryQueryOptions, useAddSource } from "@/lib/library-query";
+import { libraryQueryOptions, useLibraryMutation } from "@/lib/library-query";
 import { MusicLibraryContext } from "@/hooks/use-music-library";
 
 export function AppRoot() {
@@ -68,14 +68,14 @@ export function AppRoot() {
 }
 
 function FirstRun() {
-  const addSource = useAddSource();
+  const libraryMutation = useLibraryMutation();
 
   return (
     <LibraryEmptyState
-      errorMessage={addSource.error?.message ?? null}
-      isLoading={addSource.isPending}
+      errorMessage={libraryMutation.error?.message ?? null}
+      isLoading={libraryMutation.isPending}
       isMac={window.lume.isMac}
-      onAddSource={() => addSource.mutate()}
+      onAddSource={() => libraryMutation.mutate({ kind: "add-source" })}
     />
   );
 }

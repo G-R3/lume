@@ -1,13 +1,11 @@
 import type { MusicLibrary } from "../../../shared/lib";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { useLibrary } from "@/lib/library-query";
+import { useLibraryMutation } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 
 export function LibraryStatus({ library }: { library: MusicLibrary }) {
-  const libraryMutation = useLibrary((request: () => ReturnType<typeof window.lume.addSource>) =>
-    request(),
-  );
+  const libraryMutation = useLibraryMutation();
 
   const failedSource = library.sources.find((source) => source.lastScanError);
 
@@ -40,7 +38,9 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
           <Button
             className="border-amber-800 bg-amber-950 text-amber-300 hover:bg-amber-900"
             disabled={libraryMutation.isPending}
-            onClick={() => libraryMutation.mutate(() => window.lume.rescanSource(failedSource.id))}
+            onClick={() =>
+              libraryMutation.mutate({ kind: "rescan-source", sourceId: failedSource.id })
+            }
             type="button"
             variant="outline"
           >
@@ -96,7 +96,9 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
         <Button
           className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
           disabled={libraryMutation.isPending}
-          onClick={() => libraryMutation.mutate(() => window.lume.rescanSource(emptySource.id))}
+          onClick={() =>
+            libraryMutation.mutate({ kind: "rescan-source", sourceId: emptySource.id })
+          }
           type="button"
         >
           Rescan
@@ -104,7 +106,7 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
         <Button
           className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
           disabled={libraryMutation.isPending}
-          onClick={() => libraryMutation.mutate(window.lume.addSource)}
+          onClick={() => libraryMutation.mutate({ kind: "add-source" })}
           type="button"
           variant="outline"
         >

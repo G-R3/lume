@@ -47,7 +47,7 @@ describe("App library startup", () => {
     await act(async () => root.unmount());
   });
 
-  it("renders the route from the window hash", async () => {
+  it("renders the settings route from the window hash", async () => {
     window.lume = createLumeApi(() =>
       Promise.resolve({
         kind: "library",
@@ -56,7 +56,7 @@ describe("App library startup", () => {
         tracks: [],
       }),
     );
-    window.location.hash = "#/settings/sources";
+    window.location.hash = "#/settings";
     const container = document.createElement("div");
     const root = createRoot(container);
     const queryClient = new QueryClient();
@@ -84,6 +84,7 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
   return {
     addSource: () => firstRun,
     createPlaylist: () => firstRun,
+    deletePlaylist: () => firstRun,
     disableSource: () => firstRun,
     enableSource: () => firstRun,
     forgetSource: () => firstRun,

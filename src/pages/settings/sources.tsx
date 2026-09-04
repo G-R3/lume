@@ -1,6 +1,6 @@
 import type { MusicLibrary } from "../../../shared/lib";
 import { Button } from "@/components/ui/button";
-import { useLibrary } from "@/lib/library-query";
+import { useLibraryMutation } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 import { getSourceName } from "@/lib/source-name";
 
@@ -10,9 +10,7 @@ const scanDateFormatter = new Intl.DateTimeFormat(undefined, {
 });
 
 export function SourceSettings({ library }: { library: MusicLibrary }) {
-  const libraryMutation = useLibrary((request: () => ReturnType<typeof window.lume.addSource>) =>
-    request(),
-  );
+  const libraryMutation = useLibraryMutation();
 
   return (
     <div className="mx-auto w-full max-w-4xl px-8 py-10">
@@ -27,7 +25,7 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
         <Button
           className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
           disabled={libraryMutation.isPending}
-          onClick={() => libraryMutation.mutate(window.lume.addSource)}
+          onClick={() => libraryMutation.mutate({ kind: "add-source" })}
           type="button"
         >
           Add source
@@ -76,7 +74,7 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
                     className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
                     disabled={libraryMutation.isPending}
                     onClick={() =>
-                      libraryMutation.mutate(() => window.lume.rescanSource(source.id))
+                      libraryMutation.mutate({ kind: "rescan-source", sourceId: source.id })
                     }
                     type="button"
                     variant="outline"
@@ -87,7 +85,9 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
                 <Button
                   className="text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
                   disabled={libraryMutation.isPending}
-                  onClick={() => libraryMutation.mutate(() => window.lume.forgetSource(source.id))}
+                  onClick={() =>
+                    libraryMutation.mutate({ kind: "forget-source", sourceId: source.id })
+                  }
                   type="button"
                   variant="ghost"
                 >
@@ -104,11 +104,11 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
                   )}
                   disabled={libraryMutation.isPending}
                   onClick={() =>
-                    libraryMutation.mutate(() =>
-                      source.enabled
-                        ? window.lume.disableSource(source.id)
-                        : window.lume.enableSource(source.id),
-                    )
+                    libraryMutation.mutate({
+                      enabled: !source.enabled,
+                      kind: "set-source-enabled",
+                      sourceId: source.id,
+                    })
                   }
                   role="switch"
                   type="button"

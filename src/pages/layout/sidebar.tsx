@@ -24,13 +24,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useLibrary } from "@/lib/library-query";
+import { useLibraryMutation } from "@/lib/library-query";
 
 export function AppSidebar({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
-  const libraryMutation = useLibrary(
-    (request: () => ReturnType<typeof window.lume.deletePlaylist>) => request(),
-  );
+  const libraryMutation = useLibraryMutation();
 
   return (
     <Sidebar className="border-neutral-800">
@@ -94,7 +92,10 @@ export function AppSidebar({ isSettings }: { isSettings: boolean }) {
                         <DropdownMenuContent finalFocus={false} className="w-32 rounded-lg">
                           <DropdownMenuItem
                             onClick={() =>
-                              libraryMutation.mutate(() => window.lume.deletePlaylist(playlist.id))
+                              libraryMutation.mutate({
+                                kind: "delete-playlist",
+                                playlistId: playlist.id,
+                              })
                             }
                           >
                             <span>Delete</span>

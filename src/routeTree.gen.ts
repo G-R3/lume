@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
-import { Route as AppSettingsSourcesRouteImport } from './routes/_app.settings.sources'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -28,40 +27,27 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
-const AppSettingsSourcesRoute = AppSettingsSourcesRouteImport.update({
-  id: '/sources',
-  path: '/sources',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
-  '/settings': typeof AppSettingsRouteWithChildren
-  '/settings/sources': typeof AppSettingsSourcesRoute
+  '/settings': typeof AppSettingsRoute
 }
 export interface FileRoutesByTo {
-  '/settings': typeof AppSettingsRouteWithChildren
+  '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
-  '/settings/sources': typeof AppSettingsSourcesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
-  '/_app/settings': typeof AppSettingsRouteWithChildren
+  '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
-  '/_app/settings/sources': typeof AppSettingsSourcesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings' | '/settings/sources'
+  fullPaths: '/' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/settings' | '/' | '/settings/sources'
-  id:
-    | '__root__'
-    | '/_app'
-    | '/_app/settings'
-    | '/_app/'
-    | '/_app/settings/sources'
+  to: '/settings' | '/'
+  id: '__root__' | '/_app' | '/_app/settings' | '/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -91,35 +77,16 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/settings/sources': {
-      id: '/_app/settings/sources'
-      path: '/sources'
-      fullPath: '/settings/sources'
-      preLoaderRoute: typeof AppSettingsSourcesRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
   }
 }
 
-interface AppSettingsRouteChildren {
-  AppSettingsSourcesRoute: typeof AppSettingsSourcesRoute
-}
-
-const AppSettingsRouteChildren: AppSettingsRouteChildren = {
-  AppSettingsSourcesRoute: AppSettingsSourcesRoute,
-}
-
-const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
-  AppSettingsRouteChildren,
-)
-
 interface AppRouteChildren {
-  AppSettingsRoute: typeof AppSettingsRouteWithChildren
+  AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppSettingsRoute: AppSettingsRouteWithChildren,
+  AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
 }
 

@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SidebarGroupAction } from "@/components/ui/sidebar";
-import { useCreatePlaylist } from "@/lib/library-query";
+import { useLibraryMutation } from "@/lib/library-query";
 
 type CreateForm = {
   description: string;
@@ -27,13 +27,13 @@ type CreateForm = {
 export function CreatePlaylistDialog() {
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const createPlaylist = useCreatePlaylist();
+  const libraryMutation = useLibraryMutation();
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && createPlaylist.isPending) return;
+    if (!nextOpen && libraryMutation.isPending) return;
     if (!nextOpen) {
       setErrorMessage(null);
-      createPlaylist.reset();
+      libraryMutation.reset();
     }
     setOpen(nextOpen);
   };
@@ -61,12 +61,15 @@ export function CreatePlaylistDialog() {
 
     setErrorMessage(null);
 
-    createPlaylist.mutate(input, {
-      onSuccess: () => {
-        form.reset();
-        setOpen(false);
+    libraryMutation.mutate(
+      { input, kind: "create-playlist" },
+      {
+        onSuccess: () => {
+          form.reset();
+          setOpen(false);
+        },
       },
-    });
+    );
   };
 
   return (
@@ -115,14 +118,14 @@ export function CreatePlaylistDialog() {
             </Field>
           </FieldGroup>
         </form>
-        <FieldError>{errorMessage ?? createPlaylist.error?.message}</FieldError>
+        <FieldError>{errorMessage ?? libraryMutation.error?.message}</FieldError>
         <DialogFooter className="flex flex-col">
           <DialogClose
-            disabled={createPlaylist.isPending}
+            disabled={libraryMutation.isPending}
             render={<Button variant="outline">Cancel</Button>}
           />
-          <Button disabled={createPlaylist.isPending} form="create-playlist" type="submit">
-            {createPlaylist.isPending ? "Saving..." : "Save"}
+          <Button disabled={libraryMutation.isPending} form="create-playlist" type="submit">
+            {libraryMutation.isPending ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>
