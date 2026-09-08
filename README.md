@@ -1,6 +1,6 @@
 # Lume
 
-Lume is a private, local-first home for listening to, organizing, and rediscovering the music you own.
+Client for listening to local audio files
 
 ```sh
 pnpm install
