@@ -1,4 +1,5 @@
 import { LockSimpleIcon } from "@phosphor-icons/react";
+import { useMemo } from "react";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import type { Track } from "../../../shared/lib";
 import { formatDuration } from "@/lib/format-duration";
@@ -15,6 +16,7 @@ const coverClasses = [
 
 export function TrackList({ tracks }: { tracks: readonly Track[] }) {
   const audioPlayer = useAudioPlayer();
+  const queue = useMemo(() => tracks.map((track) => ({ key: track.id, track })), [tracks]);
 
   return (
     <div id="tracks">
@@ -38,7 +40,7 @@ export function TrackList({ tracks }: { tracks: readonly Track[] }) {
         </thead>
         <tbody>
           {tracks.map((track, index) => {
-            const isActive = audioPlayer.activeTrack?.id === track.id;
+            const isActive = audioPlayer.activeQueueKey === track.id;
             const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
 
             return (
@@ -53,7 +55,7 @@ export function TrackList({ tracks }: { tracks: readonly Track[] }) {
                     : "bg-neutral-950/40",
                 )}
                 key={track.id}
-                onClick={track.available ? () => audioPlayer.playFrom(tracks, index) : undefined}
+                onClick={track.available ? () => audioPlayer.playFrom(queue, index) : undefined}
               >
                 <td className={cn("font-berkeley h-10.5 pr-3 pl-5 tabular-nums", metadataColor)}>
                   {isActive && audioPlayer.isPlaying ? (

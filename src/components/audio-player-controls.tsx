@@ -71,7 +71,7 @@ export function AudioPlayerControls() {
           </button>
         </div>
 
-        <AudioPlayerProgress key={audioPlayer.activeTrack.id} />
+        <AudioPlayerProgress key={audioPlayer.activeQueueKey} />
       </div>
 
       <div className="flex items-center justify-end gap-3 text-neutral-400">
