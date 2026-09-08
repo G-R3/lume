@@ -21,7 +21,16 @@ import {
 import { lumeChannels, type LibrarySnapshot, type PlaylistCreationInput } from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
-import { createPlaylist, deletePlaylist, getPlaylists } from "./playlist-store";
+import {
+  addTrackToPlaylist,
+  confirmAddTrackToPlaylist,
+  createPlaylist,
+  createPlaylistFromTrack,
+  deletePlaylist,
+  getPlaylist,
+  getPlaylists,
+  removePlaylistEntry,
+} from "./playlist-store";
 import {
   disableSource,
   enableSource,
@@ -160,11 +169,44 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
     return readLibrary(database);
   });
 
+  ipcMain.handle(lumeChannels.createPlaylistFromTrack, (event, trackId) => {
+    requireTrustedWindow(event);
+    if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
+    return createPlaylistFromTrack(database, trackId);
+  });
+
+  ipcMain.handle(lumeChannels.loadPlaylist, (event, playlistId) => {
+    requireTrustedWindow(event);
+    if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+    return getPlaylist(database, playlistId);
+  });
+
   ipcMain.handle(lumeChannels.deletePlaylist, (event, playlistId) => {
     requireTrustedWindow(event);
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
     deletePlaylist(database, playlistId);
     return readLibrary(database);
+  });
+
+  ipcMain.handle(lumeChannels.addTrackToPlaylist, (event, playlistId, trackId) => {
+    requireTrustedWindow(event);
+    if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+    if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
+    return addTrackToPlaylist(database, playlistId, trackId);
+  });
+
+  ipcMain.handle(lumeChannels.confirmAddTrackToPlaylist, (event, playlistId, trackId) => {
+    requireTrustedWindow(event);
+    if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+    if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
+    return confirmAddTrackToPlaylist(database, playlistId, trackId);
+  });
+
+  ipcMain.handle(lumeChannels.removePlaylistEntry, (event, playlistId, entryId) => {
+    requireTrustedWindow(event);
+    if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+    if (!uuidPattern.test(entryId)) throw new Error("Invalid playlist entry ID");
+    removePlaylistEntry(database, playlistId, entryId);
   });
 
   ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
@@ -255,7 +297,7 @@ function requirePlaylistCreationInput(input: PlaylistCreationInput) {
   }
 
   const title = input.title.trim();
-  const description = input.description?.trim() ? input.description : null;
+  const description = input.description?.trim() || null;
 
   if (title.length === 0 || title.length > 100) {
     throw new Error("Playlist titles must contain between 1 and 100 characters");

@@ -15,9 +15,18 @@ ipcRenderer.on(lumeChannels.libraryUpdated, (_event, library: LibrarySnapshot) =
 });
 
 const lumeApi = {
+  addTrackToPlaylist: (playlistId, trackId): ReturnType<LumeApi["addTrackToPlaylist"]> =>
+    ipcRenderer.invoke(lumeChannels.addTrackToPlaylist, playlistId, trackId),
   addSource: (): ReturnType<LumeApi["addSource"]> => ipcRenderer.invoke(lumeChannels.addSource),
+  confirmAddTrackToPlaylist: (
+    playlistId,
+    trackId,
+  ): ReturnType<LumeApi["confirmAddTrackToPlaylist"]> =>
+    ipcRenderer.invoke(lumeChannels.confirmAddTrackToPlaylist, playlistId, trackId),
   createPlaylist: (input): ReturnType<LumeApi["createPlaylist"]> =>
     ipcRenderer.invoke(lumeChannels.createPlaylist, input),
+  createPlaylistFromTrack: (trackId): ReturnType<LumeApi["createPlaylistFromTrack"]> =>
+    ipcRenderer.invoke(lumeChannels.createPlaylistFromTrack, trackId),
   deletePlaylist: (playlistId): ReturnType<LumeApi["deletePlaylist"]> =>
     ipcRenderer.invoke(lumeChannels.deletePlaylist, playlistId),
   disableSource: (sourceId): ReturnType<LumeApi["disableSource"]> =>
@@ -28,6 +37,8 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.forgetSource, sourceId),
   loadLibrary: (): ReturnType<LumeApi["loadLibrary"]> =>
     ipcRenderer.invoke(lumeChannels.loadLibrary),
+  loadPlaylist: (playlistId): ReturnType<LumeApi["loadPlaylist"]> =>
+    ipcRenderer.invoke(lumeChannels.loadPlaylist, playlistId),
   onLibraryUpdate: (listener) => {
     libraryUpdateListeners.add(listener);
 
@@ -46,6 +57,8 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.rescanSource, sourceId),
   rescanSources: (): ReturnType<LumeApi["rescanSources"]> =>
     ipcRenderer.invoke(lumeChannels.rescanSources),
+  removePlaylistEntry: (playlistId, entryId): ReturnType<LumeApi["removePlaylistEntry"]> =>
+    ipcRenderer.invoke(lumeChannels.removePlaylistEntry, playlistId, entryId),
   isMac: process.platform === "darwin",
 } satisfies LumeApi;
 
