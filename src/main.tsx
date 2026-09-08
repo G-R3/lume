@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import "./index.css";
+import { Toaster } from "@/components/ui/toast";
 import { AudioPlayerProvider } from "@/hooks/use-audio-player";
 import { createAppRouter } from "@/router";
 
@@ -14,6 +15,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <AudioPlayerProvider>
         <RouterProvider router={router} />
+        <Toaster />
       </AudioPlayerProvider>
     </QueryClientProvider>
   </StrictMode>,

@@ -1,5 +1,5 @@
 import { DotsThreeIcon, FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useMatchRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
@@ -30,6 +30,8 @@ import {
 
 export function AppSidebar({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
+  const matchRoute = useMatchRoute();
+  const isAllTracks = Boolean(matchRoute({ to: "/" }));
 
   return (
     <Sidebar className="border-neutral-800">
@@ -52,9 +54,8 @@ export function AppSidebar({ isSettings }: { isSettings: boolean }) {
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      aria-current="page"
                       className="text-neutral-400"
-                      isActive
+                      isActive={isAllTracks}
                       render={<Link to="/" />}
                     >
                       <MusicNotesIcon aria-hidden="true" />
@@ -122,10 +123,18 @@ export function AppSidebar({ isSettings }: { isSettings: boolean }) {
 function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const matchRoute = useMatchRoute();
+  const isActive = Boolean(
+    matchRoute({ params: { playlistId: playlist.id }, to: "/playlists/$playlistId" }),
+  );
 
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton className="text-neutral-400">
+      <SidebarMenuButton
+        className="text-neutral-400"
+        isActive={isActive}
+        render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
+      >
         <span>{playlist.title}</span>
       </SidebarMenuButton>
       <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">

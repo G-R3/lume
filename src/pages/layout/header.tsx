@@ -1,3 +1,4 @@
+import { useMatchRoute } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -7,6 +8,11 @@ import { useLibraryMutation } from "@/lib/library-query";
 export function AppHeader({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
   const libraryMutation = useLibraryMutation();
+  const matchRoute = useMatchRoute();
+  const playlistMatch = matchRoute({ to: "/playlists/$playlistId" });
+  const playlist = playlistMatch
+    ? library.playlists.find((playlist) => playlist.id === playlistMatch.playlistId)
+    : undefined;
   const sourcePaths = library.sources.map((source) => source.path);
   const unavailableTrackCount = library.tracks.filter((track) => !track.available).length;
   const sourceSummary =
@@ -25,20 +31,25 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
           orientation="vertical"
         />
         <h1 className="text-sm font-semibold tracking-tight">
-          {isSettings ? "Settings" : "All tracks"}
+          {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
         </h1>
-        {!isSettings && (
+        {!isSettings && playlist && (
+          <span className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
+            {playlist.entryCount.toLocaleString()} {playlist.entryCount === 1 ? "entry" : "entries"}
+          </span>
+        )}
+        {!isSettings && !playlist && (
           <span className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
             {library.tracks.length.toLocaleString()}
           </span>
         )}
-        {!isSettings && unavailableTrackCount > 0 && (
+        {!isSettings && !playlist && unavailableTrackCount > 0 && (
           <span className="font-berkeley rounded bg-amber-950 px-1.5 py-1 text-[10px] text-amber-400 tabular-nums">
             {unavailableTrackCount.toLocaleString()} unavailable
           </span>
         )}
 
-        {!isSettings && (
+        {!isSettings && !playlist && (
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {sourceSummary && (
               <span

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppPlaylistsPlaylistIdRouteImport } from './routes/_app.playlists.$playlistId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -27,27 +28,40 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPlaylistsPlaylistIdRoute = AppPlaylistsPlaylistIdRouteImport.update({
+  id: '/playlists/$playlistId',
+  path: '/playlists/$playlistId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/settings': typeof AppSettingsRoute
+  '/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
 }
 export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
+  '/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings'
+  fullPaths: '/' | '/settings' | '/playlists/$playlistId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/settings' | '/'
-  id: '__root__' | '/_app' | '/_app/settings' | '/_app/'
+  to: '/settings' | '/' | '/playlists/$playlistId'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/_app/settings'
+    | '/_app/'
+    | '/_app/playlists/$playlistId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,17 +91,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/playlists/$playlistId': {
+      id: '/_app/playlists/$playlistId'
+      path: '/playlists/$playlistId'
+      fullPath: '/playlists/$playlistId'
+      preLoaderRoute: typeof AppPlaylistsPlaylistIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppPlaylistsPlaylistIdRoute: typeof AppPlaylistsPlaylistIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
+  AppPlaylistsPlaylistIdRoute: AppPlaylistsPlaylistIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
