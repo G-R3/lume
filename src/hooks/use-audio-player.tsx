@@ -2,8 +2,11 @@ import React, { useCallback, useContext, useRef, useState, useSyncExternalStore 
 import type { Track } from "../../shared/lib";
 
 type PlaybackSequence = {
+  // Keep the active item separate so removing it from the queue cannot interrupt its audio.
+  activeItem: PlaybackQueueItem;
   items: readonly PlaybackQueueItem[];
-  index: number;
+  nextIndex: number;
+  playlistId: string | null;
 };
 
 type PlaybackQueueItem = {
@@ -14,12 +17,14 @@ type PlaybackQueueItem = {
 type AudioPlayerContextValue = {
   activeQueueKey: string | null;
   activeTrack: Track | null;
+  clearPlaylistQueue: (playlistId: string) => void;
   errorMessage: string | null;
   isPlaying: boolean;
   isMuted: boolean;
   duration: number;
   canGoNext: boolean;
-  playFrom: (items: readonly PlaybackQueueItem[], index: number) => void;
+  playFrom: (items: readonly PlaybackQueueItem[], index: number, playlistId?: string) => void;
+  removeQueueItem: (key: string) => void;
   syncTracks: (tracks: readonly Track[]) => void;
   togglePlayback: () => void;
   toggleMute: () => void;
@@ -67,9 +72,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [duration, setDuration] = useState(0);
   const [playbackSequence, setPlaybackSequence] = useState<PlaybackSequence | null>(null);
 
-  const activeItem = playbackSequence ? playbackSequence.items[playbackSequence.index] : null;
-  const activeQueueKey = activeItem?.key ?? null;
-  const activeTrack = activeItem?.track ?? null;
+  const activeQueueKey = playbackSequence?.activeItem.key ?? null;
+  const activeTrack = playbackSequence?.activeItem.track ?? null;
 
   const canGoNext = playbackSequence ? findNextAvailableTrackIndex(playbackSequence) !== -1 : false;
 
@@ -109,13 +113,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, [isPlaying, pause, resume]);
 
   const changeTrack = useCallback(
-    (items: readonly PlaybackQueueItem[], index: number) => {
-      const track = items[index]?.track;
+    (playbackSequence: PlaybackSequence, index: number) => {
+      const item = playbackSequence.items[index];
+      const track = item?.track;
 
       if (!track?.available) return;
 
       ++playbackRequestRef.current;
-      setPlaybackSequence({ items, index });
+      setPlaybackSequence({ ...playbackSequence, activeItem: item, nextIndex: index + 1 });
       setErrorMessage(null);
       setIsPlaying(false);
       timeStore.set(0);
@@ -133,18 +138,25 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   );
 
   const playFrom = useCallback(
-    (items: readonly PlaybackQueueItem[], index: number) => {
+    (items: readonly PlaybackQueueItem[], index: number, playlistId: string | null = null) => {
       const item = items[index];
 
       if (!item?.track.available) return;
 
+      const playbackSequence = {
+        activeItem: item,
+        items,
+        nextIndex: index + 1,
+        playlistId,
+      };
+
       if (activeQueueKey === item.key) {
-        setPlaybackSequence({ items, index });
+        setPlaybackSequence(playbackSequence);
         resume();
         return;
       }
 
-      changeTrack(items, index);
+      changeTrack(playbackSequence, index);
     },
     [activeQueueKey, changeTrack, resume],
   );
@@ -157,10 +169,46 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
       return {
         ...playbackSequence,
+        activeItem: {
+          ...playbackSequence.activeItem,
+          track:
+            tracksById.get(playbackSequence.activeItem.track.id) ??
+            playbackSequence.activeItem.track,
+        },
         items: playbackSequence.items.map((item) => ({
           ...item,
           track: tracksById.get(item.track.id) ?? item.track,
         })),
+      };
+    });
+  }, []);
+
+  const removeQueueItem = useCallback((key: string) => {
+    setPlaybackSequence((playbackSequence) => {
+      if (!playbackSequence) return null;
+
+      const removedIndex = playbackSequence.items.findIndex((item) => item.key === key);
+      if (removedIndex === -1) return playbackSequence;
+
+      return {
+        ...playbackSequence,
+        items: playbackSequence.items.filter((item) => item.key !== key),
+        nextIndex:
+          removedIndex < playbackSequence.nextIndex
+            ? playbackSequence.nextIndex - 1
+            : playbackSequence.nextIndex,
+      };
+    });
+  }, []);
+
+  const clearPlaylistQueue = useCallback((playlistId: string) => {
+    setPlaybackSequence((playbackSequence) => {
+      if (!playbackSequence || playbackSequence.playlistId !== playlistId) return playbackSequence;
+      if (playbackSequence.nextIndex >= playbackSequence.items.length) return playbackSequence;
+
+      return {
+        ...playbackSequence,
+        items: playbackSequence.items.slice(0, playbackSequence.nextIndex),
       };
     });
   }, []);
@@ -185,14 +233,19 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const next = useCallback(() => {
     if (!playbackSequence) return;
 
-    changeTrack(playbackSequence.items, findNextAvailableTrackIndex(playbackSequence));
+    changeTrack(playbackSequence, findNextAvailableTrackIndex(playbackSequence));
   }, [changeTrack, playbackSequence]);
 
   const previous = useCallback(() => {
     if (!playbackSequence) return;
 
+    const activeIndex = playbackSequence.items.findIndex(
+      (item) => item.key === playbackSequence.activeItem.key,
+    );
     const previousIndex = playbackSequence.items.findLastIndex(
-      (item, index) => index < playbackSequence.index && item.track.available,
+      (item, index) =>
+        index < (activeIndex === -1 ? playbackSequence.nextIndex : activeIndex) &&
+        item.track.available,
     );
 
     if (previousIndex === -1 || Math.floor(timeStore.getSnapshot()) > previousTrackThreshold) {
@@ -200,7 +253,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    changeTrack(playbackSequence.items, previousIndex);
+    changeTrack(playbackSequence, previousIndex);
   }, [changeTrack, playbackSequence, seek, timeStore]);
 
   const contextValue = React.useMemo(
@@ -208,12 +261,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       ({
         activeQueueKey,
         activeTrack,
+        clearPlaylistQueue,
         errorMessage,
         isPlaying,
         isMuted,
         duration,
         canGoNext,
         playFrom,
+        removeQueueItem,
         syncTracks,
         togglePlayback,
         toggleMute,
@@ -224,12 +279,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     [
       activeQueueKey,
       activeTrack,
+      clearPlaylistQueue,
       errorMessage,
       isPlaying,
       isMuted,
       duration,
       canGoNext,
       playFrom,
+      removeQueueItem,
       syncTracks,
       togglePlayback,
       toggleMute,
@@ -277,7 +334,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
 function findNextAvailableTrackIndex(playbackSequence: PlaybackSequence) {
   return playbackSequence.items.findIndex(
-    (item, index) => index > playbackSequence.index && item.track.available,
+    (item, index) => index >= playbackSequence.nextIndex && item.track.available,
   );
 }
 
