@@ -144,13 +144,15 @@ function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
         <DropdownMenuTrigger
           render={
             <SidebarMenuAction ref={menuTriggerRef} showOnHover>
-              <DotsThreeIcon />
+              <DotsThreeIcon aria-hidden="true" />
               <span className="sr-only">More options for {playlist.title}</span>
             </SidebarMenuAction>
           }
         />
         <DropdownMenuContent className="w-32 rounded-lg" finalFocus={false}>
-          <DropdownMenuItem onClick={() => setDeleteOpen(true)}>Delete playlist</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="destructive">
+            Delete playlist
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <DeletePlaylistDialog

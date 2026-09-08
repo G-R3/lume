@@ -1,3 +1,4 @@
+import { useMatchRoute, useNavigate } from "@tanstack/react-router";
 import type { RefObject } from "react";
 import type { PlaylistSummary } from "../../shared/lib";
 import {
@@ -11,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FieldError } from "@/components/ui/field";
+import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useLibraryMutation } from "@/lib/library-query";
 
 type DeletePlaylistDialogProps = {
@@ -26,7 +28,14 @@ export function DeletePlaylistDialog({
   open,
   playlist,
 }: DeletePlaylistDialogProps) {
+  const audioPlayer = useAudioPlayer();
   const libraryMutation = useLibraryMutation();
+  const matchRoute = useMatchRoute();
+  const navigate = useNavigate();
+
+  const isOpenPlaylist = Boolean(
+    matchRoute({ params: { playlistId: playlist.id }, to: "/playlists/$playlistId" }),
+  );
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && libraryMutation.isPending) return;
@@ -39,6 +48,8 @@ export function DeletePlaylistDialog({
       { kind: "delete-playlist", playlistId: playlist.id },
       {
         onSuccess: () => {
+          audioPlayer.clearPlaylistQueue(playlist.id);
+          if (isOpenPlaylist) void navigate({ replace: true, to: "/" });
           libraryMutation.reset();
           onOpenChange(false);
         },

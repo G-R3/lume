@@ -1,5 +1,15 @@
+import { DotsThreeIcon } from "@phosphor-icons/react";
 import { useMatchRoute } from "@tanstack/react-router";
+import { useRef, useState } from "react";
+import type { PlaylistSummary } from "../../../shared/lib";
+import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useMusicLibrary } from "@/hooks/use-music-library";
@@ -82,6 +92,7 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
             )}
           </div>
         )}
+        {playlist && <PlaylistHeaderMenu playlist={playlist} />}
       </header>
 
       {libraryMutation.error && (
@@ -89,6 +100,42 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
           {libraryMutation.error.message}
         </p>
       )}
+    </>
+  );
+}
+
+function PlaylistHeaderMenu({ playlist }: { playlist: PlaylistSummary }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              aria-label={`More options for ${playlist.title}`}
+              className="ml-auto text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
+              ref={menuTriggerRef}
+              size="icon-xs"
+              variant="ghost"
+            />
+          }
+        >
+          <DotsThreeIcon aria-hidden="true" className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-32 rounded-lg" finalFocus={false}>
+          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="destructive">
+            Delete playlist
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DeletePlaylistDialog
+        finalFocus={menuTriggerRef}
+        onOpenChange={setDeleteOpen}
+        open={deleteOpen}
+        playlist={playlist}
+      />
     </>
   );
 }
