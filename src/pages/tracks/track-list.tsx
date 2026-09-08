@@ -1,9 +1,21 @@
 import { LockSimpleIcon } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import type { ReactNode } from "react";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import type { Track } from "../../../shared/lib";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
+
+type TrackListItem = {
+  key: string;
+  track: Track;
+};
+
+type TrackListProps = {
+  caption: string;
+  items: readonly TrackListItem[];
+  playlistId?: string;
+  renderActions?: (item: TrackListItem) => ReactNode;
+};
 
 const coverClasses = [
   "from-orange-950 to-orange-500",
@@ -14,14 +26,13 @@ const coverClasses = [
   "from-indigo-950 to-indigo-500",
 ];
 
-export function TrackList({ tracks }: { tracks: readonly Track[] }) {
+export function TrackList({ caption, items, playlistId, renderActions }: TrackListProps) {
   const audioPlayer = useAudioPlayer();
-  const queue = useMemo(() => tracks.map((track) => ({ key: track.id, track })), [tracks]);
 
   return (
     <div id="tracks">
       <table className="w-full table-fixed text-xs">
-        <caption className="sr-only">All tracks</caption>
+        <caption className="sr-only">{caption}</caption>
         <thead className="font-berkeley border-b border-neutral-800 text-left tracking-[0.08em] text-neutral-400 uppercase">
           <tr>
             <th className="w-14 py-2.5 pr-3 pl-5 font-normal" scope="col">
@@ -33,14 +44,18 @@ export function TrackList({ tracks }: { tracks: readonly Track[] }) {
             <th className="w-24 px-3 py-2.5 text-right font-normal" scope="col">
               Format
             </th>
-            <th className="w-24 py-2.5 pr-5 pl-3 text-right font-normal" scope="col">
+            <th className="w-24 px-3 py-2.5 text-right font-normal" scope="col">
               Time
+            </th>
+            <th className="w-12 py-2.5 pr-5 pl-2 font-normal" scope="col">
+              <span className="sr-only">Actions</span>
             </th>
           </tr>
         </thead>
         <tbody>
-          {tracks.map((track, index) => {
-            const isActive = audioPlayer.activeQueueKey === track.id;
+          {items.map((item, index) => {
+            const track = item.track;
+            const isActive = audioPlayer.activeQueueKey === item.key;
             const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
 
             return (
@@ -54,8 +69,10 @@ export function TrackList({ tracks }: { tracks: readonly Track[] }) {
                     ? "cursor-pointer hover:bg-neutral-950 focus-within:bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "bg-neutral-950/40",
                 )}
-                key={track.id}
-                onClick={track.available ? () => audioPlayer.playFrom(queue, index) : undefined}
+                key={item.key}
+                onClick={
+                  track.available ? () => audioPlayer.playFrom(items, index, playlistId) : undefined
+                }
               >
                 <td className={cn("font-berkeley h-10.5 pr-3 pl-5 tabular-nums", metadataColor)}>
                   {isActive && audioPlayer.isPlaying ? (
@@ -113,12 +130,15 @@ export function TrackList({ tracks }: { tracks: readonly Track[] }) {
                   {track.format}
                 </td>
                 <td
-                  className={cn(
-                    "font-berkeley h-10.5 pr-5 pl-3 text-right tabular-nums",
-                    metadataColor,
-                  )}
+                  className={cn("font-berkeley h-10.5 px-3 text-right tabular-nums", metadataColor)}
                 >
                   {formatDuration(track.duration)}
+                </td>
+                <td
+                  className="h-10.5 py-1 pr-5 pl-2 text-right"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {renderActions?.(item)}
                 </td>
               </tr>
             );

@@ -8,7 +8,12 @@ export function TracksPage() {
   return (
     <>
       <LibraryStatus library={library} />
-      {library.tracks.length > 0 && <TrackList tracks={library.tracks} />}
+      {library.tracks.length > 0 && (
+        <TrackList
+          caption="All tracks"
+          items={library.tracks.map((track) => ({ key: track.id, track }))}
+        />
+      )}
     </>
   );
 }

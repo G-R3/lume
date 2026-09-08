@@ -1,14 +1,16 @@
 import { MusicNotesIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
+import type { PlaylistDetails } from "../../shared/lib";
 import { toast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Route } from "@/routes/_app.playlists.$playlistId";
+import { useMusicLibrary } from "@/hooks/use-music-library";
+import { TrackList } from "@/pages/tracks/track-list";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
-  const { playlistId } = Route.useParams();
+  const { playlistId } = useParams({ from: "/_app/playlists/$playlistId" });
   const playlist = useQuery({
     networkMode: "always",
     queryKey: ["playlist", playlistId],
@@ -36,6 +38,17 @@ export function PlaylistPage() {
   if (playlist.data === undefined) return <PlaylistPageSkeleton />;
   if (playlist.data === null) return null;
 
+  return <PlaylistContent playlist={playlist.data} />;
+}
+
+function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
+  const library = useMusicLibrary();
+  const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
+  const items = playlist.entries.flatMap((entry) => {
+    const track = tracksById.get(entry.trackId);
+    return track ? [{ key: entry.id, track }] : [];
+  });
+
   return (
     <main>
       <section className="flex min-h-36 items-end gap-4 border-b border-neutral-800 px-5 py-5">
@@ -43,31 +56,33 @@ export function PlaylistPage() {
           aria-hidden="true"
           className="font-berkeley grid size-20 shrink-0 place-items-center rounded-md bg-linear-to-br from-lime-950 to-lime-500 text-xl font-semibold tracking-[-0.04em] text-neutral-100"
         >
-          {getPlaylistInitials(playlist.data.title)}
+          {getPlaylistInitials(playlist.title)}
         </div>
         <div className="min-w-0 pb-0.5">
           <p className="font-berkeley mb-2 text-[9px] tracking-[0.12em] text-lime-300 uppercase">
             Playlist
           </p>
           <h2 className="truncate text-3xl font-semibold tracking-[-0.04em] text-neutral-50">
-            {playlist.data.title}
+            {playlist.title}
           </h2>
-          {playlist.data.description && (
-            <p className="mt-2 text-xs text-neutral-400">{playlist.data.description}</p>
+          {playlist.description && (
+            <p className="mt-2 text-xs text-neutral-400">{playlist.description}</p>
           )}
           <p className="font-berkeley mt-2.5 text-[9px] tracking-[0.04em] text-neutral-500">
-            {formatEntryCount(playlist.data.entries.length)}
+            {formatEntryCount(playlist.entries.length)}
           </p>
         </div>
       </section>
 
-      {playlist.data.entries.length === 0 && (
+      {playlist.entries.length === 0 ? (
         <div className="grid min-h-64 place-items-center px-6 text-center">
           <div>
             <MusicNotesIcon aria-hidden="true" className="mx-auto mb-3 size-5 text-neutral-600" />
             <p className="text-sm font-medium text-neutral-300">No tracks in this playlist yet.</p>
           </div>
         </div>
+      ) : (
+        <TrackList caption={`${playlist.title} tracks`} items={items} playlistId={playlist.id} />
       )}
     </main>
   );
@@ -92,7 +107,6 @@ function PlaylistPageSkeleton() {
 function getPlaylistInitials(title: string) {
   return title
     .split(/\s+/)
-    .filter(Boolean)
     .slice(0, 2)
     .map((word) => word[0])
     .join("")
