@@ -1,6 +1,6 @@
 import { PlusIcon } from "@phosphor-icons/react";
+import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import type { PlaylistCreationInput } from "../../shared/lib";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SidebarGroupAction } from "@/components/ui/sidebar";
-import { useLibraryMutation } from "@/lib/library-query";
+import { useCreatePlaylistMutation } from "@/lib/library-query";
 
 type CreateForm = {
   description: string;
@@ -25,17 +25,18 @@ type CreateForm = {
 };
 
 export function CreatePlaylistDialog() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const libraryMutation = useLibraryMutation();
+  const createPlaylist = useCreatePlaylistMutation();
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && libraryMutation.isPending) return;
+    if (!nextOpen && createPlaylist.isPending) return;
     if (!nextOpen) {
       formRef.current?.reset();
       setErrorMessage(null);
-      libraryMutation.reset();
+      createPlaylist.reset();
     }
     setOpen(nextOpen);
   };
@@ -43,10 +44,9 @@ export function CreatePlaylistDialog() {
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const formData = Object.fromEntries(new FormData(form));
 
     // SAFETY: `title` and `description` are named text controls in this form.
-    const values = formData as CreateForm;
+    const values = Object.fromEntries(new FormData(form)) as CreateForm;
 
     const title = values.title.trim();
     const description = values.description.trim();
@@ -56,19 +56,18 @@ export function CreatePlaylistDialog() {
       return;
     }
 
-    const input = {
-      description: description.length > 0 ? description : null,
-      title,
-    } satisfies PlaylistCreationInput;
-
     setErrorMessage(null);
 
-    libraryMutation.mutate(
-      { input, kind: "create-playlist" },
+    createPlaylist.mutate(
+      { description: description.length > 0 ? description : null, title },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           form.reset();
           setOpen(false);
+          void navigate({
+            params: { playlistId: result.playlist.id },
+            to: "/playlists/$playlistId",
+          });
         },
       },
     );
@@ -119,14 +118,14 @@ export function CreatePlaylistDialog() {
             </Field>
           </FieldGroup>
         </form>
-        <FieldError>{errorMessage ?? libraryMutation.error?.message}</FieldError>
+        <FieldError>{errorMessage ?? createPlaylist.error?.message}</FieldError>
         <DialogFooter className="flex flex-col">
           <DialogClose
-            disabled={libraryMutation.isPending}
+            disabled={createPlaylist.isPending}
             render={<Button variant="outline">Cancel</Button>}
           />
-          <Button disabled={libraryMutation.isPending} form="create-playlist" type="submit">
-            {libraryMutation.isPending ? "Creating..." : "Create playlist"}
+          <Button disabled={createPlaylist.isPending} form="create-playlist" type="submit">
+            {createPlaylist.isPending ? "Creating..." : "Create playlist"}
           </Button>
         </DialogFooter>
       </DialogContent>

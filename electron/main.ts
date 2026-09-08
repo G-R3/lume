@@ -18,7 +18,12 @@ import {
   packagedRendererUrl,
   registerProtocolHandler,
 } from "./protocol";
-import { lumeChannels, type LibrarySnapshot, type PlaylistCreationInput } from "../shared/lib";
+import {
+  lumeChannels,
+  type LibrarySnapshot,
+  type PlaylistCreationInput,
+  type PlaylistCreationResult,
+} from "../shared/lib";
 import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
@@ -165,8 +170,8 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
   ipcMain.handle(lumeChannels.createPlaylist, (event, input) => {
     requireTrustedWindow(event);
-    createPlaylist(database, requirePlaylistCreationInput(input));
-    return readLibrary(database);
+    const playlist = createPlaylist(database, requirePlaylistCreationInput(input));
+    return { library: readLibrary(database), playlist } satisfies PlaylistCreationResult;
   });
 
   ipcMain.handle(lumeChannels.createPlaylistFromTrack, (event, trackId) => {

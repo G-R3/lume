@@ -54,11 +54,16 @@ export type MusicLibrary = {
 
 export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
 
+export type PlaylistCreationResult = {
+  library: LibrarySnapshot;
+  playlist: PlaylistSummary;
+};
+
 export type LumeApi = {
   addTrackToPlaylist: (playlistId: string, trackId: string) => Promise<AddTrackToPlaylistResult>;
   addSource: () => Promise<LibrarySnapshot>;
   confirmAddTrackToPlaylist: (playlistId: string, trackId: string) => Promise<PlaylistEntry>;
-  createPlaylist: (input: PlaylistCreationInput) => Promise<LibrarySnapshot>;
+  createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   createPlaylistFromTrack: (trackId: string) => Promise<PlaylistDetails>;
   deletePlaylist: (playlistId: string) => Promise<LibrarySnapshot>;
   disableSource: (sourceId: string) => Promise<LibrarySnapshot>;

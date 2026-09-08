@@ -1,9 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { PlaylistCreationInput } from "../../shared/lib";
 
 type LibraryCommand =
   | { kind: "add-source" }
-  | { kind: "create-playlist"; input: PlaylistCreationInput }
   | { kind: "delete-playlist"; playlistId: string }
   | { kind: "forget-source"; sourceId: string }
   | { kind: "rescan-source"; sourceId: string }
@@ -29,12 +27,21 @@ export function useLibraryMutation() {
   });
 }
 
+export function useCreatePlaylistMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: window.lume.createPlaylist,
+    networkMode: "always",
+    scope: { id: "library" },
+    onSuccess: (result) => queryClient.setQueryData(libraryQueryOptions.queryKey, result.library),
+  });
+}
+
 function runLibraryCommand(command: LibraryCommand) {
   switch (command.kind) {
     case "add-source":
       return window.lume.addSource();
-    case "create-playlist":
-      return window.lume.createPlaylist(command.input);
     case "delete-playlist":
       return window.lume.deletePlaylist(command.playlistId);
     case "forget-source":
