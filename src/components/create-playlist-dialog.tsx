@@ -1,5 +1,5 @@
 import { PlusIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { PlaylistCreationInput } from "../../shared/lib";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -27,11 +27,13 @@ type CreateForm = {
 export function CreatePlaylistDialog() {
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const libraryMutation = useLibraryMutation();
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && libraryMutation.isPending) return;
     if (!nextOpen) {
+      formRef.current?.reset();
       setErrorMessage(null);
       libraryMutation.reset();
     }
@@ -91,15 +93,14 @@ export function CreatePlaylistDialog() {
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Create playlist</DialogTitle>
-          <DialogDescription>
-            Create a playlist here. Click save when you are done.
-          </DialogDescription>
+          <DialogDescription>Start with a name. You can add tracks next.</DialogDescription>
         </DialogHeader>
-        <form id="create-playlist" onSubmit={handleSubmit}>
+        <form id="create-playlist" onSubmit={handleSubmit} ref={formRef}>
           <FieldGroup>
             <Field>
               <Label htmlFor="title">Title</Label>
               <Input
+                autoFocus
                 id="title"
                 maxLength={100}
                 name="title"
@@ -125,7 +126,7 @@ export function CreatePlaylistDialog() {
             render={<Button variant="outline">Cancel</Button>}
           />
           <Button disabled={libraryMutation.isPending} form="create-playlist" type="submit">
-            {libraryMutation.isPending ? "Saving..." : "Save"}
+            {libraryMutation.isPending ? "Creating..." : "Create playlist"}
           </Button>
         </DialogFooter>
       </DialogContent>

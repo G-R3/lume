@@ -1,6 +1,9 @@
 import { DotsThreeIcon, FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
+import { useRef, useState } from "react";
+import type { PlaylistSummary } from "../../../shared/lib";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
+import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import {
   Sidebar,
   SidebarContent,
@@ -24,11 +27,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useLibraryMutation } from "@/lib/library-query";
 
 export function AppSidebar({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
-  const libraryMutation = useLibraryMutation();
 
   return (
     <Sidebar className="border-neutral-800">
@@ -72,37 +73,7 @@ export function AppSidebar({ isSettings }: { isSettings: boolean }) {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {library.playlists.map((playlist) => (
-                    <SidebarMenuItem key={playlist.id}>
-                      <SidebarMenuButton className="text-neutral-400">
-                        <span>{playlist.title}</span>
-                      </SidebarMenuButton>
-                      <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-                        {playlist.entryCount.toLocaleString()}
-                      </SidebarMenuBadge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <SidebarMenuAction showOnHover>
-                              <DotsThreeIcon />
-                              <span className="sr-only">More</span>
-                            </SidebarMenuAction>
-                          }
-                        ></DropdownMenuTrigger>
-
-                        <DropdownMenuContent finalFocus={false} className="w-32 rounded-lg">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              libraryMutation.mutate({
-                                kind: "delete-playlist",
-                                playlistId: playlist.id,
-                              })
-                            }
-                          >
-                            <span>Delete</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </SidebarMenuItem>
+                    <PlaylistSidebarItem key={playlist.id} playlist={playlist} />
                   ))}
                 </SidebarMenu>
               </SidebarGroupContent>
@@ -145,5 +116,40 @@ export function AppSidebar({ isSettings }: { isSettings: boolean }) {
 
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton className="text-neutral-400">
+        <span>{playlist.title}</span>
+      </SidebarMenuButton>
+      <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+        {playlist.entryCount.toLocaleString()}
+      </SidebarMenuBadge>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <SidebarMenuAction ref={menuTriggerRef} showOnHover>
+              <DotsThreeIcon />
+              <span className="sr-only">More options for {playlist.title}</span>
+            </SidebarMenuAction>
+          }
+        />
+        <DropdownMenuContent className="w-32 rounded-lg" finalFocus={false}>
+          <DropdownMenuItem onClick={() => setDeleteOpen(true)}>Delete playlist</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DeletePlaylistDialog
+        finalFocus={menuTriggerRef}
+        onOpenChange={setDeleteOpen}
+        open={deleteOpen}
+        playlist={playlist}
+      />
+    </SidebarMenuItem>
   );
 }

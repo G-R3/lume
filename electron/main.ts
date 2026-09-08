@@ -52,7 +52,7 @@ const rendererUrl =
   !app.isPackaged && process.env.ELECTRON_RENDERER_URL
     ? process.env.ELECTRON_RENDERER_URL
     : packagedRendererUrl;
-const sourceIdPattern = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu;
+const uuidPattern = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu;
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -162,6 +162,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
   ipcMain.handle(lumeChannels.deletePlaylist, (event, playlistId) => {
     requireTrustedWindow(event);
+    if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
     deletePlaylist(database, playlistId);
     return readLibrary(database);
   });
@@ -237,7 +238,7 @@ function requireTrustedWindow(event: IpcMainInvokeEvent) {
 }
 
 function requireSourceId(sourceId: string) {
-  if (sourceIdPattern.test(sourceId)) return sourceId;
+  if (uuidPattern.test(sourceId)) return sourceId;
   throw new Error("Invalid library source ID");
 }
 

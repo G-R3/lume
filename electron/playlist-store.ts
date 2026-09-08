@@ -53,12 +53,12 @@ export function createPlaylist(database: DatabaseSync, input: PlaylistCreationIn
 }
 
 export function deletePlaylist(database: DatabaseSync, playlistId: string) {
-  if (!playlistId) {
-    throw new Error("Playlist id is missing");
-  }
-
   runInTransaction(database, () => {
-    database.prepare(`DELETE FROM playlists WHERE id = ?`).run(playlistId);
+    const result = database.prepare("DELETE FROM playlists WHERE id = ?").run(playlistId);
+
+    if (result.changes !== 1 && result.changes !== 1n) {
+      throw new Error("Playlist does not exist");
+    }
   });
 }
 
