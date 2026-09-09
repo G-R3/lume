@@ -1,7 +1,15 @@
-import { LockSimpleIcon } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
+import { DotsThreeIcon, LockSimpleIcon, PlusIcon } from "@phosphor-icons/react";
+import { type ReactNode, useRef, useState } from "react";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import type { Track } from "../../../shared/lib";
+import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +22,7 @@ type TrackListProps = {
   caption: string;
   items: readonly TrackListItem[];
   playlistId?: string;
-  renderActions?: (item: TrackListItem) => ReactNode;
+  renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
 
 const coverClasses = [
@@ -26,8 +34,17 @@ const coverClasses = [
   "from-indigo-950 to-indigo-500",
 ];
 
-export function TrackList({ caption, items, playlistId, renderActions }: TrackListProps) {
+export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
   const audioPlayer = useAudioPlayer();
+  const addDialogTriggerRef = useRef<HTMLElement | null>(null);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+
+  const handleAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
+    addDialogTriggerRef.current = trigger;
+    setSelectedTrack(track);
+    setAddDialogOpen(true);
+  };
 
   return (
     <div id="tracks">
@@ -61,7 +78,7 @@ export function TrackList({ caption, items, playlistId, renderActions }: TrackLi
             return (
               <tr
                 className={cn(
-                  "border-b border-l-2 border-neutral-900",
+                  "group/track-row border-b border-l-2 border-neutral-900",
                   isActive
                     ? "border-l-lime-300 bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "border-l-transparent",
@@ -138,13 +155,64 @@ export function TrackList({ caption, items, playlistId, renderActions }: TrackLi
                   className="h-10.5 py-1 pr-5 pl-2 text-right"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  {renderActions?.(item)}
+                  <TrackRowMenu onAddToPlaylist={handleAddToPlaylist} track={track}>
+                    {renderMenuItems?.(item)}
+                  </TrackRowMenu>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      {selectedTrack && (
+        <AddToPlaylistDialog
+          finalFocus={addDialogTriggerRef}
+          onOpenChange={setAddDialogOpen}
+          open={addDialogOpen}
+          track={selectedTrack}
+        />
+      )}
     </div>
+  );
+}
+
+function TrackRowMenu({
+  children,
+  onAddToPlaylist,
+  track,
+}: {
+  children?: ReactNode;
+  onAddToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
+  track: Track;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label={`More options for ${track.name}`}
+            className="text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100 hover:text-neutral-100"
+            ref={triggerRef}
+            size="icon-xs"
+            variant="ghost"
+          />
+        }
+      >
+        <DotsThreeIcon aria-hidden="true" className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40" finalFocus={false}>
+        <DropdownMenuItem
+          onClick={() => {
+            if (triggerRef.current) onAddToPlaylist(track, triggerRef.current);
+          }}
+        >
+          <PlusIcon aria-hidden="true" />
+          Add to playlist
+        </DropdownMenuItem>
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
