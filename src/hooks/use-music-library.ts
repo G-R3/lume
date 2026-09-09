@@ -7,5 +7,6 @@ export function useMusicLibrary() {
   const library = useContext(MusicLibraryContext);
 
   if (!library) throw new Error("Library routes must render within the library app");
+
   return library;
 }

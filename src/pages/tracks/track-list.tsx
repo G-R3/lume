@@ -1,4 +1,5 @@
-import { DotsThreeIcon, LockSimpleIcon, PlusIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, LockSimpleIcon, PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
+import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import type { Track } from "../../../shared/lib";
@@ -10,7 +11,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/components/ui/toast";
 import { formatDuration } from "@/lib/format-duration";
+import { useCreatePlaylistFromTrackMutation } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
 type TrackListItem = {
@@ -36,6 +39,8 @@ const coverClasses = [
 
 export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
   const audioPlayer = useAudioPlayer();
+  const navigate = useNavigate();
+  const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
   const addDialogTriggerRef = useRef<HTMLElement | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -44,6 +49,25 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     addDialogTriggerRef.current = trigger;
     setSelectedTrack(track);
     setAddDialogOpen(true);
+  };
+
+  const handleCreatePlaylist = (track: Track) => {
+    createPlaylistFromTrack.mutate(track.id, {
+      onError: (error) => {
+        toast.add({
+          description: error.message,
+          priority: "high",
+          title: "Could not create playlist",
+          type: "error",
+        });
+      },
+      onSuccess: (playlist) => {
+        void navigate({
+          params: { playlistId: playlist.id },
+          to: "/playlists/$playlistId",
+        });
+      },
+    });
   };
 
   return (
@@ -155,7 +179,12 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   className="h-10.5 py-1 pr-5 pl-2 text-right"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <TrackRowMenu onAddToPlaylist={handleAddToPlaylist} track={track}>
+                  <TrackRowMenu
+                    isCreatingPlaylist={createPlaylistFromTrack.isPending}
+                    onAddToPlaylist={handleAddToPlaylist}
+                    onCreatePlaylist={handleCreatePlaylist}
+                    track={track}
+                  >
                     {renderMenuItems?.(item)}
                   </TrackRowMenu>
                 </td>
@@ -178,11 +207,15 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
 
 function TrackRowMenu({
   children,
+  isCreatingPlaylist,
   onAddToPlaylist,
+  onCreatePlaylist,
   track,
 }: {
   children?: ReactNode;
+  isCreatingPlaylist: boolean;
   onAddToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
+  onCreatePlaylist: (track: Track) => void;
   track: Track;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -208,8 +241,12 @@ function TrackRowMenu({
             if (triggerRef.current) onAddToPlaylist(track, triggerRef.current);
           }}
         >
-          <PlusIcon aria-hidden="true" />
+          <PlaylistIcon aria-hidden="true" />
           Add to playlist
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
+          <PlusIcon aria-hidden="true" />
+          Create new playlist
         </DropdownMenuItem>
         {children}
       </DropdownMenuContent>

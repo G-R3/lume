@@ -41,21 +41,20 @@ export function AddToPlaylistDialog({
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && isPending) return;
-
-    if (!nextOpen) {
-      addTrack.reset();
-      confirmAddTrack.reset();
-      setPlaylistToConfirm(null);
-      setSearch("");
-    }
-
     onOpenChange(nextOpen);
+  };
+
+  const handleOpenChangeComplete = (nextOpen: boolean) => {
+    if (nextOpen) return;
+
+    addTrack.reset();
+    confirmAddTrack.reset();
+    setPlaylistToConfirm(null);
+    setSearch("");
   };
 
   const handleAdded = (playlist: PlaylistSummary) => {
     toast.add({ title: `Added to ${playlist.title}`, type: "success" });
-    setPlaylistToConfirm(null);
-    setSearch("");
     onOpenChange(false);
   };
 
@@ -90,7 +89,11 @@ export function AddToPlaylistDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      onOpenChangeComplete={handleOpenChangeComplete}
+    >
       <DialogContent finalFocus={finalFocus} showCloseButton={!isPending}>
         {playlistToConfirm ? (
           <>
