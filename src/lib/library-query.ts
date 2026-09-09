@@ -1,4 +1,4 @@
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -8,6 +8,21 @@ type LibraryCommand =
   | { kind: "rescan-sources" }
   | { enabled: boolean; kind: "set-source-enabled"; sourceId: string };
 
+type PlaylistTrackInput = {
+  playlistId: string;
+  trackId: string;
+};
+
+type PlaylistEntryInput = {
+  entryId: string;
+  playlistId: string;
+};
+
+const playlistMutationOptions = {
+  networkMode: "always",
+  scope: { id: "library" },
+} as const;
+
 export const libraryQueryOptions = queryOptions({
   networkMode: "always",
   queryKey: ["library"],
@@ -15,6 +30,15 @@ export const libraryQueryOptions = queryOptions({
   retry: false,
   staleTime: Infinity,
 });
+
+export function playlistQueryOptions(playlistId: string) {
+  return queryOptions({
+    networkMode: "always",
+    queryKey: ["playlist", playlistId],
+    queryFn: () => window.lume.loadPlaylist(playlistId),
+    retry: false,
+  });
+}
 
 export function useLibraryMutation() {
   const queryClient = useQueryClient();
@@ -38,6 +62,55 @@ export function useCreatePlaylistMutation() {
   });
 }
 
+export function useAddTrackToPlaylistMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...playlistMutationOptions,
+    mutationFn: (input: PlaylistTrackInput) =>
+      window.lume.addTrackToPlaylist(input.playlistId, input.trackId),
+    onSuccess: (result, input) => {
+      if (result.kind === "duplicate") return;
+      return invalidatePlaylistQueries(queryClient, input.playlistId);
+    },
+  });
+}
+
+export function useConfirmAddTrackToPlaylistMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...playlistMutationOptions,
+    mutationFn: (input: PlaylistTrackInput) =>
+      window.lume.confirmAddTrackToPlaylist(input.playlistId, input.trackId),
+    onSuccess: (_entry, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
+  });
+}
+
+export function useCreatePlaylistFromTrackMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...playlistMutationOptions,
+    mutationFn: window.lume.createPlaylistFromTrack,
+    onSuccess: (playlist) => {
+      queryClient.setQueryData(playlistQueryOptions(playlist.id).queryKey, playlist);
+      return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
+    },
+  });
+}
+
+export function useRemovePlaylistEntryMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...playlistMutationOptions,
+    mutationFn: (input: PlaylistEntryInput) =>
+      window.lume.removePlaylistEntry(input.playlistId, input.entryId),
+    onSuccess: (_result, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
+  });
+}
+
 function runLibraryCommand(command: LibraryCommand) {
   switch (command.kind) {
     case "add-source":
@@ -57,4 +130,11 @@ function runLibraryCommand(command: LibraryCommand) {
   }
 
   command satisfies never;
+}
+
+function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey }),
+    queryClient.invalidateQueries({ queryKey: playlistQueryOptions(playlistId).queryKey }),
+  ]);
 }

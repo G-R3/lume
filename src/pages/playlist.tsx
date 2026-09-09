@@ -6,17 +6,13 @@ import type { PlaylistDetails } from "../../shared/lib";
 import { toast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { playlistQueryOptions } from "@/lib/library-query";
 import { TrackList } from "@/pages/tracks/track-list";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
   const { playlistId } = useParams({ from: "/_app/playlists/$playlistId" });
-  const playlist = useQuery({
-    networkMode: "always",
-    queryKey: ["playlist", playlistId],
-    queryFn: () => window.lume.loadPlaylist(playlistId),
-    retry: false,
-  });
+  const playlist = useQuery(playlistQueryOptions(playlistId));
 
   useEffect(() => {
     if (playlist.data === null) {
