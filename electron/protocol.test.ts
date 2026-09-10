@@ -31,12 +31,12 @@ describe("isTrustedRendererUrl", () => {
   });
 
   it.each([
-    "https://app/index.html",
-    "lume://other/index.html",
-    "lume://app/settings.html",
-    "not a url",
-  ])("rejects an untrusted renderer URL: %s", (candidateUrl) => {
-    expect(isTrustedRendererUrl(packagedRendererUrl, candidateUrl)).toBe(false);
+    { candidateUrl: "https://app/index.html", description: "the wrong protocol" },
+    { candidateUrl: "lume://other/index.html", description: "the wrong host" },
+    { candidateUrl: "lume://app/settings.html", description: "the wrong document" },
+    { candidateUrl: "not a url", description: "a malformed URL" },
+  ])("rejects $description", (testCase) => {
+    expect(isTrustedRendererUrl(packagedRendererUrl, testCase.candidateUrl)).toBe(false);
   });
 
   it("rejects another development server port", () => {
@@ -55,13 +55,16 @@ describe("getRendererAssetPath", () => {
   });
 
   it.each([
-    "https://app/index.html",
-    "lume://other/index.html",
-    "not a url",
-    "lume://app/%",
-    "lume://app/%2e%2e%2fsecrets.txt",
-  ])("rejects a request outside the renderer: %s", (requestUrl) => {
-    expect(getRendererAssetPath(rendererDirectory, requestUrl)).toBeNull();
+    { description: "the wrong protocol", requestUrl: "https://app/index.html" },
+    { description: "the wrong host", requestUrl: "lume://other/index.html" },
+    { description: "a malformed URL", requestUrl: "not a url" },
+    { description: "malformed percent encoding", requestUrl: "lume://app/%" },
+    {
+      description: "an encoded parent-directory traversal",
+      requestUrl: "lume://app/%2e%2e%2fsecrets.txt",
+    },
+  ])("rejects $description", (testCase) => {
+    expect(getRendererAssetPath(rendererDirectory, testCase.requestUrl)).toBeNull();
   });
 });
 
@@ -90,12 +93,13 @@ describe("app protocol track URLs", () => {
     });
   });
 
-  it.each([`https://app/media/${trackId}`, `lume://other/media/${trackId}`, "not a url"])(
-    "rejects an invalid track URL: %s",
-    (url) => {
-      expect(resolveTrackRequest(url, getTrackPath)).toBeNull();
-    },
-  );
+  it.each([
+    { description: "the wrong protocol", url: `https://app/media/${trackId}` },
+    { description: "the wrong host", url: `lume://other/media/${trackId}` },
+    { description: "a malformed URL", url: "not a url" },
+  ])("rejects track URLs with $description", (testCase) => {
+    expect(resolveTrackRequest(testCase.url, getTrackPath)).toBeNull();
+  });
 });
 
 describe("createTrackResponse", () => {
@@ -113,19 +117,39 @@ describe("createTrackResponse", () => {
   });
 
   it.each([
-    ["bytes=2-5", "bytes 2-5/10", [2, 3, 4, 5]],
-    ["bytes=7-", "bytes 7-9/10", [7, 8, 9]],
-    ["bytes=-3", "bytes 7-9/10", [7, 8, 9]],
-  ])("serves the requested range: %s", async (range, contentRange, body) => {
+    {
+      description: "a bounded range",
+      expectedBody: [2, 3, 4, 5],
+      expectedContentLength: "4",
+      expectedContentRange: "bytes 2-5/10",
+      range: "bytes=2-5",
+    },
+    {
+      description: "an open-ended range",
+      expectedBody: [7, 8, 9],
+      expectedContentLength: "3",
+      expectedContentRange: "bytes 7-9/10",
+      range: "bytes=7-",
+    },
+    {
+      description: "a suffix range",
+      expectedBody: [7, 8, 9],
+      expectedContentLength: "3",
+      expectedContentRange: "bytes 7-9/10",
+      range: "bytes=-3",
+    },
+  ])("serves $description", async (testCase) => {
     const response = await createTrackResponse(
       await createAudioFile("track.mp3"),
-      new Request("lume://app/media/track", { headers: { Range: range } }),
+      new Request("lume://app/media/track", { headers: { Range: testCase.range } }),
     );
 
     expect(response.status).toBe(206);
-    expect(response.headers.get("content-range")).toBe(contentRange);
-    expect(response.headers.get("content-length")).toBe(String(body.length));
-    expect(new Uint8Array(await response.arrayBuffer())).toEqual(Uint8Array.from(body));
+    expect(response.headers.get("content-range")).toBe(testCase.expectedContentRange);
+    expect(response.headers.get("content-length")).toBe(testCase.expectedContentLength);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      Uint8Array.from(testCase.expectedBody),
+    );
   });
 
   it("rejects an unsatisfiable range", async () => {

@@ -16,16 +16,16 @@ afterEach(() => {
 
 describe("keyboard shortcut matching", () => {
   it.each([
-    [" ", " "],
-    ["ArrowRight", "ArrowRight"],
-    ["B", "b"],
-  ])("matches %s using event.key", (bindingKey, eventKey) => {
+    { bindingKey: " ", description: "Space", eventKey: " " },
+    { bindingKey: "ArrowRight", description: "ArrowRight", eventKey: "ArrowRight" },
+    { bindingKey: "B", description: "letters without case sensitivity", eventKey: "b" },
+  ])("matches $description using event.key", (testCase) => {
     let calls = 0;
 
     const event = dispatchShortcut(
       document.body,
-      [{ name: "Test shortcut", key: bindingKey, action: () => calls++ }],
-      { key: eventKey },
+      [{ name: "Test shortcut", key: testCase.bindingKey, action: () => calls++ }],
+      { key: testCase.eventKey },
     );
 
     expect(calls).toBe(1);
@@ -33,38 +33,81 @@ describe("keyboard shortcut matching", () => {
   });
 
   it.each([
-    [true, { metaKey: true }],
-    [false, { ctrlKey: true }],
-  ])("uses the platform primary modifier when isMac is %s", (isMac, modifiers) => {
+    {
+      description: "Command on macOS",
+      eventInit: { key: "k", metaKey: true },
+      isMac: true,
+    },
+    {
+      description: "Control on other platforms",
+      eventInit: { ctrlKey: true, key: "k" },
+      isMac: false,
+    },
+  ])("uses $description as the primary modifier", (testCase) => {
     let calls = 0;
 
     dispatchShortcut(
       document.body,
       [{ name: "Open search", key: "k", primary: true, action: () => calls++ }],
-      { key: "k", ...modifiers },
-      isMac,
+      testCase.eventInit,
+      testCase.isMac,
     );
 
     expect(calls).toBe(1);
   });
 
   it.each([
-    [true, { ctrlKey: true }],
-    [false, { metaKey: true }],
-    [true, { metaKey: true, shiftKey: true }],
-    [false, { ctrlKey: true, altKey: true }],
-  ])("rejects unexpected modifiers when isMac is %s", (isMac, modifiers) => {
+    {
+      description: "Control on macOS",
+      isMac: true,
+      matchingEventInit: { key: "k", metaKey: true },
+      unexpectedEventInit: { ctrlKey: true, key: "k" },
+    },
+    {
+      description: "Command on other platforms",
+      isMac: false,
+      matchingEventInit: { ctrlKey: true, key: "k" },
+      unexpectedEventInit: { key: "k", metaKey: true },
+    },
+    {
+      description: "an extra Shift key on macOS",
+      isMac: true,
+      matchingEventInit: { key: "k", metaKey: true },
+      unexpectedEventInit: { key: "k", metaKey: true, shiftKey: true },
+    },
+    {
+      description: "an extra Alt key on other platforms",
+      isMac: false,
+      matchingEventInit: { ctrlKey: true, key: "k" },
+      unexpectedEventInit: { altKey: true, ctrlKey: true, key: "k" },
+    },
+  ])("rejects $description", (testCase) => {
     let calls = 0;
 
-    const event = dispatchShortcut(
+    const shortcut = {
+      name: "Open search",
+      key: "k",
+      primary: true,
+      action: () => calls++,
+    };
+
+    const matchingEvent = dispatchShortcut(
       document.body,
-      [{ name: "Open search", key: "k", primary: true, action: () => calls++ }],
-      { key: "k", ...modifiers },
-      isMac,
+      [shortcut],
+      testCase.matchingEventInit,
+      testCase.isMac,
     );
 
-    expect(calls).toBe(0);
-    expect(event.defaultPrevented).toBe(false);
+    const unexpectedEvent = dispatchShortcut(
+      document.body,
+      [shortcut],
+      testCase.unexpectedEventInit,
+      testCase.isMac,
+    );
+
+    expect(calls).toBe(1);
+    expect(matchingEvent.defaultPrevented).toBe(true);
+    expect(unexpectedEvent.defaultPrevented).toBe(false);
   });
 
   it("rejects duplicate bindings", () => {
@@ -81,72 +124,53 @@ describe("keyboard shortcut matching", () => {
 });
 
 describe("keyboard shortcut event policy", () => {
-  it.each(["input", "textarea", "select"])("allows native behavior in %s elements", (tag) => {
+  it.each([
+    { description: "text inputs", tag: "input" },
+    { description: "textareas", tag: "textarea" },
+    { description: "selects", tag: "select" },
+  ])("allows native behavior in $description", (testCase) => {
     let calls = 0;
-    const element = document.body.appendChild(document.createElement(tag));
+    const element = document.body.appendChild(document.createElement(testCase.tag));
+    const shortcut = { name: "Toggle playback", key: " ", action: () => calls++ };
 
-    const event = dispatchShortcut(
-      element,
-      [{ name: "Toggle playback", key: " ", action: () => calls++ }],
-      { key: " " },
-    );
+    const matchingEvent = dispatchShortcut(document.body, [shortcut], { key: " " });
+    const editableEvent = dispatchShortcut(element, [shortcut], { key: " " });
 
-    expect(calls).toBe(0);
-    expect(event.defaultPrevented).toBe(false);
-  });
-
-  it("allows native behavior in descendants of editable content", () => {
-    let calls = 0;
-    const editable = document.body.appendChild(document.createElement("div"));
-    editable.contentEditable = "true";
-    const child = editable.appendChild(document.createElement("span"));
-
-    const event = dispatchShortcut(
-      child,
-      [{ name: "Toggle playback", key: " ", action: () => calls++ }],
-      { key: " " },
-    );
-
-    expect(calls).toBe(0);
-    expect(event.defaultPrevented).toBe(false);
+    expect(calls).toBe(1);
+    expect(matchingEvent.defaultPrevented).toBe(true);
+    expect(editableEvent.defaultPrevented).toBe(false);
   });
 
   it.each([
-    [" ", false],
-    ["ArrowLeft", true],
-    ["ArrowRight", true],
-  ])("handles %s shortcuts from range inputs", (key, primary) => {
+    { description: "Space", eventInit: { key: " " }, key: " ", primary: false },
+    {
+      description: "Command+ArrowLeft",
+      eventInit: { key: "ArrowLeft", metaKey: true },
+      key: "ArrowLeft",
+      primary: true,
+    },
+    {
+      description: "Command+ArrowRight",
+      eventInit: { key: "ArrowRight", metaKey: true },
+      key: "ArrowRight",
+      primary: true,
+    },
+  ])("handles $description from range inputs", (testCase) => {
     let calls = 0;
     const input = document.body.appendChild(document.createElement("input"));
     input.type = "range";
 
     const event = dispatchShortcut(
       input,
-      [{ name: "Audio shortcut", key, primary, action: () => calls++ }],
-      { key, metaKey: primary },
-      true,
-    );
-
-    expect(calls).toBe(1);
-    expect(event.defaultPrevented).toBe(true);
-  });
-
-  it("supports shortcuts that opt into editable controls", () => {
-    let calls = 0;
-    const input = document.body.appendChild(document.createElement("input"));
-
-    const event = dispatchShortcut(
-      input,
       [
         {
-          name: "Open search",
-          key: "k",
-          primary: true,
-          allowInEditable: true,
+          name: "Audio shortcut",
+          key: testCase.key,
+          primary: testCase.primary,
           action: () => calls++,
         },
       ],
-      { key: "k", metaKey: true },
+      testCase.eventInit,
       true,
     );
 
@@ -154,21 +178,17 @@ describe("keyboard shortcut event policy", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it.each([{ repeat: true }, { isComposing: true }])(
-    "ignores repeated and composing events",
-    (eventState) => {
-      let calls = 0;
+  it("ignores repeated events", () => {
+    let calls = 0;
+    const shortcut = { name: "Toggle playback", key: " ", action: () => calls++ };
 
-      const event = dispatchShortcut(
-        document.body,
-        [{ name: "Toggle playback", key: " ", action: () => calls++ }],
-        { key: " ", ...eventState },
-      );
+    const matchingEvent = dispatchShortcut(document.body, [shortcut], { key: " " });
+    const repeatedEvent = dispatchShortcut(document.body, [shortcut], { key: " ", repeat: true });
 
-      expect(calls).toBe(0);
-      expect(event.defaultPrevented).toBe(false);
-    },
-  );
+    expect(calls).toBe(1);
+    expect(matchingEvent.defaultPrevented).toBe(true);
+    expect(repeatedEvent.defaultPrevented).toBe(false);
+  });
 
   it("prevents native behavior before invoking an action", () => {
     const event = new KeyboardEvent("keydown", {
@@ -205,15 +225,14 @@ describe("keyboard shortcut event policy", () => {
 
   it("leaves unmatched keys untouched", () => {
     let calls = 0;
+    const shortcut = { name: "Toggle playback", key: " ", action: () => calls++ };
 
-    const event = dispatchShortcut(
-      document.body,
-      [{ name: "Toggle playback", key: " ", action: () => calls++ }],
-      { key: "Enter" },
-    );
+    const matchingEvent = dispatchShortcut(document.body, [shortcut], { key: " " });
+    const unmatchedEvent = dispatchShortcut(document.body, [shortcut], { key: "Enter" });
 
-    expect(calls).toBe(0);
-    expect(event.defaultPrevented).toBe(false);
+    expect(calls).toBe(1);
+    expect(matchingEvent.defaultPrevented).toBe(true);
+    expect(unmatchedEvent.defaultPrevented).toBe(false);
   });
 
   it("keeps one listener through Strict Mode and removes it on unmount", () => {

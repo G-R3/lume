@@ -42,9 +42,9 @@ describe("App library startup", () => {
       (button) => button.textContent === "Try again",
     );
 
-    expect(retryButton).toBeDefined();
+    if (!retryButton) throw new Error("Expected the error state to offer a retry action");
 
-    await act(async () => retryButton?.click());
+    await act(async () => retryButton.click());
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 
     expect(container.textContent).toContain("Add your music to Lume");
@@ -83,20 +83,42 @@ describe("App library startup", () => {
 });
 
 function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
-  const firstRun = Promise.resolve({ kind: "first-run" } satisfies LibrarySnapshot);
+  const firstRun = { kind: "first-run" } satisfies LibrarySnapshot;
+  const firstRunPromise = Promise.resolve(firstRun);
 
   return {
-    addSource: () => firstRun,
-    createPlaylist: () => firstRun,
-    deletePlaylist: () => firstRun,
-    disableSource: () => firstRun,
-    enableSource: () => firstRun,
-    forgetSource: () => firstRun,
+    addTrackToPlaylist: () => Promise.resolve({ kind: "duplicate" }),
+    addSource: () => firstRunPromise,
+    confirmAddTrackToPlaylist: (_playlistId, trackId) =>
+      Promise.resolve({ id: "entry-1", position: 0, trackId }),
+    createPlaylist: (input) =>
+      Promise.resolve({
+        library: firstRun,
+        playlist: {
+          description: input.description,
+          entryCount: 0,
+          id: "playlist-1",
+          title: input.title,
+        },
+      }),
+    createPlaylistFromTrack: (trackId) =>
+      Promise.resolve({
+        description: null,
+        entries: [{ id: "entry-1", position: 0, trackId }],
+        id: "playlist-1",
+        title: "Playlist",
+      }),
+    deletePlaylist: () => firstRunPromise,
+    disableSource: () => firstRunPromise,
+    enableSource: () => firstRunPromise,
+    forgetSource: () => firstRunPromise,
     loadLibrary,
+    loadPlaylist: () => Promise.resolve(null),
     onLibraryUpdate: () => () => {},
     openDataFolder: () => Promise.resolve(),
-    rescanSource: () => firstRun,
-    rescanSources: () => firstRun,
+    removePlaylistEntry: () => Promise.resolve(),
+    rescanSource: () => firstRunPromise,
+    rescanSources: () => firstRunPromise,
     isMac: false,
   };
 }

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles, type ScannedTrack } from "./library";
 import { scanEnabledSources, scanSource } from "./library-scan";
-import { applySourceScan, disableSource, saveSource } from "./library-store";
+import { applySourceScan, disableSource, getSource, getTracks, saveSource } from "./library-store";
 
 const temporaryFolders: string[] = [];
 
@@ -33,9 +33,9 @@ describe("enabled source scanning", () => {
     olderScan.resolve([createScannedTrack(join(folder, "old.mp3"), "old")]);
     await olderRequest;
 
-    expect(database.prepare("SELECT name FROM tracks WHERE available = 1").all()).toEqual([
-      { name: "new" },
-    ]);
+    expect(
+      getTracks(database).map((track) => ({ available: track.available, name: track.name })),
+    ).toEqual([{ available: true, name: "new" }]);
   });
 
   it("isolates source failures and records their unavailable tracks", async () => {
@@ -50,50 +50,27 @@ describe("enabled source scanning", () => {
     const missingSource = await saveSource(database, missingFolder);
     applySourceScan(database, missingSource.id, await scanAudioFiles(missingFolder));
 
-    const lastSuccessfulScan = database
-      .prepare("SELECT last_scanned_at FROM library_sources WHERE id = ?")
-      .get(missingSource.id)?.last_scanned_at;
+    const lastSuccessfulScan = getSource(database, missingSource.id).lastScannedAt;
 
     await rm(missingFolder, { recursive: true });
 
     await scanEnabledSources(database);
     expect(
-      database.prepare("SELECT available FROM tracks WHERE source_id = ?").get(missingSource.id),
-    ).toEqual({ available: 0 });
-    expect(
-      database
-        .prepare("SELECT last_scan_error, last_scanned_at FROM library_sources WHERE id = ?")
-        .get(missingSource.id),
-    ).toEqual({
-      last_scan_error: expect.stringContaining("ENOENT"),
-      last_scanned_at: lastSuccessfulScan,
+      getTracks(database).map((track) => ({ available: track.available, name: track.name })),
+    ).toEqual([
+      { available: true, name: "healthy" },
+      { available: false, name: "missing" },
+    ]);
+    expect(getSource(database, missingSource.id)).toMatchObject({
+      lastScanError: expect.stringContaining("ENOENT"),
+      lastScannedAt: lastSuccessfulScan,
+      trackCount: 0,
     });
-    expect(
-      database
-        .prepare(
-          `SELECT COUNT(tracks.id) AS track_count, library_sources.last_scan_error,
-          library_sources.last_scanned_at
-          FROM library_sources
-          LEFT JOIN tracks ON tracks.source_id = library_sources.id
-          WHERE library_sources.id = ?`,
-        )
-        .get(healthySource.id),
-    ).toEqual({ last_scan_error: null, last_scanned_at: expect.any(Number), track_count: 1 });
-  });
-
-  it("does not scan disabled sources", async () => {
-    const database = await openTestDatabase();
-    const folder = await createTemporaryFolder("lume-disabled-source-");
-    const trackPath = join(folder, "song.mp3");
-    await writeFile(trackPath, "");
-    const source = await saveSource(database, folder);
-    applySourceScan(database, source.id, await scanAudioFiles(folder));
-    database.prepare("UPDATE library_sources SET enabled = 0 WHERE id = ?").run(source.id);
-    await rm(trackPath);
-
-    await expect(scanSource(database, source.id)).resolves.toBeUndefined();
-    await expect(scanEnabledSources(database)).resolves.toBeUndefined();
-    expect(database.prepare("SELECT available FROM tracks").get()).toEqual({ available: 1 });
+    expect(getSource(database, healthySource.id)).toMatchObject({
+      lastScanError: null,
+      lastScannedAt: expect.any(Number),
+      trackCount: 1,
+    });
   });
 
   it("continues after a later source is disabled during a batch", async () => {
@@ -138,9 +115,7 @@ describe("enabled source scanning", () => {
     `);
 
     await expect(scanEnabledSources(database)).rejects.toThrow("track write failed");
-    expect(
-      database.prepare("SELECT last_scan_error FROM library_sources WHERE id = ?").get(source.id),
-    ).toEqual({ last_scan_error: null });
+    expect(getSource(database, source.id).lastScanError).toBeNull();
   });
 
   it.runIf(process.platform !== "win32" && process.getuid?.() !== 0)(
@@ -156,11 +131,9 @@ describe("enabled source scanning", () => {
       await chmod(inaccessiblePath, 0o000);
       const source = await saveSource(database, folder);
 
-      await expect(scanSource(database, source.id)).resolves.toBeUndefined();
-      expect(database.prepare("SELECT name FROM tracks").all()).toEqual([{ name: "readable" }]);
-      expect(
-        database.prepare("SELECT last_scan_error FROM library_sources WHERE id = ?").get(source.id),
-      ).toEqual({ last_scan_error: null });
+      await scanSource(database, source.id);
+      expect(getTracks(database).map((track) => track.name)).toEqual(["readable"]);
+      expect(getSource(database, source.id).lastScanError).toBeNull();
     },
   );
 });

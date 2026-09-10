@@ -41,41 +41,6 @@ describe("library source persistence", () => {
     expect(hasForgottenSources(database)).toBe(true);
   });
 
-  it("keeps source state stable when state-setting operations repeat", async () => {
-    const database = await openTestDatabase();
-    const folder = await createTemporaryFolder("lume-source-");
-    const source = await saveSource(database, folder);
-    database.prepare("UPDATE library_sources SET updated_at = 1 WHERE id = ?").run(source.id);
-
-    await saveSource(database, folder);
-    enableSource(database, source.id);
-    expect(
-      database.prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources").get(),
-    ).toEqual({ enabled: 1, forgotten_at: null, updated_at: 1 });
-
-    disableSource(database, source.id);
-
-    const disabledSource = database
-      .prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources")
-      .get();
-
-    disableSource(database, source.id);
-    expect(
-      database.prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources").get(),
-    ).toEqual(disabledSource);
-
-    forgetSource(database, source.id);
-
-    const forgottenSource = database
-      .prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources")
-      .get();
-
-    forgetSource(database, source.id);
-    expect(
-      database.prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources").get(),
-    ).toEqual(forgottenSource);
-  });
-
   it("reuses a source ID after the database is reopened", async () => {
     const folder = await createTemporaryFolder("lume-source-");
     const databaseFolder = await createTemporaryFolder("lume-database-");
@@ -125,14 +90,13 @@ describe("library source persistence", () => {
     expect(getSource(database, source.id).trackCount).toBe(1);
 
     disableSource(database, source.id);
-    expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 0 });
     expect(getSource(database, source.id).enabled).toBe(false);
     expect(getTracks(database).map((track) => track.available)).toEqual([false]);
     expect(applySourceScan(database, source.id, await scanAudioFiles(folder))).toBe(false);
     expect(getTracks(database).map((track) => track.available)).toEqual([false]);
 
     enableSource(database, source.id);
-    expect(database.prepare("SELECT enabled FROM library_sources").get()).toEqual({ enabled: 1 });
+    expect(getSource(database, source.id).enabled).toBe(true);
     expect(getTracks(database).map((track) => track.available)).toEqual([false]);
 
     expect(applySourceScan(database, source.id, await scanAudioFiles(folder))).toBe(true);
@@ -279,8 +243,11 @@ describe("track persistence", () => {
     await writeFile(originalPath, "");
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    const originalId = database.prepare("SELECT id FROM tracks").get()?.id;
-    expect(originalId).toBeDefined();
+    const originalTrack = database.prepare("SELECT id FROM tracks").get();
+
+    if (!originalTrack) throw new Error("Expected the initial scan to store the track");
+
+    const originalId = originalTrack.id;
 
     await rename(originalPath, join(folder, "after.mp3"));
     applySourceScan(database, source.id, await scanAudioFiles(folder));

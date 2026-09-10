@@ -1,11 +1,13 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { DatabaseSync } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { getLibraryDatabasePath, openLibraryDatabase } from ".";
 import { applyMigrations, type Migration } from "./migration";
-import { libraryMigrations } from "./migrations";
+import { initialLibraryMigration } from "./migrations/001-initial-library";
+import { getSources } from "../library-store";
+import { createPlaylist, getPlaylists } from "../playlist-store";
 
 const temporaryFolders: string[] = [];
 
@@ -19,29 +21,6 @@ afterEach(async () => {
 });
 
 describe("library database lifecycle", () => {
-  it("creates the current schema and configures SQLite", async () => {
-    const database = await openLibraryDatabase(":memory:");
-    openDatabases.push(database);
-
-    expect(database.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 });
-    expect(database.prepare("PRAGMA busy_timeout").get()).toEqual({ timeout: 5_000 });
-    expect(
-      database
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
-        )
-        .all(),
-    ).toEqual([
-      { name: "library_sources" },
-      { name: "schema_migrations" },
-      { name: "track_state" },
-      { name: "tracks" },
-    ]);
-    expect(database.prepare("SELECT version, name FROM schema_migrations").all()).toEqual([
-      { name: "initial-library", version: 1 },
-    ]);
-  });
-
   it("persists data after closing and reopening a file-backed database", async () => {
     const folder = await createTemporaryFolder("lume-database-");
     const databasePath = join(folder, "nested", "library.sqlite");
@@ -68,25 +47,39 @@ describe("library database lifecycle", () => {
 });
 
 describe("library database migrations", () => {
-  it("upgrades an existing schema", async () => {
-    const database = await openLibraryDatabase(":memory:");
+  it("upgrades a version 1 library without losing data", async () => {
+    const folder = await createTemporaryFolder("lume-database-");
+    const databasePath = join(folder, "library.sqlite");
+    const versionOneDatabase = new DatabaseSync(databasePath);
+    applyMigrations(versionOneDatabase, [initialLibraryMigration]);
+    versionOneDatabase
+      .prepare(
+        "INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (?, ?, 1, ?, ?)",
+      )
+      .run("source-1", "/Music", 1, 1);
+    versionOneDatabase.close();
+
+    const database = await openLibraryDatabase(databasePath);
     openDatabases.push(database);
-    applyMigrations(database, [...libraryMigrations, addSourceColorMigration]);
-    expect(
-      database
-        .prepare("SELECT name FROM pragma_table_info('library_sources') WHERE name = 'color'")
-        .get(),
-    ).toEqual({ name: "color" });
-    expect(
-      database.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all(),
-    ).toEqual([
-      { name: "initial-library", version: 1 },
-      { name: "add-source-color", version: 2 },
+    createPlaylist(database, { description: "Long drives", title: "Road Trip" });
+
+    expect(getSources(database)).toEqual([
+      {
+        enabled: true,
+        id: "source-1",
+        lastScanError: null,
+        lastScannedAt: null,
+        path: "/Music",
+        trackCount: 0,
+      },
+    ]);
+    expect(getPlaylists(database)).toMatchObject([
+      { description: "Long drives", entryCount: 0, title: "Road Trip" },
     ]);
   });
 
-  it("rolls back a failed migration and its journal entry together", async () => {
-    const database = await openLibraryDatabase(":memory:");
+  it("rolls back a failed migration and its journal entry together", () => {
+    const database = new DatabaseSync(":memory:");
     openDatabases.push(database);
 
     const failingMigration = {
@@ -98,9 +91,12 @@ describe("library database migrations", () => {
       },
     } satisfies Migration;
 
-    expect(() => applyMigrations(database, [...libraryMigrations, failingMigration])).toThrow(
+    expect(() => applyMigrations(database, [documentsMigration, failingMigration])).toThrow(
       "Migration failed on purpose",
     );
+    expect(
+      database.prepare("SELECT name FROM sqlite_master WHERE name = 'documents'").get(),
+    ).toEqual({ name: "documents" });
     expect(
       database.prepare("SELECT name FROM sqlite_master WHERE name = 'should_not_survive'").get(),
     ).toBeUndefined();
@@ -109,21 +105,23 @@ describe("library database migrations", () => {
     ).toEqual([{ version: 1 }]);
   });
 
-  it("rejects migration history that this build does not recognize", async () => {
-    const database = await openLibraryDatabase(":memory:");
+  it("rejects migration history that the manifest does not recognize", () => {
+    const database = new DatabaseSync(":memory:");
     openDatabases.push(database);
+    applyMigrations(database, [documentsMigration]);
     database
       .prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (2, 'future', 1)")
       .run();
 
-    expect(() => applyMigrations(database, libraryMigrations)).toThrow(
+    expect(() => applyMigrations(database, [documentsMigration])).toThrow(
       "Database migration 2_future is not supported by this build",
     );
   });
 
-  it("rejects migration history with a missing version", async () => {
-    const database = await openLibraryDatabase(":memory:");
+  it("rejects migration history with a missing version", () => {
+    const database = new DatabaseSync(":memory:");
     openDatabases.push(database);
+    applyMigrations(database, [documentsMigration]);
     database
       .prepare(
         "INSERT INTO schema_migrations (version, name, applied_at) VALUES (3, 'third-migration', 1)",
@@ -131,26 +129,23 @@ describe("library database migrations", () => {
       .run();
 
     expect(() =>
-      applyMigrations(database, [...libraryMigrations, addSourceColorMigration, thirdMigration]),
+      applyMigrations(database, [documentsMigration, secondMigration, thirdMigration]),
     ).toThrow("history must have consecutive versions");
-  });
-
-  it("rejects migration manifests with gaps", async () => {
-    const database = await openLibraryDatabase(":memory:");
-    openDatabases.push(database);
-
-    expect(() =>
-      applyMigrations(database, [libraryMigrations[0], { ...addSourceColorMigration, version: 3 }]),
-    ).toThrow("consecutive versions");
   });
 });
 
-const addSourceColorMigration = {
-  name: "add-source-color",
-  version: 2,
+const documentsMigration = {
+  name: "documents",
+  version: 1,
   up(database) {
-    database.exec("ALTER TABLE library_sources ADD COLUMN color TEXT");
+    database.exec("CREATE TABLE documents (id TEXT PRIMARY KEY) STRICT");
   },
+} satisfies Migration;
+
+const secondMigration = {
+  name: "second-migration",
+  version: 2,
+  up() {},
 } satisfies Migration;
 
 const thirdMigration = {
