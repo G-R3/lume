@@ -19,6 +19,7 @@ import {
 } from "./library-store";
 
 const temporaryFolders: string[] = [];
+
 const openDatabases: DatabaseSync[] = [];
 
 afterEach(async () => {
@@ -53,18 +54,22 @@ describe("library source persistence", () => {
     ).toEqual({ enabled: 1, forgotten_at: null, updated_at: 1 });
 
     disableSource(database, source.id);
+
     const disabledSource = database
       .prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources")
       .get();
+
     disableSource(database, source.id);
     expect(
       database.prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources").get(),
     ).toEqual(disabledSource);
 
     forgetSource(database, source.id);
+
     const forgottenSource = database
       .prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources")
       .get();
+
     forgetSource(database, source.id);
     expect(
       database.prepare("SELECT enabled, forgotten_at, updated_at FROM library_sources").get(),
@@ -193,6 +198,7 @@ describe("track persistence", () => {
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
     const initialTrack = getTracks(database)[0];
+
     if (!initialTrack) throw new Error("Expected the scanned track to be stored");
 
     expect(getTrackPath(database, initialTrack.id)).toBe(trackPath);
@@ -221,6 +227,7 @@ describe("track persistence", () => {
     ]);
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
+
     const tracks = database
       .prepare("SELECT id, path FROM tracks WHERE source_id = ? ORDER BY path")
       .all(source.id);
@@ -290,11 +297,13 @@ describe("track persistence", () => {
 async function openTestDatabase() {
   const database = await openLibraryDatabase(":memory:");
   openDatabases.push(database);
+
   return database;
 }
 
 async function createTemporaryFolder(prefix: string) {
   const folder = await mkdtemp(join(tmpdir(), prefix));
   temporaryFolders.push(folder);
+
   return folder;
 }

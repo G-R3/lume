@@ -21,6 +21,7 @@ describe("keyboard shortcut matching", () => {
     ["B", "b"],
   ])("matches %s using event.key", (bindingKey, eventKey) => {
     let calls = 0;
+
     const event = dispatchShortcut(
       document.body,
       [{ name: "Test shortcut", key: bindingKey, action: () => calls++ }],
@@ -54,6 +55,7 @@ describe("keyboard shortcut matching", () => {
     [false, { ctrlKey: true, altKey: true }],
   ])("rejects unexpected modifiers when isMac is %s", (isMac, modifiers) => {
     let calls = 0;
+
     const event = dispatchShortcut(
       document.body,
       [{ name: "Open search", key: "k", primary: true, action: () => calls++ }],
@@ -82,6 +84,7 @@ describe("keyboard shortcut event policy", () => {
   it.each(["input", "textarea", "select"])("allows native behavior in %s elements", (tag) => {
     let calls = 0;
     const element = document.body.appendChild(document.createElement(tag));
+
     const event = dispatchShortcut(
       element,
       [{ name: "Toggle playback", key: " ", action: () => calls++ }],
@@ -97,6 +100,7 @@ describe("keyboard shortcut event policy", () => {
     const editable = document.body.appendChild(document.createElement("div"));
     editable.contentEditable = "true";
     const child = editable.appendChild(document.createElement("span"));
+
     const event = dispatchShortcut(
       child,
       [{ name: "Toggle playback", key: " ", action: () => calls++ }],
@@ -115,6 +119,7 @@ describe("keyboard shortcut event policy", () => {
     let calls = 0;
     const input = document.body.appendChild(document.createElement("input"));
     input.type = "range";
+
     const event = dispatchShortcut(
       input,
       [{ name: "Audio shortcut", key, primary, action: () => calls++ }],
@@ -129,6 +134,7 @@ describe("keyboard shortcut event policy", () => {
   it("supports shortcuts that opt into editable controls", () => {
     let calls = 0;
     const input = document.body.appendChild(document.createElement("input"));
+
     const event = dispatchShortcut(
       input,
       [
@@ -152,6 +158,7 @@ describe("keyboard shortcut event policy", () => {
     "ignores repeated and composing events",
     (eventState) => {
       let calls = 0;
+
       const event = dispatchShortcut(
         document.body,
         [{ name: "Toggle playback", key: " ", action: () => calls++ }],
@@ -169,6 +176,7 @@ describe("keyboard shortcut event policy", () => {
       cancelable: true,
       key: " ",
     });
+
     let wasPreventedDuringAction = false;
 
     dispatchEventWithShortcuts(document.body, event, [
@@ -197,6 +205,7 @@ describe("keyboard shortcut event policy", () => {
 
   it("leaves unmatched keys untouched", () => {
     let calls = 0;
+
     const event = dispatchShortcut(
       document.body,
       [{ name: "Toggle playback", key: " ", action: () => calls++ }],
@@ -213,6 +222,7 @@ describe("keyboard shortcut event policy", () => {
 
     function TestShortcuts() {
       useKeyboardShortcuts([{ name: "Toggle playback", key: " ", action: () => calls++ }], false);
+
       return null;
     }
 
@@ -243,6 +253,7 @@ function dispatchShortcut(
   });
 
   dispatchEventWithShortcuts(target, event, shortcuts, isMac);
+
   return event;
 }
 

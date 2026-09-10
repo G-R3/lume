@@ -101,6 +101,7 @@ export function getTracks(database: DatabaseSync): StoredTrack[] {
 
 export function getTrackPath(database: DatabaseSync, trackId: string) {
   const track = database.prepare("SELECT path FROM tracks WHERE id = ?").get(trackId);
+
   return track ? readString(track.path, "tracks.path") : null;
 }
 
@@ -149,6 +150,7 @@ export async function saveSource(
         WHERE id = ?`,
       )
       .run(Date.now(), id);
+
     return { id, path };
   }
 
@@ -347,6 +349,7 @@ function pathsOverlap(left: string, right: string) {
 
 function pathContains(parent: string, child: string) {
   const difference = relative(parent, child);
+
   return difference === "" || (!difference.startsWith("..") && !isAbsolute(difference));
 }
 
@@ -379,6 +382,7 @@ function readNullableNumber(value: SQLOutputValue | undefined, field: string) {
 
 function readNumber(value: SQLOutputValue | undefined, field: string) {
   const number = Number(value);
+
   if (Number.isSafeInteger(number)) return number;
   throw new Error(`Invalid number in ${field}`);
 }

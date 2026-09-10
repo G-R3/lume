@@ -8,6 +8,7 @@ import { AudioPlayerProvider } from "@/hooks/use-audio-player";
 import { createAppRouter } from "@/router";
 
 const queryClient = new QueryClient();
+
 const router = createAppRouter();
 
 createRoot(document.getElementById("root")!).render(

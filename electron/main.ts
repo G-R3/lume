@@ -62,10 +62,12 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const rendererDirectory = join(__dirname, "../renderer");
+
 const rendererUrl =
   !app.isPackaged && process.env.ELECTRON_RENDERER_URL
     ? process.env.ELECTRON_RENDERER_URL
     : packagedRendererUrl;
+
 const uuidPattern = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu;
 
 function createWindow() {
@@ -85,6 +87,7 @@ function createWindow() {
   });
 
   loadRenderer(window, rendererUrl);
+
   return window;
 }
 
@@ -93,11 +96,13 @@ void startPrimaryInstance().catch(handleStartupFailure);
 async function startPrimaryInstance() {
   if (!app.requestSingleInstanceLock()) {
     app.quit();
+
     return;
   }
 
   app.on("second-instance", () => {
     const window = BrowserWindow.getAllWindows()[0];
+
     if (!window) return;
 
     if (window.isMinimized()) window.restore();
@@ -148,6 +153,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
   ipcMain.handle(lumeChannels.addSource, async (event) => {
     const window = requireTrustedWindow(event);
+
     const result = await dialog.showOpenDialog(window, {
       title: "Add a music source",
       buttonLabel: "Add Source",
@@ -156,60 +162,78 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
     });
 
     const folder = result.filePaths[0];
+
     if (!folder) return readLibrary(database);
 
     const source = await saveSource(database, folder);
     await scanSource(database, source.id);
+
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.loadLibrary, (event) => {
     requireTrustedWindow(event);
+
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.createPlaylist, (event, input) => {
     requireTrustedWindow(event);
     const playlist = createPlaylist(database, requirePlaylistCreationInput(input));
+
     return { library: readLibrary(database), playlist } satisfies PlaylistCreationResult;
   });
 
   ipcMain.handle(lumeChannels.createPlaylistFromTrack, (event, trackId) => {
     requireTrustedWindow(event);
+
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
+
     return createPlaylistFromTrack(database, trackId);
   });
 
   ipcMain.handle(lumeChannels.loadPlaylist, (event, playlistId) => {
     requireTrustedWindow(event);
+
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+
     return getPlaylist(database, playlistId);
   });
 
   ipcMain.handle(lumeChannels.deletePlaylist, (event, playlistId) => {
     requireTrustedWindow(event);
+
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
     deletePlaylist(database, playlistId);
+
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.addTrackToPlaylist, (event, playlistId, trackId) => {
     requireTrustedWindow(event);
+
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
+
     return addTrackToPlaylist(database, playlistId, trackId);
   });
 
   ipcMain.handle(lumeChannels.confirmAddTrackToPlaylist, (event, playlistId, trackId) => {
     requireTrustedWindow(event);
+
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
+
     return confirmAddTrackToPlaylist(database, playlistId, trackId);
   });
 
   ipcMain.handle(lumeChannels.removePlaylistEntry, (event, playlistId, entryId) => {
     requireTrustedWindow(event);
+
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
+
     if (!uuidPattern.test(entryId)) throw new Error("Invalid playlist entry ID");
     removePlaylistEntry(database, playlistId, entryId);
   });
@@ -219,30 +243,35 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
     const parsedSourceId = requireSourceId(sourceId);
     enableSource(database, parsedSourceId);
     await scanSource(database, parsedSourceId);
+
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.disableSource, (event, sourceId) => {
     requireTrustedWindow(event);
     disableSource(database, requireSourceId(sourceId));
+
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.forgetSource, (event, sourceId) => {
     requireTrustedWindow(event);
     forgetSource(database, requireSourceId(sourceId));
+
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.rescanSource, async (event, sourceId) => {
     requireTrustedWindow(event);
     await scanSource(database, requireSourceId(sourceId));
+
     return readLibrary(database);
   });
 
   ipcMain.handle(lumeChannels.rescanSources, async (event) => {
     requireTrustedWindow(event);
     await scanEnabledSources(database);
+
     return readLibrary(database);
   });
 }
@@ -333,6 +362,7 @@ async function handleStartupFailure(error: Error) {
 
   if (response === 0) {
     const openError = await shell.openPath(app.getPath("userData"));
+
     if (openError) dialog.showErrorBox("Lume could not open its data folder", openError);
   }
 

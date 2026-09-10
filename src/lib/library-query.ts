@@ -71,6 +71,7 @@ export function useAddTrackToPlaylistMutation() {
       window.lume.addTrackToPlaylist(input.playlistId, input.trackId),
     onSuccess: (result, input) => {
       if (result.kind === "duplicate") return;
+
       return invalidatePlaylistQueries(queryClient, input.playlistId);
     },
   });
@@ -95,6 +96,7 @@ export function useCreatePlaylistFromTrackMutation() {
     mutationFn: window.lume.createPlaylistFromTrack,
     onSuccess: (playlist) => {
       queryClient.setQueryData(playlistQueryOptions(playlist.id).queryKey, playlist);
+
       return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
     },
   });

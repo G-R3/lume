@@ -20,11 +20,14 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
   const libraryMutation = useLibraryMutation();
   const matchRoute = useMatchRoute();
   const playlistMatch = matchRoute({ to: "/playlists/$playlistId" });
+
   const playlist = playlistMatch
     ? library.playlists.find((playlist) => playlist.id === playlistMatch.playlistId)
     : undefined;
+
   const sourcePaths = library.sources.map((source) => source.path);
   const unavailableTrackCount = library.tracks.filter((track) => !track.available).length;
+
   const sourceSummary =
     sourcePaths.length === 1
       ? sourcePaths[0]

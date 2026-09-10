@@ -19,6 +19,7 @@ export function useKeyboardShortcuts(shortcuts: readonly KeyboardShortcut[], isM
     const handleKeyDown = (event: KeyboardEvent) => handlerRef.current(event);
 
     window.addEventListener("keydown", handleKeyDown, { capture: true });
+
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, []);
 }
@@ -78,6 +79,7 @@ function createSignature(
 
 function normalizeKey(key: string) {
   if (key === " ") return "space";
+
   return key.toLowerCase();
 }
 

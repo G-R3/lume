@@ -3,11 +3,13 @@ import type { LibrarySnapshot, LumeApi } from "../shared/lib";
 import { lumeChannels } from "../shared/lib";
 
 const libraryUpdateListeners = new Set<(library: LibrarySnapshot) => void>();
+
 let pendingLibraryUpdate: LibrarySnapshot | undefined;
 
 ipcRenderer.on(lumeChannels.libraryUpdated, (_event, library: LibrarySnapshot) => {
   if (libraryUpdateListeners.size === 0) {
     pendingLibraryUpdate = library;
+
     return;
   }
 

@@ -22,6 +22,7 @@ export async function scanSource(
   scanFiles = scanAudioFiles, // Injectable so overlapping scans can be tested without timing-dependent filesystem work
 ): Promise<void> {
   const source = getEnabledSource(database, sourceId);
+
   if (!source) return;
 
   const versions = getScanVersions(database);
@@ -37,6 +38,7 @@ export async function scanSource(
     console.warn("Could not read library source", { error, sourceId });
     const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
     applyScanFailure(database, sourceId, message);
+
     return;
   }
 
@@ -46,10 +48,12 @@ export async function scanSource(
 
 function getScanVersions(database: DatabaseSync) {
   const existing = scanVersions.get(database);
+
   if (existing) return existing;
 
   const versions = new Map<string, number>();
   scanVersions.set(database, versions);
+
   return versions;
 }
 

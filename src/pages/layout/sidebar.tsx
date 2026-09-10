@@ -124,6 +124,7 @@ function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const matchRoute = useMatchRoute();
+
   const isActive = Boolean(
     matchRoute({ params: { playlistId: playlist.id }, to: "/playlists/$playlistId" }),
   );

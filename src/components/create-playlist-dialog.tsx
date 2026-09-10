@@ -33,11 +33,13 @@ export function CreatePlaylistDialog() {
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && createPlaylist.isPending) return;
+
     if (!nextOpen) {
       formRef.current?.reset();
       setErrorMessage(null);
       createPlaylist.reset();
     }
+
     setOpen(nextOpen);
   };
 
@@ -53,6 +55,7 @@ export function CreatePlaylistDialog() {
 
     if (title.length === 0) {
       setErrorMessage("Enter a playlist title");
+
       return;
     }
 

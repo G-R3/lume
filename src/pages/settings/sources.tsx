@@ -41,6 +41,7 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
       <div className="divide-y divide-neutral-800">
         {library.sources.map((source) => {
           const name = getSourceName(source.path);
+
           const status = source.lastScanError
             ? source.lastScanError
             : !source.enabled

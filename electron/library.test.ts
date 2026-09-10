@@ -86,6 +86,7 @@ describe("scanAudioFiles", () => {
     await writeFile(path, "original");
     const [scannedTrack] = await scanAudioFiles(folder);
     expect(scannedTrack).toBeDefined();
+
     if (!scannedTrack) return;
 
     const storedTrack = { ...scannedTrack, duration: 123 };
@@ -114,6 +115,7 @@ describe("scanAudioFiles", () => {
 async function createTemporaryFolder(prefix: string) {
   const folder = await mkdtemp(join(tmpdir(), prefix));
   temporaryFolders.push(folder);
+
   return folder;
 }
 
@@ -132,5 +134,6 @@ function createWaveAudio() {
   audio.writeUInt16LE(8, 34);
   audio.write("data", 36);
   audio.writeUInt32LE(sampleRate, 40);
+
   return audio;
 }

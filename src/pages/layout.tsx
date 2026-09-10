@@ -13,6 +13,7 @@ export function AppLayout() {
   const library = useMusicLibrary();
   const audioPlayer = useAudioPlayer();
   const syncTracks = audioPlayer.syncTracks;
+
   const isSettings = useLocation({
     select: (location) =>
       location.pathname === "/settings" || location.pathname.startsWith("/settings/"),

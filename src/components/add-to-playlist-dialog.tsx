@@ -65,6 +65,7 @@ export function AddToPlaylistDialog({
         onSuccess: (result) => {
           if (result.kind === "duplicate") {
             setPlaylistToConfirm(playlist);
+
             return;
           }
 
@@ -84,6 +85,7 @@ export function AddToPlaylistDialog({
   };
 
   const normalizedSearch = search.trim().toLowerCase();
+
   const playlists = library.playlists.filter((playlist) =>
     playlist.title.toLowerCase().includes(normalizedSearch),
   );

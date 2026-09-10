@@ -18,6 +18,7 @@ export function applyMigrations(database: DatabaseSync, migrations: readonly Mig
   `);
 
   const appliedMigrations = getAppliedMigrations(database, migrations);
+
   const pendingMigrations = migrations.filter(
     (migration) => !appliedMigrations.has(migration.version),
   );

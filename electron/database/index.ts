@@ -8,10 +8,12 @@ export async function openLibraryDatabase(location: string) {
   if (location !== ":memory:") await mkdir(dirname(location), { recursive: true });
 
   const database = new DatabaseSync(location);
+
   try {
     configureLibraryDatabase(database);
     applyMigrations(database, libraryMigrations);
     validateCurrentLibraryDatabase(database);
+
     return database;
   } catch (error) {
     database.close();
@@ -25,6 +27,7 @@ export function validateCurrentLibraryDatabase(database: DatabaseSync) {
   }
 
   const foreignKeyFailures = database.prepare("PRAGMA foreign_key_check").all();
+
   if (foreignKeyFailures.length > 0) throw new Error("Database failed its foreign key check");
 
   [

@@ -73,6 +73,7 @@ export function createPlaylist(database: DatabaseSync, input: PlaylistCreationIn
     id: randomUUID(),
     title,
   } satisfies PlaylistSummary;
+
   return runInTransaction(database, () => {
     const now = Date.now();
     database
@@ -93,12 +94,14 @@ export function createPlaylistFromTrack(database: DatabaseSync, trackId: string)
     if (!track) throw new Error("Track does not exist");
 
     const trackName = readString(track.name, "tracks.name").trim();
+
     const playlist = {
       description: null,
       entries: [{ id: randomUUID(), position: 0, trackId }],
       id: randomUUID(),
       title: trackName.length > 0 && trackName.length <= 100 ? trackName : "New Playlist",
     } satisfies PlaylistDetails;
+
     const now = Date.now();
 
     database
@@ -186,6 +189,7 @@ function insertPlaylistEntry(database: DatabaseSync, playlistId: string, trackId
     ),
     trackId,
   } satisfies PlaylistEntry;
+
   const now = Date.now();
 
   database

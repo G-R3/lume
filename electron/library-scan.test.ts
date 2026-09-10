@@ -9,6 +9,7 @@ import { scanEnabledSources, scanSource } from "./library-scan";
 import { applySourceScan, disableSource, saveSource } from "./library-store";
 
 const temporaryFolders: string[] = [];
+
 const openDatabases: DatabaseSync[] = [];
 
 afterEach(async () => {
@@ -48,9 +49,11 @@ describe("enabled source scanning", () => {
     const healthySource = await saveSource(database, healthyFolder);
     const missingSource = await saveSource(database, missingFolder);
     applySourceScan(database, missingSource.id, await scanAudioFiles(missingFolder));
+
     const lastSuccessfulScan = database
       .prepare("SELECT last_scanned_at FROM library_sources WHERE id = ?")
       .get(missingSource.id)?.last_scanned_at;
+
     await rm(missingFolder, { recursive: true });
 
     await scanEnabledSources(database);
@@ -109,7 +112,9 @@ describe("enabled source scanning", () => {
 
     await scanEnabledSources(database, async (folder) => {
       scannedFolders.push(folder);
+
       if (folder === firstSource.path) disableSource(database, disabledSource.id);
+
       return [createScannedTrack(join(folder, "song.mp3"), folder)];
     });
 
@@ -163,12 +168,14 @@ describe("enabled source scanning", () => {
 async function openTestDatabase() {
   const database = await openLibraryDatabase(":memory:");
   openDatabases.push(database);
+
   return database;
 }
 
 async function createTemporaryFolder(prefix: string) {
   const folder = await mkdtemp(join(tmpdir(), prefix));
   temporaryFolders.push(folder);
+
   return folder;
 }
 
@@ -185,8 +192,10 @@ function createScannedTrack(path: string, name: string) {
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
+
   const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
   });
+
   return { promise, resolve };
 }

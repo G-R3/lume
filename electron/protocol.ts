@@ -7,6 +7,7 @@ import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "elec
 import { audioContentTypes } from "./library";
 
 export const appScheme = "lume";
+
 export const packagedRendererUrl = `${appScheme}://app/index.html`;
 
 export function registerProtocolHandler(
@@ -18,12 +19,14 @@ export function registerProtocolHandler(
 
     if (trackRequest) {
       if (!trackRequest.path) return new Response(null, { status: 404 });
+
       return createTrackResponse(trackRequest.path, request);
     }
 
     const assetPath = getRendererAssetPath(rendererDirectory, request.url);
 
     if (!assetPath) return new Response(null, { status: 404 });
+
     return net.fetch(pathToFileURL(assetPath).toString());
   });
 }
@@ -39,16 +42,19 @@ export async function createTrackResponse(path: string, request: Request) {
     "Content-Type":
       audioContentTypes.get(extname(path).toLowerCase()) ?? "application/octet-stream",
   });
+
   const rangeHeader = request.headers.get("range");
   const range = rangeHeader === null ? null : parseByteRange(rangeHeader, file.size);
 
   if (rangeHeader !== null && !range) {
     headers.set("Content-Range", `bytes */${file.size}`);
+
     return new Response(null, { headers, status: 416 });
   }
 
   if (!range) {
     headers.set("Content-Length", String(file.size));
+
     return new Response(Readable.toWeb(createReadStream(path)), { headers });
   }
 
@@ -70,6 +76,7 @@ function parseByteRange(header: string, size: number) {
     const length = Number(match[2]);
 
     if (!Number.isSafeInteger(length) || length <= 0) return null;
+
     return { start: Math.max(size - length, 0), end: size - 1 };
   }
 
@@ -134,6 +141,7 @@ export function getRendererAssetPath(rendererDirectory: string, requestUrl: stri
       rendererDirectory,
       decodeURIComponent(url.pathname).replace(/^\/+/, "") || "index.html",
     );
+
     const relativePath = relative(rendererDirectory, assetPath);
 
     if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {

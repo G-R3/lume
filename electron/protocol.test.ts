@@ -11,7 +11,9 @@ import {
 } from "./protocol";
 
 const rendererDirectory = resolve("app", "out", "renderer");
+
 const packagedRendererUrl = "lume://app/index.html";
+
 const temporaryFolders: string[] = [];
 
 afterEach(async () => {
@@ -157,5 +159,6 @@ async function createAudioFile(name: string) {
     path,
     Uint8Array.from({ length: 10 }, (_, index) => index),
   );
+
   return path;
 }

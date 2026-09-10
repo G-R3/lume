@@ -8,6 +8,7 @@ import { applyMigrations, type Migration } from "./migration";
 import { libraryMigrations } from "./migrations";
 
 const temporaryFolders: string[] = [];
+
 const openDatabases: DatabaseSync[] = [];
 
 afterEach(async () => {
@@ -87,6 +88,7 @@ describe("library database migrations", () => {
   it("rolls back a failed migration and its journal entry together", async () => {
     const database = await openLibraryDatabase(":memory:");
     openDatabases.push(database);
+
     const failingMigration = {
       name: "failing-migration",
       version: 2,
@@ -160,5 +162,6 @@ const thirdMigration = {
 async function createTemporaryFolder(prefix: string) {
   const folder = await mkdtemp(join(tmpdir(), prefix));
   temporaryFolders.push(folder);
+
   return folder;
 }

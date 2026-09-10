@@ -19,6 +19,7 @@ export function PlaylistPage() {
   useEffect(() => {
     if (playlist.data === null) {
       void navigate({ replace: true, to: "/" });
+
       return;
     }
 
@@ -34,6 +35,7 @@ export function PlaylistPage() {
   }, [navigate, playlist.data, playlist.error]);
 
   if (playlist.data === undefined) return <PlaylistPageSkeleton />;
+
   if (playlist.data === null) return null;
 
   return <PlaylistContent playlist={playlist.data} />;
@@ -44,8 +46,10 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const audioPlayer = useAudioPlayer();
   const removePlaylistEntry = useRemovePlaylistEntryMutation();
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
+
   const items = playlist.entries.flatMap((entry) => {
     const track = tracksById.get(entry.trackId);
+
     return track ? [{ key: entry.id, track }] : [];
   });
 

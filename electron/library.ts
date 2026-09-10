@@ -23,6 +23,7 @@ export type ScannedTrack = {
 };
 
 export type TrackMetadata = Pick<ScannedTrack, "duration" | "fileSize" | "modifiedAt">;
+
 export async function scanAudioFiles(
   folder: string,
   storedTracks: ReadonlyMap<string, TrackMetadata> = new Map(),
@@ -45,6 +46,7 @@ export async function scanAudioFiles(
       concurrency: 8,
     })
     .toArray();
+
   return results.flatMap((result) => (result.track ? [result.track] : []));
 }
 
@@ -54,6 +56,7 @@ async function scanTrack(
 ): Promise<ScannedTrack | null> {
   const file = await stat(path).catch((error: Error) => {
     console.warn("Could not read audio file", { error, path });
+
     return null;
   });
 
@@ -61,6 +64,7 @@ async function scanTrack(
 
   const extension = extname(path);
   const modifiedAt = Math.trunc(file.mtimeMs);
+
   const duration =
     storedTrack?.fileSize === file.size && storedTrack.modifiedAt === modifiedAt
       ? storedTrack.duration
@@ -80,11 +84,14 @@ async function scanTrack(
 
 async function parseTrackDuration(path: string) {
   const { parseFile } = await import("music-metadata");
+
   return parseFile(path, { duration: true })
     .then((metadata) => metadata.format.duration ?? null)
     .catch((error: Error) => {
       console.warn("Could not read audio metadata", { error, path });
+
       if ("code" in error && (error.code === "EACCES" || error.code === "EPERM")) return undefined;
+
       return null;
     });
 }

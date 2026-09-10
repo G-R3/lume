@@ -36,6 +36,7 @@ type AudioPlayerContextValue = {
 type AudioPlayerTimeStore = ReturnType<typeof createAudioPlayerTimeStore>;
 
 const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(null);
+
 const AudioPlayerTimeContext = React.createContext<AudioPlayerTimeStore | null>(null);
 
 const previousTrackThreshold = 2;
@@ -106,6 +107,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const togglePlayback = useCallback(() => {
     if (isPlaying) {
       pause();
+
       return;
     }
 
@@ -153,6 +155,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       if (activeQueueKey === item.key) {
         setPlaybackSequence(playbackSequence);
         resume();
+
         return;
       }
 
@@ -188,6 +191,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       if (!playbackSequence) return null;
 
       const removedIndex = playbackSequence.items.findIndex((item) => item.key === key);
+
       if (removedIndex === -1) return playbackSequence;
 
       return {
@@ -204,6 +208,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const clearPlaylistQueue = useCallback((playlistId: string) => {
     setPlaybackSequence((playbackSequence) => {
       if (!playbackSequence || playbackSequence.playlistId !== playlistId) return playbackSequence;
+
       if (playbackSequence.nextIndex >= playbackSequence.items.length) return playbackSequence;
 
       return {
@@ -242,6 +247,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const activeIndex = playbackSequence.items.findIndex(
       (item) => item.key === playbackSequence.activeItem.key,
     );
+
     const previousIndex = playbackSequence.items.findLastIndex(
       (item, index) =>
         index < (activeIndex === -1 ? playbackSequence.nextIndex : activeIndex) &&
@@ -250,6 +256,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
     if (previousIndex === -1 || Math.floor(timeStore.getSnapshot()) > previousTrackThreshold) {
       seek(0);
+
       return;
     }
 
@@ -352,6 +359,7 @@ function createAudioPlayerTimeStore() {
     },
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

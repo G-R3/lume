@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const applicationDataDirectory = getApplicationDataDirectory();
+
 const databasePath = join(applicationDataDirectory, "lume", "lume-dev.sqlite");
 
 await Promise.all(
@@ -18,6 +19,7 @@ function getApplicationDataDirectory() {
 
   if (process.platform === "win32") {
     if (!process.env.APPDATA) throw new Error("APPDATA is not defined");
+
     return process.env.APPDATA;
   }
 

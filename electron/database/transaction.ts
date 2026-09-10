@@ -6,6 +6,7 @@ export function runInTransaction<Result>(database: DatabaseSync, action: () => R
   try {
     const result = action();
     database.exec("COMMIT");
+
     return result;
   } catch (error) {
     database.exec("ROLLBACK");

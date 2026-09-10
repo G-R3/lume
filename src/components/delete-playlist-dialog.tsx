@@ -39,6 +39,7 @@ export function DeletePlaylistDialog({
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && libraryMutation.isPending) return;
+
     if (!nextOpen) libraryMutation.reset();
     onOpenChange(nextOpen);
   };
@@ -49,6 +50,7 @@ export function DeletePlaylistDialog({
       {
         onSuccess: () => {
           audioPlayer.clearPlaylistQueue(playlist.id);
+
           if (isOpenPlaylist) void navigate({ replace: true, to: "/" });
           libraryMutation.reset();
           onOpenChange(false);

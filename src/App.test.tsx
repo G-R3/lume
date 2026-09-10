@@ -13,10 +13,12 @@ import { createAppRouter } from "@/router";
 describe("App library startup", () => {
   it("shows a recoverable error when the initial library request fails", async () => {
     const firstRun = { kind: "first-run" } satisfies LibrarySnapshot;
+
     const responses = [
       () => Promise.reject(new Error("Database read failed")),
       () => Promise.resolve(firstRun),
     ];
+
     window.lume = createLumeApi(() => responses.shift()?.() ?? Promise.resolve(firstRun));
     const container = document.createElement("div");
     const root = createRoot(container);
@@ -35,9 +37,11 @@ describe("App library startup", () => {
 
     expect(container.textContent).toContain("Lume could not load your library");
     expect(container.textContent).toContain("Database read failed");
+
     const retryButton = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Try again",
     );
+
     expect(retryButton).toBeDefined();
 
     await act(async () => retryButton?.click());
