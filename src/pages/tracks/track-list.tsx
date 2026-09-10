@@ -235,7 +235,11 @@ function TrackRowMenu({
       >
         <DotsThreeIcon aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40" finalFocus={false}>
+      <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
+        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
+          <PlusIcon aria-hidden="true" />
+          New playlist
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             if (triggerRef.current) onAddToPlaylist(track, triggerRef.current);
@@ -243,10 +247,6 @@ function TrackRowMenu({
         >
           <PlaylistIcon aria-hidden="true" />
           Add to playlist
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
-          <PlusIcon aria-hidden="true" />
-          Create new playlist
         </DropdownMenuItem>
         {children}
       </DropdownMenuContent>

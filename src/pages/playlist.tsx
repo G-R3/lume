@@ -1,12 +1,14 @@
-import { MusicNotesIcon } from "@phosphor-icons/react";
+import { MinusCircleIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 import type { PlaylistDetails } from "../../shared/lib";
-import { toast } from "@/components/ui/toast";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/toast";
+import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { playlistQueryOptions } from "@/lib/library-query";
+import { playlistQueryOptions, useRemovePlaylistEntryMutation } from "@/lib/library-query";
 import { TrackList } from "@/pages/tracks/track-list";
 
 export function PlaylistPage() {
@@ -39,11 +41,33 @@ export function PlaylistPage() {
 
 function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
+  const audioPlayer = useAudioPlayer();
+  const removePlaylistEntry = useRemovePlaylistEntryMutation();
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
   const items = playlist.entries.flatMap((entry) => {
     const track = tracksById.get(entry.trackId);
     return track ? [{ key: entry.id, track }] : [];
   });
+
+  const handleRemove = (entryId: string) => {
+    removePlaylistEntry.mutate(
+      { entryId, playlistId: playlist.id },
+      {
+        onError: (error) => {
+          toast.add({
+            description: error.message,
+            priority: "high",
+            title: "Could not remove track from playlist",
+            type: "error",
+          });
+        },
+        onSuccess: () => {
+          audioPlayer.removeQueueItem(entryId);
+          toast.add({ title: `Removed from ${playlist.title}`, type: "success" });
+        },
+      },
+    );
+  };
 
   return (
     <main>
@@ -64,9 +88,6 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           {playlist.description && (
             <p className="mt-2 text-xs text-neutral-400">{playlist.description}</p>
           )}
-          <p className="font-berkeley mt-2.5 text-[9px] tracking-[0.04em] text-neutral-500">
-            {formatEntryCount(playlist.entries.length)}
-          </p>
         </div>
       </section>
 
@@ -78,7 +99,21 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           </div>
         </div>
       ) : (
-        <TrackList caption={`${playlist.title} tracks`} items={items} playlistId={playlist.id} />
+        <TrackList
+          caption={`${playlist.title} tracks`}
+          items={items}
+          playlistId={playlist.id}
+          renderMenuItems={(item) => (
+            <DropdownMenuItem
+              disabled={removePlaylistEntry.isPending}
+              onClick={() => handleRemove(item.key)}
+              variant="destructive"
+            >
+              <MinusCircleIcon aria-hidden="true" />
+              Remove from playlist
+            </DropdownMenuItem>
+          )}
+        />
       )}
     </main>
   );
@@ -107,8 +142,4 @@ function getPlaylistInitials(title: string) {
     .map((word) => word[0])
     .join("")
     .toUpperCase();
-}
-
-function formatEntryCount(count: number) {
-  return `${count.toLocaleString()} ${count === 1 ? "entry" : "entries"}`;
 }
