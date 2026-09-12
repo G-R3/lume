@@ -51,10 +51,9 @@ export function AppLayout() {
             )}
             <Outlet />
           </div>
+          <AudioPlayerControls />
         </SidebarInset>
       </SidebarProvider>
-
-      <AudioPlayerControls />
     </>
   );
 }
