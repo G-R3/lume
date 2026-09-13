@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["electron", "electron.vite.config.ts", "vite.config.ts"]
+  "include": ["electron", "drizzle.config.ts", "electron.vite.config.ts", "vite.config.ts"]
 }
