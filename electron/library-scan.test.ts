@@ -14,7 +14,9 @@ const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
 
 afterEach(async () => {
-  openDatabases.splice(0).forEach((database) => database.close());
+  openDatabases.splice(0).forEach((database) => {
+    if (database.isOpen) database.close();
+  });
   await Promise.all(
     temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
   );
@@ -140,7 +142,10 @@ describe("enabled source scanning", () => {
 });
 
 async function openTestDatabase() {
-  const database = await openLibraryDatabase(":memory:");
+  const database = (
+    await openLibraryDatabase(":memory:", join(import.meta.dirname, "../drizzle"))
+  ).$client;
+
   openDatabases.push(database);
 
   return database;

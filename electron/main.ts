@@ -117,15 +117,18 @@ async function startApplication() {
   const userDataDirectory = app.getPath("userData");
   const databasePath = getLibraryDatabasePath(userDataDirectory, app.isPackaged);
   const database = await openLibraryDatabase(databasePath);
+  const client = database.$client;
+
   app.once("will-quit", () => {
-    if (database.isOpen) database.close();
+    if (client.isOpen) client.close();
   });
-  registerLibraryIpc(database, userDataDirectory);
+
+  registerLibraryIpc(client, userDataDirectory);
 
   registerProtocolHandler(
     rendererDirectory,
-    (trackId) => getTrackPath(database, trackId),
-    (artworkId) => getArtworkData(database, artworkId),
+    (trackId) => getTrackPath(client, trackId),
+    (artworkId) => getArtworkData(client, artworkId),
   );
 
   session.defaultSession.setPermissionCheckHandler(() => false);
@@ -134,10 +137,11 @@ async function startApplication() {
   );
 
   const window = createWindow();
-  void scanEnabledSources(database)
+
+  void scanEnabledSources(client)
     .then(() => {
       if (!window.isDestroyed()) {
-        window.webContents.send(lumeChannels.libraryUpdated, readLibrary(database));
+        window.webContents.send(lumeChannels.libraryUpdated, readLibrary(client));
       }
     })
     .catch((error) => console.error("Could not scan the music library", error));

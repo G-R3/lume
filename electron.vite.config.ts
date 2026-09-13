@@ -2,12 +2,14 @@ import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import { cp, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { defineConfig } from "electron-vite";
 import type { Plugin } from "vite";
 
 export default defineConfig(({ command }) => ({
   main: {
+    plugins: [migrationAssets()],
     build: {
       rollupOptions: {
         external: ["electron"],
@@ -52,6 +54,19 @@ export default defineConfig(({ command }) => ({
     ],
   },
 }));
+
+function migrationAssets(): Plugin {
+  return {
+    name: "migration-assets",
+    async writeBundle(options) {
+      if (!options.dir) throw new Error("The main-process build requires an output directory");
+
+      const destination = resolve(options.dir, "drizzle");
+      await rm(destination, { force: true, recursive: true });
+      await cp(resolve(import.meta.dirname, "drizzle"), destination, { recursive: true });
+    },
+  };
+}
 
 function contentSecurityPolicy(command: "build" | "serve"): Plugin {
   const content =

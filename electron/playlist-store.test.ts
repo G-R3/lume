@@ -23,7 +23,9 @@ const openDatabases: DatabaseSync[] = [];
 const temporaryFolders: string[] = [];
 
 afterEach(async () => {
-  openDatabases.splice(0).forEach((database) => database.close());
+  openDatabases.splice(0).forEach((database) => {
+    if (database.isOpen) database.close();
+  });
   await Promise.all(
     temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
   );
@@ -33,7 +35,7 @@ describe("playlist behavior", () => {
   it("accepts valid boundaries and preserves normalized creation order after reopening", async () => {
     const folder = await createTemporaryFolder("lume-playlists-");
     const databasePath = join(folder, "library.sqlite");
-    const database = await openLibraryDatabase(databasePath);
+    const database = await openTestDatabase(databasePath);
     const maximumTitle = "T".repeat(100);
     const maximumDescription = "D".repeat(300);
 
@@ -50,8 +52,7 @@ describe("playlist behavior", () => {
     createPlaylist(database, { description: "   ", title: maximumTitle });
     database.close();
 
-    const reopenedDatabase = await openLibraryDatabase(databasePath);
-    openDatabases.push(reopenedDatabase);
+    const reopenedDatabase = await openTestDatabase(databasePath);
 
     expect(
       getPlaylists(reopenedDatabase).map((playlist) => ({
@@ -177,8 +178,11 @@ describe("playlist behavior", () => {
   });
 });
 
-async function openTestDatabase() {
-  const database = await openLibraryDatabase(":memory:");
+async function openTestDatabase(location = ":memory:") {
+  const database = (
+    await openLibraryDatabase(location, join(import.meta.dirname, "../drizzle"))
+  ).$client;
+
   openDatabases.push(database);
 
   return database;
@@ -213,8 +217,9 @@ function insertTrack(database: DatabaseSync, id: string, title: string) {
   database
     .prepare(
       `INSERT INTO tracks
-        (id, source_id, path, title, duration, format, file_size, modified_at, available, created_at, updated_at)
-      VALUES (?, 'generated-source', ?, ?, 180, 'MP3', 1, 1, 1, 1, 1)`,
+        (id, source_id, path, title, duration, format, file_size, modified_at, available,
+          created_at, updated_at, artists, album_artists, genres, metadata_version)
+      VALUES (?, 'generated-source', ?, ?, 180, 'MP3', 1, 1, 1, 1, 1, '[]', '[]', '[]', 1)`,
     )
     .run(id, `/Generated/${id}.mp3`, title);
 }

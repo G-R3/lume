@@ -21,7 +21,9 @@ const temporaryFolders: string[] = [];
 const openDatabases: DatabaseSync[] = [];
 
 afterEach(async () => {
-  openDatabases.splice(0).forEach((database) => database.close());
+  openDatabases.splice(0).forEach((database) => {
+    if (database.isOpen) database.close();
+  });
   await Promise.all(
     temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
   );
@@ -43,12 +45,11 @@ describe("library source persistence", () => {
     const folder = await createTemporaryFolder("lume-source-");
     const databaseFolder = await createTemporaryFolder("lume-database-");
     const databasePath = join(databaseFolder, "library.sqlite");
-    const database = await openLibraryDatabase(databasePath);
+    const database = await openTestDatabase(databasePath);
     const source = await saveSource(database, folder);
     database.close();
 
-    const reopenedDatabase = await openLibraryDatabase(databasePath);
-    openDatabases.push(reopenedDatabase);
+    const reopenedDatabase = await openTestDatabase(databasePath);
     await expect(saveSource(reopenedDatabase, folder)).resolves.toEqual(source);
     expect(getSources(reopenedDatabase)).toEqual([
       {
@@ -324,8 +325,11 @@ describe("track persistence", () => {
   });
 });
 
-async function openTestDatabase() {
-  const database = await openLibraryDatabase(":memory:");
+async function openTestDatabase(location = ":memory:") {
+  const database = (
+    await openLibraryDatabase(location, join(import.meta.dirname, "../drizzle"))
+  ).$client;
+
   openDatabases.push(database);
 
   return database;
