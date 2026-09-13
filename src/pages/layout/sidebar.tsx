@@ -1,4 +1,4 @@
-import { DotsThreeIcon, FolderOpenIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
@@ -7,7 +7,6 @@ import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -28,10 +27,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function AppSidebar({ isSettings }: { isSettings: boolean }) {
+export function AppSidebar() {
   const library = useMusicLibrary();
   const matchRoute = useMatchRoute();
   const isAllTracks = Boolean(matchRoute({ to: "/" }));
+  const isSettings = Boolean(matchRoute({ to: "/settings" }));
 
   return (
     <Sidebar className="border-neutral-800">
@@ -47,73 +47,47 @@ export function AppSidebar({ isSettings }: { isSettings: boolean }) {
       </SidebarHeader>
 
       <SidebarContent>
-        {!isSettings ? (
-          <>
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      className="text-neutral-400"
-                      isActive={isAllTracks}
-                      render={<Link to="/" />}
-                    >
-                      <MusicNotesIcon aria-hidden="true" />
-                      <span>All tracks</span>
-                    </SidebarMenuButton>
-                    <SidebarMenuBadge className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-                      {library.tracks.length.toLocaleString()}
-                    </SidebarMenuBadge>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-neutral-500">Playlists</SidebarGroupLabel>
-              <CreatePlaylistDialog />
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {library.playlists.map((playlist) => (
-                    <PlaylistSidebarItem key={playlist.id} playlist={playlist} />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        ) : (
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    aria-current="page"
-                    className="text-neutral-400"
-                    isActive
-                    render={<Link to="/settings" />}
-                  >
-                    <FolderOpenIcon aria-hidden="true" />
-                    <span>Sources</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className="text-neutral-400"
+                  isActive={isAllTracks}
+                  render={<Link to="/" />}
+                >
+                  <MusicNotesIcon aria-hidden="true" />
+                  <span>All tracks</span>
+                </SidebarMenuButton>
+                <SidebarMenuBadge className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                  {library.tracks.length.toLocaleString()}
+                </SidebarMenuBadge>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className="text-neutral-400"
+                  isActive={isSettings}
+                  render={<Link to="/settings" />}
+                >
+                  <GearIcon aria-hidden="true" />
+                  <span>Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-neutral-500">Playlists</SidebarGroupLabel>
+          <CreatePlaylistDialog />
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {library.playlists.map((playlist) => (
+                <PlaylistSidebarItem key={playlist.id} playlist={playlist} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="text-neutral-400"
-              render={isSettings ? <Link to="/" /> : <Link to="/settings" />}
-            >
-              {isSettings ? <MusicNotesIcon aria-hidden="true" /> : <GearIcon aria-hidden="true" />}
-              <span>{isSettings ? "Back to library" : "Settings"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

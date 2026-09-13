@@ -11,14 +11,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation } from "@/lib/library-query";
+import { cn } from "@/lib/utils";
 
 export function AppHeader({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
   const libraryMutation = useLibraryMutation();
   const matchRoute = useMatchRoute();
+  const sidebar = useSidebar();
   const playlistMatch = matchRoute({ to: "/playlists/$playlistId" });
 
   const playlist = playlistMatch
@@ -29,30 +31,47 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
 
   return (
     <>
-      <header className="flex h-12.5 shrink-0 items-center gap-2 px-5">
-        <SidebarTrigger className="-ml-1.5" />
-        <Separator
-          className="mx-1 h-4 bg-neutral-800 data-vertical:self-center!"
-          orientation="vertical"
-        />
-        <h1 className="text-sm font-semibold tracking-tight">
-          {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
-        </h1>
-        {!isSettings && playlist && (
-          <span className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
-            {playlist.entryCount.toLocaleString()} {playlist.entryCount === 1 ? "entry" : "entries"}
-          </span>
+      <header
+        className={cn(
+          "flex shrink-0 items-center gap-2 px-5",
+          window.lume.isMac
+            ? "h-9 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+            : "h-12.5",
         )}
-        {!isSettings && !playlist && (
-          <span className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
-            {library.tracks.length.toLocaleString()}
-          </span>
-        )}
-        {!isSettings && !playlist && unavailableTrackCount > 0 && (
-          <span className="font-berkeley rounded bg-amber-950 px-1.5 py-1 text-[10px] text-amber-400 tabular-nums">
-            {unavailableTrackCount.toLocaleString()} unavailable
-          </span>
-        )}
+      >
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-2",
+            window.lume.isMac &&
+              "transition-transform duration-200 ease-linear motion-reduce:transition-none",
+            window.lume.isMac && sidebar.state === "collapsed" && "translate-x-17.5",
+          )}
+        >
+          <SidebarTrigger className="-ml-1.5" />
+          <Separator
+            className="-ml-0.5 mr-1 h-4 bg-neutral-800 data-vertical:self-center!"
+            orientation="vertical"
+          />
+          <h1 className="truncate text-sm font-semibold tracking-tight">
+            {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
+          </h1>
+          {!isSettings && playlist && (
+            <span className="font-berkeley shrink-0 rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
+              {playlist.entryCount.toLocaleString()}{" "}
+              {playlist.entryCount === 1 ? "entry" : "entries"}
+            </span>
+          )}
+          {!isSettings && !playlist && (
+            <span className="font-berkeley shrink-0 rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
+              {library.tracks.length.toLocaleString()}
+            </span>
+          )}
+          {!isSettings && !playlist && unavailableTrackCount > 0 && (
+            <span className="font-berkeley shrink-0 rounded bg-amber-950 px-1.5 py-1 text-[10px] text-amber-400 tabular-nums">
+              {unavailableTrackCount.toLocaleString()} unavailable
+            </span>
+          )}
+        </div>
 
         {playlist && <PlaylistHeaderMenu playlist={playlist} />}
       </header>
