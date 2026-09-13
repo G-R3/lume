@@ -75,7 +75,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
 
   return (
     <main>
-      <section className="flex min-h-36 items-end gap-4 border-b border-neutral-800 px-5 py-5">
+      <section className="flex min-h-36 items-end gap-4 px-5 py-5">
         <div
           aria-hidden="true"
           className="font-berkeley grid size-20 shrink-0 place-items-center rounded-md bg-linear-to-br from-lime-950 to-lime-500 text-xl font-semibold tracking-[-0.04em] text-neutral-100"
@@ -126,7 +126,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
 function PlaylistPageSkeleton() {
   return (
     <main aria-label="Loading playlist" aria-busy="true">
-      <section className="flex min-h-36 items-end gap-4 border-b border-neutral-800 px-5 py-5">
+      <section className="flex min-h-36 items-end gap-4 px-5 py-5">
         <Skeleton className="size-20 shrink-0 rounded-md bg-neutral-900" />
         <div className="w-full max-w-sm space-y-3 pb-0.5">
           <Skeleton className="h-2 w-16 bg-neutral-900" />

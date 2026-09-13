@@ -29,7 +29,7 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
 
   return (
     <>
-      <header className="flex h-12.5 shrink-0 items-center gap-2 border-b border-neutral-800 px-5">
+      <header className="flex h-12.5 shrink-0 items-center gap-2 px-5">
         <SidebarTrigger className="-ml-1.5" />
         <Separator
           className="mx-1 h-4 bg-neutral-800 data-vertical:self-center!"
