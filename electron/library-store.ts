@@ -4,16 +4,6 @@ import { isAbsolute, relative } from "node:path";
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
 import type { LibrarySource } from "../shared/lib";
 import { runInTransaction } from "./database/transaction";
-import type { ScannedTrack, TrackMetadata } from "./library";
-
-export type StoredTrack = {
-  available: boolean;
-  duration: number | null;
-  format: string;
-  id: string;
-  name: string;
-  path: string;
-};
 
 const sourceColumns = `
   library_sources.id,
@@ -79,48 +69,6 @@ export function hasForgottenSources(database: DatabaseSync) {
       )
       .get()?.value,
     "library_sources.forgotten",
-  );
-}
-
-export function getTracks(database: DatabaseSync): StoredTrack[] {
-  return database
-    .prepare(
-      `SELECT id, path, name, duration, format, available FROM tracks
-      ORDER BY name COLLATE NOCASE, path`,
-    )
-    .all()
-    .map((row) => ({
-      available: readBoolean(row.available, "tracks.available"),
-      duration: row.duration === null ? null : Number(row.duration),
-      format: readString(row.format, "tracks.format"),
-      id: readString(row.id, "tracks.id"),
-      name: readString(row.name, "tracks.name"),
-      path: readString(row.path, "tracks.path"),
-    }));
-}
-
-export function getTrackPath(database: DatabaseSync, trackId: string) {
-  const track = database.prepare("SELECT path FROM tracks WHERE id = ?").get(trackId);
-
-  return track ? readString(track.path, "tracks.path") : null;
-}
-
-export function getTrackMetadata(database: DatabaseSync, sourceId: string) {
-  return new Map<string, TrackMetadata>(
-    database
-      .prepare(
-        `SELECT path, duration, file_size, modified_at FROM tracks
-        WHERE source_id = ?`,
-      )
-      .all(sourceId)
-      .map((row) => [
-        readString(row.path, "tracks.path"),
-        {
-          duration: row.duration === null ? null : Number(row.duration),
-          fileSize: readNumber(row.file_size, "tracks.file_size"),
-          modifiedAt: readNumber(row.modified_at, "tracks.modified_at"),
-        },
-      ]),
   );
 }
 
@@ -230,61 +178,6 @@ export function forgetSource(database: DatabaseSync, sourceId: string) {
   });
 }
 
-export function applySourceScan(
-  database: DatabaseSync,
-  sourceId: string,
-  tracks: readonly ScannedTrack[],
-) {
-  if (!isSourceScannable(database, sourceId)) return false;
-
-  const now = Date.now();
-
-  runInTransaction(database, () => {
-    markSourceTracksUnavailable(database, sourceId, now);
-
-    const saveTrack = database.prepare(
-      `INSERT INTO tracks (
-        id, source_id, path, name, duration, format, file_size, modified_at,
-        available, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-      ON CONFLICT(path) DO UPDATE SET
-        source_id = excluded.source_id,
-        name = excluded.name,
-        duration = excluded.duration,
-        format = excluded.format,
-        file_size = excluded.file_size,
-        modified_at = excluded.modified_at,
-        available = 1,
-        updated_at = excluded.updated_at`,
-    );
-
-    tracks.forEach((track) => {
-      saveTrack.run(
-        randomUUID(),
-        sourceId,
-        track.path,
-        track.name,
-        track.duration,
-        track.format,
-        track.fileSize,
-        track.modifiedAt,
-        now,
-        now,
-      );
-    });
-
-    database
-      .prepare(
-        `UPDATE library_sources
-        SET last_scanned_at = ?, last_scan_error = NULL, updated_at = ?
-        WHERE id = ?`,
-      )
-      .run(now, now, sourceId);
-  });
-
-  return true;
-}
-
 export function applyScanFailure(database: DatabaseSync, sourceId: string, error: string) {
   if (!isSourceScannable(database, sourceId)) return false;
 
@@ -304,7 +197,7 @@ export function applyScanFailure(database: DatabaseSync, sourceId: string, error
   return true;
 }
 
-function isSourceScannable(database: DatabaseSync, sourceId: string) {
+export function isSourceScannable(database: DatabaseSync, sourceId: string) {
   const source = database
     .prepare("SELECT enabled, forgotten_at FROM library_sources WHERE id = ?")
     .get(sourceId);
@@ -316,7 +209,7 @@ function isSourceScannable(database: DatabaseSync, sourceId: string) {
   );
 }
 
-function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, now: number) {
+export function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, now: number) {
   database
     .prepare(
       `UPDATE tracks

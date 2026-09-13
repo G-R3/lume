@@ -5,7 +5,8 @@ import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
-import { applySourceScan, getTracks, saveSource } from "./library-store";
+import { saveSource } from "./library-store";
+import { applySourceScan, getTracks } from "./track-store";
 import {
   addTrackToPlaylist,
   confirmAddTrackToPlaylist,
@@ -100,7 +101,7 @@ describe("playlist behavior", () => {
     deletePlaylist(database, playlist.id);
 
     expect(getPlaylist(database, playlist.id)).toBeNull();
-    expect(getTracks(database).map((track) => track.name)).toEqual(["First", "Second", "Third"]);
+    expect(getTracks(database).map((track) => track.title)).toEqual(["First", "Second", "Third"]);
   });
 
   it("creates a playlist from a track atomically and falls back for unusable names", async () => {
@@ -162,7 +163,7 @@ describe("playlist behavior", () => {
     expect(readPlaylistTrack(database, playlist.id)).toEqual({
       available: false,
       entryId: addition.entry.id,
-      name: "Fading Light",
+      title: "Fading Light",
     });
 
     await writeFile(trackPath, "restored audio");
@@ -171,7 +172,7 @@ describe("playlist behavior", () => {
     expect(readPlaylistTrack(database, playlist.id)).toEqual({
       available: true,
       entryId: addition.entry.id,
-      name: "Fading Light",
+      title: "Fading Light",
     });
   });
 });
@@ -190,18 +191,18 @@ async function createTemporaryFolder(prefix: string) {
   return folder;
 }
 
-async function addTrack(database: DatabaseSync, name: string) {
+async function addTrack(database: DatabaseSync, title: string) {
   const folder = await createTemporaryFolder("lume-playlist-track-");
-  await writeFile(join(folder, `${name}.mp3`), "audio");
+  await writeFile(join(folder, `${title}.mp3`), "audio");
   const source = await saveSource(database, folder);
   applySourceScan(database, source.id, await scanAudioFiles(folder));
-  const track = getTracks(database).find((track) => track.name === name);
+  const track = getTracks(database).find((track) => track.title === title);
 
   if (track) return track;
-  throw new Error(`Expected ${name} to be stored`);
+  throw new Error(`Expected ${title} to be stored`);
 }
 
-function insertTrack(database: DatabaseSync, id: string, name: string) {
+function insertTrack(database: DatabaseSync, id: string, title: string) {
   database
     .prepare(
       `INSERT OR IGNORE INTO library_sources
@@ -212,10 +213,10 @@ function insertTrack(database: DatabaseSync, id: string, name: string) {
   database
     .prepare(
       `INSERT INTO tracks
-        (id, source_id, path, name, duration, format, file_size, modified_at, available, created_at, updated_at)
+        (id, source_id, path, title, duration, format, file_size, modified_at, available, created_at, updated_at)
       VALUES (?, 'generated-source', ?, ?, 180, 'MP3', 1, 1, 1, 1, 1)`,
     )
-    .run(id, `/Generated/${id}.mp3`, name);
+    .run(id, `/Generated/${id}.mp3`, title);
 }
 
 function readPlaylistTrack(database: DatabaseSync, playlistId: string) {
@@ -227,6 +228,6 @@ function readPlaylistTrack(database: DatabaseSync, playlistId: string) {
   return {
     available: track.available,
     entryId: entry.id,
-    name: track.name,
+    title: track.title,
   };
 }

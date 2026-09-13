@@ -3,10 +3,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
+  createArtworkResponse,
   createTrackResponse,
+  getArtworkUrl,
   getRendererAssetPath,
   getTrackUrl,
   isTrustedRendererUrl,
+  resolveArtworkRequest,
   resolveTrackRequest,
 } from "./protocol";
 
@@ -99,6 +102,38 @@ describe("app protocol track URLs", () => {
     { description: "a malformed URL", url: "not a url" },
   ])("rejects track URLs with $description", (testCase) => {
     expect(resolveTrackRequest(testCase.url, getTrackPath)).toBeNull();
+  });
+});
+
+describe("app protocol artwork URLs", () => {
+  it("resolves indexed artwork without exposing database bytes in the URL", () => {
+    const artwork = { data: Uint8Array.from([1, 2, 3]), mediaType: "image/png" };
+    const url = getArtworkUrl("cover-id");
+
+    expect(url).toBe("lume://app/artwork/cover-id");
+    expect(resolveArtworkRequest(url, (id) => (id === "cover-id" ? artwork : null))).toEqual({
+      artwork,
+    });
+    expect(resolveArtworkRequest("lume://app/artwork/missing", () => null)).toEqual({
+      artwork: null,
+    });
+  });
+});
+
+describe("createArtworkResponse", () => {
+  it("serves artwork bytes with immutable cache headers", async () => {
+    const data = Uint8Array.from([1, 2, 3]);
+    const response = createArtworkResponse({ data, mediaType: "image/png" });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(response.headers.get("content-length")).toBe("3");
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(data);
+  });
+
+  it("returns 404 when artwork is missing", () => {
+    expect(createArtworkResponse(null).status).toBe(404);
   });
 });
 

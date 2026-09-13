@@ -6,17 +6,15 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
 import {
-  applySourceScan,
   disableSource,
   enableSource,
   forgetSource,
   hasForgottenSources,
   getSources,
   getSource,
-  getTrackPath,
-  getTracks,
   saveSource,
 } from "./library-store";
+import { applySourceScan, getArtworkData, getTrackPath, getTracks } from "./track-store";
 
 const temporaryFolders: string[] = [];
 
@@ -154,6 +152,71 @@ describe("library source persistence", () => {
 });
 
 describe("track persistence", () => {
+  it("persists extracted metadata and artwork", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    const source = await saveSource(database, folder);
+
+    const artwork = {
+      data: Uint8Array.from([1, 2, 3]),
+      id: "artwork-id",
+      mediaType: "image/png",
+    };
+
+    applySourceScan(
+      database,
+      source.id,
+      ["first", "second"].map((title) => ({
+        album: "Album",
+        albumArtists: ["Album artist"],
+        artists: ["Artist", "Guest"],
+        artwork,
+        bitrate: 2_304_000,
+        bitsPerSample: 24,
+        channelCount: 2,
+        codec: "FLAC",
+        discNumber: 1,
+        discTotal: 2,
+        duration: 180,
+        fileSize: 1,
+        format: "FLAC",
+        genres: ["Electronic"],
+        kind: "changed" as const,
+        lossless: true,
+        modifiedAt: 1,
+        path: join(folder, `${title}.flac`),
+        sampleRate: 96_000,
+        trackNumber: 1,
+        trackTotal: 10,
+        title,
+        year: 2007,
+      })),
+    );
+
+    expect(getTracks(database)[0]).toMatchObject({
+      album: "Album",
+      albumArtists: ["Album artist"],
+      artists: ["Artist", "Guest"],
+      artworkId: artwork.id,
+      bitrate: 2_304_000,
+      bitsPerSample: 24,
+      channelCount: 2,
+      codec: "FLAC",
+      discNumber: 1,
+      discTotal: 2,
+      genres: ["Electronic"],
+      lossless: true,
+      sampleRate: 96_000,
+      trackNumber: 1,
+      trackTotal: 10,
+      year: 2007,
+    });
+    expect(getArtworkData(database, artwork.id)).toEqual({
+      data: artwork.data,
+      mediaType: artwork.mediaType,
+    });
+  });
+
   it("keeps the same track ID when the same path is scanned again", async () => {
     const database = await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
@@ -224,13 +287,13 @@ describe("track persistence", () => {
       file_size: 8,
       id: trackId,
     });
-    expect(getTracks(database)).toEqual([
+    expect(getTracks(database)).toMatchObject([
       {
         available: true,
         duration: null,
         format: "MP3",
         id: trackId,
-        name: "song",
+        title: "song",
         path: trackPath,
       },
     ]);
@@ -252,10 +315,10 @@ describe("track persistence", () => {
     await rename(originalPath, join(folder, "after.mp3"));
     applySourceScan(database, source.id, await scanAudioFiles(folder));
 
-    const tracks = database.prepare("SELECT id, name, available FROM tracks ORDER BY name").all();
+    const tracks = database.prepare("SELECT id, title, available FROM tracks ORDER BY title").all();
     expect(tracks).toEqual([
-      { available: 1, id: expect.any(String), name: "after" },
-      { available: 0, id: originalId, name: "before" },
+      { available: 1, id: expect.any(String), title: "after" },
+      { available: 0, id: originalId, title: "before" },
     ]);
     expect(tracks[0]?.id).not.toBe(originalId);
   });

@@ -12,6 +12,7 @@ import {
 } from "electron";
 import {
   appScheme,
+  getArtworkUrl,
   getTrackUrl,
   isTrustedRendererEvent,
   loadRenderer,
@@ -42,10 +43,9 @@ import {
   forgetSource,
   hasForgottenSources,
   getSources,
-  getTrackPath,
-  getTracks,
   saveSource,
 } from "./library-store";
+import { getArtworkData, getTrackPath, getTracks } from "./track-store";
 
 app.enableSandbox();
 
@@ -122,7 +122,11 @@ async function startApplication() {
   });
   registerLibraryIpc(database, userDataDirectory);
 
-  registerProtocolHandler(rendererDirectory, (trackId) => getTrackPath(database, trackId));
+  registerProtocolHandler(
+    rendererDirectory,
+    (trackId) => getTrackPath(database, trackId),
+    (artworkId) => getArtworkData(database, artworkId),
+  );
 
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
@@ -288,14 +292,34 @@ function readLibrary(database: DatabaseSync) {
     kind: "library",
     playlists: getPlaylists(database),
     sources,
-    tracks: storedTracks.map((track) => ({
-      available: track.available,
-      duration: track.duration,
-      format: track.format,
-      id: track.id,
-      name: track.name,
-      url: getTrackUrl(track.id),
-    })),
+    tracks: storedTracks.map((track) => {
+      const artists = track.artists.length > 0 ? track.artists : ["Unknown artist"];
+
+      return {
+        album: track.album ?? "Unknown album",
+        albumArtists: track.albumArtists.length > 0 ? track.albumArtists : artists,
+        artists,
+        artworkUrl: track.artworkId ? getArtworkUrl(track.artworkId) : null,
+        available: track.available,
+        bitrate: track.bitrate,
+        bitsPerSample: track.bitsPerSample,
+        channelCount: track.channelCount,
+        codec: track.codec,
+        discNumber: track.discNumber,
+        discTotal: track.discTotal,
+        duration: track.duration,
+        format: track.format,
+        genres: track.genres,
+        id: track.id,
+        lossless: track.lossless,
+        title: track.title,
+        sampleRate: track.sampleRate,
+        trackNumber: track.trackNumber,
+        trackTotal: track.trackTotal,
+        url: getTrackUrl(track.id),
+        year: track.year,
+      };
+    }),
   } satisfies LibrarySnapshot;
 }
 

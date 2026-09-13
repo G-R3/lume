@@ -1,9 +1,29 @@
-export type Track = {
-  available: boolean;
+export type TrackMetadata = {
+  album: string | null;
+  albumArtists: string[];
+  artists: string[];
+  bitrate: number | null;
+  bitsPerSample: number | null;
+  channelCount: number | null;
+  codec: string | null;
+  discNumber: number | null;
+  discTotal: number | null;
   duration: number | null;
   format: string;
+  genres: string[];
+  lossless: boolean | null;
+  title: string;
+  sampleRate: number | null;
+  trackNumber: number | null;
+  trackTotal: number | null;
+  year: number | null;
+};
+
+export type Track = Omit<TrackMetadata, "album"> & {
+  album: string;
+  artworkUrl: string | null;
+  available: boolean;
   id: string;
-  name: string;
   url: string;
 };
 

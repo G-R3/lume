@@ -144,7 +144,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                         !track.available && "grayscale opacity-40",
                       )}
                     >
-                      {track.name
+                      {track.title
                         .split(/\s+/)
                         .slice(0, 2)
                         .map((word) => word[0])
@@ -157,7 +157,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                         track.available ? "text-neutral-100" : "text-neutral-500",
                       )}
                     >
-                      {track.name}
+                      {track.title}
                     </span>
                     {!track.available && (
                       <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-neutral-600">
@@ -225,7 +225,7 @@ function TrackRowMenu({
       <DropdownMenuTrigger
         render={
           <Button
-            aria-label={`More options for ${track.name}`}
+            aria-label={`More options for ${track.title}`}
             className="text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100 hover:text-neutral-100"
             ref={triggerRef}
             size="icon-xs"

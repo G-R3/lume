@@ -24,7 +24,7 @@ export function AudioPlayerControls() {
           aria-hidden="true"
           className="grid size-12 shrink-0 place-items-center rounded-sm bg-linear-to-br from-orange-950 to-orange-500 text-xs font-semibold tracking-tight text-neutral-100"
         >
-          {audioPlayer.activeTrack.name
+          {audioPlayer.activeTrack.title
             .split(/\s+/)
             .slice(0, 2)
             .map((word) => word[0])
@@ -33,7 +33,7 @@ export function AudioPlayerControls() {
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{audioPlayer.activeTrack.name}</p>
+          <p className="truncate text-sm font-medium">{audioPlayer.activeTrack.title}</p>
           <p className="mt-0.5 text-xs text-neutral-400">{audioPlayer.activeTrack.format}</p>
         </div>
       </div>

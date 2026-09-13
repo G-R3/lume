@@ -1,12 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { scanAudioFiles } from "./library";
-import {
-  applyScanFailure,
-  applySourceScan,
-  getEnabledSource,
-  getEnabledSources,
-  getTrackMetadata,
-} from "./library-store";
+import { applyScanFailure, getEnabledSource, getEnabledSources } from "./library-store";
+import { applySourceScan, getTrackMetadata } from "./track-store";
 
 const scanVersions = new WeakMap<DatabaseSync, Map<string, number>>();
 

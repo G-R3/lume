@@ -120,7 +120,7 @@ export function AddToPlaylistDialog({
             <DialogHeader>
               <DialogTitle>Add to playlist</DialogTitle>
               <DialogDescription className="sr-only">
-                Choose a playlist for {track.name}.
+                Choose a playlist for {track.title}.
               </DialogDescription>
             </DialogHeader>
             <Input

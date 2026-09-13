@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { openLibraryDatabase } from "./database";
 import { scanAudioFiles, type ScannedTrack } from "./library";
 import { scanEnabledSources, scanSource } from "./library-scan";
-import { applySourceScan, disableSource, getSource, getTracks, saveSource } from "./library-store";
+import { disableSource, getSource, saveSource } from "./library-store";
+import { applySourceScan, getTracks } from "./track-store";
 
 const temporaryFolders: string[] = [];
 
@@ -34,8 +35,8 @@ describe("enabled source scanning", () => {
     await olderRequest;
 
     expect(
-      getTracks(database).map((track) => ({ available: track.available, name: track.name })),
-    ).toEqual([{ available: true, name: "new" }]);
+      getTracks(database).map((track) => ({ available: track.available, title: track.title })),
+    ).toEqual([{ available: true, title: "new" }]);
   });
 
   it("isolates source failures and records their unavailable tracks", async () => {
@@ -56,10 +57,10 @@ describe("enabled source scanning", () => {
 
     await scanEnabledSources(database);
     expect(
-      getTracks(database).map((track) => ({ available: track.available, name: track.name })),
+      getTracks(database).map((track) => ({ available: track.available, title: track.title })),
     ).toEqual([
-      { available: true, name: "healthy" },
-      { available: false, name: "missing" },
+      { available: true, title: "healthy" },
+      { available: false, title: "missing" },
     ]);
     expect(getSource(database, missingSource.id)).toMatchObject({
       lastScanError: expect.stringContaining("ENOENT"),
@@ -132,7 +133,7 @@ describe("enabled source scanning", () => {
       const source = await saveSource(database, folder);
 
       await scanSource(database, source.id);
-      expect(getTracks(database).map((track) => track.name)).toEqual(["readable"]);
+      expect(getTracks(database).map((track) => track.title)).toEqual(["readable"]);
       expect(getSource(database, source.id).lastScanError).toBeNull();
     },
   );
@@ -152,14 +153,31 @@ async function createTemporaryFolder(prefix: string) {
   return folder;
 }
 
-function createScannedTrack(path: string, name: string) {
+function createScannedTrack(path: string, title: string) {
   return {
+    album: null,
+    albumArtists: [],
+    artists: [],
+    artwork: null,
+    bitrate: null,
+    bitsPerSample: null,
+    channelCount: null,
+    codec: null,
+    discNumber: null,
+    discTotal: null,
     duration: null,
     fileSize: 1,
     format: "MP3",
+    genres: [],
+    kind: "changed" as const,
+    lossless: null,
     modifiedAt: 1,
-    name,
+    title,
     path,
+    sampleRate: null,
+    trackNumber: null,
+    trackTotal: null,
+    year: null,
   };
 }
 

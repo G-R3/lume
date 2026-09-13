@@ -33,8 +33,12 @@ export function validateCurrentLibraryDatabase(database: DatabaseSync) {
   [
     `SELECT id, path, enabled, forgotten_at, last_scanned_at, last_scan_error,
       created_at, updated_at FROM library_sources LIMIT 0`,
-    `SELECT id, source_id, path, name, duration, format, file_size, modified_at,
-      available, created_at, updated_at FROM tracks LIMIT 0`,
+    `SELECT id, source_id, path, title, duration, format, file_size, modified_at,
+      available, created_at, updated_at, artists, album, album_artists, artwork_id,
+      year, track_number, track_total, disc_number, disc_total, genres, codec,
+      bitrate, sample_rate, bits_per_sample, channel_count, lossless,
+      metadata_version FROM tracks LIMIT 0`,
+    "SELECT id, media_type, data FROM artwork LIMIT 0",
     "SELECT track_id, starred_at FROM track_state LIMIT 0",
     "SELECT id, title, description, created_at, updated_at FROM playlists LIMIT 0",
     `SELECT id, playlist_id, track_id, position, created_at

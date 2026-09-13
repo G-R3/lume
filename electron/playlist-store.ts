@@ -89,17 +89,17 @@ export function createPlaylist(database: DatabaseSync, input: PlaylistCreationIn
 
 export function createPlaylistFromTrack(database: DatabaseSync, trackId: string) {
   return runInTransaction(database, () => {
-    const track = database.prepare("SELECT name FROM tracks WHERE id = ?").get(trackId);
+    const track = database.prepare("SELECT title FROM tracks WHERE id = ?").get(trackId);
 
     if (!track) throw new Error("Track does not exist");
 
-    const trackName = readString(track.name, "tracks.name").trim();
+    const trackTitle = readString(track.title, "tracks.title").trim();
 
     const playlist = {
       description: null,
       entries: [{ id: randomUUID(), position: 0, trackId }],
       id: randomUUID(),
-      title: trackName.length > 0 && trackName.length <= 100 ? trackName : "New Playlist",
+      title: trackTitle.length > 0 && trackTitle.length <= 100 ? trackTitle : "New Playlist",
     } satisfies PlaylistDetails;
 
     const now = Date.now();

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -7,7 +7,9 @@ import { getLibraryDatabasePath, openLibraryDatabase } from ".";
 import { applyMigrations, type Migration } from "./migration";
 import { initialLibraryMigration } from "./migrations/001-initial-library";
 import { getSources } from "../library-store";
+import { scanSource } from "../library-scan";
 import { createPlaylist, getPlaylists } from "../playlist-store";
+import { getTracks } from "../track-store";
 
 const temporaryFolders: string[] = [];
 
@@ -57,6 +59,14 @@ describe("library database migrations", () => {
         "INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (?, ?, 1, ?, ?)",
       )
       .run("source-1", "/Music", 1, 1);
+    versionOneDatabase
+      .prepare(
+        `INSERT INTO tracks (
+          id, source_id, path, name, duration, format, file_size, modified_at,
+          available, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      )
+      .run("track-1", "source-1", "/Music/song.mp3", "song", null, "MP3", 1, 1, 1, 1);
     versionOneDatabase.close();
 
     const database = await openLibraryDatabase(databasePath);
@@ -70,11 +80,58 @@ describe("library database migrations", () => {
         lastScanError: null,
         lastScannedAt: null,
         path: "/Music",
-        trackCount: 0,
+        trackCount: 1,
       },
     ]);
     expect(getPlaylists(database)).toMatchObject([
       { description: "Long drives", entryCount: 0, title: "Road Trip" },
+    ]);
+    expect(getTracks(database).map((track) => ({ id: track.id, title: track.title }))).toEqual([
+      { id: "track-1", title: "song" },
+    ]);
+  });
+
+  it("refreshes metadata from an older library when the audio file has not changed", async () => {
+    const folder = await createTemporaryFolder("lume-database-");
+    const sourceFolder = await createTemporaryFolder("lume-source-");
+    const trackPath = join(sourceFolder, "song.mp3");
+    await writeFile(trackPath, "");
+    const file = await stat(trackPath);
+    const databasePath = join(folder, "library.sqlite");
+    const versionOneDatabase = new DatabaseSync(databasePath);
+    applyMigrations(versionOneDatabase, [initialLibraryMigration]);
+    versionOneDatabase
+      .prepare(
+        "INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (?, ?, 1, ?, ?)",
+      )
+      .run("source-1", sourceFolder, 1, 1);
+    versionOneDatabase
+      .prepare(
+        `INSERT INTO tracks (
+          id, source_id, path, name, duration, format, file_size, modified_at,
+          available, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      )
+      .run(
+        "track-1",
+        "source-1",
+        trackPath,
+        "stale title",
+        null,
+        "MP3",
+        file.size,
+        Math.trunc(file.mtimeMs),
+        1,
+        1,
+      );
+    versionOneDatabase.close();
+
+    const database = await openLibraryDatabase(databasePath);
+    openDatabases.push(database);
+    await scanSource(database, "source-1");
+
+    expect(getTracks(database).map((track) => ({ id: track.id, title: track.title }))).toEqual([
+      { id: "track-1", title: "song" },
     ]);
   });
 

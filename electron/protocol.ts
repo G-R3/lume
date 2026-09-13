@@ -4,7 +4,7 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
-import { audioContentTypes } from "./library";
+import { audioContentTypes, type ArtworkData } from "./library";
 
 export const appScheme = "lume";
 
@@ -13,6 +13,7 @@ export const packagedRendererUrl = `${appScheme}://app/index.html`;
 export function registerProtocolHandler(
   rendererDirectory: string,
   getTrackPath: (trackId: string) => string | null,
+  getArtworkData: (artworkId: string) => ArtworkData | null,
 ) {
   protocol.handle(appScheme, async (request) => {
     const trackRequest = resolveTrackRequest(request.url, getTrackPath);
@@ -23,11 +24,27 @@ export function registerProtocolHandler(
       return createTrackResponse(trackRequest.path, request);
     }
 
+    const artworkRequest = resolveArtworkRequest(request.url, getArtworkData);
+
+    if (artworkRequest) return createArtworkResponse(artworkRequest.artwork);
+
     const assetPath = getRendererAssetPath(rendererDirectory, request.url);
 
     if (!assetPath) return new Response(null, { status: 404 });
 
     return net.fetch(pathToFileURL(assetPath).toString());
+  });
+}
+
+export function createArtworkResponse(artwork: ArtworkData | null) {
+  if (!artwork) return new Response(null, { status: 404 });
+
+  return new Response(artwork.data, {
+    headers: {
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Length": String(artwork.data.byteLength),
+      "Content-Type": artwork.mediaType,
+    },
   });
 }
 
@@ -97,6 +114,10 @@ function parseByteRange(header: string, size: number) {
 
 export function getTrackUrl(id: string) {
   return `${appScheme}://app/media/${encodeURIComponent(id)}`;
+}
+
+export function getArtworkUrl(id: string) {
+  return `${appScheme}://app/artwork/${encodeURIComponent(id)}`;
 }
 
 export function loadRenderer(window: BrowserWindow, rendererUrl: string) {
@@ -173,5 +194,30 @@ export function resolveTrackRequest(url: string, getTrackPath: (trackId: string)
     };
   } catch {
     return { path: null };
+  }
+}
+
+export function resolveArtworkRequest(
+  url: string,
+  getArtworkData: (artworkId: string) => ArtworkData | null,
+) {
+  if (!URL.canParse(url)) return null;
+
+  const parsedUrl = new URL(url);
+
+  if (
+    parsedUrl.protocol !== `${appScheme}:` ||
+    parsedUrl.host !== "app" ||
+    !parsedUrl.pathname.startsWith("/artwork/")
+  ) {
+    return null;
+  }
+
+  try {
+    return {
+      artwork: getArtworkData(decodeURIComponent(parsedUrl.pathname.slice("/artwork/".length))),
+    };
+  } catch {
+    return { artwork: null };
   }
 }

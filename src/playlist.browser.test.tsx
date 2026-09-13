@@ -337,14 +337,30 @@ function summarize(playlist: PlaylistDetails): PlaylistSummary {
   };
 }
 
-function createTrack(id: string, name: string, available = true): Track {
+function createTrack(id: string, title: string, available = true): Track {
   return {
+    album: "Unknown album",
+    albumArtists: ["Unknown artist"],
+    artists: ["Unknown artist"],
+    artworkUrl: null,
     available,
+    bitrate: null,
+    bitsPerSample: null,
+    channelCount: 1,
+    codec: "PCM",
+    discNumber: null,
+    discTotal: null,
     duration: 30,
     format: "WAV",
+    genres: [],
     id,
-    name,
+    lossless: true,
+    sampleRate: 8_000,
+    trackNumber: null,
+    trackTotal: null,
+    title,
     url: createSilentAudioUrl(),
+    year: null,
   };
 }
 
