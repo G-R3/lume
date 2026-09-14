@@ -1,13 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import { and, DrizzleQueryError, eq, notExists, placeholder, sql } from "drizzle-orm";
 import type { TrackMetadata } from "../shared/lib";
-import { runInTransaction } from "./database/transaction";
-import {
-  trackMetadataVersion,
-  type ArtworkData,
-  type ScannedTrack,
-  type StoredTrackMetadata,
-} from "./library";
+import type { LibraryDatabase } from "./database";
+import { artwork, librarySources, tracks } from "./database/schema";
+import { trackMetadataVersion, type ArtworkData, type ScannedTrack } from "./library";
 import { isSourceScannable, markSourceTracksUnavailable } from "./library-store";
 
 export type StoredTrack = TrackMetadata & {
@@ -17,276 +13,213 @@ export type StoredTrack = TrackMetadata & {
   path: string;
 };
 
-const trackMetadataColumns = `
-  title, duration, format, artists, album, album_artists, year,
-  track_number, track_total, disc_number, disc_total, genres, codec,
-  bitrate, sample_rate, bits_per_sample, channel_count, lossless`;
-
-export function getTracks(database: DatabaseSync): StoredTrack[] {
+export function getTracks(database: LibraryDatabase): StoredTrack[] {
   return database
-    .prepare(
-      `SELECT id, path, available, artwork_id, ${trackMetadataColumns} FROM tracks
-      ORDER BY title COLLATE NOCASE, path`,
-    )
-    .all()
-    .map((row) => ({
-      ...readTrackMetadata(row),
-      artworkId: readNullableString(row.artwork_id, "tracks.artwork_id"),
-      available: readBoolean(row.available, "tracks.available"),
-      id: readString(row.id, "tracks.id"),
-      path: readString(row.path, "tracks.path"),
-    }));
+    .select({
+      album: tracks.album,
+      albumArtists: tracks.albumArtists,
+      artists: tracks.artists,
+      artworkId: tracks.artworkId,
+      available: tracks.available,
+      bitrate: tracks.bitrate,
+      bitsPerSample: tracks.bitsPerSample,
+      channelCount: tracks.channelCount,
+      codec: tracks.codec,
+      discNumber: tracks.discNumber,
+      discTotal: tracks.discTotal,
+      duration: tracks.duration,
+      format: tracks.format,
+      genres: tracks.genres,
+      id: tracks.id,
+      lossless: tracks.lossless,
+      path: tracks.path,
+      sampleRate: tracks.sampleRate,
+      title: tracks.title,
+      trackNumber: tracks.trackNumber,
+      trackTotal: tracks.trackTotal,
+      year: tracks.year,
+    })
+    .from(tracks)
+    .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
+    .all();
 }
 
-export function getArtworkData(database: DatabaseSync, artworkId: string): ArtworkData | null {
-  const artwork = database
-    .prepare("SELECT media_type, data FROM artwork WHERE id = ?")
-    .get(artworkId);
+export function getArtworkData(database: LibraryDatabase, artworkId: string): ArtworkData | null {
+  const storedArtwork = database
+    .select({ data: artwork.data, mediaType: artwork.mediaType })
+    .from(artwork)
+    .where(eq(artwork.id, artworkId))
+    .get();
 
-  if (!artwork) return null;
+  if (!storedArtwork) return null;
 
   return {
-    data: readBytes(artwork.data, "artwork.data"),
-    mediaType: readString(artwork.media_type, "artwork.media_type"),
+    data: new Uint8Array(storedArtwork.data),
+    mediaType: storedArtwork.mediaType,
   };
 }
 
-export function getTrackPath(database: DatabaseSync, trackId: string) {
-  const track = database.prepare("SELECT path FROM tracks WHERE id = ?").get(trackId);
-
-  return track ? readString(track.path, "tracks.path") : null;
+export function getTrackPath(database: LibraryDatabase, trackId: string) {
+  return (
+    database.select({ path: tracks.path }).from(tracks).where(eq(tracks.id, trackId)).get()?.path ??
+    null
+  );
 }
 
-export function getTrackMetadata(database: DatabaseSync, sourceId: string) {
-  return new Map<string, StoredTrackMetadata>(
+export function getTrackMetadata(database: LibraryDatabase, sourceId: string) {
+  return new Map(
     database
-      .prepare(
-        `SELECT path, file_size, modified_at FROM tracks
-        WHERE source_id = ? AND metadata_version = ?`,
-      )
-      .all(sourceId, trackMetadataVersion)
-      .map((row) => [
-        readString(row.path, "tracks.path"),
-        {
-          fileSize: readNumber(row.file_size, "tracks.file_size"),
-          modifiedAt: readNumber(row.modified_at, "tracks.modified_at"),
-        },
-      ]),
+      .select({
+        fileSize: tracks.fileSize,
+        modifiedAt: tracks.modifiedAt,
+        path: tracks.path,
+      })
+      .from(tracks)
+      .where(and(eq(tracks.sourceId, sourceId), eq(tracks.metadataVersion, trackMetadataVersion)))
+      .all()
+      .map(
+        (track) =>
+          [track.path, { fileSize: track.fileSize, modifiedAt: track.modifiedAt }] as const,
+      ),
   );
 }
 
 export function applySourceScan(
-  database: DatabaseSync,
+  database: LibraryDatabase,
   sourceId: string,
-  tracks: readonly ScannedTrack[],
+  scannedTracks: readonly ScannedTrack[],
 ) {
   if (!isSourceScannable(database, sourceId)) return false;
 
   const now = Date.now();
 
-  runInTransaction(database, () => {
-    markSourceTracksUnavailable(database, sourceId, now);
+  try {
+    database.transaction(
+      (transaction) => {
+        markSourceTracksUnavailable(transaction, sourceId, now);
 
-    const restoreTrack = database.prepare(
-      `UPDATE tracks
-      SET available = 1, updated_at = $updatedAt
-      WHERE source_id = $sourceId AND path = $path`,
-    );
+        const restoreTrack = transaction
+          .update(tracks)
+          .set({ available: true, updatedAt: placeholder("updatedAt") })
+          .where(and(eq(tracks.sourceId, sourceId), eq(tracks.path, placeholder("path"))))
+          .prepare();
 
-    const saveArtwork = database.prepare(
-      `INSERT OR IGNORE INTO artwork (id, media_type, data)
-      VALUES ($id, $mediaType, $data)`,
-    );
+        const saveArtwork = transaction
+          .insert(artwork)
+          .values({
+            data: placeholder("data"),
+            id: placeholder("id"),
+            mediaType: placeholder("mediaType"),
+          })
+          .onConflictDoNothing({ target: artwork.id })
+          .prepare();
 
-    const saveTrack = database.prepare(
-      `INSERT INTO tracks (
-        id, source_id, path, title, duration, format, file_size, modified_at,
-        available, created_at, updated_at, artists, album, album_artists,
-        artwork_id, year, track_number, track_total, disc_number, disc_total,
-        genres, codec, bitrate, sample_rate, bits_per_sample, channel_count, lossless,
-        metadata_version
-      ) VALUES (
-        $id, $sourceId, $path, $title, $duration, $format, $fileSize, $modifiedAt,
-        1, $createdAt, $updatedAt, $artists, $album, $albumArtists,
-        $artworkId, $year, $trackNumber, $trackTotal, $discNumber, $discTotal,
-        $genres, $codec, $bitrate, $sampleRate, $bitsPerSample, $channelCount, $lossless,
-        $metadataVersion
-      )
-      ON CONFLICT(path) DO UPDATE SET
-        source_id = excluded.source_id,
-        title = excluded.title,
-        duration = excluded.duration,
-        format = excluded.format,
-        file_size = excluded.file_size,
-        modified_at = excluded.modified_at,
-        artists = excluded.artists,
-        album = excluded.album,
-        album_artists = excluded.album_artists,
-        artwork_id = excluded.artwork_id,
-        year = excluded.year,
-        track_number = excluded.track_number,
-        track_total = excluded.track_total,
-        disc_number = excluded.disc_number,
-        disc_total = excluded.disc_total,
-        genres = excluded.genres,
-        codec = excluded.codec,
-        bitrate = excluded.bitrate,
-        sample_rate = excluded.sample_rate,
-        bits_per_sample = excluded.bits_per_sample,
-        channel_count = excluded.channel_count,
-        lossless = excluded.lossless,
-        metadata_version = excluded.metadata_version,
-        available = 1,
-        updated_at = excluded.updated_at`,
-    );
+        const saveTrack = transaction
+          .insert(tracks)
+          .values({
+            album: placeholder("album"),
+            albumArtists: placeholder("albumArtists"),
+            artists: placeholder("artists"),
+            artworkId: placeholder("artworkId"),
+            available: true,
+            bitrate: placeholder("bitrate"),
+            bitsPerSample: placeholder("bitsPerSample"),
+            channelCount: placeholder("channelCount"),
+            codec: placeholder("codec"),
+            createdAt: now,
+            discNumber: placeholder("discNumber"),
+            discTotal: placeholder("discTotal"),
+            duration: placeholder("duration"),
+            fileSize: placeholder("fileSize"),
+            format: placeholder("format"),
+            genres: placeholder("genres"),
+            id: placeholder("id"),
+            lossless: placeholder("lossless"),
+            metadataVersion: trackMetadataVersion,
+            modifiedAt: placeholder("modifiedAt"),
+            path: placeholder("path"),
+            sampleRate: placeholder("sampleRate"),
+            sourceId,
+            title: placeholder("title"),
+            trackNumber: placeholder("trackNumber"),
+            trackTotal: placeholder("trackTotal"),
+            updatedAt: now,
+            year: placeholder("year"),
+          })
+          .onConflictDoUpdate({
+            target: tracks.path,
+            set: {
+              album: sql`excluded.album`,
+              albumArtists: sql`excluded.album_artists`,
+              artists: sql`excluded.artists`,
+              artworkId: sql`excluded.artwork_id`,
+              available: true,
+              bitrate: sql`excluded.bitrate`,
+              bitsPerSample: sql`excluded.bits_per_sample`,
+              channelCount: sql`excluded.channel_count`,
+              codec: sql`excluded.codec`,
+              discNumber: sql`excluded.disc_number`,
+              discTotal: sql`excluded.disc_total`,
+              duration: sql`excluded.duration`,
+              fileSize: sql`excluded.file_size`,
+              format: sql`excluded.format`,
+              genres: sql`excluded.genres`,
+              lossless: sql`excluded.lossless`,
+              metadataVersion: sql`excluded.metadata_version`,
+              modifiedAt: sql`excluded.modified_at`,
+              sampleRate: sql`excluded.sample_rate`,
+              sourceId: sql`excluded.source_id`,
+              title: sql`excluded.title`,
+              trackNumber: sql`excluded.track_number`,
+              trackTotal: sql`excluded.track_total`,
+              updatedAt: sql`excluded.updated_at`,
+              year: sql`excluded.year`,
+            },
+          })
+          .prepare();
 
-    tracks.forEach((track) => {
-      if (track.kind === "unchanged") {
-        restoreTrack.run({
-          $path: track.path,
-          $sourceId: sourceId,
-          $updatedAt: now,
+        scannedTracks.forEach((track) => {
+          if (track.kind === "unchanged") {
+            restoreTrack.run({ path: track.path, updatedAt: now });
+
+            return;
+          }
+
+          if (track.artwork) {
+            saveArtwork.run(track.artwork);
+          }
+
+          saveTrack.run({
+            ...track,
+            artworkId: track.artwork?.id ?? null,
+            id: randomUUID(),
+          });
         });
 
-        return;
-      }
+        transaction
+          .delete(artwork)
+          .where(
+            notExists(
+              transaction
+                .select({ id: tracks.id })
+                .from(tracks)
+                .where(eq(tracks.artworkId, artwork.id)),
+            ),
+          )
+          .run();
 
-      if (track.artwork) {
-        saveArtwork.run({
-          $data: track.artwork.data,
-          $id: track.artwork.id,
-          $mediaType: track.artwork.mediaType,
-        });
-      }
-
-      saveTrack.run({
-        $album: track.album,
-        $albumArtists: JSON.stringify(track.albumArtists),
-        $artists: JSON.stringify(track.artists),
-        $artworkId: track.artwork?.id ?? null,
-        $bitrate: track.bitrate,
-        $bitsPerSample: track.bitsPerSample,
-        $channelCount: track.channelCount,
-        $codec: track.codec,
-        $createdAt: now,
-        $discNumber: track.discNumber,
-        $discTotal: track.discTotal,
-        $duration: track.duration,
-        $fileSize: track.fileSize,
-        $format: track.format,
-        $genres: JSON.stringify(track.genres),
-        $id: randomUUID(),
-        $lossless: track.lossless === null ? null : Number(track.lossless),
-        $metadataVersion: trackMetadataVersion,
-        $modifiedAt: track.modifiedAt,
-        $path: track.path,
-        $sampleRate: track.sampleRate,
-        $sourceId: sourceId,
-        $title: track.title,
-        $trackNumber: track.trackNumber,
-        $trackTotal: track.trackTotal,
-        $updatedAt: now,
-        $year: track.year,
-      });
-    });
-
-    database.exec(`
-      DELETE FROM artwork
-      WHERE NOT EXISTS (SELECT 1 FROM tracks WHERE tracks.artwork_id = artwork.id)
-    `);
-
-    database
-      .prepare(
-        `UPDATE library_sources
-        SET last_scanned_at = ?, last_scan_error = NULL, updated_at = ?
-        WHERE id = ?`,
-      )
-      .run(now, now, sourceId);
-  });
+        transaction
+          .update(librarySources)
+          .set({ lastScanError: null, lastScannedAt: now, updatedAt: now })
+          .where(eq(librarySources.id, sourceId))
+          .run();
+      },
+      { behavior: "immediate" },
+    );
+  } catch (error) {
+    if (error instanceof DrizzleQueryError && error.cause) throw error.cause;
+    throw error;
+  }
 
   return true;
-}
-
-function readTrackMetadata(row: Record<string, SQLOutputValue>): TrackMetadata {
-  return {
-    album: readNullableString(row.album, "tracks.album"),
-    albumArtists: readStringArray(row.album_artists, "tracks.album_artists"),
-    artists: readStringArray(row.artists, "tracks.artists"),
-    bitrate: readNullableFiniteNumber(row.bitrate, "tracks.bitrate"),
-    bitsPerSample: readNullableNumber(row.bits_per_sample, "tracks.bits_per_sample"),
-    channelCount: readNullableNumber(row.channel_count, "tracks.channel_count"),
-    codec: readNullableString(row.codec, "tracks.codec"),
-    discNumber: readNullableNumber(row.disc_number, "tracks.disc_number"),
-    discTotal: readNullableNumber(row.disc_total, "tracks.disc_total"),
-    duration: readNullableFiniteNumber(row.duration, "tracks.duration"),
-    format: readString(row.format, "tracks.format"),
-    genres: readStringArray(row.genres, "tracks.genres"),
-    lossless: row.lossless === null ? null : readBoolean(row.lossless, "tracks.lossless"),
-    title: readString(row.title, "tracks.title"),
-    sampleRate: readNullableNumber(row.sample_rate, "tracks.sample_rate"),
-    trackNumber: readNullableNumber(row.track_number, "tracks.track_number"),
-    trackTotal: readNullableNumber(row.track_total, "tracks.track_total"),
-    year: readNullableNumber(row.year, "tracks.year"),
-  };
-}
-
-function readBoolean(value: SQLOutputValue | undefined, field: string) {
-  const number = Number(value);
-
-  if (number === 0 || number === 1) return number === 1;
-  throw new Error(`Invalid boolean in ${field}`);
-}
-
-function readNullableNumber(value: SQLOutputValue | undefined, field: string) {
-  if (value === null) return null;
-
-  return readNumber(value, field);
-}
-
-function readNullableFiniteNumber(value: SQLOutputValue | undefined, field: string) {
-  if (value === null) return null;
-
-  const number = Number(value);
-
-  if (Number.isFinite(number)) return number;
-  throw new Error(`Invalid number in ${field}`);
-}
-
-function readNumber(value: SQLOutputValue | undefined, field: string) {
-  const number = Number(value);
-
-  if (Number.isSafeInteger(number)) return number;
-  throw new Error(`Invalid number in ${field}`);
-}
-
-function readString(value: SQLOutputValue | undefined, field: string) {
-  if (value === undefined || value === null || value instanceof Uint8Array) {
-    throw new Error(`Invalid string in ${field}`);
-  }
-
-  return String(value);
-}
-
-function readNullableString(value: SQLOutputValue | undefined, field: string) {
-  if (value === null) return null;
-
-  return readString(value, field);
-}
-
-function readStringArray(value: SQLOutputValue | undefined, field: string) {
-  const parsed: unknown = JSON.parse(readString(value, field));
-
-  if (
-    Array.isArray(parsed) &&
-    parsed.every((item) => Object.prototype.toString.call(item) === "[object String]")
-  ) {
-    return parsed.map(String);
-  }
-
-  throw new Error(`Invalid string array in ${field}`);
-}
-
-function readBytes(value: SQLOutputValue | undefined, field: string) {
-  if (value instanceof Uint8Array) return value;
-  throw new Error(`Invalid bytes in ${field}`);
 }

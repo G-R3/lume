@@ -1,18 +1,18 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { LibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
 import { applyScanFailure, getEnabledSource, getEnabledSources } from "./library-store";
 import { applySourceScan, getTrackMetadata } from "./track-store";
 
-const scanVersions = new WeakMap<DatabaseSync, Map<string, number>>();
+const scanVersions = new WeakMap<LibraryDatabase, Map<string, number>>();
 
-export async function scanEnabledSources(database: DatabaseSync, scanFiles = scanAudioFiles) {
+export async function scanEnabledSources(database: LibraryDatabase, scanFiles = scanAudioFiles) {
   for (const source of getEnabledSources(database)) {
     await scanSource(database, source.id, scanFiles);
   }
 }
 
 export async function scanSource(
-  database: DatabaseSync,
+  database: LibraryDatabase,
   sourceId: string,
   scanFiles = scanAudioFiles, // Injectable so overlapping scans can be tested without timing-dependent filesystem work
 ): Promise<void> {
@@ -41,7 +41,7 @@ export async function scanSource(
   applySourceScan(database, sourceId, scan);
 }
 
-function getScanVersions(database: DatabaseSync) {
+function getScanVersions(database: LibraryDatabase) {
   const existing = scanVersions.get(database);
 
   if (existing) return existing;

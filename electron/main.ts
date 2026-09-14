@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import type { DatabaseSync } from "node:sqlite";
 import {
   app,
   BrowserWindow,
@@ -25,7 +24,7 @@ import {
   type PlaylistCreationInput,
   type PlaylistCreationResult,
 } from "../shared/lib";
-import { getLibraryDatabasePath, openLibraryDatabase } from "./database";
+import { getLibraryDatabasePath, openLibraryDatabase, type LibraryDatabase } from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
   addTrackToPlaylist,
@@ -117,18 +116,17 @@ async function startApplication() {
   const userDataDirectory = app.getPath("userData");
   const databasePath = getLibraryDatabasePath(userDataDirectory, app.isPackaged);
   const database = await openLibraryDatabase(databasePath);
-  const client = database.$client;
 
   app.once("will-quit", () => {
-    if (client.isOpen) client.close();
+    if (database.$client.isOpen) database.$client.close();
   });
 
-  registerLibraryIpc(client, userDataDirectory);
+  registerLibraryIpc(database, userDataDirectory);
 
   registerProtocolHandler(
     rendererDirectory,
-    (trackId) => getTrackPath(client, trackId),
-    (artworkId) => getArtworkData(client, artworkId),
+    (trackId) => getTrackPath(database, trackId),
+    (artworkId) => getArtworkData(database, artworkId),
   );
 
   session.defaultSession.setPermissionCheckHandler(() => false);
@@ -138,10 +136,10 @@ async function startApplication() {
 
   const window = createWindow();
 
-  void scanEnabledSources(client)
+  void scanEnabledSources(database)
     .then(() => {
       if (!window.isDestroyed()) {
-        window.webContents.send(lumeChannels.libraryUpdated, readLibrary(client));
+        window.webContents.send(lumeChannels.libraryUpdated, readLibrary(database));
       }
     })
     .catch((error) => console.error("Could not scan the music library", error));
@@ -151,7 +149,9 @@ async function startApplication() {
   });
 }
 
-function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
+function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string) {
+  const db = database.$client;
+
   ipcMain.handle(lumeChannels.openDataFolder, async (event) => {
     requireTrustedWindow(event);
     const errorMessage = await shell.openPath(userDataDirectory);
@@ -187,7 +187,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
   ipcMain.handle(lumeChannels.createPlaylist, (event, input) => {
     requireTrustedWindow(event);
-    const playlist = createPlaylist(database, requirePlaylistCreationInput(input));
+    const playlist = createPlaylist(db, requirePlaylistCreationInput(input));
 
     return { library: readLibrary(database), playlist } satisfies PlaylistCreationResult;
   });
@@ -197,7 +197,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
 
-    return createPlaylistFromTrack(database, trackId);
+    return createPlaylistFromTrack(db, trackId);
   });
 
   ipcMain.handle(lumeChannels.loadPlaylist, (event, playlistId) => {
@@ -205,14 +205,14 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
 
-    return getPlaylist(database, playlistId);
+    return getPlaylist(db, playlistId);
   });
 
   ipcMain.handle(lumeChannels.deletePlaylist, (event, playlistId) => {
     requireTrustedWindow(event);
 
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
-    deletePlaylist(database, playlistId);
+    deletePlaylist(db, playlistId);
 
     return readLibrary(database);
   });
@@ -224,7 +224,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
 
-    return addTrackToPlaylist(database, playlistId, trackId);
+    return addTrackToPlaylist(db, playlistId, trackId);
   });
 
   ipcMain.handle(lumeChannels.confirmAddTrackToPlaylist, (event, playlistId, trackId) => {
@@ -234,7 +234,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
 
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
 
-    return confirmAddTrackToPlaylist(database, playlistId, trackId);
+    return confirmAddTrackToPlaylist(db, playlistId, trackId);
   });
 
   ipcMain.handle(lumeChannels.removePlaylistEntry, (event, playlistId, entryId) => {
@@ -243,7 +243,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
 
     if (!uuidPattern.test(entryId)) throw new Error("Invalid playlist entry ID");
-    removePlaylistEntry(database, playlistId, entryId);
+    removePlaylistEntry(db, playlistId, entryId);
   });
 
   ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
@@ -284,7 +284,7 @@ function registerLibraryIpc(database: DatabaseSync, userDataDirectory: string) {
   });
 }
 
-function readLibrary(database: DatabaseSync) {
+function readLibrary(database: LibraryDatabase) {
   const sources = getSources(database);
   const storedTracks = getTracks(database);
 
@@ -294,7 +294,7 @@ function readLibrary(database: DatabaseSync) {
 
   return {
     kind: "library",
-    playlists: getPlaylists(database),
+    playlists: getPlaylists(database.$client),
     sources,
     tracks: storedTracks.map((track) => {
       const artists = track.artists.length > 0 ? track.artists : ["Unknown artist"];

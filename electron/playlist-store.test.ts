@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { openLibraryDatabase } from "./database";
+import { openLibraryDatabase, type LibraryDatabase } from "./database";
 import { scanAudioFiles } from "./library";
 import { saveSource } from "./library-store";
 import { applySourceScan, getTracks } from "./track-store";
@@ -39,23 +39,25 @@ describe("playlist behavior", () => {
     const maximumTitle = "T".repeat(100);
     const maximumDescription = "D".repeat(300);
 
-    expect(() => createPlaylist(database, { description: null, title: "   " })).toThrow();
-    expect(() => createPlaylist(database, { description: null, title: "T".repeat(101) })).toThrow();
+    expect(() => createPlaylist(database.$client, { description: null, title: "   " })).toThrow();
     expect(() =>
-      createPlaylist(database, { description: "D".repeat(301), title: "Valid" }),
+      createPlaylist(database.$client, { description: null, title: "T".repeat(101) }),
+    ).toThrow();
+    expect(() =>
+      createPlaylist(database.$client, { description: "D".repeat(301), title: "Valid" }),
     ).toThrow();
 
-    createPlaylist(database, {
+    createPlaylist(database.$client, {
       description: `  ${maximumDescription}  `,
       title: `  ${maximumTitle}  `,
     });
-    createPlaylist(database, { description: "   ", title: maximumTitle });
-    database.close();
+    createPlaylist(database.$client, { description: "   ", title: maximumTitle });
+    database.$client.close();
 
     const reopenedDatabase = await openTestDatabase(databasePath);
 
     expect(
-      getPlaylists(reopenedDatabase).map((playlist) => ({
+      getPlaylists(reopenedDatabase.$client).map((playlist) => ({
         description: playlist.description,
         entryCount: playlist.entryCount,
         title: playlist.title,
@@ -71,25 +73,30 @@ describe("playlist behavior", () => {
     const firstTrack = await addTrack(database, "First");
     const secondTrack = await addTrack(database, "Second");
     const thirdTrack = await addTrack(database, "Third");
-    const playlist = createPlaylist(database, { description: null, title: "Sequence" });
-    const firstEntry = addTrackToPlaylist(database, playlist.id, firstTrack.id);
-    const secondEntry = addTrackToPlaylist(database, playlist.id, secondTrack.id);
 
-    expect(addTrackToPlaylist(database, playlist.id, firstTrack.id)).toEqual({
+    const playlist = createPlaylist(database.$client, {
+      description: null,
+      title: "Sequence",
+    });
+
+    const firstEntry = addTrackToPlaylist(database.$client, playlist.id, firstTrack.id);
+    const secondEntry = addTrackToPlaylist(database.$client, playlist.id, secondTrack.id);
+
+    expect(addTrackToPlaylist(database.$client, playlist.id, firstTrack.id)).toEqual({
       kind: "duplicate",
     });
 
-    confirmAddTrackToPlaylist(database, playlist.id, firstTrack.id);
+    confirmAddTrackToPlaylist(database.$client, playlist.id, firstTrack.id);
 
     if (firstEntry.kind !== "added" || secondEntry.kind !== "added") {
       throw new Error("Expected both distinct tracks to be added");
     }
 
-    removePlaylistEntry(database, playlist.id, firstEntry.entry.id);
+    removePlaylistEntry(database.$client, playlist.id, firstEntry.entry.id);
 
-    confirmAddTrackToPlaylist(database, playlist.id, thirdTrack.id);
+    confirmAddTrackToPlaylist(database.$client, playlist.id, thirdTrack.id);
 
-    const entries = getPlaylist(database, playlist.id)?.entries;
+    const entries = getPlaylist(database.$client, playlist.id)?.entries;
     expect(entries?.map((entry) => entry.position)).toEqual([1, 2, 3]);
     expect(entries?.map((entry) => entry.trackId)).toEqual([
       secondTrack.id,
@@ -97,11 +104,11 @@ describe("playlist behavior", () => {
       thirdTrack.id,
     ]);
     expect(new Set(entries?.map((entry) => entry.id)).size).toBe(3);
-    expect(getPlaylists(database).map((summary) => summary.entryCount)).toEqual([3]);
+    expect(getPlaylists(database.$client).map((summary) => summary.entryCount)).toEqual([3]);
 
-    deletePlaylist(database, playlist.id);
+    deletePlaylist(database.$client, playlist.id);
 
-    expect(getPlaylist(database, playlist.id)).toBeNull();
+    expect(getPlaylist(database.$client, playlist.id)).toBeNull();
     expect(getTracks(database).map((track) => track.title)).toEqual(["First", "Second", "Third"]);
   });
 
@@ -110,9 +117,9 @@ describe("playlist behavior", () => {
     const namedTrack = await addTrack(database, "Night Drive");
     insertTrack(database, "blank-track", "   ");
     insertTrack(database, "long-track", "x".repeat(101));
-    const namedPlaylist = createPlaylistFromTrack(database, namedTrack.id);
-    const blankPlaylist = createPlaylistFromTrack(database, "blank-track");
-    const longPlaylist = createPlaylistFromTrack(database, "long-track");
+    const namedPlaylist = createPlaylistFromTrack(database.$client, namedTrack.id);
+    const blankPlaylist = createPlaylistFromTrack(database.$client, "blank-track");
+    const longPlaylist = createPlaylistFromTrack(database.$client, "long-track");
 
     expect(
       [namedPlaylist, blankPlaylist, longPlaylist].map((playlist) => ({
@@ -126,7 +133,7 @@ describe("playlist behavior", () => {
     ]);
 
     insertTrack(database, "failing-track", "Uncommitted");
-    database.exec(`
+    database.$client.exec(`
       CREATE TRIGGER reject_playlist_entry
       BEFORE INSERT ON playlist_entries
       BEGIN
@@ -134,8 +141,10 @@ describe("playlist behavior", () => {
       END;
     `);
 
-    expect(() => createPlaylistFromTrack(database, "failing-track")).toThrow("Entry insert failed");
-    expect(getPlaylists(database).map((playlist) => playlist.title)).toEqual([
+    expect(() => createPlaylistFromTrack(database.$client, "failing-track")).toThrow(
+      "Entry insert failed",
+    );
+    expect(getPlaylists(database.$client).map((playlist) => playlist.title)).toEqual([
       "Night Drive",
       "New Playlist",
       "New Playlist",
@@ -153,8 +162,8 @@ describe("playlist behavior", () => {
 
     if (!track) throw new Error("Expected the scan to create a track");
 
-    const playlist = createPlaylist(database, { description: null, title: "Keepers" });
-    const addition = addTrackToPlaylist(database, playlist.id, track.id);
+    const playlist = createPlaylist(database.$client, { description: null, title: "Keepers" });
+    const addition = addTrackToPlaylist(database.$client, playlist.id, track.id);
 
     if (addition.kind !== "added") throw new Error("Expected the track to be added");
 
@@ -179,11 +188,9 @@ describe("playlist behavior", () => {
 });
 
 async function openTestDatabase(location = ":memory:") {
-  const database = (
-    await openLibraryDatabase(location, join(import.meta.dirname, "../drizzle"))
-  ).$client;
+  const database = await openLibraryDatabase(location, join(import.meta.dirname, "../drizzle"));
 
-  openDatabases.push(database);
+  openDatabases.push(database.$client);
 
   return database;
 }
@@ -195,7 +202,7 @@ async function createTemporaryFolder(prefix: string) {
   return folder;
 }
 
-async function addTrack(database: DatabaseSync, title: string) {
+async function addTrack(database: LibraryDatabase, title: string) {
   const folder = await createTemporaryFolder("lume-playlist-track-");
   await writeFile(join(folder, `${title}.mp3`), "audio");
   const source = await saveSource(database, folder);
@@ -206,15 +213,15 @@ async function addTrack(database: DatabaseSync, title: string) {
   throw new Error(`Expected ${title} to be stored`);
 }
 
-function insertTrack(database: DatabaseSync, id: string, title: string) {
-  database
+function insertTrack(database: LibraryDatabase, id: string, title: string) {
+  database.$client
     .prepare(
       `INSERT OR IGNORE INTO library_sources
         (id, path, enabled, created_at, updated_at)
       VALUES ('generated-source', '/Generated', 1, 1, 1)`,
     )
     .run();
-  database
+  database.$client
     .prepare(
       `INSERT INTO tracks
         (id, source_id, path, title, duration, format, file_size, modified_at, available,
@@ -224,8 +231,8 @@ function insertTrack(database: DatabaseSync, id: string, title: string) {
     .run(id, `/Generated/${id}.mp3`, title);
 }
 
-function readPlaylistTrack(database: DatabaseSync, playlistId: string) {
-  const entry = getPlaylist(database, playlistId)?.entries[0];
+function readPlaylistTrack(database: LibraryDatabase, playlistId: string) {
+  const entry = getPlaylist(database.$client, playlistId)?.entries[0];
   const track = entry ? getTracks(database).find((track) => track.id === entry.trackId) : undefined;
 
   if (!entry || !track) throw new Error("Expected the playlist track to exist");

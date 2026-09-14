@@ -47,7 +47,7 @@ describe("library source persistence", () => {
     const databasePath = join(databaseFolder, "library.sqlite");
     const database = await openTestDatabase(databasePath);
     const source = await saveSource(database, folder);
-    database.close();
+    database.$client.close();
 
     const reopenedDatabase = await openTestDatabase(databasePath);
     await expect(saveSource(reopenedDatabase, folder)).resolves.toEqual(source);
@@ -108,18 +108,18 @@ describe("library source persistence", () => {
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    const trackId = database.prepare("SELECT id FROM tracks").get()?.id;
+    const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
 
     forgetSource(database, source.id);
     expect(getSources(database)).toEqual([]);
-    expect(database.prepare("SELECT id, available FROM tracks").get()).toEqual({
+    expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
       available: 0,
       id: trackId,
     });
 
     await expect(saveSource(database, folder)).resolves.toEqual(source);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    expect(database.prepare("SELECT id, available FROM tracks").get()).toEqual({
+    expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
       available: 1,
       id: trackId,
     });
@@ -133,19 +133,21 @@ describe("library source persistence", () => {
     await writeFile(join(child, "song.mp3"), "");
     const childSource = await saveSource(database, child);
     applySourceScan(database, childSource.id, await scanAudioFiles(child));
-    const trackId = database.prepare("SELECT id FROM tracks").get()?.id;
-    database.exec("INSERT INTO track_state (track_id, starred_at) SELECT id, 1 FROM tracks");
+    const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
+    database.$client.exec(
+      "INSERT INTO track_state (track_id, starred_at) SELECT id, 1 FROM tracks",
+    );
     forgetSource(database, childSource.id);
 
     const parentSource = await saveSource(database, parent);
     applySourceScan(database, parentSource.id, await scanAudioFiles(parent));
 
-    expect(database.prepare("SELECT id, source_id, available FROM tracks").get()).toEqual({
+    expect(database.$client.prepare("SELECT id, source_id, available FROM tracks").get()).toEqual({
       available: 1,
       id: trackId,
       source_id: parentSource.id,
     });
-    expect(database.prepare("SELECT track_id, starred_at FROM track_state").get()).toEqual({
+    expect(database.$client.prepare("SELECT track_id, starred_at FROM track_state").get()).toEqual({
       starred_at: 1,
       track_id: trackId,
     });
@@ -236,13 +238,17 @@ describe("track persistence", () => {
     applySourceScan(database, source.id, await scanAudioFiles(folder));
 
     expect(
-      database.prepare("SELECT id, path, file_size FROM tracks WHERE source_id = ?").get(source.id),
+      database.$client
+        .prepare("SELECT id, path, file_size FROM tracks WHERE source_id = ?")
+        .get(source.id),
     ).toEqual({
       file_size: 7,
       id: initialTrack.id,
       path: trackPath,
     });
-    expect(database.prepare("SELECT COUNT(*) AS count FROM tracks").get()).toEqual({ count: 1 });
+    expect(database.$client.prepare("SELECT COUNT(*) AS count FROM tracks").get()).toEqual({
+      count: 1,
+    });
   });
 
   it("gives copied and differently encoded files independent IDs", async () => {
@@ -256,7 +262,7 @@ describe("track persistence", () => {
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
 
-    const tracks = database
+    const tracks = database.$client
       .prepare("SELECT id, path FROM tracks WHERE source_id = ? ORDER BY path")
       .all(source.id);
 
@@ -271,11 +277,11 @@ describe("track persistence", () => {
     await writeFile(trackPath, "original");
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    const trackId = database.prepare("SELECT id FROM tracks").get()?.id;
+    const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
 
     await rm(trackPath);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    expect(database.prepare("SELECT id, available FROM tracks").get()).toEqual({
+    expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
       available: 0,
       id: trackId,
     });
@@ -283,7 +289,7 @@ describe("track persistence", () => {
 
     await writeFile(trackPath, "restored");
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    expect(database.prepare("SELECT id, available, file_size FROM tracks").get()).toEqual({
+    expect(database.$client.prepare("SELECT id, available, file_size FROM tracks").get()).toEqual({
       available: 1,
       file_size: 8,
       id: trackId,
@@ -307,7 +313,7 @@ describe("track persistence", () => {
     await writeFile(originalPath, "");
     const source = await saveSource(database, folder);
     applySourceScan(database, source.id, await scanAudioFiles(folder));
-    const originalTrack = database.prepare("SELECT id FROM tracks").get();
+    const originalTrack = database.$client.prepare("SELECT id FROM tracks").get();
 
     if (!originalTrack) throw new Error("Expected the initial scan to store the track");
 
@@ -316,7 +322,10 @@ describe("track persistence", () => {
     await rename(originalPath, join(folder, "after.mp3"));
     applySourceScan(database, source.id, await scanAudioFiles(folder));
 
-    const tracks = database.prepare("SELECT id, title, available FROM tracks ORDER BY title").all();
+    const tracks = database.$client
+      .prepare("SELECT id, title, available FROM tracks ORDER BY title")
+      .all();
+
     expect(tracks).toEqual([
       { available: 1, id: expect.any(String), title: "after" },
       { available: 0, id: originalId, title: "before" },
@@ -326,11 +335,9 @@ describe("track persistence", () => {
 });
 
 async function openTestDatabase(location = ":memory:") {
-  const database = (
-    await openLibraryDatabase(location, join(import.meta.dirname, "../drizzle"))
-  ).$client;
+  const database = await openLibraryDatabase(location, join(import.meta.dirname, "../drizzle"));
 
-  openDatabases.push(database);
+  openDatabases.push(database.$client);
 
   return database;
 }

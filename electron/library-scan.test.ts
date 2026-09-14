@@ -84,10 +84,15 @@ describe("enabled source scanning", () => {
     const firstSource = await saveSource(database, firstFolder);
     const disabledSource = await saveSource(database, disabledFolder);
     const lastSource = await saveSource(database, lastFolder);
-    const setCreatedAt = database.prepare("UPDATE library_sources SET created_at = ? WHERE id = ?");
+
+    const setCreatedAt = database.$client.prepare(
+      "UPDATE library_sources SET created_at = ? WHERE id = ?",
+    );
+
     setCreatedAt.run(1, firstSource.id);
     setCreatedAt.run(2, disabledSource.id);
     setCreatedAt.run(3, lastSource.id);
+
     const scannedFolders: string[] = [];
 
     await scanEnabledSources(database, async (folder) => {
@@ -99,9 +104,9 @@ describe("enabled source scanning", () => {
     });
 
     expect(scannedFolders).toEqual([firstSource.path, lastSource.path]);
-    expect(database.prepare("SELECT source_id FROM tracks ORDER BY source_id").all()).toEqual(
-      [firstSource.id, lastSource.id].sort().map((sourceId) => ({ source_id: sourceId })),
-    );
+    expect(
+      database.$client.prepare("SELECT source_id FROM tracks ORDER BY source_id").all(),
+    ).toEqual([firstSource.id, lastSource.id].sort().map((sourceId) => ({ source_id: sourceId })));
   });
 
   it("does not report database failures as source scan errors", async () => {
@@ -109,7 +114,7 @@ describe("enabled source scanning", () => {
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(database, folder);
-    database.exec(`
+    database.$client.exec(`
       CREATE TRIGGER reject_track_insert
       BEFORE INSERT ON tracks
       BEGIN
@@ -142,11 +147,9 @@ describe("enabled source scanning", () => {
 });
 
 async function openTestDatabase() {
-  const database = (
-    await openLibraryDatabase(":memory:", join(import.meta.dirname, "../drizzle"))
-  ).$client;
+  const database = await openLibraryDatabase(":memory:", join(import.meta.dirname, "../drizzle"));
 
-  openDatabases.push(database);
+  openDatabases.push(database.$client);
 
   return database;
 }

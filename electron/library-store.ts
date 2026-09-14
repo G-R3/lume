@@ -1,79 +1,66 @@
 import { randomUUID } from "node:crypto";
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import { and, count, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import type { LibrarySource } from "../shared/lib";
-import { runInTransaction } from "./database/transaction";
+import type { LibraryDatabase } from "./database";
+import { librarySources, tracks } from "./database/schema";
 
-const sourceColumns = `
-  library_sources.id,
-  library_sources.path,
-  library_sources.enabled,
-  library_sources.last_scanned_at,
-  library_sources.last_scan_error,
-  (
-    SELECT COUNT(*) FROM tracks
-    WHERE tracks.source_id = library_sources.id AND tracks.available = 1
-  ) AS track_count`;
+type SourceWriter = Pick<LibraryDatabase, "update">;
 
-export function getSources(database: DatabaseSync): LibrarySource[] {
-  return database
-    .prepare(
-      `SELECT ${sourceColumns} FROM library_sources
-      WHERE forgotten_at IS NULL
-      ORDER BY created_at`,
-    )
-    .all()
-    .map(readSource);
+export function getSources(database: LibraryDatabase): LibrarySource[] {
+  return selectSources(database, isNull(librarySources.forgottenAt))
+    .orderBy(librarySources.createdAt)
+    .all();
 }
 
-export function getEnabledSources(database: DatabaseSync): LibrarySource[] {
-  return database
-    .prepare(
-      `SELECT ${sourceColumns} FROM library_sources
-      WHERE enabled = 1 AND forgotten_at IS NULL
-      ORDER BY created_at`,
-    )
-    .all()
-    .map(readSource);
+export function getEnabledSources(database: LibraryDatabase): LibrarySource[] {
+  return selectSources(
+    database,
+    and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt)),
+  )
+    .orderBy(librarySources.createdAt)
+    .all();
 }
 
-export function getSource(database: DatabaseSync, sourceId: string): LibrarySource {
-  const source = database
-    .prepare(
-      `SELECT ${sourceColumns} FROM library_sources
-      WHERE id = ? AND forgotten_at IS NULL`,
-    )
-    .get(sourceId);
+export function getSource(database: LibraryDatabase, sourceId: string): LibrarySource {
+  const source = selectSources(
+    database,
+    and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)),
+  ).get();
 
-  if (source) return readSource(source);
+  if (source) return source;
   throw new Error(`Library source ${sourceId} does not exist`);
 }
 
-export function getEnabledSource(database: DatabaseSync, sourceId: string): LibrarySource | null {
-  const source = database
-    .prepare(
-      `SELECT ${sourceColumns} FROM library_sources
-      WHERE id = ? AND enabled = 1 AND forgotten_at IS NULL`,
-    )
-    .get(sourceId);
-
-  return source ? readSource(source) : null;
+export function getEnabledSource(
+  database: LibraryDatabase,
+  sourceId: string,
+): LibrarySource | null {
+  return (
+    selectSources(
+      database,
+      and(
+        eq(librarySources.id, sourceId),
+        eq(librarySources.enabled, true),
+        isNull(librarySources.forgottenAt),
+      ),
+    ).get() ?? null
+  );
 }
 
-export function hasForgottenSources(database: DatabaseSync) {
-  return readBoolean(
+export function hasForgottenSources(database: LibraryDatabase) {
+  return (
     database
-      .prepare(
-        "SELECT EXISTS(SELECT 1 FROM library_sources WHERE forgotten_at IS NOT NULL) AS value",
-      )
-      .get()?.value,
-    "library_sources.forgotten",
+      .select({ id: librarySources.id })
+      .from(librarySources)
+      .where(isNotNull(librarySources.forgottenAt))
+      .get() !== undefined
   );
 }
 
 export async function saveSource(
-  database: DatabaseSync,
+  database: LibraryDatabase,
   selectedPath: string,
 ): Promise<Pick<LibrarySource, "id" | "path">> {
   const path = await realpath(selectedPath);
@@ -81,25 +68,30 @@ export async function saveSource(
 
   if (!folder.isDirectory()) throw new Error("A music source must be a folder");
 
-  const existing = database.prepare("SELECT id FROM library_sources WHERE path = ?").get(path);
+  const existing = database
+    .select({ id: librarySources.id })
+    .from(librarySources)
+    .where(eq(librarySources.path, path))
+    .get();
 
   if (existing) {
-    const id = readString(existing.id, "library_sources.id");
-    rejectSourceOverlap(database, path, id);
-    database
-      .prepare(
-        `UPDATE library_sources
-        SET enabled = 1,
-          forgotten_at = NULL,
-          updated_at = CASE
-            WHEN enabled = 0 OR forgotten_at IS NOT NULL THEN ?
-            ELSE updated_at
-          END
-        WHERE id = ?`,
-      )
-      .run(Date.now(), id);
+    rejectSourceOverlap(database, path, existing.id);
+    const now = Date.now();
 
-    return { id, path };
+    database
+      .update(librarySources)
+      .set({
+        enabled: true,
+        forgottenAt: null,
+        updatedAt: sql`CASE
+          WHEN ${librarySources.enabled} = 0 OR ${librarySources.forgottenAt} IS NOT NULL THEN ${now}
+          ELSE ${librarySources.updatedAt}
+        END`,
+      })
+      .where(eq(librarySources.id, existing.id))
+      .run();
+
+    return { id: existing.id, path };
   }
 
   rejectSourceOverlap(database, path);
@@ -107,133 +99,172 @@ export async function saveSource(
   const id = randomUUID();
   const now = Date.now();
   database
-    .prepare(
-      `INSERT INTO library_sources (
-        id, path, enabled, created_at, updated_at
-      ) VALUES (?, ?, 1, ?, ?)`,
-    )
-    .run(id, path, now, now);
+    .insert(librarySources)
+    .values({
+      createdAt: now,
+      enabled: true,
+      id,
+      path,
+      updatedAt: now,
+    })
+    .run();
 
   return { id, path };
 }
 
-export function enableSource(database: DatabaseSync, sourceId: string) {
+export function enableSource(database: LibraryDatabase, sourceId: string) {
+  const now = Date.now();
+
   const result = database
-    .prepare(
-      `UPDATE library_sources
-      SET enabled = 1,
-        updated_at = CASE WHEN enabled = 0 THEN ? ELSE updated_at END
-      WHERE id = ? AND forgotten_at IS NULL`,
-    )
-    .run(Date.now(), sourceId);
+    .update(librarySources)
+    .set({
+      enabled: true,
+      updatedAt: sql`CASE
+        WHEN ${librarySources.enabled} = 0 THEN ${now}
+        ELSE ${librarySources.updatedAt}
+      END`,
+    })
+    .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
+    .run();
 
   if (result.changes !== 1 && result.changes !== 1n) {
     throw new Error(`Library source ${sourceId} is not active`);
   }
 }
 
-export function disableSource(database: DatabaseSync, sourceId: string) {
+export function disableSource(database: LibraryDatabase, sourceId: string) {
   const now = Date.now();
 
-  runInTransaction(database, () => {
-    const result = database
-      .prepare(
-        `UPDATE library_sources
-        SET enabled = 0,
-          updated_at = CASE WHEN enabled = 1 THEN ? ELSE updated_at END
-        WHERE id = ? AND forgotten_at IS NULL`,
-      )
-      .run(now, sourceId);
+  database.transaction(
+    (transaction) => {
+      const result = transaction
+        .update(librarySources)
+        .set({
+          enabled: false,
+          updatedAt: sql`CASE
+            WHEN ${librarySources.enabled} = 1 THEN ${now}
+            ELSE ${librarySources.updatedAt}
+          END`,
+        })
+        .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
+        .run();
 
-    if (result.changes !== 1 && result.changes !== 1n) {
-      throw new Error(`Library source ${sourceId} is not active`);
-    }
+      if (result.changes !== 1 && result.changes !== 1n) {
+        throw new Error(`Library source ${sourceId} is not active`);
+      }
 
-    markSourceTracksUnavailable(database, sourceId, now);
-  });
+      markSourceTracksUnavailable(transaction, sourceId, now);
+    },
+    { behavior: "immediate" },
+  );
 }
 
-export function forgetSource(database: DatabaseSync, sourceId: string) {
+export function forgetSource(database: LibraryDatabase, sourceId: string) {
   const now = Date.now();
 
-  runInTransaction(database, () => {
-    const result = database
-      .prepare(
-        `UPDATE library_sources
-        SET enabled = 0,
-          forgotten_at = COALESCE(forgotten_at, ?),
-          updated_at = CASE
-            WHEN enabled = 1 OR forgotten_at IS NULL THEN ?
-            ELSE updated_at
-          END
-        WHERE id = ?`,
-      )
-      .run(now, now, sourceId);
+  database.transaction(
+    (transaction) => {
+      const result = transaction
+        .update(librarySources)
+        .set({
+          enabled: false,
+          forgottenAt: sql`COALESCE(${librarySources.forgottenAt}, ${now})`,
+          updatedAt: sql`CASE
+            WHEN ${librarySources.enabled} = 1 OR ${librarySources.forgottenAt} IS NULL THEN ${now}
+            ELSE ${librarySources.updatedAt}
+          END`,
+        })
+        .where(eq(librarySources.id, sourceId))
+        .run();
 
-    if (result.changes !== 1 && result.changes !== 1n) {
-      throw new Error(`Library source ${sourceId} does not exist`);
-    }
+      if (result.changes !== 1 && result.changes !== 1n) {
+        throw new Error(`Library source ${sourceId} does not exist`);
+      }
 
-    markSourceTracksUnavailable(database, sourceId, now);
-  });
+      markSourceTracksUnavailable(transaction, sourceId, now);
+    },
+    { behavior: "immediate" },
+  );
 }
 
-export function applyScanFailure(database: DatabaseSync, sourceId: string, error: string) {
+export function applyScanFailure(database: LibraryDatabase, sourceId: string, error: string) {
   if (!isSourceScannable(database, sourceId)) return false;
 
   const now = Date.now();
 
-  runInTransaction(database, () => {
-    markSourceTracksUnavailable(database, sourceId, now);
-    database
-      .prepare(
-        `UPDATE library_sources
-        SET last_scan_error = ?, updated_at = ?
-        WHERE id = ?`,
-      )
-      .run(error, now, sourceId);
-  });
+  database.transaction(
+    (transaction) => {
+      markSourceTracksUnavailable(transaction, sourceId, now);
+      transaction
+        .update(librarySources)
+        .set({ lastScanError: error, updatedAt: now })
+        .where(eq(librarySources.id, sourceId))
+        .run();
+    },
+    { behavior: "immediate" },
+  );
 
   return true;
 }
 
-export function isSourceScannable(database: DatabaseSync, sourceId: string) {
-  const source = database
-    .prepare("SELECT enabled, forgotten_at FROM library_sources WHERE id = ?")
-    .get(sourceId);
-
+export function isSourceScannable(database: LibraryDatabase, sourceId: string) {
   return (
-    source !== undefined &&
-    readBoolean(source.enabled, "library_sources.enabled") &&
-    source.forgotten_at === null
+    database
+      .select({ id: librarySources.id })
+      .from(librarySources)
+      .where(
+        and(
+          eq(librarySources.id, sourceId),
+          eq(librarySources.enabled, true),
+          isNull(librarySources.forgottenAt),
+        ),
+      )
+      .get() !== undefined
   );
 }
 
-export function markSourceTracksUnavailable(database: DatabaseSync, sourceId: string, now: number) {
+export function markSourceTracksUnavailable(
+  database: SourceWriter,
+  sourceId: string,
+  now: number,
+) {
   database
-    .prepare(
-      `UPDATE tracks
-      SET available = 0, updated_at = ?
-      WHERE source_id = ? AND available = 1`,
-    )
-    .run(now, sourceId);
+    .update(tracks)
+    .set({ available: false, updatedAt: now })
+    .where(and(eq(tracks.sourceId, sourceId), eq(tracks.available, true)))
+    .run();
 }
 
-function rejectSourceOverlap(database: DatabaseSync, path: string, sourceId?: string) {
+function rejectSourceOverlap(database: LibraryDatabase, path: string, sourceId?: string) {
   const overlappingPath = database
-    .prepare("SELECT id, path FROM library_sources WHERE forgotten_at IS NULL")
+    .select({ id: librarySources.id, path: librarySources.path })
+    .from(librarySources)
+    .where(isNull(librarySources.forgottenAt))
     .all()
-    .find(
-      (row) =>
-        readString(row.id, "library_sources.id") !== sourceId &&
-        pathsOverlap(readString(row.path, "library_sources.path"), path),
-    );
+    .find((source) => source.id !== sourceId && pathsOverlap(source.path, path));
 
   if (overlappingPath) {
-    throw new Error(
-      `This folder overlaps the existing source ${readString(overlappingPath.path, "library_sources.path")}`,
-    );
+    throw new Error(`This folder overlaps the existing source ${overlappingPath.path}`);
   }
+}
+
+function selectSources(database: LibraryDatabase, condition: SQL | undefined) {
+  return database
+    .select({
+      enabled: librarySources.enabled,
+      id: librarySources.id,
+      lastScanError: librarySources.lastScanError,
+      lastScannedAt: librarySources.lastScannedAt,
+      path: librarySources.path,
+      trackCount: count(tracks.id),
+    })
+    .from(librarySources)
+    .leftJoin(
+      tracks,
+      and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)),
+    )
+    .where(condition)
+    .groupBy(librarySources.id);
 }
 
 function pathsOverlap(left: string, right: string) {
@@ -244,46 +275,4 @@ function pathContains(parent: string, child: string) {
   const difference = relative(parent, child);
 
   return difference === "" || (!difference.startsWith("..") && !isAbsolute(difference));
-}
-
-function readSource(row: Record<string, SQLOutputValue>): LibrarySource {
-  return {
-    enabled: readBoolean(row.enabled, "library_sources.enabled"),
-    id: readString(row.id, "library_sources.id"),
-    lastScanError:
-      row.last_scan_error === null
-        ? null
-        : readString(row.last_scan_error, "library_sources.last_scan_error"),
-    lastScannedAt: readNullableNumber(row.last_scanned_at, "library_sources.last_scanned_at"),
-    path: readString(row.path, "library_sources.path"),
-    trackCount: readNumber(row.track_count, "library_sources.track_count"),
-  };
-}
-
-function readBoolean(value: SQLOutputValue | undefined, field: string) {
-  const number = Number(value);
-
-  if (number === 0 || number === 1) return number === 1;
-  throw new Error(`Invalid boolean in ${field}`);
-}
-
-function readNullableNumber(value: SQLOutputValue | undefined, field: string) {
-  if (value === null) return null;
-
-  return readNumber(value, field);
-}
-
-function readNumber(value: SQLOutputValue | undefined, field: string) {
-  const number = Number(value);
-
-  if (Number.isSafeInteger(number)) return number;
-  throw new Error(`Invalid number in ${field}`);
-}
-
-function readString(value: SQLOutputValue | undefined, field: string) {
-  if (value === undefined || value === null || value instanceof Uint8Array) {
-    throw new Error(`Invalid string in ${field}`);
-  }
-
-  return String(value);
 }
