@@ -150,8 +150,6 @@ async function startApplication() {
 }
 
 function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string) {
-  const db = database.$client;
-
   ipcMain.handle(lumeChannels.openDataFolder, async (event) => {
     requireTrustedWindow(event);
     const errorMessage = await shell.openPath(userDataDirectory);
@@ -187,7 +185,7 @@ function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string
 
   ipcMain.handle(lumeChannels.createPlaylist, (event, input) => {
     requireTrustedWindow(event);
-    const playlist = createPlaylist(db, requirePlaylistCreationInput(input));
+    const playlist = createPlaylist(database, requirePlaylistCreationInput(input));
 
     return { library: readLibrary(database), playlist } satisfies PlaylistCreationResult;
   });
@@ -197,7 +195,7 @@ function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string
 
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
 
-    return createPlaylistFromTrack(db, trackId);
+    return createPlaylistFromTrack(database, trackId);
   });
 
   ipcMain.handle(lumeChannels.loadPlaylist, (event, playlistId) => {
@@ -205,14 +203,14 @@ function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string
 
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
 
-    return getPlaylist(db, playlistId);
+    return getPlaylist(database, playlistId);
   });
 
   ipcMain.handle(lumeChannels.deletePlaylist, (event, playlistId) => {
     requireTrustedWindow(event);
 
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
-    deletePlaylist(db, playlistId);
+    deletePlaylist(database, playlistId);
 
     return readLibrary(database);
   });
@@ -224,7 +222,7 @@ function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string
 
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
 
-    return addTrackToPlaylist(db, playlistId, trackId);
+    return addTrackToPlaylist(database, playlistId, trackId);
   });
 
   ipcMain.handle(lumeChannels.confirmAddTrackToPlaylist, (event, playlistId, trackId) => {
@@ -234,7 +232,7 @@ function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string
 
     if (!uuidPattern.test(trackId)) throw new Error("Invalid track ID");
 
-    return confirmAddTrackToPlaylist(db, playlistId, trackId);
+    return confirmAddTrackToPlaylist(database, playlistId, trackId);
   });
 
   ipcMain.handle(lumeChannels.removePlaylistEntry, (event, playlistId, entryId) => {
@@ -243,7 +241,7 @@ function registerLibraryIpc(database: LibraryDatabase, userDataDirectory: string
     if (!uuidPattern.test(playlistId)) throw new Error("Invalid playlist ID");
 
     if (!uuidPattern.test(entryId)) throw new Error("Invalid playlist entry ID");
-    removePlaylistEntry(db, playlistId, entryId);
+    removePlaylistEntry(database, playlistId, entryId);
   });
 
   ipcMain.handle(lumeChannels.enableSource, async (event, sourceId) => {
@@ -294,7 +292,7 @@ function readLibrary(database: LibraryDatabase) {
 
   return {
     kind: "library",
-    playlists: getPlaylists(database.$client),
+    playlists: getPlaylists(database),
     sources,
     tracks: storedTracks.map((track) => {
       const artists = track.artists.length > 0 ? track.artists : ["Unknown artist"];
@@ -358,18 +356,7 @@ function requirePlaylistCreationInput(input: PlaylistCreationInput) {
     throw new Error("Invalid playlist creation input");
   }
 
-  const title = input.title.trim();
-  const description = input.description?.trim() || null;
-
-  if (title.length === 0 || title.length > 100) {
-    throw new Error("Playlist titles must contain between 1 and 100 characters");
-  }
-
-  if (description !== null && description.length > 300) {
-    throw new Error("Playlist descriptions cannot exceed 300 characters");
-  }
-
-  return { description, title } satisfies PlaylistCreationInput;
+  return input;
 }
 
 async function handleStartupFailure(error: Error) {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import { and, count, DrizzleQueryError, eq, sql } from "drizzle-orm";
 import type {
   AddTrackToPlaylistResult,
   PlaylistCreationInput,
@@ -7,55 +7,62 @@ import type {
   PlaylistEntry,
   PlaylistSummary,
 } from "../shared/lib";
-import { runInTransaction } from "./database/transaction";
+import type { LibraryDatabase } from "./database";
+import { playlistEntries, playlists, tracks } from "./database/schema";
 
-export function getPlaylists(database: DatabaseSync): PlaylistSummary[] {
+type PlaylistTransaction = Parameters<Parameters<LibraryDatabase["transaction"]>[0]>[0];
+
+type PlaylistTransactionResult =
+  | AddTrackToPlaylistResult
+  | PlaylistDetails
+  | PlaylistEntry
+  | PlaylistSummary
+  | void;
+
+export function getPlaylists(database: LibraryDatabase): PlaylistSummary[] {
   return database
-    .prepare(
-      `SELECT
-        playlists.id,
-        playlists.title,
-        playlists.description,
-        COUNT(playlist_entries.id) AS entry_count
-      FROM playlists
-      LEFT JOIN playlist_entries ON playlist_entries.playlist_id = playlists.id
-      GROUP BY playlists.id
-      ORDER BY playlists.created_at, playlists.rowid`,
-    )
-    .all()
-    .map(readPlaylistSummary);
+    .select({
+      description: playlists.description,
+      entryCount: count(playlistEntries.id),
+      id: playlists.id,
+      title: playlists.title,
+    })
+    .from(playlists)
+    .leftJoin(playlistEntries, eq(playlistEntries.playlistId, playlists.id))
+    .groupBy(playlists.id)
+    .orderBy(playlists.createdAt, sql`${playlists}.rowid`)
+    .all();
 }
 
-export function getPlaylist(database: DatabaseSync, playlistId: string): PlaylistDetails | null {
+export function getPlaylist(database: LibraryDatabase, playlistId: string): PlaylistDetails | null {
   const playlist = database
-    .prepare("SELECT id, title, description FROM playlists WHERE id = ?")
-    .get(playlistId);
+    .select({
+      description: playlists.description,
+      id: playlists.id,
+      title: playlists.title,
+    })
+    .from(playlists)
+    .where(eq(playlists.id, playlistId))
+    .get();
 
   if (!playlist) return null;
 
   return {
-    description:
-      playlist.description === null
-        ? null
-        : readString(playlist.description, "playlists.description"),
+    ...playlist,
     entries: database
-      .prepare(
-        `SELECT id, track_id, position FROM playlist_entries
-        WHERE playlist_id = ?
-        ORDER BY position`,
-      )
-      .all(playlistId)
-      .map((entry) => ({
-        id: readString(entry.id, "playlist_entries.id"),
-        position: readNumber(entry.position, "playlist_entries.position"),
-        trackId: readString(entry.track_id, "playlist_entries.track_id"),
-      })),
-    id: readString(playlist.id, "playlists.id"),
-    title: readString(playlist.title, "playlists.title"),
+      .select({
+        id: playlistEntries.id,
+        position: playlistEntries.position,
+        trackId: playlistEntries.trackId,
+      })
+      .from(playlistEntries)
+      .where(eq(playlistEntries.playlistId, playlistId))
+      .orderBy(playlistEntries.position)
+      .all(),
   };
 }
 
-export function createPlaylist(database: DatabaseSync, input: PlaylistCreationInput) {
+export function createPlaylist(database: LibraryDatabase, input: PlaylistCreationInput) {
   const title = input.title.trim();
   const description = input.description?.trim() || null;
 
@@ -74,26 +81,34 @@ export function createPlaylist(database: DatabaseSync, input: PlaylistCreationIn
     title,
   } satisfies PlaylistSummary;
 
-  return runInTransaction(database, () => {
+  return runPlaylistTransaction(database, (transaction) => {
     const now = Date.now();
-    database
-      .prepare(
-        `INSERT INTO playlists (id, title, description, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run(playlist.id, playlist.title, playlist.description, now, now);
+    transaction
+      .insert(playlists)
+      .values({
+        createdAt: now,
+        description: playlist.description,
+        id: playlist.id,
+        title: playlist.title,
+        updatedAt: now,
+      })
+      .run();
 
     return playlist;
   });
 }
 
-export function createPlaylistFromTrack(database: DatabaseSync, trackId: string) {
-  return runInTransaction(database, () => {
-    const track = database.prepare("SELECT title FROM tracks WHERE id = ?").get(trackId);
+export function createPlaylistFromTrack(database: LibraryDatabase, trackId: string) {
+  return runPlaylistTransaction(database, (transaction) => {
+    const track = transaction
+      .select({ title: tracks.title })
+      .from(tracks)
+      .where(eq(tracks.id, trackId))
+      .get();
 
     if (!track) throw new Error("Track does not exist");
 
-    const trackTitle = readString(track.title, "tracks.title").trim();
+    const trackTitle = track.title.trim();
 
     const playlist = {
       description: null,
@@ -104,26 +119,34 @@ export function createPlaylistFromTrack(database: DatabaseSync, trackId: string)
 
     const now = Date.now();
 
-    database
-      .prepare(
-        `INSERT INTO playlists (id, title, description, created_at, updated_at)
-        VALUES (?, ?, NULL, ?, ?)`,
-      )
-      .run(playlist.id, playlist.title, now, now);
-    database
-      .prepare(
-        `INSERT INTO playlist_entries (id, playlist_id, track_id, position, created_at)
-        VALUES (?, ?, ?, 0, ?)`,
-      )
-      .run(playlist.entries[0].id, playlist.id, trackId, now);
+    transaction
+      .insert(playlists)
+      .values({
+        createdAt: now,
+        description: playlist.description,
+        id: playlist.id,
+        title: playlist.title,
+        updatedAt: now,
+      })
+      .run();
+    transaction
+      .insert(playlistEntries)
+      .values({
+        createdAt: now,
+        id: playlist.entries[0].id,
+        playlistId: playlist.id,
+        position: 0,
+        trackId,
+      })
+      .run();
 
     return playlist;
   });
 }
 
-export function deletePlaylist(database: DatabaseSync, playlistId: string) {
-  runInTransaction(database, () => {
-    const result = database.prepare("DELETE FROM playlists WHERE id = ?").run(playlistId);
+export function deletePlaylist(database: LibraryDatabase, playlistId: string) {
+  runPlaylistTransaction(database, (transaction) => {
+    const result = transaction.delete(playlists).where(eq(playlists.id, playlistId)).run();
 
     if (result.changes !== 1 && result.changes !== 1n) {
       throw new Error("Playlist does not exist");
@@ -132,120 +155,129 @@ export function deletePlaylist(database: DatabaseSync, playlistId: string) {
 }
 
 export function addTrackToPlaylist(
-  database: DatabaseSync,
+  database: LibraryDatabase,
   playlistId: string,
   trackId: string,
 ): AddTrackToPlaylistResult {
-  return runInTransaction(database, () => {
-    requirePlaylistAndTrack(database, playlistId, trackId);
+  return runPlaylistTransaction(database, (transaction) => {
+    requirePlaylistAndTrack(transaction, playlistId, trackId);
 
-    const duplicate = database
-      .prepare("SELECT 1 FROM playlist_entries WHERE playlist_id = ? AND track_id = ? LIMIT 1")
-      .get(playlistId, trackId);
+    const duplicate = transaction
+      .select({ id: playlistEntries.id })
+      .from(playlistEntries)
+      .where(and(eq(playlistEntries.playlistId, playlistId), eq(playlistEntries.trackId, trackId)))
+      .get();
 
     if (duplicate) return { kind: "duplicate" };
 
-    return { entry: insertPlaylistEntry(database, playlistId, trackId), kind: "added" };
+    return { entry: insertPlaylistEntry(transaction, playlistId, trackId), kind: "added" };
   });
 }
 
 export function confirmAddTrackToPlaylist(
-  database: DatabaseSync,
+  database: LibraryDatabase,
   playlistId: string,
   trackId: string,
 ) {
-  return runInTransaction(database, () => {
-    requirePlaylistAndTrack(database, playlistId, trackId);
+  return runPlaylistTransaction(database, (transaction) => {
+    requirePlaylistAndTrack(transaction, playlistId, trackId);
 
-    return insertPlaylistEntry(database, playlistId, trackId);
+    return insertPlaylistEntry(transaction, playlistId, trackId);
   });
 }
 
-function requirePlaylistAndTrack(database: DatabaseSync, playlistId: string, trackId: string) {
-  const playlist = database.prepare("SELECT 1 FROM playlists WHERE id = ?").get(playlistId);
+export function removePlaylistEntry(
+  database: LibraryDatabase,
+  playlistId: string,
+  entryId: string,
+) {
+  runPlaylistTransaction(database, (transaction) => {
+    const playlist = transaction
+      .select({ id: playlists.id })
+      .from(playlists)
+      .where(eq(playlists.id, playlistId))
+      .get();
 
-  if (!playlist) {
-    throw new Error("Playlist does not exist");
-  }
+    if (!playlist) throw new Error("Playlist does not exist");
 
-  const track = database.prepare("SELECT 1 FROM tracks WHERE id = ?").get(trackId);
+    const result = transaction
+      .delete(playlistEntries)
+      .where(and(eq(playlistEntries.id, entryId), eq(playlistEntries.playlistId, playlistId)))
+      .run();
 
-  if (!track) {
-    throw new Error("Track does not exist");
-  }
+    if (result.changes !== 1 && result.changes !== 1n) {
+      throw new Error("Playlist entry does not exist in this playlist");
+    }
+
+    transaction
+      .update(playlists)
+      .set({ updatedAt: Date.now() })
+      .where(eq(playlists.id, playlistId))
+      .run();
+  });
 }
 
-function insertPlaylistEntry(database: DatabaseSync, playlistId: string, trackId: string) {
+function requirePlaylistAndTrack(
+  database: PlaylistTransaction,
+  playlistId: string,
+  trackId: string,
+) {
+  const playlist = database
+    .select({ id: playlists.id })
+    .from(playlists)
+    .where(eq(playlists.id, playlistId))
+    .get();
+
+  if (!playlist) throw new Error("Playlist does not exist");
+
+  const track = database.select({ id: tracks.id }).from(tracks).where(eq(tracks.id, trackId)).get();
+
+  if (!track) throw new Error("Track does not exist");
+}
+
+function insertPlaylistEntry(database: PlaylistTransaction, playlistId: string, trackId: string) {
   const entry = {
     id: randomUUID(),
-    position: readNumber(
+    position:
       database
-        .prepare(
-          `SELECT COALESCE(MAX(position) + 1, 0) AS position
-          FROM playlist_entries WHERE playlist_id = ?`,
-        )
-        .get(playlistId)?.position,
-      "playlist_entries.position",
-    ),
+        .select({
+          position: sql<number | null>`MAX(${playlistEntries.position}) + 1`,
+        })
+        .from(playlistEntries)
+        .where(eq(playlistEntries.playlistId, playlistId))
+        .get()?.position ?? 0,
     trackId,
   } satisfies PlaylistEntry;
 
   const now = Date.now();
 
   database
-    .prepare(
-      `INSERT INTO playlist_entries (id, playlist_id, track_id, position, created_at)
-      VALUES (?, ?, ?, ?, ?)`,
-    )
-    .run(entry.id, playlistId, trackId, entry.position, now);
-  database.prepare("UPDATE playlists SET updated_at = ? WHERE id = ?").run(now, playlistId);
+    .insert(playlistEntries)
+    .values({
+      createdAt: now,
+      id: entry.id,
+      playlistId,
+      position: entry.position,
+      trackId,
+    })
+    .run();
+  database.update(playlists).set({ updatedAt: now }).where(eq(playlists.id, playlistId)).run();
 
   return entry;
 }
 
-export function removePlaylistEntry(database: DatabaseSync, playlistId: string, entryId: string) {
-  runInTransaction(database, () => {
-    const playlist = database.prepare("SELECT 1 FROM playlists WHERE id = ?").get(playlistId);
-
-    if (!playlist) {
-      throw new Error("Playlist does not exist");
-    }
-
-    const result = database
-      .prepare("DELETE FROM playlist_entries WHERE id = ? AND playlist_id = ?")
-      .run(entryId, playlistId);
-
-    if (result.changes !== 1 && result.changes !== 1n) {
-      throw new Error("Playlist entry does not exist in this playlist");
-    }
-
-    database
-      .prepare("UPDATE playlists SET updated_at = ? WHERE id = ?")
-      .run(Date.now(), playlistId);
-  });
-}
-
-function readPlaylistSummary(row: Record<string, SQLOutputValue>): PlaylistSummary {
-  return {
-    description:
-      row.description === null ? null : readString(row.description, "playlists.description"),
-    entryCount: readNumber(row.entry_count, "playlist_entries.count"),
-    id: readString(row.id, "playlists.id"),
-    title: readString(row.title, "playlists.title"),
-  };
-}
-
-function readNumber(value: SQLOutputValue | undefined, field: string) {
-  const number = Number(value);
-
-  if (Number.isSafeInteger(number)) return number;
-  throw new Error(`Invalid number in ${field}`);
-}
-
-function readString(value: SQLOutputValue | undefined, field: string) {
-  if (value === undefined || value === null || value instanceof Uint8Array) {
-    throw new Error(`Invalid string in ${field}`);
+function runPlaylistTransaction<Result extends PlaylistTransactionResult>(
+  database: LibraryDatabase,
+  action: (transaction: PlaylistTransaction) => Result,
+): Result;
+function runPlaylistTransaction(
+  database: LibraryDatabase,
+  action: (transaction: PlaylistTransaction) => PlaylistTransactionResult,
+) {
+  try {
+    return database.transaction(action, { behavior: "immediate" });
+  } catch (error) {
+    if (error instanceof DrizzleQueryError && error.cause) throw error.cause;
+    throw error;
   }
-
-  return String(value);
 }
