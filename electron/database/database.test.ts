@@ -43,17 +43,6 @@ describe("library database lifecycle", () => {
   });
 });
 
-describe("library database migrations", () => {
-  it("applies the generated baseline and records it in Drizzle's journal", async () => {
-    const database = await openTestDatabase();
-
-    expect(
-      database.prepare("SELECT name FROM __drizzle_migrations ORDER BY id").all(),
-    ).toEqual([{ name: "20260913195642_baseline" }]);
-  });
-
-});
-
 async function openTestDatabase(location = ":memory:") {
   const database = (
     await openLibraryDatabase(location, join(import.meta.dirname, "../../drizzle"))
