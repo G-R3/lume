@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { DrizzleQueryError, type DrizzleTypeError } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 
@@ -28,6 +29,24 @@ export async function openLibraryDatabase(
 }
 
 export type LibraryDatabase = Awaited<ReturnType<typeof openLibraryDatabase>>;
+
+export type LibraryTransaction = Parameters<Parameters<LibraryDatabase["transaction"]>[0]>[0];
+
+export function runLibraryTransaction<Result>(
+  database: LibraryDatabase,
+  action: (
+    transaction: LibraryTransaction,
+  ) => Result extends Promise<any>
+    ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
+    : Result,
+) {
+  try {
+    return database.transaction(action, { behavior: "immediate" });
+  } catch (error) {
+    if (error instanceof DrizzleQueryError && error.cause) throw error.cause;
+    throw error;
+  }
+}
 
 function validateForeignKeys(database: DatabaseSync) {
   const foreignKeyFailures = database.prepare("PRAGMA foreign_key_check").all();

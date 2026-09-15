@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { and, DrizzleQueryError, eq, notExists, placeholder, sql } from "drizzle-orm";
+import { and, eq, notExists, placeholder, sql } from "drizzle-orm";
 import type { TrackMetadata } from "../shared/lib";
-import type { LibraryDatabase } from "./database";
+import { runLibraryTransaction, type LibraryDatabase } from "./database";
 import { artwork, librarySources, tracks } from "./database/schema";
 import { trackMetadataVersion, type ArtworkData, type ScannedTrack } from "./library";
 import { isSourceScannable, markSourceTracksUnavailable } from "./library-store";
@@ -93,133 +93,125 @@ export function applySourceScan(
 
   const now = Date.now();
 
-  try {
-    database.transaction(
-      (transaction) => {
-        markSourceTracksUnavailable(transaction, sourceId, now);
+  runLibraryTransaction(database, (transaction) => {
+    markSourceTracksUnavailable(transaction, sourceId, now);
 
-        const restoreTrack = transaction
-          .update(tracks)
-          .set({ available: true, updatedAt: placeholder("updatedAt") })
-          .where(and(eq(tracks.sourceId, sourceId), eq(tracks.path, placeholder("path"))))
-          .prepare();
+    const restoreTrack = transaction
+      .update(tracks)
+      .set({ available: true, updatedAt: placeholder("updatedAt") })
+      .where(and(eq(tracks.sourceId, sourceId), eq(tracks.path, placeholder("path"))))
+      .prepare();
 
-        const saveArtwork = transaction
-          .insert(artwork)
-          .values({
-            data: placeholder("data"),
-            id: placeholder("id"),
-            mediaType: placeholder("mediaType"),
-          })
-          .onConflictDoNothing({ target: artwork.id })
-          .prepare();
+    const saveArtwork = transaction
+      .insert(artwork)
+      .values({
+        data: placeholder("data"),
+        id: placeholder("id"),
+        mediaType: placeholder("mediaType"),
+      })
+      .onConflictDoNothing({ target: artwork.id })
+      .prepare();
 
-        const saveTrack = transaction
-          .insert(tracks)
-          .values({
-            album: placeholder("album"),
-            albumArtists: placeholder("albumArtists"),
-            artists: placeholder("artists"),
-            artworkId: placeholder("artworkId"),
-            available: true,
-            bitrate: placeholder("bitrate"),
-            bitsPerSample: placeholder("bitsPerSample"),
-            channelCount: placeholder("channelCount"),
-            codec: placeholder("codec"),
-            createdAt: now,
-            discNumber: placeholder("discNumber"),
-            discTotal: placeholder("discTotal"),
-            duration: placeholder("duration"),
-            fileSize: placeholder("fileSize"),
-            format: placeholder("format"),
-            genres: placeholder("genres"),
-            id: placeholder("id"),
-            lossless: placeholder("lossless"),
-            metadataVersion: trackMetadataVersion,
-            modifiedAt: placeholder("modifiedAt"),
-            path: placeholder("path"),
-            sampleRate: placeholder("sampleRate"),
-            sourceId,
-            title: placeholder("title"),
-            trackNumber: placeholder("trackNumber"),
-            trackTotal: placeholder("trackTotal"),
-            updatedAt: now,
-            year: placeholder("year"),
-          })
-          .onConflictDoUpdate({
-            target: tracks.path,
-            set: {
-              album: sql`excluded.album`,
-              albumArtists: sql`excluded.album_artists`,
-              artists: sql`excluded.artists`,
-              artworkId: sql`excluded.artwork_id`,
-              available: true,
-              bitrate: sql`excluded.bitrate`,
-              bitsPerSample: sql`excluded.bits_per_sample`,
-              channelCount: sql`excluded.channel_count`,
-              codec: sql`excluded.codec`,
-              discNumber: sql`excluded.disc_number`,
-              discTotal: sql`excluded.disc_total`,
-              duration: sql`excluded.duration`,
-              fileSize: sql`excluded.file_size`,
-              format: sql`excluded.format`,
-              genres: sql`excluded.genres`,
-              lossless: sql`excluded.lossless`,
-              metadataVersion: sql`excluded.metadata_version`,
-              modifiedAt: sql`excluded.modified_at`,
-              sampleRate: sql`excluded.sample_rate`,
-              sourceId: sql`excluded.source_id`,
-              title: sql`excluded.title`,
-              trackNumber: sql`excluded.track_number`,
-              trackTotal: sql`excluded.track_total`,
-              updatedAt: sql`excluded.updated_at`,
-              year: sql`excluded.year`,
-            },
-          })
-          .prepare();
+    const saveTrack = transaction
+      .insert(tracks)
+      .values({
+        album: placeholder("album"),
+        albumArtists: placeholder("albumArtists"),
+        artists: placeholder("artists"),
+        artworkId: placeholder("artworkId"),
+        available: true,
+        bitrate: placeholder("bitrate"),
+        bitsPerSample: placeholder("bitsPerSample"),
+        channelCount: placeholder("channelCount"),
+        codec: placeholder("codec"),
+        createdAt: now,
+        discNumber: placeholder("discNumber"),
+        discTotal: placeholder("discTotal"),
+        duration: placeholder("duration"),
+        fileSize: placeholder("fileSize"),
+        format: placeholder("format"),
+        genres: placeholder("genres"),
+        id: placeholder("id"),
+        lossless: placeholder("lossless"),
+        metadataVersion: trackMetadataVersion,
+        modifiedAt: placeholder("modifiedAt"),
+        path: placeholder("path"),
+        sampleRate: placeholder("sampleRate"),
+        sourceId,
+        title: placeholder("title"),
+        trackNumber: placeholder("trackNumber"),
+        trackTotal: placeholder("trackTotal"),
+        updatedAt: now,
+        year: placeholder("year"),
+      })
+      .onConflictDoUpdate({
+        target: tracks.path,
+        set: {
+          album: sql`excluded.album`,
+          albumArtists: sql`excluded.album_artists`,
+          artists: sql`excluded.artists`,
+          artworkId: sql`excluded.artwork_id`,
+          available: true,
+          bitrate: sql`excluded.bitrate`,
+          bitsPerSample: sql`excluded.bits_per_sample`,
+          channelCount: sql`excluded.channel_count`,
+          codec: sql`excluded.codec`,
+          discNumber: sql`excluded.disc_number`,
+          discTotal: sql`excluded.disc_total`,
+          duration: sql`excluded.duration`,
+          fileSize: sql`excluded.file_size`,
+          format: sql`excluded.format`,
+          genres: sql`excluded.genres`,
+          lossless: sql`excluded.lossless`,
+          metadataVersion: sql`excluded.metadata_version`,
+          modifiedAt: sql`excluded.modified_at`,
+          sampleRate: sql`excluded.sample_rate`,
+          sourceId: sql`excluded.source_id`,
+          title: sql`excluded.title`,
+          trackNumber: sql`excluded.track_number`,
+          trackTotal: sql`excluded.track_total`,
+          updatedAt: sql`excluded.updated_at`,
+          year: sql`excluded.year`,
+        },
+      })
+      .prepare();
 
-        scannedTracks.forEach((track) => {
-          if (track.kind === "unchanged") {
-            restoreTrack.run({ path: track.path, updatedAt: now });
+    scannedTracks.forEach((track) => {
+      if (track.kind === "unchanged") {
+        restoreTrack.run({ path: track.path, updatedAt: now });
 
-            return;
-          }
+        return;
+      }
 
-          if (track.artwork) {
-            saveArtwork.run(track.artwork);
-          }
+      if (track.artwork) {
+        saveArtwork.run(track.artwork);
+      }
 
-          saveTrack.run({
-            ...track,
-            artworkId: track.artwork?.id ?? null,
-            id: randomUUID(),
-          });
-        });
+      saveTrack.run({
+        ...track,
+        artworkId: track.artwork?.id ?? null,
+        id: randomUUID(),
+      });
+    });
 
-        transaction
-          .delete(artwork)
-          .where(
-            notExists(
-              transaction
-                .select({ id: tracks.id })
-                .from(tracks)
-                .where(eq(tracks.artworkId, artwork.id)),
-            ),
-          )
-          .run();
+    transaction
+      .delete(artwork)
+      .where(
+        notExists(
+          transaction
+            .select({ id: tracks.id })
+            .from(tracks)
+            .where(eq(tracks.artworkId, artwork.id)),
+        ),
+      )
+      .run();
 
-        transaction
-          .update(librarySources)
-          .set({ lastScanError: null, lastScannedAt: now, updatedAt: now })
-          .where(eq(librarySources.id, sourceId))
-          .run();
-      },
-      { behavior: "immediate" },
-    );
-  } catch (error) {
-    if (error instanceof DrizzleQueryError && error.cause) throw error.cause;
-    throw error;
-  }
+    transaction
+      .update(librarySources)
+      .set({ lastScanError: null, lastScannedAt: now, updatedAt: now })
+      .where(eq(librarySources.id, sourceId))
+      .run();
+  });
 
   return true;
 }

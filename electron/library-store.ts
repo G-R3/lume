@@ -3,7 +3,7 @@ import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
 import { and, count, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import type { LibrarySource } from "../shared/lib";
-import type { LibraryDatabase } from "./database";
+import { runLibraryTransaction, type LibraryDatabase } from "./database";
 import { librarySources, tracks } from "./database/schema";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
@@ -135,56 +135,50 @@ export function enableSource(database: LibraryDatabase, sourceId: string) {
 export function disableSource(database: LibraryDatabase, sourceId: string) {
   const now = Date.now();
 
-  database.transaction(
-    (transaction) => {
-      const result = transaction
-        .update(librarySources)
-        .set({
-          enabled: false,
-          updatedAt: sql`CASE
+  runLibraryTransaction(database, (transaction) => {
+    const result = transaction
+      .update(librarySources)
+      .set({
+        enabled: false,
+        updatedAt: sql`CASE
             WHEN ${librarySources.enabled} = 1 THEN ${now}
             ELSE ${librarySources.updatedAt}
           END`,
-        })
-        .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
-        .run();
+      })
+      .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
+      .run();
 
-      if (result.changes !== 1 && result.changes !== 1n) {
-        throw new Error(`Library source ${sourceId} is not active`);
-      }
+    if (result.changes !== 1 && result.changes !== 1n) {
+      throw new Error(`Library source ${sourceId} is not active`);
+    }
 
-      markSourceTracksUnavailable(transaction, sourceId, now);
-    },
-    { behavior: "immediate" },
-  );
+    markSourceTracksUnavailable(transaction, sourceId, now);
+  });
 }
 
 export function forgetSource(database: LibraryDatabase, sourceId: string) {
   const now = Date.now();
 
-  database.transaction(
-    (transaction) => {
-      const result = transaction
-        .update(librarySources)
-        .set({
-          enabled: false,
-          forgottenAt: sql`COALESCE(${librarySources.forgottenAt}, ${now})`,
-          updatedAt: sql`CASE
+  runLibraryTransaction(database, (transaction) => {
+    const result = transaction
+      .update(librarySources)
+      .set({
+        enabled: false,
+        forgottenAt: sql`COALESCE(${librarySources.forgottenAt}, ${now})`,
+        updatedAt: sql`CASE
             WHEN ${librarySources.enabled} = 1 OR ${librarySources.forgottenAt} IS NULL THEN ${now}
             ELSE ${librarySources.updatedAt}
           END`,
-        })
-        .where(eq(librarySources.id, sourceId))
-        .run();
+      })
+      .where(eq(librarySources.id, sourceId))
+      .run();
 
-      if (result.changes !== 1 && result.changes !== 1n) {
-        throw new Error(`Library source ${sourceId} does not exist`);
-      }
+    if (result.changes !== 1 && result.changes !== 1n) {
+      throw new Error(`Library source ${sourceId} does not exist`);
+    }
 
-      markSourceTracksUnavailable(transaction, sourceId, now);
-    },
-    { behavior: "immediate" },
-  );
+    markSourceTracksUnavailable(transaction, sourceId, now);
+  });
 }
 
 export function applyScanFailure(database: LibraryDatabase, sourceId: string, error: string) {
@@ -192,17 +186,14 @@ export function applyScanFailure(database: LibraryDatabase, sourceId: string, er
 
   const now = Date.now();
 
-  database.transaction(
-    (transaction) => {
-      markSourceTracksUnavailable(transaction, sourceId, now);
-      transaction
-        .update(librarySources)
-        .set({ lastScanError: error, updatedAt: now })
-        .where(eq(librarySources.id, sourceId))
-        .run();
-    },
-    { behavior: "immediate" },
-  );
+  runLibraryTransaction(database, (transaction) => {
+    markSourceTracksUnavailable(transaction, sourceId, now);
+    transaction
+      .update(librarySources)
+      .set({ lastScanError: error, updatedAt: now })
+      .where(eq(librarySources.id, sourceId))
+      .run();
+  });
 
   return true;
 }

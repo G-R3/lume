@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, DrizzleQueryError, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import type {
   AddTrackToPlaylistResult,
   PlaylistCreationInput,
@@ -7,17 +7,8 @@ import type {
   PlaylistEntry,
   PlaylistSummary,
 } from "../shared/lib";
-import type { LibraryDatabase } from "./database";
+import { runLibraryTransaction, type LibraryDatabase, type LibraryTransaction } from "./database";
 import { playlistEntries, playlists, tracks } from "./database/schema";
-
-type PlaylistTransaction = Parameters<Parameters<LibraryDatabase["transaction"]>[0]>[0];
-
-type PlaylistTransactionResult =
-  | AddTrackToPlaylistResult
-  | PlaylistDetails
-  | PlaylistEntry
-  | PlaylistSummary
-  | void;
 
 export function getPlaylists(database: LibraryDatabase): PlaylistSummary[] {
   return database
@@ -81,7 +72,7 @@ export function createPlaylist(database: LibraryDatabase, input: PlaylistCreatio
     title,
   } satisfies PlaylistSummary;
 
-  return runPlaylistTransaction(database, (transaction) => {
+  return runLibraryTransaction(database, (transaction) => {
     const now = Date.now();
     transaction
       .insert(playlists)
@@ -99,7 +90,7 @@ export function createPlaylist(database: LibraryDatabase, input: PlaylistCreatio
 }
 
 export function createPlaylistFromTrack(database: LibraryDatabase, trackId: string) {
-  return runPlaylistTransaction(database, (transaction) => {
+  return runLibraryTransaction(database, (transaction) => {
     const track = transaction
       .select({ title: tracks.title })
       .from(tracks)
@@ -145,7 +136,7 @@ export function createPlaylistFromTrack(database: LibraryDatabase, trackId: stri
 }
 
 export function deletePlaylist(database: LibraryDatabase, playlistId: string) {
-  runPlaylistTransaction(database, (transaction) => {
+  runLibraryTransaction(database, (transaction) => {
     const result = transaction.delete(playlists).where(eq(playlists.id, playlistId)).run();
 
     if (result.changes !== 1 && result.changes !== 1n) {
@@ -159,7 +150,7 @@ export function addTrackToPlaylist(
   playlistId: string,
   trackId: string,
 ): AddTrackToPlaylistResult {
-  return runPlaylistTransaction(database, (transaction) => {
+  return runLibraryTransaction(database, (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
     const duplicate = transaction
@@ -179,7 +170,7 @@ export function confirmAddTrackToPlaylist(
   playlistId: string,
   trackId: string,
 ) {
-  return runPlaylistTransaction(database, (transaction) => {
+  return runLibraryTransaction(database, (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
     return insertPlaylistEntry(transaction, playlistId, trackId);
@@ -191,7 +182,7 @@ export function removePlaylistEntry(
   playlistId: string,
   entryId: string,
 ) {
-  runPlaylistTransaction(database, (transaction) => {
+  runLibraryTransaction(database, (transaction) => {
     const playlist = transaction
       .select({ id: playlists.id })
       .from(playlists)
@@ -218,7 +209,7 @@ export function removePlaylistEntry(
 }
 
 function requirePlaylistAndTrack(
-  database: PlaylistTransaction,
+  database: LibraryTransaction,
   playlistId: string,
   trackId: string,
 ) {
@@ -235,7 +226,7 @@ function requirePlaylistAndTrack(
   if (!track) throw new Error("Track does not exist");
 }
 
-function insertPlaylistEntry(database: PlaylistTransaction, playlistId: string, trackId: string) {
+function insertPlaylistEntry(database: LibraryTransaction, playlistId: string, trackId: string) {
   const entry = {
     id: randomUUID(),
     position:
@@ -264,20 +255,4 @@ function insertPlaylistEntry(database: PlaylistTransaction, playlistId: string, 
   database.update(playlists).set({ updatedAt: now }).where(eq(playlists.id, playlistId)).run();
 
   return entry;
-}
-
-function runPlaylistTransaction<Result extends PlaylistTransactionResult>(
-  database: LibraryDatabase,
-  action: (transaction: PlaylistTransaction) => Result,
-): Result;
-function runPlaylistTransaction(
-  database: LibraryDatabase,
-  action: (transaction: PlaylistTransaction) => PlaylistTransactionResult,
-) {
-  try {
-    return database.transaction(action, { behavior: "immediate" });
-  } catch (error) {
-    if (error instanceof DrizzleQueryError && error.cause) throw error.cause;
-    throw error;
-  }
 }
