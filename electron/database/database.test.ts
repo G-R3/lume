@@ -44,9 +44,8 @@ describe("library database lifecycle", () => {
 });
 
 async function openTestDatabase(location = ":memory:") {
-  const database = (
-    await openLibraryDatabase(location, join(import.meta.dirname, "../../drizzle"))
-  ).$client;
+  const database = (await openLibraryDatabase(location, join(import.meta.dirname, "../../drizzle")))
+    .$client;
 
   openDatabases.push(database);
 

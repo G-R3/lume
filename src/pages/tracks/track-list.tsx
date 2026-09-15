@@ -4,6 +4,7 @@ import { type ReactNode, useRef, useState } from "react";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
+import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,15 +28,6 @@ type TrackListProps = {
   playlistId?: string;
   renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
-
-const coverClasses = [
-  "from-orange-950 to-orange-500",
-  "from-cyan-950 to-cyan-500",
-  "from-purple-950 to-purple-500",
-  "from-emerald-950 to-emerald-500",
-  "from-stone-800 to-stone-500",
-  "from-indigo-950 to-indigo-500",
-];
 
 export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
   const audioPlayer = useAudioPlayer();
@@ -76,19 +68,19 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
         <caption className="sr-only">{caption}</caption>
         <thead className="font-berkeley border-b border-neutral-800 text-left tracking-[0.08em] text-neutral-400 uppercase">
           <tr>
-            <th className="w-14 py-2.5 pr-3 pl-5 font-normal" scope="col">
+            <th className="hidden w-14 py-2.5 pr-3 pl-5 font-normal sm:table-cell" scope="col">
               #
             </th>
             <th className="px-2 py-2.5 font-normal" scope="col">
               Title
             </th>
-            <th className="w-24 px-3 py-2.5 text-right font-normal" scope="col">
-              Format
+            <th className="hidden w-[30%] px-3 py-2.5 font-normal lg:table-cell" scope="col">
+              Album
             </th>
-            <th className="w-24 px-3 py-2.5 text-right font-normal" scope="col">
+            <th className="w-18 px-2 py-2.5 text-right font-normal sm:w-24 sm:px-3" scope="col">
               Time
             </th>
-            <th className="w-12 py-2.5 pr-5 pl-2 font-normal" scope="col">
+            <th className="w-10 py-2.5 pr-3 pl-1 font-normal sm:w-12 sm:pr-5 sm:pl-2" scope="col">
               <span className="sr-only">Actions</span>
             </th>
           </tr>
@@ -98,6 +90,8 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
             const track = item.track;
             const isActive = audioPlayer.activeQueueKey === item.key;
             const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
+            const artists = track.artists.join(", ") || "Unknown artist";
+            const album = track.album || "Unknown album";
 
             return (
               <tr
@@ -115,7 +109,12 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   track.available ? () => audioPlayer.playFrom(items, index, playlistId) : undefined
                 }
               >
-                <td className={cn("font-berkeley h-10.5 pr-3 pl-5 tabular-nums", metadataColor)}>
+                <td
+                  className={cn(
+                    "font-berkeley hidden h-12 pr-3 pl-5 tabular-nums sm:table-cell",
+                    metadataColor,
+                  )}
+                >
                   {isActive && audioPlayer.isPlaying ? (
                     <span aria-label="Playing" className="flex h-3 items-end gap-0.5">
                       <i className="h-1 w-0.5 bg-lime-300" />
@@ -126,57 +125,60 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     String(index + 1).padStart(2, "0")
                   )}
                 </td>
-                <td className="h-10.5 px-2">
+                <td className="h-12 min-w-0 px-2">
                   <button
                     aria-current={isActive ? "true" : undefined}
+                    aria-label={track.title}
                     className={cn(
-                      "flex w-full items-center gap-2.5 text-left outline-none",
+                      "flex w-full min-w-0 items-center gap-2.5 text-left outline-none",
                       track.available ? "cursor-pointer" : "cursor-not-allowed",
                     )}
                     disabled={!track.available}
                     type="button"
                   >
-                    <span
-                      aria-hidden="true"
+                    <TrackArtwork
+                      artworkUrl={track.artworkUrl}
                       className={cn(
-                        "font-berkeley grid size-7 shrink-0 place-items-center rounded-[3px] bg-linear-to-br text-[8px] font-semibold tracking-[-0.04em] text-neutral-100",
-                        coverClasses[index % coverClasses.length],
+                        "size-8 text-[8px]",
                         !track.available && "grayscale opacity-40",
                       )}
-                    >
-                      {track.title
-                        .split(/\s+/)
-                        .slice(0, 2)
-                        .map((word) => word[0])
-                        .join("")
-                        .toUpperCase()}
-                    </span>
-                    <span
-                      className={cn(
-                        "truncate",
-                        track.available ? "text-neutral-100" : "text-neutral-500",
-                      )}
-                    >
-                      {track.title}
+                      fallback={<ArtworkFallback track={track} />}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          "block truncate",
+                          track.available ? "text-neutral-100" : "text-neutral-500",
+                        )}
+                      >
+                        {track.title}
+                      </span>
+                      <span className={cn("block truncate text-[10px] leading-4", metadataColor)}>
+                        <span>{artists}</span>
+                        <span className="lg:hidden"> · {album}</span>
+                      </span>
                     </span>
                     {!track.available && (
                       <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-neutral-600">
                         <LockSimpleIcon aria-hidden="true" />
-                        Unavailable
+                        <span className="hidden sm:inline">Unavailable</span>
                       </span>
                     )}
                   </button>
                 </td>
-                <td className={cn("font-berkeley h-10.5 px-3 text-right", metadataColor)}>
-                  {track.format}
+                <td className={cn("hidden h-12 px-3 lg:table-cell", metadataColor)}>
+                  <div className="truncate">{album}</div>
                 </td>
                 <td
-                  className={cn("font-berkeley h-10.5 px-3 text-right tabular-nums", metadataColor)}
+                  className={cn(
+                    "font-berkeley h-12 px-2 text-right tabular-nums sm:px-3",
+                    metadataColor,
+                  )}
                 >
                   {formatDuration(track.duration)}
                 </td>
                 <td
-                  className="h-10.5 py-1 pr-5 pl-2 text-right"
+                  className="h-12 py-1 pr-3 pl-1 text-right sm:pr-5 sm:pl-2"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <TrackRowMenu

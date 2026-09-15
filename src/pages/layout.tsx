@@ -35,7 +35,7 @@ export function AppLayout() {
           />
         )}
 
-        <SidebarInset className="bg-black">
+        <SidebarInset className="bg-background">
           <AppHeader isSettings={isSettings} />
           <div className="flex-1 pb-28">
             {audioPlayer.errorMessage && (

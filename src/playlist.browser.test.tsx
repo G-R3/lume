@@ -42,7 +42,11 @@ afterEach(() => {
 
 describe("playlist behavior", () => {
   it("completes the playlist editing lifecycle through the renderer API", async () => {
-    const midnight = createTrack("track-midnight", "Midnight");
+    const midnight = {
+      ...createTrack("track-midnight", "Midnight"),
+      album: "Signals After Dark",
+      artists: ["Neon Static"],
+    };
 
     const archive = {
       description: null,
@@ -148,6 +152,9 @@ describe("playlist behavior", () => {
 
     await page.getByRole("link", { name: /All tracks/ }).click();
     const allTracks = page.getByRole("table", { name: "All tracks" });
+
+    await expect.element(allTracks.getByText("Neon Static", { exact: true })).toBeVisible();
+    await expect.element(allTracks.getByText("Signals After Dark", { exact: true })).toBeVisible();
 
     await allTracks.getByRole("button", { name: "More options for Midnight" }).click();
     await page.getByRole("menuitem", { name: "New playlist" }).click();

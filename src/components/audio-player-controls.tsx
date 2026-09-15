@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
 import { Slider } from "@/components/ui/slider";
 import { useAudioPlayer, useAudioPlayerTime } from "@/hooks/use-audio-player";
 import { formatDuration } from "@/lib/format-duration";
@@ -20,21 +21,17 @@ export function AudioPlayerControls() {
   return (
     <footer className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-t border-neutral-800 bg-black/95 px-4 py-3 text-neutral-50 shadow-2xl backdrop-blur-sm">
       <div className="flex min-w-0 items-center gap-3">
-        <div
-          aria-hidden="true"
-          className="grid size-12 shrink-0 place-items-center rounded-sm bg-linear-to-br from-orange-950 to-orange-500 text-xs font-semibold tracking-tight text-neutral-100"
-        >
-          {audioPlayer.activeTrack.title
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((word) => word[0])
-            .join("")
-            .toUpperCase()}
-        </div>
+        <TrackArtwork
+          artworkUrl={audioPlayer.activeTrack.artworkUrl}
+          className="size-12 rounded-sm text-xs"
+          fallback={<ArtworkFallback track={audioPlayer.activeTrack} />}
+        />
 
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{audioPlayer.activeTrack.title}</p>
-          <p className="mt-0.5 text-xs text-neutral-400">{audioPlayer.activeTrack.format}</p>
+          <p className="mt-0.5 truncate text-xs text-neutral-400">
+            {audioPlayer.activeTrack.artists.join(", ") || "Unknown artist"}
+          </p>
         </div>
       </div>
 

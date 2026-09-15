@@ -223,11 +223,7 @@ export function isSourceScannable(database: LibraryDatabase, sourceId: string) {
   );
 }
 
-export function markSourceTracksUnavailable(
-  database: SourceWriter,
-  sourceId: string,
-  now: number,
-) {
+export function markSourceTracksUnavailable(database: SourceWriter, sourceId: string, now: number) {
   database
     .update(tracks)
     .set({ available: false, updatedAt: now })
@@ -259,10 +255,7 @@ function selectSources(database: LibraryDatabase, condition: SQL | undefined) {
       trackCount: count(tracks.id),
     })
     .from(librarySources)
-    .leftJoin(
-      tracks,
-      and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)),
-    )
+    .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)))
     .where(condition)
     .groupBy(librarySources.id);
 }
