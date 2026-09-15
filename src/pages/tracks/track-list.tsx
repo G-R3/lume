@@ -153,13 +153,13 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                       >
                         {track.title}
                       </span>
-                      <span className={cn("block truncate text-[10px] leading-4", metadataColor)}>
+                      <span className={cn("block truncate leading-4", metadataColor)}>
                         <span>{artists}</span>
                         <span className="lg:hidden"> · {album}</span>
                       </span>
                     </span>
                     {!track.available && (
-                      <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-neutral-600">
+                      <span className="ml-auto flex shrink-0 items-center gap-1 text-neutral-600">
                         <LockSimpleIcon aria-hidden="true" />
                         <span className="hidden sm:inline">Unavailable</span>
                       </span>
