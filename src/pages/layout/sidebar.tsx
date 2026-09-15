@@ -34,7 +34,7 @@ export function AppSidebar() {
   const isSettings = Boolean(matchRoute({ to: "/settings" }));
 
   return (
-    <Sidebar className="border-neutral-800">
+    <Sidebar className="border-neutral-800 md:absolute! md:h-auto!">
       <SidebarHeader className={cn("px-4 pb-3", window.lume.isMac ? "pt-13" : "pt-4")}>
         <div className="flex items-center gap-2.5 px-1 text-sm font-semibold tracking-wide">
           <span aria-hidden="true" className="flex h-4 items-end gap-0.5">

@@ -23,9 +23,9 @@ export function AppLayout() {
   }, [library.tracks, syncTracks]);
 
   return (
-    <>
-      <SidebarProvider className="bg-neutral-950 text-neutral-50">
-        <AppKeyboardShortcuts />
+    <SidebarProvider className="h-svh flex-col bg-neutral-950 text-neutral-50">
+      <AppKeyboardShortcuts />
+      <div className="relative flex min-h-0 flex-1">
         <AppSidebar />
 
         {window.lume.isMac && (
@@ -35,9 +35,9 @@ export function AppLayout() {
           />
         )}
 
-        <SidebarInset className="bg-background">
+        <SidebarInset className="min-h-0 overflow-auto bg-background">
           <AppHeader isSettings={isSettings} />
-          <div className="flex-1 pb-28">
+          <div className="flex-1">
             {audioPlayer.errorMessage && (
               <p className="m-4 text-sm text-red-300" role="alert">
                 {audioPlayer.errorMessage}
@@ -45,9 +45,9 @@ export function AppLayout() {
             )}
             <Outlet />
           </div>
-          <AudioPlayerControls />
         </SidebarInset>
-      </SidebarProvider>
-    </>
+      </div>
+      <AudioPlayerControls />
+    </SidebarProvider>
   );
 }
