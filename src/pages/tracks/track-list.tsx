@@ -78,7 +78,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
               Album
             </th>
             <th className="w-18 px-2 py-2.5 text-right font-normal sm:w-24 sm:px-3" scope="col">
-              Time
+              Duration
             </th>
             <th className="w-10 py-2.5 pr-3 pl-1 font-normal sm:w-12 sm:pr-5 sm:pl-2" scope="col">
               <span className="sr-only">Actions</span>
