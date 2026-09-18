@@ -1,4 +1,3 @@
-import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button } from "@/components/ui/button";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
@@ -21,7 +20,7 @@ export function TracksPage() {
   return (
     <>
       <section className="flex items-end px-5 gap-5 my-6">
-        <div className="size-64 bg-neutral-900 rounded-md" />
+        <div className="size-64 bg-neutral-900 rounded-md outline-1 -outline-offset-1 outline-neutral-900/10 dark:outline-neutral-400/10" />
         <div className="flex flex-col justify-end gap-1">
           <h1 className="text-4xl">All Tracks</h1>
           <div className="flex items-center text-xs text-neutral-400">
