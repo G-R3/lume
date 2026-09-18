@@ -71,7 +71,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
             <th className="hidden w-14 py-2.5 pr-3 pl-5 font-normal sm:table-cell" scope="col">
               #
             </th>
-            <th className="px-2 py-2.5 font-normal" scope="col">
+            <th className="pl-1 pr-2 py-2.5 font-normal" scope="col">
               Title
             </th>
             <th className="hidden w-[30%] px-3 py-2.5 font-normal lg:table-cell" scope="col">
@@ -125,7 +125,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     String(index + 1).padStart(2, "0")
                   )}
                 </td>
-                <td className="h-12 min-w-0 px-2">
+                <td className="h-12 min-w-0 pl-1 pr-2">
                   <button
                     aria-current={isActive ? "true" : undefined}
                     aria-label={track.title}

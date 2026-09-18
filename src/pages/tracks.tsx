@@ -20,10 +20,10 @@ export function TracksPage() {
   return (
     <>
       <section className="flex items-end min-h-48 px-5 gap-5 mb-2">
-        <div className="size-32 bg-neutral-900 rounded-md" />
+        <div className="size-40 bg-neutral-900 rounded-md" />
         <div className="flex flex-col justify-end gap-1">
-          <h1 className="text-5xl">All Tracks</h1>
-          <div className="flex items-center text-sm text-neutral-400">
+          <h1 className="text-4xl">All Tracks</h1>
+          <div className="flex items-center text-xs text-neutral-400">
             <span>{trackCount} tracks</span>
             <DotIcon className="size-6" />
             <span>{formatDuration(totalDuration)} duration</span>
