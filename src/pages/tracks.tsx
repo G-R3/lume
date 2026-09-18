@@ -1,10 +1,11 @@
+import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button } from "@/components/ui/button";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatDuration } from "@/lib/format-duration";
 import { LibraryStatus } from "@/pages/tracks/library-status";
 import { TrackList } from "@/pages/tracks/track-list";
-import { DotIcon, PlayIcon } from "@phosphor-icons/react";
+import { DotIcon, PlayIcon, ShuffleAngularIcon } from "@phosphor-icons/react";
 
 export function TracksPage() {
   const library = useMusicLibrary();
@@ -19,8 +20,8 @@ export function TracksPage() {
 
   return (
     <>
-      <section className="flex items-end min-h-48 px-5 gap-5 mb-2">
-        <div className="size-40 bg-neutral-900 rounded-md" />
+      <section className="flex items-end px-5 gap-5 my-6">
+        <div className="size-64 bg-neutral-900 rounded-md" />
         <div className="flex flex-col justify-end gap-1">
           <h1 className="text-4xl">All Tracks</h1>
           <div className="flex items-center text-xs text-neutral-400">
@@ -29,25 +30,46 @@ export function TracksPage() {
             <span>{formatDuration(totalDuration)} duration</span>
           </div>
 
-          <Button
-            className="self-start mt-1"
-            size="lg"
-            onClick={() => {
-              if (!audioPlayer.isPlaying && !audioPlayer.activeTrack) {
-                audioPlayer.playFrom(items, firstAvailableTrackIndex);
-              } else if (
-                audioPlayer.activeTrack &&
-                firstAvailableTrack.id !== audioPlayer.activeTrack.id
-              ) {
-                audioPlayer.playFrom(items, firstAvailableTrackIndex);
-              } else {
-                audioPlayer.seek(0);
-              }
-            }}
-          >
-            <PlayIcon className="size-3" />
-            Play
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="self-start mt-1"
+              size="lg"
+              onClick={() => {
+                if (!audioPlayer.isPlaying && !audioPlayer.activeTrack) {
+                  audioPlayer.playFrom(items, firstAvailableTrackIndex);
+                } else if (
+                  audioPlayer.activeTrack &&
+                  firstAvailableTrack.id !== audioPlayer.activeTrack.id
+                ) {
+                  audioPlayer.playFrom(items, firstAvailableTrackIndex);
+                } else {
+                  audioPlayer.seek(0);
+                }
+              }}
+            >
+              <PlayIcon className="size-3" />
+              Play
+            </Button>
+            <Button
+              className="self-start mt-1"
+              size="lg"
+              onClick={() => {
+                if (!audioPlayer.isPlaying && !audioPlayer.activeTrack) {
+                  audioPlayer.playFrom(items, firstAvailableTrackIndex);
+                } else if (
+                  audioPlayer.activeTrack &&
+                  firstAvailableTrack.id !== audioPlayer.activeTrack.id
+                ) {
+                  audioPlayer.playFrom(items, firstAvailableTrackIndex);
+                } else {
+                  audioPlayer.seek(0);
+                }
+              }}
+            >
+              <ShuffleAngularIcon className="size-3.5" />
+              Shuffle
+            </Button>
+          </div>
         </div>
       </section>
       <LibraryStatus library={library} />
