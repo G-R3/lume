@@ -2,20 +2,19 @@ import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "
 import { z } from "zod";
 import {
   lumeChannels,
-  type LibrarySnapshot,
   type PlaylistCreationInput,
   type PlaylistCreationResult,
 } from "../shared/lib";
 import { getDatabase } from "./database";
-import { scanEnabledSources, scanSource } from "./library-scan";
 import {
   disableSource,
   enableSource,
   forgetSource,
+  getLibrarySnapshot,
   getSources,
-  hasForgottenSources,
   saveSource,
-} from "./library-store";
+} from "./library";
+import { scanEnabledSources, scanSource } from "./library-scan";
 import {
   addTrackToPlaylist,
   confirmAddTrackToPlaylist,
@@ -23,11 +22,9 @@ import {
   createPlaylistFromTrack,
   deletePlaylist,
   getPlaylist,
-  getPlaylists,
   removePlaylistEntry,
-} from "./playlist-store";
-import { getArtworkUrl, getTrackUrl, isTrustedRendererEvent } from "./protocol";
-import { getTracks } from "./track-store";
+} from "./playlists";
+import { isTrustedRendererEvent } from "./protocol";
 
 const sourceIdSchema = z.uuidv4("Invalid library source ID");
 
@@ -77,40 +74,40 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     const result = await dialog.showOpenDialog(window, {
       title: "Add a music source",
       buttonLabel: "Add Source",
-      defaultPath: getSources(database).at(-1)?.path,
+      defaultPath: getSources().at(-1)?.path,
       properties: ["openDirectory"],
     });
 
     const folder = result.filePaths[0];
 
-    if (!folder) return readLibrary();
+    if (!folder) return getLibrarySnapshot();
 
-    const source = await saveSource(database, folder);
+    const source = await saveSource(folder);
     await scanSource(database, source.id);
 
-    return readLibrary();
+    return getLibrarySnapshot();
   });
 
-  handleTrusted(lumeChannels.loadLibrary, () => readLibrary());
+  handleTrusted(lumeChannels.loadLibrary, () => getLibrarySnapshot());
 
   handleTrusted(lumeChannels.createPlaylist, (_window, rawInput) => {
-    const playlist = createPlaylist(database, playlistCreationSchema.parse(rawInput));
+    const playlist = createPlaylist(playlistCreationSchema.parse(rawInput));
 
-    return { library: readLibrary(), playlist } satisfies PlaylistCreationResult;
+    return { library: getLibrarySnapshot(), playlist } satisfies PlaylistCreationResult;
   });
 
   handleTrusted(lumeChannels.createPlaylistFromTrack, (_window, rawTrackId) => {
-    return createPlaylistFromTrack(database, trackIdSchema.parse(rawTrackId));
+    return createPlaylistFromTrack(trackIdSchema.parse(rawTrackId));
   });
 
   handleTrusted(lumeChannels.loadPlaylist, (_window, rawPlaylistId) => {
-    return getPlaylist(database, playlistIdSchema.parse(rawPlaylistId));
+    return getPlaylist(playlistIdSchema.parse(rawPlaylistId));
   });
 
   handleTrusted(lumeChannels.deletePlaylist, (_window, rawPlaylistId) => {
-    deletePlaylist(database, playlistIdSchema.parse(rawPlaylistId));
+    deletePlaylist(playlistIdSchema.parse(rawPlaylistId));
 
-    return readLibrary();
+    return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.addTrackToPlaylist, (_window, rawPlaylistId, rawTrackId) => {
@@ -119,7 +116,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
       trackId: rawTrackId,
     });
 
-    return addTrackToPlaylist(database, input.playlistId, input.trackId);
+    return addTrackToPlaylist(input.playlistId, input.trackId);
   });
 
   handleTrusted(lumeChannels.confirmAddTrackToPlaylist, (_window, rawPlaylistId, rawTrackId) => {
@@ -128,7 +125,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
       trackId: rawTrackId,
     });
 
-    return confirmAddTrackToPlaylist(database, input.playlistId, input.trackId);
+    return confirmAddTrackToPlaylist(input.playlistId, input.trackId);
   });
 
   handleTrusted(lumeChannels.removePlaylistEntry, (_window, rawPlaylistId, rawEntryId) => {
@@ -137,84 +134,40 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
       playlistId: rawPlaylistId,
     });
 
-    removePlaylistEntry(database, input.playlistId, input.entryId);
+    removePlaylistEntry(input.playlistId, input.entryId);
   });
 
   handleTrusted(lumeChannels.enableSource, async (_window, rawSourceId) => {
     const sourceId = sourceIdSchema.parse(rawSourceId);
-    enableSource(database, sourceId);
+    enableSource(sourceId);
     await scanSource(database, sourceId);
 
-    return readLibrary();
+    return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.disableSource, (_window, rawSourceId) => {
-    disableSource(database, sourceIdSchema.parse(rawSourceId));
+    disableSource(sourceIdSchema.parse(rawSourceId));
 
-    return readLibrary();
+    return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.forgetSource, (_window, rawSourceId) => {
-    forgetSource(database, sourceIdSchema.parse(rawSourceId));
+    forgetSource(sourceIdSchema.parse(rawSourceId));
 
-    return readLibrary();
+    return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.rescanSource, async (_window, rawSourceId) => {
     await scanSource(database, sourceIdSchema.parse(rawSourceId));
 
-    return readLibrary();
+    return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.rescanSources, async () => {
     await scanEnabledSources(database);
 
-    return readLibrary();
+    return getLibrarySnapshot();
   });
-}
-
-export function readLibrary() {
-  const database = getDatabase();
-  const sources = getSources(database);
-  const storedTracks = getTracks(database);
-
-  if (sources.length === 0 && !hasForgottenSources(database)) {
-    return { kind: "first-run" } satisfies LibrarySnapshot;
-  }
-
-  return {
-    kind: "library",
-    playlists: getPlaylists(database),
-    sources,
-    tracks: storedTracks.map((track) => {
-      const artists = track.artists.length > 0 ? track.artists : ["Unknown artist"];
-
-      return {
-        album: track.album ?? "Unknown album",
-        albumArtists: track.albumArtists.length > 0 ? track.albumArtists : artists,
-        artists,
-        artworkUrl: track.artworkId ? getArtworkUrl(track.artworkId) : null,
-        available: track.available,
-        bitrate: track.bitrate,
-        bitsPerSample: track.bitsPerSample,
-        channelCount: track.channelCount,
-        codec: track.codec,
-        discNumber: track.discNumber,
-        discTotal: track.discTotal,
-        duration: track.duration,
-        format: track.format,
-        genres: track.genres,
-        id: track.id,
-        lossless: track.lossless,
-        title: track.title,
-        sampleRate: track.sampleRate,
-        trackNumber: track.trackNumber,
-        trackTotal: track.trackTotal,
-        url: getTrackUrl(track.id),
-        year: track.year,
-      };
-    }),
-  } satisfies LibrarySnapshot;
 }
 
 function requireTrustedWindow(event: IpcMainInvokeEvent, rendererUrl: string) {

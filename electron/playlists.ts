@@ -7,11 +7,11 @@ import type {
   PlaylistEntry,
   PlaylistSummary,
 } from "../shared/lib";
-import { runImmediateTransaction, type LibraryDatabase, type LibraryTransaction } from "./database";
+import { getDatabase, runImmediateTransaction, type LibraryTransaction } from "./database";
 import { playlistEntries, playlists, tracks } from "./database/schema";
 
-export function getPlaylists(database: LibraryDatabase): PlaylistSummary[] {
-  return database
+export function getPlaylists(): PlaylistSummary[] {
+  return getDatabase()
     .select({
       description: playlists.description,
       entryCount: count(playlistEntries.id),
@@ -25,7 +25,9 @@ export function getPlaylists(database: LibraryDatabase): PlaylistSummary[] {
     .all();
 }
 
-export function getPlaylist(database: LibraryDatabase, playlistId: string): PlaylistDetails | null {
+export function getPlaylist(playlistId: string): PlaylistDetails | null {
+  const database = getDatabase();
+
   const playlist = database
     .select({
       description: playlists.description,
@@ -53,7 +55,7 @@ export function getPlaylist(database: LibraryDatabase, playlistId: string): Play
   };
 }
 
-export function createPlaylist(database: LibraryDatabase, input: PlaylistCreationInput) {
+export function createPlaylist(input: PlaylistCreationInput) {
   const title = input.title.trim();
   const description = input.description?.trim() || null;
 
@@ -74,7 +76,7 @@ export function createPlaylist(database: LibraryDatabase, input: PlaylistCreatio
 
   const now = Date.now();
 
-  database
+  getDatabase()
     .insert(playlists)
     .values({
       createdAt: now,
@@ -88,8 +90,8 @@ export function createPlaylist(database: LibraryDatabase, input: PlaylistCreatio
   return playlist;
 }
 
-export function createPlaylistFromTrack(database: LibraryDatabase, trackId: string) {
-  return runImmediateTransaction(database, (transaction) => {
+export function createPlaylistFromTrack(trackId: string) {
+  return runImmediateTransaction(getDatabase(), (transaction) => {
     const track = transaction
       .select({ title: tracks.title })
       .from(tracks)
@@ -134,18 +136,14 @@ export function createPlaylistFromTrack(database: LibraryDatabase, trackId: stri
   });
 }
 
-export function deletePlaylist(database: LibraryDatabase, playlistId: string) {
-  const result = database.delete(playlists).where(eq(playlists.id, playlistId)).run();
+export function deletePlaylist(playlistId: string) {
+  const result = getDatabase().delete(playlists).where(eq(playlists.id, playlistId)).run();
 
   if (result.changes !== 1 && result.changes !== 1n) throw new Error("Playlist does not exist");
 }
 
-export function addTrackToPlaylist(
-  database: LibraryDatabase,
-  playlistId: string,
-  trackId: string,
-): AddTrackToPlaylistResult {
-  return runImmediateTransaction(database, (transaction) => {
+export function addTrackToPlaylist(playlistId: string, trackId: string): AddTrackToPlaylistResult {
+  return runImmediateTransaction(getDatabase(), (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
     const duplicate = transaction
@@ -160,24 +158,16 @@ export function addTrackToPlaylist(
   });
 }
 
-export function confirmAddTrackToPlaylist(
-  database: LibraryDatabase,
-  playlistId: string,
-  trackId: string,
-) {
-  return runImmediateTransaction(database, (transaction) => {
+export function confirmAddTrackToPlaylist(playlistId: string, trackId: string) {
+  return runImmediateTransaction(getDatabase(), (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
     return insertPlaylistEntry(transaction, playlistId, trackId);
   });
 }
 
-export function removePlaylistEntry(
-  database: LibraryDatabase,
-  playlistId: string,
-  entryId: string,
-) {
-  runImmediateTransaction(database, (transaction) => {
+export function removePlaylistEntry(playlistId: string, entryId: string) {
+  runImmediateTransaction(getDatabase(), (transaction) => {
     const playlist = transaction
       .select({ id: playlists.id })
       .from(playlists)

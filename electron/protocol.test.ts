@@ -2,12 +2,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { getArtworkUrl, getTrackUrl } from "../shared/lib";
 import {
   createArtworkResponse,
   createTrackResponse,
-  getArtworkUrl,
   getRendererAssetPath,
-  getTrackUrl,
   isTrustedRendererUrl,
   resolveArtworkRequest,
   resolveTrackRequest,

@@ -117,3 +117,13 @@ export const lumeChannels = {
   rescanSources: "lume:rescan-sources",
   removePlaylistEntry: "lume:remove-playlist-entry",
 } as const;
+
+export const appScheme = "lume";
+
+export function getTrackUrl(id: string) {
+  return `${appScheme}://app/media/${encodeURIComponent(id)}`;
+}
+
+export function getArtworkUrl(id: string) {
+  return `${appScheme}://app/artwork/${encodeURIComponent(id)}`;
+}

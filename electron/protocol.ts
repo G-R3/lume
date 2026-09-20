@@ -4,9 +4,8 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import { appScheme } from "../shared/lib";
 import { audioContentTypes, type ArtworkData } from "./library";
-
-export const appScheme = "lume";
 
 export const packagedRendererUrl = `${appScheme}://app/index.html`;
 
@@ -110,14 +109,6 @@ function parseByteRange(header: string, size: number) {
   }
 
   return { start, end: Math.min(requestedEnd, size - 1) };
-}
-
-export function getTrackUrl(id: string) {
-  return `${appScheme}://app/media/${encodeURIComponent(id)}`;
-}
-
-export function getArtworkUrl(id: string) {
-  return `${appScheme}://app/artwork/${encodeURIComponent(id)}`;
 }
 
 export function loadRenderer(window: BrowserWindow, rendererUrl: string) {

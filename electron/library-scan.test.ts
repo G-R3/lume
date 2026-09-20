@@ -1,22 +1,23 @@
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { openLibraryDatabase } from "./database";
-import { scanAudioFiles, type ScannedTrack } from "./library";
+import { closeDatabase, getDatabase, initializeDatabase } from "./database";
+import {
+  applySourceScan,
+  disableSource,
+  getSource,
+  getTracks,
+  saveSource,
+  scanAudioFiles,
+  type ScannedTrack,
+} from "./library";
 import { scanEnabledSources, scanSource } from "./library-scan";
-import { disableSource, getSource, saveSource } from "./library-store";
-import { applySourceScan, getTracks } from "./track-store";
 
 const temporaryFolders: string[] = [];
 
-const openDatabases: DatabaseSync[] = [];
-
 afterEach(async () => {
-  openDatabases.splice(0).forEach((database) => {
-    if (database.isOpen) database.close();
-  });
+  closeDatabase();
   await Promise.all(
     temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
   );
@@ -26,7 +27,7 @@ describe("enabled source scanning", () => {
   it("discards an older scan that finishes after a newer scan", async () => {
     const database = await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
-    const source = await saveSource(database, folder);
+    const source = await saveSource(folder);
     const olderScan = createDeferred<ScannedTrack[]>();
     const olderRequest = scanSource(database, source.id, () => olderScan.promise);
 
@@ -37,7 +38,7 @@ describe("enabled source scanning", () => {
     await olderRequest;
 
     expect(
-      getTracks(database).map((track) => ({ available: track.available, title: track.title })),
+      getTracks().map((track) => ({ available: track.available, title: track.title })),
     ).toEqual([{ available: true, title: "new" }]);
   });
 
@@ -49,27 +50,27 @@ describe("enabled source scanning", () => {
       writeFile(join(healthyFolder, "healthy.mp3"), ""),
       writeFile(join(missingFolder, "missing.mp3"), ""),
     ]);
-    const healthySource = await saveSource(database, healthyFolder);
-    const missingSource = await saveSource(database, missingFolder);
-    applySourceScan(database, missingSource.id, await scanAudioFiles(missingFolder));
+    const healthySource = await saveSource(healthyFolder);
+    const missingSource = await saveSource(missingFolder);
+    applySourceScan(missingSource.id, await scanAudioFiles(missingFolder));
 
-    const lastSuccessfulScan = getSource(database, missingSource.id).lastScannedAt;
+    const lastSuccessfulScan = getSource(missingSource.id).lastScannedAt;
 
     await rm(missingFolder, { recursive: true });
 
     await scanEnabledSources(database);
     expect(
-      getTracks(database).map((track) => ({ available: track.available, title: track.title })),
+      getTracks().map((track) => ({ available: track.available, title: track.title })),
     ).toEqual([
       { available: true, title: "healthy" },
       { available: false, title: "missing" },
     ]);
-    expect(getSource(database, missingSource.id)).toMatchObject({
+    expect(getSource(missingSource.id)).toMatchObject({
       lastScanError: expect.stringContaining("ENOENT"),
       lastScannedAt: lastSuccessfulScan,
       trackCount: 0,
     });
-    expect(getSource(database, healthySource.id)).toMatchObject({
+    expect(getSource(healthySource.id)).toMatchObject({
       lastScanError: null,
       lastScannedAt: expect.any(Number),
       trackCount: 1,
@@ -81,9 +82,9 @@ describe("enabled source scanning", () => {
     const firstFolder = await createTemporaryFolder("lume-first-source-");
     const disabledFolder = await createTemporaryFolder("lume-disabled-source-");
     const lastFolder = await createTemporaryFolder("lume-last-source-");
-    const firstSource = await saveSource(database, firstFolder);
-    const disabledSource = await saveSource(database, disabledFolder);
-    const lastSource = await saveSource(database, lastFolder);
+    const firstSource = await saveSource(firstFolder);
+    const disabledSource = await saveSource(disabledFolder);
+    const lastSource = await saveSource(lastFolder);
 
     const setCreatedAt = database.$client.prepare(
       "UPDATE library_sources SET created_at = ? WHERE id = ?",
@@ -98,7 +99,7 @@ describe("enabled source scanning", () => {
     await scanEnabledSources(database, async (folder) => {
       scannedFolders.push(folder);
 
-      if (folder === firstSource.path) disableSource(database, disabledSource.id);
+      if (folder === firstSource.path) disableSource(disabledSource.id);
 
       return [createScannedTrack(join(folder, "song.mp3"), folder)];
     });
@@ -113,7 +114,7 @@ describe("enabled source scanning", () => {
     const database = await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
-    const source = await saveSource(database, folder);
+    const source = await saveSource(folder);
     database.$client.exec(`
       CREATE TRIGGER reject_track_insert
       BEFORE INSERT ON tracks
@@ -123,7 +124,7 @@ describe("enabled source scanning", () => {
     `);
 
     await expect(scanEnabledSources(database)).rejects.toThrow("track write failed");
-    expect(getSource(database, source.id).lastScanError).toBeNull();
+    expect(getSource(source.id).lastScanError).toBeNull();
   });
 
   it.runIf(process.platform !== "win32" && process.getuid?.() !== 0)(
@@ -137,21 +138,22 @@ describe("enabled source scanning", () => {
         writeFile(inaccessiblePath, ""),
       ]);
       await chmod(inaccessiblePath, 0o000);
-      const source = await saveSource(database, folder);
+      const source = await saveSource(folder);
 
       await scanSource(database, source.id);
-      expect(getTracks(database).map((track) => track.title)).toEqual(["readable"]);
-      expect(getSource(database, source.id).lastScanError).toBeNull();
+      expect(getTracks().map((track) => track.title)).toEqual(["readable"]);
+      expect(getSource(source.id).lastScanError).toBeNull();
     },
   );
 });
 
 async function openTestDatabase() {
-  const database = await openLibraryDatabase(":memory:", join(import.meta.dirname, "../drizzle"));
+  await initializeDatabase({
+    location: ":memory:",
+    migrationsFolder: join(import.meta.dirname, "../drizzle"),
+  });
 
-  openDatabases.push(database.$client);
-
-  return database;
+  return getDatabase();
 }
 
 async function createTemporaryFolder(prefix: string) {

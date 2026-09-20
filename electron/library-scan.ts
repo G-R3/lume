@@ -1,12 +1,17 @@
 import type { LibraryDatabase } from "./database";
-import { scanAudioFiles } from "./library";
-import { applyScanFailure, getEnabledSource, getEnabledSources } from "./library-store";
-import { applySourceScan, getTrackMetadata } from "./track-store";
+import {
+  applyScanFailure,
+  applySourceScan,
+  getEnabledSource,
+  getEnabledSources,
+  getTrackMetadata,
+  scanAudioFiles,
+} from "./library";
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<string, number>>();
 
 export async function scanEnabledSources(database: LibraryDatabase, scanFiles = scanAudioFiles) {
-  for (const source of getEnabledSources(database)) {
+  for (const source of getEnabledSources()) {
     await scanSource(database, source.id, scanFiles);
   }
 }
@@ -16,7 +21,7 @@ export async function scanSource(
   sourceId: string,
   scanFiles = scanAudioFiles, // Injectable so overlapping scans can be tested without timing-dependent filesystem work
 ): Promise<void> {
-  const source = getEnabledSource(database, sourceId);
+  const source = getEnabledSource(sourceId);
 
   if (!source) return;
 
@@ -26,19 +31,19 @@ export async function scanSource(
   let scan: Awaited<ReturnType<typeof scanAudioFiles>>;
 
   try {
-    scan = await scanFiles(source.path, getTrackMetadata(database, sourceId));
+    scan = await scanFiles(source.path, getTrackMetadata(sourceId));
   } catch (error) {
     if (versions.get(sourceId) !== version) return;
 
     console.warn("Could not read library source", { error, sourceId });
     const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
-    applyScanFailure(database, sourceId, message);
+    applyScanFailure(sourceId, message);
 
     return;
   }
 
   if (versions.get(sourceId) !== version) return;
-  applySourceScan(database, sourceId, scan);
+  applySourceScan(sourceId, scan);
 }
 
 function getScanVersions(database: LibraryDatabase) {

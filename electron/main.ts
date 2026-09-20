@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, protocol, session, shell } from "electron";
-import { appScheme, loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
-import { lumeChannels } from "../shared/lib";
+import { appScheme, lumeChannels } from "../shared/lib";
+import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
 import { closeDatabase, getDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
-import { readLibrary, registerIpc } from "./ipc";
+import { registerIpc } from "./ipc";
+import { getArtworkData, getLibrarySnapshot, getTrackPath } from "./library";
 import { scanEnabledSources } from "./library-scan";
-import { getArtworkData, getTrackPath } from "./track-store";
 
 app.enableSandbox();
 
@@ -82,11 +82,7 @@ async function startApplication() {
 
   registerIpc({ rendererUrl, userDataDirectory });
 
-  registerProtocolHandler(
-    rendererDirectory,
-    (trackId) => getTrackPath(database, trackId),
-    (artworkId) => getArtworkData(database, artworkId),
-  );
+  registerProtocolHandler(rendererDirectory, getTrackPath, getArtworkData);
 
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
@@ -98,7 +94,7 @@ async function startApplication() {
   void scanEnabledSources(database)
     .then(() => {
       if (!window.isDestroyed()) {
-        window.webContents.send(lumeChannels.libraryUpdated, readLibrary());
+        window.webContents.send(lumeChannels.libraryUpdated, getLibrarySnapshot());
       }
     })
     .catch((error) => console.error("Could not scan the music library", error));
