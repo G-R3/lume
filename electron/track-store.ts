@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, notExists, placeholder, sql } from "drizzle-orm";
 import type { TrackMetadata } from "../shared/lib";
-import { runLibraryTransaction, type LibraryDatabase } from "./database";
+import { runImmediateTransaction, type LibraryDatabase } from "./database";
 import { artwork, librarySources, tracks } from "./database/schema";
 import { trackMetadataVersion, type ArtworkData, type ScannedTrack } from "./library";
 import { isSourceScannable, markSourceTracksUnavailable } from "./library-store";
@@ -93,7 +93,7 @@ export function applySourceScan(
 
   const now = Date.now();
 
-  runLibraryTransaction(database, (transaction) => {
+  runImmediateTransaction(database, (transaction) => {
     markSourceTracksUnavailable(transaction, sourceId, now);
 
     const restoreTrack = transaction

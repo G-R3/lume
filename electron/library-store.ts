@@ -3,7 +3,7 @@ import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
 import { and, count, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import type { LibrarySource } from "../shared/lib";
-import { runLibraryTransaction, type LibraryDatabase } from "./database";
+import { runImmediateTransaction, type LibraryDatabase } from "./database";
 import { librarySources, tracks } from "./database/schema";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
@@ -135,7 +135,7 @@ export function enableSource(database: LibraryDatabase, sourceId: string) {
 export function disableSource(database: LibraryDatabase, sourceId: string) {
   const now = Date.now();
 
-  runLibraryTransaction(database, (transaction) => {
+  runImmediateTransaction(database, (transaction) => {
     const result = transaction
       .update(librarySources)
       .set({
@@ -159,7 +159,7 @@ export function disableSource(database: LibraryDatabase, sourceId: string) {
 export function forgetSource(database: LibraryDatabase, sourceId: string) {
   const now = Date.now();
 
-  runLibraryTransaction(database, (transaction) => {
+  runImmediateTransaction(database, (transaction) => {
     const result = transaction
       .update(librarySources)
       .set({
@@ -186,7 +186,7 @@ export function applyScanFailure(database: LibraryDatabase, sourceId: string, er
 
   const now = Date.now();
 
-  runLibraryTransaction(database, (transaction) => {
+  runImmediateTransaction(database, (transaction) => {
     markSourceTracksUnavailable(transaction, sourceId, now);
     transaction
       .update(librarySources)

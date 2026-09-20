@@ -5,6 +5,36 @@ import { DrizzleQueryError, type DrizzleTypeError } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 
+let database: LibraryDatabase | undefined;
+
+let initializing = false;
+
+export async function initializeDatabase(options: { location: string; migrationsFolder?: string }) {
+  if (database || initializing) throw new Error("Library database is already initialized");
+
+  initializing = true;
+
+  try {
+    database = await openLibraryDatabase(options.location, options.migrationsFolder);
+  } finally {
+    initializing = false;
+  }
+}
+
+export function getDatabase() {
+  if (database) return database;
+  throw new Error("Library database has not been initialized");
+}
+
+export function closeDatabase() {
+  if (!database) return;
+
+  const client = database.$client;
+  database = undefined;
+
+  if (client.isOpen) client.close();
+}
+
 export async function openLibraryDatabase(
   location: string,
   migrationsFolder = join(__dirname, "drizzle"),
@@ -32,7 +62,9 @@ export type LibraryDatabase = Awaited<ReturnType<typeof openLibraryDatabase>>;
 
 export type LibraryTransaction = Parameters<Parameters<LibraryDatabase["transaction"]>[0]>[0];
 
-export function runLibraryTransaction<Result>(
+// Drizzle's top-level sync transaction type accepts async callbacks, and query failures hide the
+// SQLite message behind DrizzleQueryError. Keep both constraints in one transaction boundary.
+export function runImmediateTransaction<Result>(
   database: LibraryDatabase,
   action: (
     transaction: LibraryTransaction,

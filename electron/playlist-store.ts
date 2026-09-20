@@ -7,7 +7,7 @@ import type {
   PlaylistEntry,
   PlaylistSummary,
 } from "../shared/lib";
-import { runLibraryTransaction, type LibraryDatabase, type LibraryTransaction } from "./database";
+import { runImmediateTransaction, type LibraryDatabase, type LibraryTransaction } from "./database";
 import { playlistEntries, playlists, tracks } from "./database/schema";
 
 export function getPlaylists(database: LibraryDatabase): PlaylistSummary[] {
@@ -72,25 +72,24 @@ export function createPlaylist(database: LibraryDatabase, input: PlaylistCreatio
     title,
   } satisfies PlaylistSummary;
 
-  return runLibraryTransaction(database, (transaction) => {
-    const now = Date.now();
-    transaction
-      .insert(playlists)
-      .values({
-        createdAt: now,
-        description: playlist.description,
-        id: playlist.id,
-        title: playlist.title,
-        updatedAt: now,
-      })
-      .run();
+  const now = Date.now();
 
-    return playlist;
-  });
+  database
+    .insert(playlists)
+    .values({
+      createdAt: now,
+      description: playlist.description,
+      id: playlist.id,
+      title: playlist.title,
+      updatedAt: now,
+    })
+    .run();
+
+  return playlist;
 }
 
 export function createPlaylistFromTrack(database: LibraryDatabase, trackId: string) {
-  return runLibraryTransaction(database, (transaction) => {
+  return runImmediateTransaction(database, (transaction) => {
     const track = transaction
       .select({ title: tracks.title })
       .from(tracks)
@@ -136,13 +135,9 @@ export function createPlaylistFromTrack(database: LibraryDatabase, trackId: stri
 }
 
 export function deletePlaylist(database: LibraryDatabase, playlistId: string) {
-  runLibraryTransaction(database, (transaction) => {
-    const result = transaction.delete(playlists).where(eq(playlists.id, playlistId)).run();
+  const result = database.delete(playlists).where(eq(playlists.id, playlistId)).run();
 
-    if (result.changes !== 1 && result.changes !== 1n) {
-      throw new Error("Playlist does not exist");
-    }
-  });
+  if (result.changes !== 1 && result.changes !== 1n) throw new Error("Playlist does not exist");
 }
 
 export function addTrackToPlaylist(
@@ -150,7 +145,7 @@ export function addTrackToPlaylist(
   playlistId: string,
   trackId: string,
 ): AddTrackToPlaylistResult {
-  return runLibraryTransaction(database, (transaction) => {
+  return runImmediateTransaction(database, (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
     const duplicate = transaction
@@ -170,7 +165,7 @@ export function confirmAddTrackToPlaylist(
   playlistId: string,
   trackId: string,
 ) {
-  return runLibraryTransaction(database, (transaction) => {
+  return runImmediateTransaction(database, (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
     return insertPlaylistEntry(transaction, playlistId, trackId);
@@ -182,7 +177,7 @@ export function removePlaylistEntry(
   playlistId: string,
   entryId: string,
 ) {
-  runLibraryTransaction(database, (transaction) => {
+  runImmediateTransaction(database, (transaction) => {
     const playlist = transaction
       .select({ id: playlists.id })
       .from(playlists)

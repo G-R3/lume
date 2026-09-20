@@ -24,7 +24,13 @@ import {
   type PlaylistCreationInput,
   type PlaylistCreationResult,
 } from "../shared/lib";
-import { getLibraryDatabasePath, openLibraryDatabase, type LibraryDatabase } from "./database";
+import {
+  closeDatabase,
+  getDatabase,
+  getLibraryDatabasePath,
+  initializeDatabase,
+  type LibraryDatabase,
+} from "./database";
 import { scanEnabledSources, scanSource } from "./library-scan";
 import {
   addTrackToPlaylist,
@@ -114,12 +120,12 @@ async function startPrimaryInstance() {
 
 async function startApplication() {
   const userDataDirectory = app.getPath("userData");
-  const databasePath = getLibraryDatabasePath(userDataDirectory, app.isPackaged);
-  const database = await openLibraryDatabase(databasePath);
-
-  app.once("will-quit", () => {
-    if (database.$client.isOpen) database.$client.close();
+  await initializeDatabase({
+    location: getLibraryDatabasePath(userDataDirectory, app.isPackaged),
   });
+  const database = getDatabase();
+
+  app.once("will-quit", closeDatabase);
 
   registerLibraryIpc(database, userDataDirectory);
 
