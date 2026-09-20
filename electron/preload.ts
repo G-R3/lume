@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { LibrarySnapshot, LumeApi } from "../shared/lib";
-import { lumeChannels } from "../shared/lib";
+import { lumeChannels, type LibrarySnapshot, type LumeApi } from "../shared/lib";
 
 const libraryUpdateListeners = new Set<(library: LibrarySnapshot) => void>();
 

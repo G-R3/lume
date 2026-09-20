@@ -5,16 +5,12 @@ import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { appScheme } from "../shared/lib";
-import type { ArtworkData } from "./library";
+import { getArtworkData, getTrackPath, type ArtworkData } from "./library";
 import { audioContentTypes } from "./library-files";
 
 export const packagedRendererUrl = `${appScheme}://app/index.html`;
 
-export function registerProtocolHandler(
-  rendererDirectory: string,
-  getTrackPath: (trackId: string) => string | null,
-  getArtworkData: (artworkId: string) => ArtworkData | null,
-) {
+export function registerProtocolHandler(rendererDirectory: string) {
   protocol.handle(appScheme, async (request) => {
     const trackRequest = resolveTrackRequest(request.url, getTrackPath);
 

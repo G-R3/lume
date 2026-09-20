@@ -4,7 +4,7 @@ import { appScheme, lumeChannels } from "../shared/lib";
 import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
 import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
 import { registerIpc } from "./ipc";
-import { getArtworkData, getLibrarySnapshot, getTrackPath, scanEnabledSources } from "./library";
+import { getLibrarySnapshot, scanEnabledSources } from "./library";
 
 app.enableSandbox();
 
@@ -79,7 +79,7 @@ async function startApplication() {
 
   registerIpc({ rendererUrl, userDataDirectory });
 
-  registerProtocolHandler(rendererDirectory, getTrackPath, getArtworkData);
+  registerProtocolHandler(rendererDirectory);
 
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
