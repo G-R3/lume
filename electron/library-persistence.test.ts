@@ -229,7 +229,7 @@ describe("track persistence", () => {
     if (!initialTrack) throw new Error("Expected the scanned track to be stored");
 
     expect(getTrackPath(initialTrack.id)).toBe(trackPath);
-    expect(getTrackPath("missing-track")).toBeNull();
+    expect(getTrackPath(999_999)).toBeNull();
 
     await writeFile(trackPath, "changed");
     applySourceScan(source.id, await scanAudioFiles(folder));
@@ -324,7 +324,7 @@ describe("track persistence", () => {
       .all();
 
     expect(tracks).toEqual([
-      { available: 1, id: expect.any(String), title: "after" },
+      { available: 1, id: expect.any(Number), title: "after" },
       { available: 0, id: originalId, title: "before" },
     ]);
     expect(tracks[0]?.id).not.toBe(originalId);

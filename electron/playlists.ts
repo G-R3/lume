@@ -1,10 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { and, count, eq, sql } from "drizzle-orm";
 import type {
   AddTrackToPlaylistResult,
   PlaylistCreationInput,
   PlaylistDetails,
-  PlaylistEntry,
   PlaylistSummary,
 } from "../shared/lib";
 import { getDatabase, runImmediateTransaction, type LibraryTransaction } from "./database";
@@ -25,7 +23,7 @@ export function getPlaylists(): PlaylistSummary[] {
     .all();
 }
 
-export function getPlaylist(playlistId: string): PlaylistDetails | null {
+export function getPlaylist(playlistId: number): PlaylistDetails | null {
   const database = getDatabase();
 
   const playlist = database
@@ -67,30 +65,27 @@ export function createPlaylist(input: PlaylistCreationInput) {
     throw new Error("Playlist descriptions cannot exceed 300 characters");
   }
 
-  const playlist = {
-    description,
-    entryCount: 0,
-    id: randomUUID(),
-    title,
-  } satisfies PlaylistSummary;
-
   const now = Date.now();
 
-  getDatabase()
+  const playlist = getDatabase()
     .insert(playlists)
     .values({
       createdAt: now,
-      description: playlist.description,
-      id: playlist.id,
-      title: playlist.title,
+      description,
+      title,
       updatedAt: now,
     })
-    .run();
+    .returning({
+      description: playlists.description,
+      id: playlists.id,
+      title: playlists.title,
+    })
+    .get();
 
-  return playlist;
+  return { ...playlist, entryCount: 0 } satisfies PlaylistSummary;
 }
 
-export function createPlaylistFromTrack(trackId: string) {
+export function createPlaylistFromTrack(trackId: number) {
   return runImmediateTransaction(getDatabase(), (transaction) => {
     const track = transaction
       .select({ title: tracks.title })
@@ -102,47 +97,49 @@ export function createPlaylistFromTrack(trackId: string) {
 
     const trackTitle = track.title.trim();
 
-    const playlist = {
-      description: null,
-      entries: [{ id: randomUUID(), position: 0, trackId }],
-      id: randomUUID(),
-      title: trackTitle.length > 0 && trackTitle.length <= 100 ? trackTitle : "New Playlist",
-    } satisfies PlaylistDetails;
-
     const now = Date.now();
 
-    transaction
+    const playlist = transaction
       .insert(playlists)
       .values({
         createdAt: now,
-        description: playlist.description,
-        id: playlist.id,
-        title: playlist.title,
+        description: null,
+        title: trackTitle.length > 0 && trackTitle.length <= 100 ? trackTitle : "New Playlist",
         updatedAt: now,
       })
-      .run();
-    transaction
+      .returning({
+        description: playlists.description,
+        id: playlists.id,
+        title: playlists.title,
+      })
+      .get();
+
+    const entry = transaction
       .insert(playlistEntries)
       .values({
         createdAt: now,
-        id: playlist.entries[0].id,
         playlistId: playlist.id,
         position: 0,
         trackId,
       })
-      .run();
+      .returning({
+        id: playlistEntries.id,
+        position: playlistEntries.position,
+        trackId: playlistEntries.trackId,
+      })
+      .get();
 
-    return playlist;
+    return { ...playlist, entries: [entry] } satisfies PlaylistDetails;
   });
 }
 
-export function deletePlaylist(playlistId: string) {
+export function deletePlaylist(playlistId: number) {
   const result = getDatabase().delete(playlists).where(eq(playlists.id, playlistId)).run();
 
   if (result.changes !== 1 && result.changes !== 1n) throw new Error("Playlist does not exist");
 }
 
-export function addTrackToPlaylist(playlistId: string, trackId: string): AddTrackToPlaylistResult {
+export function addTrackToPlaylist(playlistId: number, trackId: number): AddTrackToPlaylistResult {
   return runImmediateTransaction(getDatabase(), (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
@@ -158,7 +155,7 @@ export function addTrackToPlaylist(playlistId: string, trackId: string): AddTrac
   });
 }
 
-export function confirmAddTrackToPlaylist(playlistId: string, trackId: string) {
+export function confirmAddTrackToPlaylist(playlistId: number, trackId: number) {
   return runImmediateTransaction(getDatabase(), (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
@@ -166,7 +163,7 @@ export function confirmAddTrackToPlaylist(playlistId: string, trackId: string) {
   });
 }
 
-export function removePlaylistEntry(playlistId: string, entryId: string) {
+export function removePlaylistEntry(playlistId: number, entryId: number) {
   runImmediateTransaction(getDatabase(), (transaction) => {
     const playlist = transaction
       .select({ id: playlists.id })
@@ -195,8 +192,8 @@ export function removePlaylistEntry(playlistId: string, entryId: string) {
 
 function requirePlaylistAndTrack(
   database: LibraryTransaction,
-  playlistId: string,
-  trackId: string,
+  playlistId: number,
+  trackId: number,
 ) {
   const playlist = database
     .select({ id: playlists.id })
@@ -211,32 +208,31 @@ function requirePlaylistAndTrack(
   if (!track) throw new Error("Track does not exist");
 }
 
-function insertPlaylistEntry(database: LibraryTransaction, playlistId: string, trackId: string) {
-  const entry = {
-    id: randomUUID(),
-    position:
-      database
-        .select({
-          position: sql<number | null>`MAX(${playlistEntries.position}) + 1`,
-        })
-        .from(playlistEntries)
-        .where(eq(playlistEntries.playlistId, playlistId))
-        .get()?.position ?? 0,
-    trackId,
-  } satisfies PlaylistEntry;
-
+function insertPlaylistEntry(database: LibraryTransaction, playlistId: number, trackId: number) {
   const now = Date.now();
 
-  database
+  const entry = database
     .insert(playlistEntries)
     .values({
       createdAt: now,
-      id: entry.id,
       playlistId,
-      position: entry.position,
+      position:
+        database
+          .select({
+            position: sql<number | null>`MAX(${playlistEntries.position}) + 1`,
+          })
+          .from(playlistEntries)
+          .where(eq(playlistEntries.playlistId, playlistId))
+          .get()?.position ?? 0,
       trackId,
     })
-    .run();
+    .returning({
+      id: playlistEntries.id,
+      position: playlistEntries.position,
+      trackId: playlistEntries.trackId,
+    })
+    .get();
+
   database.update(playlists).set({ updatedAt: now }).where(eq(playlists.id, playlistId)).run();
 
   return entry;

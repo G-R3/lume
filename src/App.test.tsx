@@ -90,22 +90,22 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
     addTrackToPlaylist: () => Promise.resolve({ kind: "duplicate" }),
     addSource: () => firstRunPromise,
     confirmAddTrackToPlaylist: (_playlistId, trackId) =>
-      Promise.resolve({ id: "entry-1", position: 0, trackId }),
+      Promise.resolve({ id: 1, position: 0, trackId }),
     createPlaylist: (input) =>
       Promise.resolve({
         library: firstRun,
         playlist: {
           description: input.description,
           entryCount: 0,
-          id: "playlist-1",
+          id: 1,
           title: input.title,
         },
       }),
     createPlaylistFromTrack: (trackId) =>
       Promise.resolve({
         description: null,
-        entries: [{ id: "entry-1", position: 0, trackId }],
-        id: "playlist-1",
+        entries: [{ id: 1, position: 0, trackId }],
+        id: 1,
         title: "Playlist",
       }),
     deletePlaylist: () => firstRunPromise,

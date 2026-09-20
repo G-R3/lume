@@ -1,5 +1,5 @@
 import { DotsThreeIcon } from "@phosphor-icons/react";
-import { useMatchRoute } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
@@ -19,12 +19,11 @@ import { cn } from "@/lib/utils";
 export function AppHeader({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
   const libraryMutation = useLibraryMutation();
-  const matchRoute = useMatchRoute();
+  const params = useParams({ strict: false });
   const sidebar = useSidebar();
-  const playlistMatch = matchRoute({ to: "/playlists/$playlistId" });
 
-  const playlist = playlistMatch
-    ? library.playlists.find((playlist) => playlist.id === playlistMatch.playlistId)
+  const playlist = params.playlistId
+    ? library.playlists.find((playlist) => playlist.id === params.playlistId)
     : undefined;
 
   const unavailableTrackCount = library.tracks.filter((track) => !track.available).length;

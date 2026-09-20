@@ -18,14 +18,14 @@ import { useCreatePlaylistFromTrackMutation } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
 type TrackListItem = {
-  key: string;
+  key: number;
   track: Track;
 };
 
 type TrackListProps = {
   caption: string;
   items: readonly TrackListItem[];
-  playlistId?: string;
+  playlistId?: number;
   renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
 

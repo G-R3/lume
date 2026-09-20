@@ -71,14 +71,14 @@ describe("getRendererAssetPath", () => {
 });
 
 describe("app protocol track URLs", () => {
-  const trackId = "48fc51b1-f8e5-46ad-b5f6-4c4b371f9897";
+  const trackId = 42;
   const audioPath = "/Users/listener/Music/Artist/track one.mp3";
-  const getTrackPath = (candidateId: string) => (candidateId === trackId ? audioPath : null);
+  const getTrackPath = (candidateId: number) => (candidateId === trackId ? audioPath : null);
 
   it("resolves an indexed track through the app protocol", () => {
     const url = getTrackUrl(trackId);
 
-    expect(url).toBe("lume://app/media/48fc51b1-f8e5-46ad-b5f6-4c4b371f9897");
+    expect(url).toBe("lume://app/media/42");
     expect(url).not.toContain(audioPath);
     expect(resolveTrackRequest(url, getTrackPath)).toEqual({ path: audioPath });
   });

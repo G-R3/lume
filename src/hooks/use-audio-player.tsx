@@ -6,25 +6,25 @@ type PlaybackSequence = {
   activeItem: PlaybackQueueItem;
   items: readonly PlaybackQueueItem[];
   nextIndex: number;
-  playlistId: string | null;
+  playlistId: number | null;
 };
 
 type PlaybackQueueItem = {
-  key: string;
+  key: number;
   track: Track;
 };
 
 type AudioPlayerContextValue = {
-  activeQueueKey: string | null;
+  activeQueueKey: number | null;
   activeTrack: Track | null;
-  clearPlaylistQueue: (playlistId: string) => void;
+  clearPlaylistQueue: (playlistId: number) => void;
   errorMessage: string | null;
   isPlaying: boolean;
   isMuted: boolean;
   duration: number;
   canGoNext: boolean;
-  playFrom: (items: readonly PlaybackQueueItem[], index: number, playlistId?: string) => void;
-  removeQueueItem: (key: string) => void;
+  playFrom: (items: readonly PlaybackQueueItem[], index: number, playlistId?: number) => void;
+  removeQueueItem: (key: number) => void;
   syncTracks: (tracks: readonly Track[]) => void;
   togglePlayback: () => void;
   toggleMute: () => void;
@@ -140,7 +140,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   );
 
   const playFrom = useCallback(
-    (items: readonly PlaybackQueueItem[], index: number, playlistId: string | null = null) => {
+    (items: readonly PlaybackQueueItem[], index: number, playlistId: number | null = null) => {
       const item = items[index];
 
       if (!item?.track.available) return;
@@ -186,7 +186,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
   }, []);
 
-  const removeQueueItem = useCallback((key: string) => {
+  const removeQueueItem = useCallback((key: number) => {
     setPlaybackSequence((playbackSequence) => {
       if (!playbackSequence) return null;
 
@@ -205,7 +205,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
   }, []);
 
-  const clearPlaylistQueue = useCallback((playlistId: string) => {
+  const clearPlaylistQueue = useCallback((playlistId: number) => {
     setPlaybackSequence((playbackSequence) => {
       if (!playbackSequence || playbackSequence.playlistId !== playlistId) return playbackSequence;
 

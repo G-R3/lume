@@ -66,7 +66,7 @@ function getCoverClass(track: Pick<Track, "album" | "albumArtists" | "id">) {
   const colorKey =
     track.album === "Unknown album" ? track.id : `${track.albumArtists.join(",")}:${track.album}`;
 
-  const hash = Array.from(colorKey).reduce(
+  const hash = Array.from(String(colorKey)).reduce(
     (hash, character) => (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0,
     0,
   );

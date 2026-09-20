@@ -163,7 +163,7 @@ export function getRendererAssetPath(rendererDirectory: string, requestUrl: stri
   }
 }
 
-export function resolveTrackRequest(url: string, getTrackPath: (trackId: string) => string | null) {
+export function resolveTrackRequest(url: string, getTrackPath: (trackId: number) => string | null) {
   if (!URL.canParse(url)) return null;
 
   const parsedUrl = new URL(url);
@@ -177,8 +177,10 @@ export function resolveTrackRequest(url: string, getTrackPath: (trackId: string)
   }
 
   try {
+    const trackId = Number(decodeURIComponent(parsedUrl.pathname.slice("/media/".length)));
+
     return {
-      path: getTrackPath(decodeURIComponent(parsedUrl.pathname.slice("/media/".length))),
+      path: Number.isSafeInteger(trackId) && trackId > 0 ? getTrackPath(trackId) : null,
     };
   } catch {
     return { path: null };

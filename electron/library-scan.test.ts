@@ -107,7 +107,11 @@ describe("enabled source scanning", () => {
     expect(scannedFolders).toEqual([firstSource.path, lastSource.path]);
     expect(
       database.$client.prepare("SELECT source_id FROM tracks ORDER BY source_id").all(),
-    ).toEqual([firstSource.id, lastSource.id].sort().map((sourceId) => ({ source_id: sourceId })));
+    ).toEqual(
+      [firstSource.id, lastSource.id]
+        .sort((firstId, secondId) => firstId - secondId)
+        .map((sourceId) => ({ source_id: sourceId })),
+    );
   });
 
   it("does not report database failures as source scan errors", async () => {

@@ -25,14 +25,14 @@ describe("library database lifecycle", () => {
     const database = await openTestDatabase(databasePath);
     database
       .prepare(
-        "INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (?, ?, 1, ?, ?)",
+        "INSERT INTO library_sources (path, enabled, created_at, updated_at) VALUES (?, 1, ?, ?)",
       )
-      .run("source-1", "/Music", 1, 1);
+      .run("/Music", 1, 1);
     database.close();
 
     const reopenedDatabase = await openTestDatabase(databasePath);
     expect(reopenedDatabase.prepare("SELECT id, path FROM library_sources").get()).toEqual({
-      id: "source-1",
+      id: 1,
       path: "/Music",
     });
   });

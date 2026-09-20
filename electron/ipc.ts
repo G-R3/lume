@@ -26,13 +26,7 @@ import {
 } from "./playlists";
 import { isTrustedRendererEvent } from "./protocol";
 
-const sourceIdSchema = z.uuidv4("Invalid library source ID");
-
-const trackIdSchema = z.uuidv4("Invalid track ID");
-
-const playlistIdSchema = z.uuidv4("Invalid playlist ID");
-
-const playlistEntryIdSchema = z.uuidv4("Invalid playlist entry ID");
+const rowIdSchema = z.number("Invalid database ID").int().positive().safe();
 
 const playlistCreationSchema = z.object(
   {
@@ -43,13 +37,13 @@ const playlistCreationSchema = z.object(
 ) satisfies z.ZodType<PlaylistCreationInput>;
 
 const playlistTrackSchema = z.object({
-  playlistId: playlistIdSchema,
-  trackId: trackIdSchema,
+  playlistId: rowIdSchema,
+  trackId: rowIdSchema,
 });
 
 const playlistEntrySchema = z.object({
-  entryId: playlistEntryIdSchema,
-  playlistId: playlistIdSchema,
+  entryId: rowIdSchema,
+  playlistId: rowIdSchema,
 });
 
 export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
@@ -95,15 +89,15 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 
   handleTrusted(lumeChannels.createPlaylistFromTrack, (_window, rawTrackId) => {
-    return createPlaylistFromTrack(trackIdSchema.parse(rawTrackId));
+    return createPlaylistFromTrack(rowIdSchema.parse(rawTrackId));
   });
 
   handleTrusted(lumeChannels.loadPlaylist, (_window, rawPlaylistId) => {
-    return getPlaylist(playlistIdSchema.parse(rawPlaylistId));
+    return getPlaylist(rowIdSchema.parse(rawPlaylistId));
   });
 
   handleTrusted(lumeChannels.deletePlaylist, (_window, rawPlaylistId) => {
-    deletePlaylist(playlistIdSchema.parse(rawPlaylistId));
+    deletePlaylist(rowIdSchema.parse(rawPlaylistId));
 
     return getLibrarySnapshot();
   });
@@ -136,7 +130,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 
   handleTrusted(lumeChannels.enableSource, async (_window, rawSourceId) => {
-    const sourceId = sourceIdSchema.parse(rawSourceId);
+    const sourceId = rowIdSchema.parse(rawSourceId);
     enableSource(sourceId);
     await scanSource(sourceId);
 
@@ -144,19 +138,19 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 
   handleTrusted(lumeChannels.disableSource, (_window, rawSourceId) => {
-    disableSource(sourceIdSchema.parse(rawSourceId));
+    disableSource(rowIdSchema.parse(rawSourceId));
 
     return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.forgetSource, (_window, rawSourceId) => {
-    forgetSource(sourceIdSchema.parse(rawSourceId));
+    forgetSource(rowIdSchema.parse(rawSourceId));
 
     return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.rescanSource, async (_window, rawSourceId) => {
-    await scanSource(sourceIdSchema.parse(rawSourceId));
+    await scanSource(rowIdSchema.parse(rawSourceId));
 
     return getLibrarySnapshot();
   });

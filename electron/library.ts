@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
 import { and, count, eq, isNotNull, isNull, notExists, placeholder, sql } from "drizzle-orm";
@@ -10,7 +9,7 @@ import { getPlaylists } from "./playlists";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
 
-const scanVersions = new WeakMap<LibraryDatabase, Map<string, number>>();
+const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
 
 export function getLibrarySnapshot() {
   const sources = getSources();
@@ -91,7 +90,7 @@ export function getEnabledSources() {
     .all();
 }
 
-export function getSource(sourceId: string) {
+export function getSource(sourceId: number) {
   const source = getDatabase()
     .select({
       enabled: librarySources.enabled,
@@ -111,7 +110,7 @@ export function getSource(sourceId: string) {
   throw new Error(`Library source ${sourceId} does not exist`);
 }
 
-export function getEnabledSource(sourceId: string) {
+export function getEnabledSource(sourceId: number) {
   return (
     getDatabase()
       .select({
@@ -181,24 +180,23 @@ export async function saveSource(selectedPath: string) {
 
   rejectSourceOverlap(database, path);
 
-  const id = randomUUID();
   const now = Date.now();
 
-  database
+  const source = database
     .insert(librarySources)
     .values({
       createdAt: now,
       enabled: true,
-      id,
       path,
       updatedAt: now,
     })
-    .run();
+    .returning({ id: librarySources.id })
+    .get();
 
-  return { id, path };
+  return { id: source.id, path };
 }
 
-export function enableSource(sourceId: string) {
+export function enableSource(sourceId: number) {
   const now = Date.now();
 
   const result = getDatabase()
@@ -218,7 +216,7 @@ export function enableSource(sourceId: string) {
   }
 }
 
-export function disableSource(sourceId: string) {
+export function disableSource(sourceId: number) {
   const now = Date.now();
 
   runImmediateTransaction(getDatabase(), (transaction) => {
@@ -242,7 +240,7 @@ export function disableSource(sourceId: string) {
   });
 }
 
-export function forgetSource(sourceId: string) {
+export function forgetSource(sourceId: number) {
   const now = Date.now();
 
   runImmediateTransaction(getDatabase(), (transaction) => {
@@ -274,13 +272,13 @@ export async function scanEnabledSources(scanFiles = scanAudioFiles) {
 }
 
 // The scanner parameter lets tests pause overlapping scans without mocking Node's filesystem APIs.
-export async function scanSource(sourceId: string, scanFiles = scanAudioFiles) {
+export async function scanSource(sourceId: number, scanFiles = scanAudioFiles) {
   const source = getEnabledSource(sourceId);
 
   if (!source) return;
 
   const database = getDatabase();
-  const versions = scanVersions.get(database) ?? new Map<string, number>();
+  const versions = scanVersions.get(database) ?? new Map<number, number>();
   scanVersions.set(database, versions);
   const version = (versions.get(sourceId) ?? 0) + 1;
   versions.set(sourceId, version);
@@ -301,7 +299,7 @@ export async function scanSource(sourceId: string, scanFiles = scanAudioFiles) {
   applySourceScan(sourceId, scannedTracks);
 }
 
-export function applyScanFailure(sourceId: string, error: string) {
+export function applyScanFailure(sourceId: number, error: string) {
   const database = getDatabase();
 
   if (!isSourceScannable(database, sourceId)) return false;
@@ -366,14 +364,14 @@ export function getArtworkData(artworkId: string): ArtworkData | null {
   };
 }
 
-export function getTrackPath(trackId: string) {
+export function getTrackPath(trackId: number) {
   return (
     getDatabase().select({ path: tracks.path }).from(tracks).where(eq(tracks.id, trackId)).get()
       ?.path ?? null
   );
 }
 
-export function getTrackMetadata(sourceId: string) {
+export function getTrackMetadata(sourceId: number) {
   return new Map(
     getDatabase()
       .select({
@@ -391,7 +389,7 @@ export function getTrackMetadata(sourceId: string) {
   );
 }
 
-export function applySourceScan(sourceId: string, scannedTracks: readonly ScannedTrack[]) {
+export function applySourceScan(sourceId: number, scannedTracks: readonly ScannedTrack[]) {
   const database = getDatabase();
 
   if (!isSourceScannable(database, sourceId)) return false;
@@ -436,7 +434,6 @@ export function applySourceScan(sourceId: string, scannedTracks: readonly Scanne
         fileSize: placeholder("fileSize"),
         format: placeholder("format"),
         genres: placeholder("genres"),
-        id: placeholder("id"),
         lossless: placeholder("lossless"),
         metadataVersion: trackMetadataVersion,
         modifiedAt: placeholder("modifiedAt"),
@@ -493,7 +490,6 @@ export function applySourceScan(sourceId: string, scannedTracks: readonly Scanne
       saveTrack.run({
         ...track,
         artworkId: track.artwork?.id ?? null,
-        id: randomUUID(),
       });
     });
 
@@ -519,7 +515,7 @@ export function applySourceScan(sourceId: string, scannedTracks: readonly Scanne
   return true;
 }
 
-function isSourceScannable(database: LibraryDatabase, sourceId: string) {
+function isSourceScannable(database: LibraryDatabase, sourceId: number) {
   return (
     database
       .select({ id: librarySources.id })
@@ -543,7 +539,7 @@ function getScanErrorMessage(error: Error) {
   return error.message;
 }
 
-function markSourceTracksUnavailable(database: SourceWriter, sourceId: string, now: number) {
+function markSourceTracksUnavailable(database: SourceWriter, sourceId: number, now: number) {
   database
     .update(tracks)
     .set({ available: false, updatedAt: now })
@@ -551,7 +547,7 @@ function markSourceTracksUnavailable(database: SourceWriter, sourceId: string, n
     .run();
 }
 
-function rejectSourceOverlap(database: LibraryDatabase, path: string, sourceId?: string) {
+function rejectSourceOverlap(database: LibraryDatabase, path: string, sourceId?: number) {
   const overlappingPath = database
     .select({ id: librarySources.id, path: librarySources.path })
     .from(librarySources)

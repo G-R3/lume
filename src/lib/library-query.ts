@@ -2,20 +2,20 @@ import { queryOptions, type QueryClient, useMutation, useQueryClient } from "@ta
 
 type LibraryCommand =
   | { kind: "add-source" }
-  | { kind: "delete-playlist"; playlistId: string }
-  | { kind: "forget-source"; sourceId: string }
-  | { kind: "rescan-source"; sourceId: string }
+  | { kind: "delete-playlist"; playlistId: number }
+  | { kind: "forget-source"; sourceId: number }
+  | { kind: "rescan-source"; sourceId: number }
   | { kind: "rescan-sources" }
-  | { enabled: boolean; kind: "set-source-enabled"; sourceId: string };
+  | { enabled: boolean; kind: "set-source-enabled"; sourceId: number };
 
 type PlaylistTrackInput = {
-  playlistId: string;
-  trackId: string;
+  playlistId: number;
+  trackId: number;
 };
 
 type PlaylistEntryInput = {
-  entryId: string;
-  playlistId: string;
+  entryId: number;
+  playlistId: number;
 };
 
 const playlistMutationOptions = {
@@ -31,7 +31,7 @@ export const libraryQueryOptions = queryOptions({
   staleTime: Infinity,
 });
 
-export function playlistQueryOptions(playlistId: string) {
+export function playlistQueryOptions(playlistId: number) {
   return queryOptions({
     networkMode: "always",
     queryKey: ["playlist", playlistId],
@@ -134,7 +134,7 @@ function runLibraryCommand(command: LibraryCommand) {
   command satisfies never;
 }
 
-function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: string) {
+function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey }),
     queryClient.invalidateQueries({ queryKey: playlistQueryOptions(playlistId).queryKey }),

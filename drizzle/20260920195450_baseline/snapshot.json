@@ -1,8 +1,10 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "736f20b1-ee2f-4768-bdb2-b678877bb442",
-  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "id": "6c9e9356-8bd4-4bcb-b1eb-ca84b7dfc260",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
   "ddl": [
     {
       "name": "artwork",
@@ -59,8 +61,8 @@
       "table": "artwork"
     },
     {
-      "type": "text",
-      "notNull": true,
+      "type": "integer",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -139,8 +141,8 @@
       "table": "library_sources"
     },
     {
-      "type": "text",
-      "notNull": true,
+      "type": "integer",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -149,7 +151,7 @@
       "table": "playlist_entries"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -159,7 +161,7 @@
       "table": "playlist_entries"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -189,8 +191,8 @@
       "table": "playlist_entries"
     },
     {
-      "type": "text",
-      "notNull": true,
+      "type": "integer",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -239,7 +241,7 @@
       "table": "playlists"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -259,8 +261,8 @@
       "table": "track_state"
     },
     {
-      "type": "text",
-      "notNull": true,
+      "type": "integer",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -269,7 +271,7 @@
       "table": "tracks"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -539,9 +541,13 @@
       "table": "tracks"
     },
     {
-      "columns": ["playlist_id"],
+      "columns": [
+        "playlist_id"
+      ],
       "tableTo": "playlists",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -550,9 +556,13 @@
       "table": "playlist_entries"
     },
     {
-      "columns": ["track_id"],
+      "columns": [
+        "track_id"
+      ],
       "tableTo": "tracks",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -561,9 +571,13 @@
       "table": "playlist_entries"
     },
     {
-      "columns": ["track_id"],
+      "columns": [
+        "track_id"
+      ],
       "tableTo": "tracks",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -572,9 +586,13 @@
       "table": "track_state"
     },
     {
-      "columns": ["source_id"],
+      "columns": [
+        "source_id"
+      ],
       "tableTo": "library_sources",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -583,9 +601,13 @@
       "table": "tracks"
     },
     {
-      "columns": ["artwork_id"],
+      "columns": [
+        "artwork_id"
+      ],
       "tableTo": "artwork",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -594,46 +616,58 @@
       "table": "tracks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "artwork_pk",
       "entityType": "pks",
       "table": "artwork"
     },
     {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "library_sources_pk",
-      "entityType": "pks",
-      "table": "library_sources"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "playlist_entries_pk",
-      "entityType": "pks",
-      "table": "playlist_entries"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "playlists_pk",
-      "entityType": "pks",
-      "table": "playlists"
-    },
-    {
-      "columns": ["track_id"],
+      "columns": [
+        "track_id"
+      ],
       "nameExplicit": false,
       "name": "track_state_pk",
       "entityType": "pks",
       "table": "track_state"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "library_sources_pk",
+      "table": "library_sources",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "playlist_entries_pk",
+      "table": "playlist_entries",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "playlists_pk",
+      "table": "playlists",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "tracks_pk",
-      "entityType": "pks",
-      "table": "tracks"
+      "table": "tracks",
+      "entityType": "pks"
     },
     {
       "columns": [
@@ -710,21 +744,28 @@
       "table": "tracks"
     },
     {
-      "columns": ["playlist_id", "position"],
+      "columns": [
+        "playlist_id",
+        "position"
+      ],
       "nameExplicit": false,
       "name": "playlist_entries_playlist_id_position_unique",
       "entityType": "uniques",
       "table": "playlist_entries"
     },
     {
-      "columns": ["path"],
+      "columns": [
+        "path"
+      ],
       "nameExplicit": false,
       "name": "library_sources_path_unique",
       "entityType": "uniques",
       "table": "library_sources"
     },
     {
-      "columns": ["path"],
+      "columns": [
+        "path"
+      ],
       "nameExplicit": false,
       "name": "tracks_path_unique",
       "entityType": "uniques",

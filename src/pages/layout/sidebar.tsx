@@ -1,5 +1,5 @@
 import { DotsThreeIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
-import { Link, useMatchRoute } from "@tanstack/react-router";
+import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
@@ -97,11 +97,9 @@ export function AppSidebar() {
 function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const matchRoute = useMatchRoute();
+  const params = useParams({ strict: false });
 
-  const isActive = Boolean(
-    matchRoute({ params: { playlistId: playlist.id }, to: "/playlists/$playlistId" }),
-  );
+  const isActive = params.playlistId === playlist.id;
 
   return (
     <SidebarMenuItem>

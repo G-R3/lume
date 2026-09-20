@@ -23,13 +23,13 @@ export type Track = Omit<TrackMetadata, "album"> & {
   album: string;
   artworkUrl: string | null;
   available: boolean;
-  id: string;
+  id: number;
   url: string;
 };
 
 export type LibrarySource = {
   enabled: boolean;
-  id: string;
+  id: number;
   lastScanError: string | null;
   lastScannedAt: number | null;
   path: string;
@@ -39,7 +39,7 @@ export type LibrarySource = {
 export type PlaylistSummary = {
   description: string | null;
   entryCount: number;
-  id: string;
+  id: number;
   title: string;
 };
 
@@ -49,15 +49,15 @@ export type PlaylistCreationInput = {
 };
 
 export type PlaylistEntry = {
-  id: string;
+  id: number;
   position: number;
-  trackId: string;
+  trackId: number;
 };
 
 export type PlaylistDetails = {
   description: string | null;
   entries: PlaylistEntry[];
-  id: string;
+  id: number;
   title: string;
 };
 
@@ -80,22 +80,22 @@ export type PlaylistCreationResult = {
 };
 
 export type LumeApi = {
-  addTrackToPlaylist: (playlistId: string, trackId: string) => Promise<AddTrackToPlaylistResult>;
+  addTrackToPlaylist: (playlistId: number, trackId: number) => Promise<AddTrackToPlaylistResult>;
   addSource: () => Promise<LibrarySnapshot>;
-  confirmAddTrackToPlaylist: (playlistId: string, trackId: string) => Promise<PlaylistEntry>;
+  confirmAddTrackToPlaylist: (playlistId: number, trackId: number) => Promise<PlaylistEntry>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
-  createPlaylistFromTrack: (trackId: string) => Promise<PlaylistDetails>;
-  deletePlaylist: (playlistId: string) => Promise<LibrarySnapshot>;
-  disableSource: (sourceId: string) => Promise<LibrarySnapshot>;
-  enableSource: (sourceId: string) => Promise<LibrarySnapshot>;
-  forgetSource: (sourceId: string) => Promise<LibrarySnapshot>;
+  createPlaylistFromTrack: (trackId: number) => Promise<PlaylistDetails>;
+  deletePlaylist: (playlistId: number) => Promise<LibrarySnapshot>;
+  disableSource: (sourceId: number) => Promise<LibrarySnapshot>;
+  enableSource: (sourceId: number) => Promise<LibrarySnapshot>;
+  forgetSource: (sourceId: number) => Promise<LibrarySnapshot>;
   loadLibrary: () => Promise<LibrarySnapshot>;
-  loadPlaylist: (playlistId: string) => Promise<PlaylistDetails | null>;
+  loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
   onLibraryUpdate: (listener: (library: LibrarySnapshot) => void) => () => void;
   openDataFolder: () => Promise<void>;
-  rescanSource: (sourceId: string) => Promise<LibrarySnapshot>;
+  rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
   rescanSources: () => Promise<LibrarySnapshot>;
-  removePlaylistEntry: (playlistId: string, entryId: string) => Promise<void>;
+  removePlaylistEntry: (playlistId: number, entryId: number) => Promise<void>;
   isMac: boolean;
 };
 
@@ -120,7 +120,7 @@ export const lumeChannels = {
 
 export const appScheme = "lume";
 
-export function getTrackUrl(id: string) {
+export function getTrackUrl(id: number) {
   return `${appScheme}://app/media/${encodeURIComponent(id)}`;
 }
 

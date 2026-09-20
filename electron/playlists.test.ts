@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, getDatabase, initializeDatabase, type LibraryDatabase } from "./database";
 import { librarySources, tracks } from "./database/schema";
@@ -38,11 +39,14 @@ describe("playlist behavior", () => {
     expect(() => createPlaylist({ description: null, title: "T".repeat(101) })).toThrow();
     expect(() => createPlaylist({ description: "D".repeat(301), title: "Valid" })).toThrow();
 
-    createPlaylist({
+    const firstPlaylist = createPlaylist({
       description: `  ${maximumDescription}  `,
       title: `  ${maximumTitle}  `,
     });
-    createPlaylist({ description: "   ", title: maximumTitle });
+
+    const secondPlaylist = createPlaylist({ description: "   ", title: maximumTitle });
+
+    expect([firstPlaylist.id, secondPlaylist.id]).toEqual([1, 2]);
     closeDatabase();
 
     await openTestDatabase(databasePath);
@@ -94,6 +98,7 @@ describe("playlist behavior", () => {
       firstTrack.id,
       thirdTrack.id,
     ]);
+    expect(entries?.every((entry) => Number.isSafeInteger(entry.id) && entry.id > 0)).toBe(true);
     expect(new Set(entries?.map((entry) => entry.id)).size).toBe(3);
     expect(getPlaylists().map((summary) => summary.entryCount)).toEqual([3]);
 
@@ -106,11 +111,11 @@ describe("playlist behavior", () => {
   it("creates a playlist from a track atomically and falls back for unusable names", async () => {
     const database = await openTestDatabase();
     const namedTrack = await addTrack("Night Drive");
-    insertTrack(database, "blank-track", "   ");
-    insertTrack(database, "long-track", "x".repeat(101));
+    const blankTrackId = insertTrack(database, "blank-track", "   ");
+    const longTrackId = insertTrack(database, "long-track", "x".repeat(101));
     const namedPlaylist = createPlaylistFromTrack(namedTrack.id);
-    const blankPlaylist = createPlaylistFromTrack("blank-track");
-    const longPlaylist = createPlaylistFromTrack("long-track");
+    const blankPlaylist = createPlaylistFromTrack(blankTrackId);
+    const longPlaylist = createPlaylistFromTrack(longTrackId);
 
     expect(
       [namedPlaylist, blankPlaylist, longPlaylist].map((playlist) => ({
@@ -119,11 +124,11 @@ describe("playlist behavior", () => {
       })),
     ).toEqual([
       { title: "Night Drive", trackId: namedTrack.id },
-      { title: "New Playlist", trackId: "blank-track" },
-      { title: "New Playlist", trackId: "long-track" },
+      { title: "New Playlist", trackId: blankTrackId },
+      { title: "New Playlist", trackId: longTrackId },
     ]);
 
-    insertTrack(database, "failing-track", "Uncommitted");
+    const failingTrackId = insertTrack(database, "failing-track", "Uncommitted");
     database.$client.exec(`
       CREATE TRIGGER reject_playlist_entry
       BEFORE INSERT ON playlist_entries
@@ -132,7 +137,7 @@ describe("playlist behavior", () => {
       END;
     `);
 
-    expect(() => createPlaylistFromTrack("failing-track")).toThrow("Entry insert failed");
+    expect(() => createPlaylistFromTrack(failingTrackId)).toThrow("Entry insert failed");
     expect(getPlaylists().map((playlist) => playlist.title)).toEqual([
       "Night Drive",
       "New Playlist",
@@ -149,12 +154,8 @@ describe("playlist behavior", () => {
 
     if (addition.kind !== "added") throw new Error("Expected the track to be added");
 
-    expect(() => addTrackToPlaylist("missing-playlist", track.id)).toThrow(
-      "Playlist does not exist",
-    );
-    expect(() => addTrackToPlaylist(firstPlaylist.id, "missing-track")).toThrow(
-      "Track does not exist",
-    );
+    expect(() => addTrackToPlaylist(999_999, track.id)).toThrow("Playlist does not exist");
+    expect(() => addTrackToPlaylist(firstPlaylist.id, 999_999)).toThrow("Track does not exist");
     expect(() => removePlaylistEntry(secondPlaylist.id, addition.entry.id)).toThrow(
       "Playlist entry does not exist in this playlist",
     );
@@ -221,19 +222,27 @@ async function addTrack(title: string) {
   throw new Error(`Expected ${title} to be stored`);
 }
 
-function insertTrack(database: LibraryDatabase, id: string, title: string) {
+function insertTrack(database: LibraryDatabase, name: string, title: string) {
   database
     .insert(librarySources)
     .values({
       createdAt: 1,
       enabled: true,
-      id: "generated-source",
       path: "/Generated",
       updatedAt: 1,
     })
-    .onConflictDoNothing({ target: librarySources.id })
+    .onConflictDoNothing({ target: librarySources.path })
     .run();
-  database
+
+  const source = database
+    .select({ id: librarySources.id })
+    .from(librarySources)
+    .where(eq(librarySources.path, "/Generated"))
+    .get();
+
+  if (!source) throw new Error("Expected the generated source to exist");
+
+  return database
     .insert(tracks)
     .values({
       albumArtists: [],
@@ -244,18 +253,18 @@ function insertTrack(database: LibraryDatabase, id: string, title: string) {
       fileSize: 1,
       format: "MP3",
       genres: [],
-      id,
       metadataVersion: trackMetadataVersion,
       modifiedAt: 1,
-      path: `/Generated/${id}.mp3`,
-      sourceId: "generated-source",
+      path: `/Generated/${name}.mp3`,
+      sourceId: source.id,
       title,
       updatedAt: 1,
     })
-    .run();
+    .returning({ id: tracks.id })
+    .get().id;
 }
 
-function readPlaylistTrack(playlistId: string) {
+function readPlaylistTrack(playlistId: number) {
   const entry = getPlaylist(playlistId)?.entries[0];
   const track = entry ? getTracks().find((track) => track.id === entry.trackId) : undefined;
 

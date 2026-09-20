@@ -53,7 +53,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
     return track ? [{ key: entry.id, track }] : [];
   });
 
-  const handleRemove = (entryId: string) => {
+  const handleRemove = (entryId: number) => {
     removePlaylistEntry.mutate(
       { entryId, playlistId: playlist.id },
       {

@@ -1,4 +1,4 @@
-import { useMatchRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import type { RefObject } from "react";
 import type { PlaylistSummary } from "../../shared/lib";
 import {
@@ -30,12 +30,10 @@ export function DeletePlaylistDialog({
 }: DeletePlaylistDialogProps) {
   const audioPlayer = useAudioPlayer();
   const libraryMutation = useLibraryMutation();
-  const matchRoute = useMatchRoute();
   const navigate = useNavigate();
+  const params = useParams({ strict: false });
 
-  const isOpenPlaylist = Boolean(
-    matchRoute({ params: { playlistId: playlist.id }, to: "/playlists/$playlistId" }),
-  );
+  const isOpenPlaylist = params.playlistId === playlist.id;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && libraryMutation.isPending) return;

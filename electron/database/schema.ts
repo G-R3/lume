@@ -14,7 +14,7 @@ import {
 export const librarySources = sqliteTable(
   "library_sources",
   {
-    id: text("id").notNull(),
+    id: integer("id").primaryKey(),
     path: text("path").notNull().unique(),
     enabled: integer("enabled", { mode: "boolean" }).notNull(),
     forgottenAt: integer("forgotten_at"),
@@ -23,10 +23,7 @@ export const librarySources = sqliteTable(
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
-  (table) => [
-    primaryKey({ columns: [table.id] }),
-    check("library_sources_enabled_check", sql`${table.enabled} IN (0, 1)`),
-  ],
+  (table) => [check("library_sources_enabled_check", sql`${table.enabled} IN (0, 1)`)],
 );
 
 export const artwork = sqliteTable(
@@ -42,8 +39,8 @@ export const artwork = sqliteTable(
 export const tracks = sqliteTable(
   "tracks",
   {
-    id: text("id").notNull(),
-    sourceId: text("source_id")
+    id: integer("id").primaryKey(),
+    sourceId: integer("source_id")
       .notNull()
       .references(() => librarySources.id),
     path: text("path").notNull().unique(),
@@ -74,7 +71,6 @@ export const tracks = sqliteTable(
     metadataVersion: integer("metadata_version").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.id] }),
     index("tracks_source_id").on(table.sourceId),
     index("tracks_available").on(table.available),
     index("tracks_artwork_id").on(table.artworkId),
@@ -86,7 +82,7 @@ export const tracks = sqliteTable(
 export const trackState = sqliteTable(
   "track_state",
   {
-    trackId: text("track_id")
+    trackId: integer("track_id")
       .notNull()
       .references(() => tracks.id, { onDelete: "cascade" }),
     starredAt: integer("starred_at"),
@@ -97,14 +93,13 @@ export const trackState = sqliteTable(
 export const playlists = sqliteTable(
   "playlists",
   {
-    id: text("id").notNull(),
+    id: integer("id").primaryKey(),
     title: text("title").notNull(),
     description: text("description"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.id] }),
     index("playlists_created_at").on(table.createdAt),
     check(
       "playlists_title_check",
@@ -120,18 +115,17 @@ export const playlists = sqliteTable(
 export const playlistEntries = sqliteTable(
   "playlist_entries",
   {
-    id: text("id").notNull(),
-    playlistId: text("playlist_id")
+    id: integer("id").primaryKey(),
+    playlistId: integer("playlist_id")
       .notNull()
       .references(() => playlists.id, { onDelete: "cascade" }),
-    trackId: text("track_id")
+    trackId: integer("track_id")
       .notNull()
       .references(() => tracks.id),
     position: integer("position").notNull(),
     createdAt: integer("created_at").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.id] }),
     unique().on(table.playlistId, table.position),
     index("playlist_entries_track").on(table.playlistId, table.trackId),
     check("playlist_entries_position_check", sql`${table.position} >= 0`),

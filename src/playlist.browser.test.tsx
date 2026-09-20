@@ -16,17 +16,17 @@ import { createAppRouter } from "@/router";
 import "@/index.css";
 
 type EditingCalls = {
-  additions: { playlistId: string; trackId: string }[];
-  confirmedAddition: { playlistId: string; trackId: string } | null;
-  createdFromTrack: string | null;
+  additions: { playlistId: number; trackId: number }[];
+  confirmedAddition: { playlistId: number; trackId: number } | null;
+  createdFromTrack: number | null;
   creation: PlaylistCreationInput | null;
-  deleted: string | null;
-  removed: { entryId: string; playlistId: string } | null;
+  deleted: number | null;
+  removed: { entryId: number; playlistId: number } | null;
 };
 
 type PlaybackCalls = {
-  deleted: string | null;
-  removed: { entryId: string; playlistId: string } | null;
+  deleted: number | null;
+  removed: { entryId: number; playlistId: number } | null;
 };
 
 const mountedRoots: Root[] = [];
@@ -43,7 +43,7 @@ afterEach(() => {
 describe("playlist behavior", () => {
   it("completes the playlist editing lifecycle through the renderer API", async () => {
     const midnight = {
-      ...createTrack("track-midnight", "Midnight"),
+      ...createTrack(1, "Midnight"),
       album: "Signals After Dark",
       artists: ["Neon Static"],
     };
@@ -51,21 +51,21 @@ describe("playlist behavior", () => {
     const archive = {
       description: null,
       entries: [],
-      id: "playlist-archive",
+      id: 10,
       title: "Archive",
     } satisfies PlaylistDetails;
 
     const directPlaylist = {
       description: null,
-      entries: [{ id: "entry-direct", position: 0, trackId: midnight.id }],
-      id: "playlist-direct",
+      entries: [{ id: 101, position: 0, trackId: midnight.id }],
+      id: 11,
       title: "Midnight",
     } satisfies PlaylistDetails;
 
     const archiveSummary = summarize(archive);
     const directSummary = summarize(directPlaylist);
-    const firstEntry = { id: "entry-archive-1", position: 0, trackId: midnight.id };
-    const duplicateEntry = { id: "entry-archive-2", position: 1, trackId: midnight.id };
+    const firstEntry = { id: 102, position: 0, trackId: midnight.id };
+    const duplicateEntry = { id: 103, position: 1, trackId: midnight.id };
     const state = createRendererState([midnight]);
 
     const calls: EditingCalls = {
@@ -148,7 +148,7 @@ describe("playlist behavior", () => {
     const creationDialog = page.getByRole("dialog");
     await creationDialog.getByLabelText("Title").fill("Archive");
     await creationDialog.getByRole("button", { name: "Create playlist" }).click();
-    await expect.poll(() => window.location.hash).toBe("#/playlists/playlist-archive");
+    await expect.poll(() => window.location.hash).toBe("#/playlists/10");
 
     await page.getByRole("link", { name: /All tracks/ }).click();
     const allTracks = page.getByRole("table", { name: "All tracks" });
@@ -158,7 +158,7 @@ describe("playlist behavior", () => {
 
     await allTracks.getByRole("button", { name: "More options for Midnight" }).click();
     await page.getByRole("menuitem", { name: "New playlist" }).click();
-    await expect.poll(() => window.location.hash).toBe("#/playlists/playlist-direct");
+    await expect.poll(() => window.location.hash).toBe("#/playlists/11");
 
     await page.getByRole("link", { name: /All tracks/ }).click();
     await allTracks.getByRole("button", { name: "More options for Midnight" }).click();
@@ -192,7 +192,7 @@ describe("playlist behavior", () => {
     await page.getByRole("button", { name: "Delete playlist" }).click();
     await expect.poll(() => window.location.hash).toBe("#/");
 
-    window.location.hash = "#/playlists/playlist-archive";
+    window.location.hash = "#/playlists/10";
     await expect.poll(() => window.location.hash).toBe("#/");
 
     expect(calls).toEqual({
@@ -209,28 +209,28 @@ describe("playlist behavior", () => {
   });
 
   it("keeps current audio through removal and deletion while skipping unavailable entries", async () => {
-    const midnight = createTrack("track-midnight", "Midnight");
-    const unavailable = createTrack("track-unavailable", "Missing", false);
-    const sunrise = createTrack("track-sunrise", "Sunrise");
+    const midnight = createTrack(1, "Midnight");
+    const unavailable = createTrack(2, "Missing", false);
+    const sunrise = createTrack(3, "Sunrise");
 
     const playlist = {
       description: null,
       entries: [
-        { id: "entry-midnight-1", position: 0, trackId: midnight.id },
-        { id: "entry-missing", position: 1, trackId: unavailable.id },
-        { id: "entry-midnight-2", position: 2, trackId: midnight.id },
-        { id: "entry-sunrise", position: 3, trackId: sunrise.id },
+        { id: 201, position: 0, trackId: midnight.id },
+        { id: 202, position: 1, trackId: unavailable.id },
+        { id: 203, position: 2, trackId: midnight.id },
+        { id: 204, position: 3, trackId: sunrise.id },
       ],
-      id: "playlist-playback",
+      id: 20,
       title: "Playback",
     } satisfies PlaylistDetails;
 
     const playlistAfterRemoval = {
       ...playlist,
       entries: [
-        { id: "entry-missing", position: 1, trackId: unavailable.id },
-        { id: "entry-midnight-2", position: 2, trackId: midnight.id },
-        { id: "entry-sunrise", position: 3, trackId: sunrise.id },
+        { id: 202, position: 1, trackId: unavailable.id },
+        { id: 203, position: 2, trackId: midnight.id },
+        { id: 204, position: 3, trackId: sunrise.id },
       ],
     } satisfies PlaylistDetails;
 
@@ -263,7 +263,7 @@ describe("playlist behavior", () => {
       },
     }));
 
-    renderApplication(api, "#/playlists/playlist-playback");
+    renderApplication(api, "#/playlists/20");
 
     const table = page.getByRole("table", { name: "Playback tracks" });
     const firstOccurrence = table.getByRole("button", { exact: true, name: "Midnight" }).first();
@@ -301,7 +301,7 @@ describe("playlist behavior", () => {
 
     expect(calls).toEqual({
       deleted: playlist.id,
-      removed: { entryId: "entry-midnight-1", playlistId: playlist.id },
+      removed: { entryId: 201, playlistId: playlist.id },
     });
   });
 });
@@ -344,7 +344,7 @@ function summarize(playlist: PlaylistDetails): PlaylistSummary {
   };
 }
 
-function createTrack(id: string, title: string, available = true): Track {
+function createTrack(id: number, title: string, available = true): Track {
   return {
     album: "Unknown album",
     albumArtists: ["Unknown artist"],

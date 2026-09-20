@@ -5,7 +5,7 @@ CREATE TABLE `artwork` (
 );
 --> statement-breakpoint
 CREATE TABLE `library_sources` (
-	`id` text PRIMARY KEY NOT NULL,
+	`id` integer PRIMARY KEY,
 	`path` text NOT NULL UNIQUE,
 	`enabled` integer NOT NULL,
 	`forgotten_at` integer,
@@ -17,9 +17,9 @@ CREATE TABLE `library_sources` (
 );
 --> statement-breakpoint
 CREATE TABLE `playlist_entries` (
-	`id` text PRIMARY KEY NOT NULL,
-	`playlist_id` text NOT NULL,
-	`track_id` text NOT NULL,
+	`id` integer PRIMARY KEY,
+	`playlist_id` integer NOT NULL,
+	`track_id` integer NOT NULL,
 	`position` integer NOT NULL,
 	`created_at` integer NOT NULL,
 	CONSTRAINT `fk_playlist_entries_playlist_id_playlists_id_fk` FOREIGN KEY (`playlist_id`) REFERENCES `playlists`(`id`) ON DELETE CASCADE,
@@ -29,7 +29,7 @@ CREATE TABLE `playlist_entries` (
 );
 --> statement-breakpoint
 CREATE TABLE `playlists` (
-	`id` text PRIMARY KEY NOT NULL,
+	`id` integer PRIMARY KEY,
 	`title` text NOT NULL,
 	`description` text,
 	`created_at` integer NOT NULL,
@@ -39,14 +39,14 @@ CREATE TABLE `playlists` (
 );
 --> statement-breakpoint
 CREATE TABLE `track_state` (
-	`track_id` text PRIMARY KEY NOT NULL,
+	`track_id` integer PRIMARY KEY,
 	`starred_at` integer,
 	CONSTRAINT `fk_track_state_track_id_tracks_id_fk` FOREIGN KEY (`track_id`) REFERENCES `tracks`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
 CREATE TABLE `tracks` (
-	`id` text PRIMARY KEY NOT NULL,
-	`source_id` text NOT NULL,
+	`id` integer PRIMARY KEY,
+	`source_id` integer NOT NULL,
 	`path` text NOT NULL UNIQUE,
 	`title` text NOT NULL,
 	`duration` real,
