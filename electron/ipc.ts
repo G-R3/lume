@@ -5,7 +5,6 @@ import {
   type PlaylistCreationInput,
   type PlaylistCreationResult,
 } from "../shared/lib";
-import { getDatabase } from "./database";
 import {
   disableSource,
   enableSource,
@@ -13,8 +12,9 @@ import {
   getLibrarySnapshot,
   getSources,
   saveSource,
+  scanEnabledSources,
+  scanSource,
 } from "./library";
-import { scanEnabledSources, scanSource } from "./library-scan";
 import {
   addTrackToPlaylist,
   confirmAddTrackToPlaylist,
@@ -53,8 +53,6 @@ const playlistEntrySchema = z.object({
 });
 
 export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
-  const database = getDatabase();
-
   function handleTrusted<Result>(
     channel: string,
     handler: (window: BrowserWindow, ...args: unknown[]) => Result,
@@ -83,7 +81,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     if (!folder) return getLibrarySnapshot();
 
     const source = await saveSource(folder);
-    await scanSource(database, source.id);
+    await scanSource(source.id);
 
     return getLibrarySnapshot();
   });
@@ -140,7 +138,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   handleTrusted(lumeChannels.enableSource, async (_window, rawSourceId) => {
     const sourceId = sourceIdSchema.parse(rawSourceId);
     enableSource(sourceId);
-    await scanSource(database, sourceId);
+    await scanSource(sourceId);
 
     return getLibrarySnapshot();
   });
@@ -158,13 +156,13 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 
   handleTrusted(lumeChannels.rescanSource, async (_window, rawSourceId) => {
-    await scanSource(database, sourceIdSchema.parse(rawSourceId));
+    await scanSource(sourceIdSchema.parse(rawSourceId));
 
     return getLibrarySnapshot();
   });
 
   handleTrusted(lumeChannels.rescanSources, async () => {
-    await scanEnabledSources(database);
+    await scanEnabledSources();
 
     return getLibrarySnapshot();
   });

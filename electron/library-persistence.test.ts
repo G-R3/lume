@@ -15,8 +15,8 @@ import {
   getTracks,
   hasForgottenSources,
   saveSource,
-  scanAudioFiles,
 } from "./library";
+import { scanAudioFiles } from "./library-files";
 
 const temporaryFolders: string[] = [];
 

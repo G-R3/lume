@@ -2,10 +2,9 @@ import { join } from "node:path";
 import { app, BrowserWindow, dialog, protocol, session, shell } from "electron";
 import { appScheme, lumeChannels } from "../shared/lib";
 import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
-import { closeDatabase, getDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
+import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
 import { registerIpc } from "./ipc";
-import { getArtworkData, getLibrarySnapshot, getTrackPath } from "./library";
-import { scanEnabledSources } from "./library-scan";
+import { getArtworkData, getLibrarySnapshot, getTrackPath, scanEnabledSources } from "./library";
 
 app.enableSandbox();
 
@@ -76,8 +75,6 @@ async function startApplication() {
   await initializeDatabase({
     location: getLibraryDatabasePath(userDataDirectory, app.isPackaged),
   });
-  const database = getDatabase();
-
   app.once("will-quit", closeDatabase);
 
   registerIpc({ rendererUrl, userDataDirectory });
@@ -91,7 +88,7 @@ async function startApplication() {
 
   const window = createWindow();
 
-  void scanEnabledSources(database)
+  void scanEnabledSources()
     .then(() => {
       if (!window.isDestroyed()) {
         window.webContents.send(lumeChannels.libraryUpdated, getLibrarySnapshot());

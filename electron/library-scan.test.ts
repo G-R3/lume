@@ -9,10 +9,10 @@ import {
   getSource,
   getTracks,
   saveSource,
-  scanAudioFiles,
-  type ScannedTrack,
+  scanEnabledSources,
+  scanSource,
 } from "./library";
-import { scanEnabledSources, scanSource } from "./library-scan";
+import { scanAudioFiles, type ScannedTrack } from "./library-files";
 
 const temporaryFolders: string[] = [];
 
@@ -25,13 +25,13 @@ afterEach(async () => {
 
 describe("enabled source scanning", () => {
   it("discards an older scan that finishes after a newer scan", async () => {
-    const database = await openTestDatabase();
+    await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     const source = await saveSource(folder);
     const olderScan = createDeferred<ScannedTrack[]>();
-    const olderRequest = scanSource(database, source.id, () => olderScan.promise);
+    const olderRequest = scanSource(source.id, () => olderScan.promise);
 
-    await scanSource(database, source.id, () =>
+    await scanSource(source.id, () =>
       Promise.resolve([createScannedTrack(join(folder, "new.mp3"), "new")]),
     );
     olderScan.resolve([createScannedTrack(join(folder, "old.mp3"), "old")]);
@@ -43,7 +43,7 @@ describe("enabled source scanning", () => {
   });
 
   it("isolates source failures and records their unavailable tracks", async () => {
-    const database = await openTestDatabase();
+    await openTestDatabase();
     const healthyFolder = await createTemporaryFolder("lume-healthy-source-");
     const missingFolder = await createTemporaryFolder("lume-missing-source-");
     await Promise.all([
@@ -58,7 +58,7 @@ describe("enabled source scanning", () => {
 
     await rm(missingFolder, { recursive: true });
 
-    await scanEnabledSources(database);
+    await scanEnabledSources();
     expect(
       getTracks().map((track) => ({ available: track.available, title: track.title })),
     ).toEqual([
@@ -96,7 +96,7 @@ describe("enabled source scanning", () => {
 
     const scannedFolders: string[] = [];
 
-    await scanEnabledSources(database, async (folder) => {
+    await scanEnabledSources(async (folder) => {
       scannedFolders.push(folder);
 
       if (folder === firstSource.path) disableSource(disabledSource.id);
@@ -123,14 +123,14 @@ describe("enabled source scanning", () => {
       END;
     `);
 
-    await expect(scanEnabledSources(database)).rejects.toThrow("track write failed");
+    await expect(scanEnabledSources()).rejects.toThrow("track write failed");
     expect(getSource(source.id).lastScanError).toBeNull();
   });
 
   it.runIf(process.platform !== "win32" && process.getuid?.() !== 0)(
     "skips an unreadable file without failing its source",
     async () => {
-      const database = await openTestDatabase();
+      await openTestDatabase();
       const folder = await createTemporaryFolder("lume-source-");
       const inaccessiblePath = join(folder, "inaccessible.wav");
       await Promise.all([
@@ -140,7 +140,7 @@ describe("enabled source scanning", () => {
       await chmod(inaccessiblePath, 0o000);
       const source = await saveSource(folder);
 
-      await scanSource(database, source.id);
+      await scanSource(source.id);
       expect(getTracks().map((track) => track.title)).toEqual(["readable"]);
       expect(getSource(source.id).lastScanError).toBeNull();
     },

@@ -4,13 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, getDatabase, initializeDatabase, type LibraryDatabase } from "./database";
 import { librarySources, tracks } from "./database/schema";
-import {
-  applySourceScan,
-  getTracks,
-  saveSource,
-  scanAudioFiles,
-  trackMetadataVersion,
-} from "./library";
+import { applySourceScan, getTracks, saveSource } from "./library";
+import { scanAudioFiles, trackMetadataVersion } from "./library-files";
 import {
   addTrackToPlaylist,
   confirmAddTrackToPlaylist,

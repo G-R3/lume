@@ -5,7 +5,8 @@ import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { appScheme } from "../shared/lib";
-import { audioContentTypes, type ArtworkData } from "./library";
+import type { ArtworkData } from "./library";
+import { audioContentTypes } from "./library-files";
 
 export const packagedRendererUrl = `${appScheme}://app/index.html`;
 
