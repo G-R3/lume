@@ -1,6 +1,16 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import { and, count, eq, isNotNull, isNull, notExists, placeholder, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  isNotNull,
+  isNull,
+  notExists,
+  placeholder,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { type LibrarySnapshot, getArtworkUrl, getTrackUrl } from "../shared/lib";
 import { getDatabase, runImmediateTransaction, type LibraryDatabase } from "./database";
 import { artwork, librarySources, tracks } from "./database/schema";
@@ -55,56 +65,19 @@ export function getLibrarySnapshot() {
 }
 
 export function getSources() {
-  return getDatabase()
-    .select({
-      enabled: librarySources.enabled,
-      id: librarySources.id,
-      lastScanError: librarySources.lastScanError,
-      lastScannedAt: librarySources.lastScannedAt,
-      path: librarySources.path,
-      trackCount: count(tracks.id),
-    })
-    .from(librarySources)
-    .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)))
-    .where(isNull(librarySources.forgottenAt))
-    .groupBy(librarySources.id)
-    .orderBy(librarySources.createdAt)
-    .all();
+  return selectSources(isNull(librarySources.forgottenAt)).orderBy(librarySources.createdAt).all();
 }
 
 export function getEnabledSources() {
-  return getDatabase()
-    .select({
-      enabled: librarySources.enabled,
-      id: librarySources.id,
-      lastScanError: librarySources.lastScanError,
-      lastScannedAt: librarySources.lastScannedAt,
-      path: librarySources.path,
-      trackCount: count(tracks.id),
-    })
-    .from(librarySources)
-    .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)))
-    .where(and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt)))
-    .groupBy(librarySources.id)
+  return selectSources(and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt)))
     .orderBy(librarySources.createdAt)
     .all();
 }
 
 export function getSource(sourceId: number) {
-  const source = getDatabase()
-    .select({
-      enabled: librarySources.enabled,
-      id: librarySources.id,
-      lastScanError: librarySources.lastScanError,
-      lastScannedAt: librarySources.lastScannedAt,
-      path: librarySources.path,
-      trackCount: count(tracks.id),
-    })
-    .from(librarySources)
-    .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)))
-    .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
-    .groupBy(librarySources.id)
-    .get();
+  const source = selectSources(
+    and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)),
+  ).get();
 
   if (source) return source;
   throw new Error(`Library source ${sourceId} does not exist`);
@@ -112,27 +85,30 @@ export function getSource(sourceId: number) {
 
 export function getEnabledSource(sourceId: number) {
   return (
-    getDatabase()
-      .select({
-        enabled: librarySources.enabled,
-        id: librarySources.id,
-        lastScanError: librarySources.lastScanError,
-        lastScannedAt: librarySources.lastScannedAt,
-        path: librarySources.path,
-        trackCount: count(tracks.id),
-      })
-      .from(librarySources)
-      .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)))
-      .where(
-        and(
-          eq(librarySources.id, sourceId),
-          eq(librarySources.enabled, true),
-          isNull(librarySources.forgottenAt),
-        ),
-      )
-      .groupBy(librarySources.id)
-      .get() ?? null
+    selectSources(
+      and(
+        eq(librarySources.id, sourceId),
+        eq(librarySources.enabled, true),
+        isNull(librarySources.forgottenAt),
+      ),
+    ).get() ?? null
   );
+}
+
+function selectSources(condition: SQL | undefined) {
+  return getDatabase()
+    .select({
+      enabled: librarySources.enabled,
+      id: librarySources.id,
+      lastScanError: librarySources.lastScanError,
+      lastScannedAt: librarySources.lastScannedAt,
+      path: librarySources.path,
+      trackCount: count(tracks.id),
+    })
+    .from(librarySources)
+    .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)))
+    .where(condition)
+    .groupBy(librarySources.id);
 }
 
 export function hasForgottenSources() {
