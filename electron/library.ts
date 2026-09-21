@@ -11,9 +11,14 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
-import { type LibrarySnapshot, getArtworkUrl, getTrackUrl } from "../shared/lib";
+import {
+  type LibrarySnapshot,
+  type TrackLikeInput,
+  getArtworkUrl,
+  getTrackUrl,
+} from "../shared/lib";
 import { getDatabase, runImmediateTransaction, type LibraryDatabase } from "./database";
-import { artwork, librarySources, tracks } from "./database/schema";
+import { artwork, librarySources, tracks, trackState } from "./database/schema";
 import { scanAudioFiles, trackMetadataVersion, type ScannedTrack } from "./library-files";
 import { getPlaylists } from "./playlists";
 
@@ -62,6 +67,7 @@ export function getLibrarySnapshot() {
         format: track.format,
         genres: track.genres,
         id: track.id,
+        likedAt: track.likedAt,
         lossless: track.lossless,
         title: track.title,
         sampleRate: track.sampleRate,
@@ -72,6 +78,42 @@ export function getLibrarySnapshot() {
       };
     }),
   } satisfies LibrarySnapshot;
+}
+
+export function setTrackLiked(input: TrackLikeInput) {
+  return runImmediateTransaction(getDatabase(), (transaction) => {
+    const track = transaction
+      .select({ id: tracks.id })
+      .from(tracks)
+      .where(eq(tracks.id, input.trackId))
+      .get();
+
+    if (!track) throw new Error(`Track was not found: ${input.trackId}`);
+
+    const state = transaction
+      .select({ trackId: trackState.trackId })
+      .from(trackState)
+      .where(eq(trackState.trackId, input.trackId))
+      .get();
+
+    const likedAt = input.liked ? Date.now() : null;
+
+    if (!state) {
+      if (likedAt === null) return { likedAt, trackId: input.trackId };
+
+      transaction.insert(trackState).values({ likedAt, trackId: input.trackId }).run();
+
+      return { likedAt, trackId: input.trackId };
+    }
+
+    transaction
+      .update(trackState)
+      .set({ likedAt })
+      .where(eq(trackState.trackId, input.trackId))
+      .run();
+
+    return { likedAt, trackId: input.trackId };
+  });
 }
 
 export function getSources() {
@@ -303,8 +345,12 @@ export function applyScanFailure(sourceId: number, error: string) {
 
 export function getTracks() {
   return getDatabase()
-    .select(trackColumns)
+    .select({
+      ...trackColumns,
+      likedAt: trackState.likedAt,
+    })
     .from(tracks)
+    .leftJoin(trackState, eq(trackState.trackId, tracks.id))
     .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
     .all();
 }

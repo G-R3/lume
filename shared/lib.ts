@@ -25,6 +25,17 @@ export type Track = Omit<TrackMetadata, "album"> & {
   available: boolean;
   id: number;
   url: string;
+  likedAt: number | null;
+};
+
+export type TrackLikeInput = {
+  liked: boolean;
+  trackId: Track["id"];
+};
+
+export type TrackLikeResult = {
+  likedAt: Track["likedAt"];
+  trackId: Track["id"];
 };
 
 export type LibrarySource = {
@@ -106,6 +117,7 @@ export type LumeApi = {
   rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
   rescanSources: () => Promise<LibrarySnapshot>;
   removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
+  setTrackLiked: (input: TrackLikeInput) => Promise<TrackLikeResult>;
   isMac: boolean;
 };
 
@@ -126,6 +138,7 @@ export const lumeChannels = {
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
   removePlaylistTrack: "lume:remove-playlist-track",
+  setTrackLiked: "lume:set-track-liked",
 } as const;
 
 export const appScheme = "lume";

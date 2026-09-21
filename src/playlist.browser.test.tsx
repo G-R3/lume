@@ -304,6 +304,56 @@ describe("playlist behavior", () => {
       removed: { playlistId: playlist.id, playlistTrackId: 201 },
     });
   });
+  it("likes a track directly from its row", async () => {
+    const track = createTrack(1, "Midnight");
+    const state = createRendererState([track]);
+    const calls: { liked: boolean; trackId: number }[] = [];
+
+    const api = createTestApi(() => ({
+      loadLibrary: () => Promise.resolve(state.library),
+      setTrackLiked: (input) => {
+        calls.push(input);
+
+        return Promise.resolve({ likedAt: 1, trackId: input.trackId });
+      },
+    }));
+
+    renderApplication(api);
+
+    const table = page.getByRole("table", { name: "All tracks" });
+    await table.getByRole("button", { name: "Like Midnight" }).click();
+
+    expect(calls).toEqual([{ liked: true, trackId: track.id }]);
+    await expect.element(table.getByRole("button", { name: "Unlike Midnight" })).toBeVisible();
+  });
+
+  it("likes the active track from the audio player", async () => {
+    const track = createTrack(1, "Midnight");
+    const state = createRendererState([track]);
+    const calls: { liked: boolean; trackId: number }[] = [];
+
+    const api = createTestApi(() => ({
+      loadLibrary: () => Promise.resolve(state.library),
+      setTrackLiked: (input) => {
+        calls.push(input);
+
+        return Promise.resolve({ likedAt: 1, trackId: input.trackId });
+      },
+    }));
+
+    renderApplication(api);
+
+    await page
+      .getByRole("table", { name: "All tracks" })
+      .getByRole("button", { exact: true, name: "Midnight" })
+      .click();
+
+    const player = page.getByRole("contentinfo");
+    await player.getByRole("button", { name: "Like Midnight" }).click();
+
+    expect(calls).toEqual([{ liked: true, trackId: track.id }]);
+    await expect.element(player.getByRole("button", { name: "Unlike Midnight" })).toBeVisible();
+  });
 });
 
 function renderApplication(api: LumeApi, hash = "#/") {
@@ -361,6 +411,7 @@ function createTrack(id: number, title: string, available = true): Track {
     format: "WAV",
     genres: [],
     id,
+    likedAt: null,
     lossless: true,
     sampleRate: 8_000,
     trackNumber: null,
@@ -420,6 +471,8 @@ function createTestApi(createOverrides: () => Partial<LumeApi>): LumeApi {
     removePlaylistTrack: () => rejectUnexpected("removePlaylistTrack"),
     rescanSource: () => rejectUnexpected("rescanSource"),
     rescanSources: () => rejectUnexpected("rescanSources"),
+    setTrackLiked: (input) =>
+      Promise.resolve({ likedAt: input.liked ? Date.now() : null, trackId: input.trackId }),
     isMac: false,
     ...createOverrides(),
   };

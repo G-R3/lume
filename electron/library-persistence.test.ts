@@ -9,12 +9,14 @@ import {
   enableSource,
   forgetSource,
   getArtworkData,
+  getLibrarySnapshot,
   getSource,
   getSources,
   getTrackPath,
   getTracks,
   hasForgottenSources,
   saveSource,
+  setTrackLiked,
 } from "./library";
 import { scanAudioFiles } from "./library-files";
 
@@ -132,9 +134,7 @@ describe("library source persistence", () => {
     const childSource = await saveSource(child);
     applySourceScan(childSource.id, await scanAudioFiles(child));
     const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
-    database.$client.exec(
-      "INSERT INTO track_state (track_id, starred_at) SELECT id, 1 FROM tracks",
-    );
+    database.$client.exec("INSERT INTO track_state (track_id, liked_at) SELECT id, 1 FROM tracks");
     forgetSource(childSource.id);
 
     const parentSource = await saveSource(parent);
@@ -145,10 +145,43 @@ describe("library source persistence", () => {
       id: trackId,
       source_id: parentSource.id,
     });
-    expect(database.$client.prepare("SELECT track_id, starred_at FROM track_state").get()).toEqual({
-      starred_at: 1,
+    expect(database.$client.prepare("SELECT track_id, liked_at FROM track_state").get()).toEqual({
+      liked_at: 1,
       track_id: trackId,
     });
+  });
+});
+
+describe("track likes", () => {
+  it("persists a like and includes it in the library snapshot", async () => {
+    await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    await writeFile(join(folder, "song.mp3"), "");
+    const source = await saveSource(folder);
+    applySourceScan(source.id, await scanAudioFiles(folder));
+    const track = getTracks()[0];
+
+    if (!track) throw new Error("Expected a scanned track");
+
+    const liked = setTrackLiked({ liked: true, trackId: track.id });
+
+    expect(liked).toEqual({ likedAt: expect.any(Number), trackId: track.id });
+
+    const likedLibrary = getLibrarySnapshot();
+
+    if (likedLibrary.kind !== "library") throw new Error("Expected a library snapshot");
+
+    expect(likedLibrary.tracks).toMatchObject([{ id: track.id, likedAt: liked.likedAt }]);
+    expect(setTrackLiked({ liked: false, trackId: track.id })).toEqual({
+      likedAt: null,
+      trackId: track.id,
+    });
+
+    const unlikedLibrary = getLibrarySnapshot();
+
+    if (unlikedLibrary.kind !== "library") throw new Error("Expected a library snapshot");
+
+    expect(unlikedLibrary.tracks).toMatchObject([{ id: track.id, likedAt: null }]);
   });
 });
 

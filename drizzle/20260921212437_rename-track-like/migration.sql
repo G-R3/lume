@@ -1,0 +1,1 @@
+ALTER TABLE `track_state` RENAME COLUMN `starred_at` TO `liked_at`;

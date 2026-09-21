@@ -1,0 +1,820 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "e6e9b2a3-efdc-4c63-8b8d-a1ba23f1b389",
+  "prevIds": [
+    "1fe6eab2-36a6-42a7-b887-6af19823eb1e"
+  ],
+  "ddl": [
+    {
+      "name": "artwork",
+      "entityType": "tables"
+    },
+    {
+      "name": "library_sources",
+      "entityType": "tables"
+    },
+    {
+      "name": "playlist_entries",
+      "entityType": "tables"
+    },
+    {
+      "name": "playlists",
+      "entityType": "tables"
+    },
+    {
+      "name": "track_state",
+      "entityType": "tables"
+    },
+    {
+      "name": "tracks",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "artwork"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "media_type",
+      "entityType": "columns",
+      "table": "artwork"
+    },
+    {
+      "type": "blob",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "data",
+      "entityType": "columns",
+      "table": "artwork"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "path",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "forgotten_at",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_scanned_at",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_scan_error",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "library_sources"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "playlist_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "playlist_id",
+      "entityType": "columns",
+      "table": "playlist_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "track_id",
+      "entityType": "columns",
+      "table": "playlist_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "position",
+      "entityType": "columns",
+      "table": "playlist_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "playlist_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "playlists"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "playlists"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "description",
+      "entityType": "columns",
+      "table": "playlists"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "playlists"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "playlists"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "track_id",
+      "entityType": "columns",
+      "table": "track_state"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "liked_at",
+      "entityType": "columns",
+      "table": "track_state"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source_id",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "path",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "real",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "duration",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "format",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "file_size",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "modified_at",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "available",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "artists",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "album",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "album_artists",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "artwork_id",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "year",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "track_number",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "track_total",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "disc_number",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "disc_total",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "genres",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "codec",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "real",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "bitrate",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "sample_rate",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "bits_per_sample",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "channel_count",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lossless",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "metadata_version",
+      "entityType": "columns",
+      "table": "tracks"
+    },
+    {
+      "columns": [
+        "playlist_id"
+      ],
+      "tableTo": "playlists",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_playlist_entries_playlist_id_playlists_id_fk",
+      "entityType": "fks",
+      "table": "playlist_entries"
+    },
+    {
+      "columns": [
+        "track_id"
+      ],
+      "tableTo": "tracks",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_playlist_entries_track_id_tracks_id_fk",
+      "entityType": "fks",
+      "table": "playlist_entries"
+    },
+    {
+      "columns": [
+        "track_id"
+      ],
+      "tableTo": "tracks",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_track_state_track_id_tracks_id_fk",
+      "entityType": "fks",
+      "table": "track_state"
+    },
+    {
+      "columns": [
+        "source_id"
+      ],
+      "tableTo": "library_sources",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_tracks_source_id_library_sources_id_fk",
+      "entityType": "fks",
+      "table": "tracks"
+    },
+    {
+      "columns": [
+        "artwork_id"
+      ],
+      "tableTo": "artwork",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_tracks_artwork_id_artwork_id_fk",
+      "entityType": "fks",
+      "table": "tracks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "artwork_pk",
+      "entityType": "pks",
+      "table": "artwork"
+    },
+    {
+      "columns": [
+        "track_id"
+      ],
+      "nameExplicit": false,
+      "name": "track_state_pk",
+      "entityType": "pks",
+      "table": "track_state"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "library_sources_pk",
+      "table": "library_sources",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "playlist_entries_pk",
+      "table": "playlist_entries",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "playlists_pk",
+      "table": "playlists",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "tracks_pk",
+      "table": "tracks",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "playlist_id",
+          "isExpression": false
+        },
+        {
+          "value": "track_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "playlist_entries_track",
+      "entityType": "indexes",
+      "table": "playlist_entries"
+    },
+    {
+      "columns": [
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "playlists_created_at",
+      "entityType": "indexes",
+      "table": "playlists"
+    },
+    {
+      "columns": [
+        {
+          "value": "source_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "tracks_source_id",
+      "entityType": "indexes",
+      "table": "tracks"
+    },
+    {
+      "columns": [
+        {
+          "value": "available",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "tracks_available",
+      "entityType": "indexes",
+      "table": "tracks"
+    },
+    {
+      "columns": [
+        {
+          "value": "artwork_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "tracks_artwork_id",
+      "entityType": "indexes",
+      "table": "tracks"
+    },
+    {
+      "columns": [
+        "playlist_id",
+        "position"
+      ],
+      "nameExplicit": false,
+      "name": "playlist_entries_playlist_id_position_unique",
+      "entityType": "uniques",
+      "table": "playlist_entries"
+    },
+    {
+      "columns": [
+        "path"
+      ],
+      "nameExplicit": false,
+      "name": "library_sources_path_unique",
+      "entityType": "uniques",
+      "table": "library_sources"
+    },
+    {
+      "columns": [
+        "path"
+      ],
+      "nameExplicit": false,
+      "name": "tracks_path_unique",
+      "entityType": "uniques",
+      "table": "tracks"
+    },
+    {
+      "value": "\"enabled\" IN (0, 1)",
+      "name": "library_sources_enabled_check",
+      "entityType": "checks",
+      "table": "library_sources"
+    },
+    {
+      "value": "\"forgotten_at\" IS NULL OR \"enabled\" = 0",
+      "name": "library_sources_forgotten_check",
+      "entityType": "checks",
+      "table": "library_sources"
+    },
+    {
+      "value": "\"position\" >= 0",
+      "name": "playlist_entries_position_check",
+      "entityType": "checks",
+      "table": "playlist_entries"
+    },
+    {
+      "value": "\"title\" = trim(\"title\") AND length(\"title\") BETWEEN 1 AND 100",
+      "name": "playlists_title_check",
+      "entityType": "checks",
+      "table": "playlists"
+    },
+    {
+      "value": "\"description\" IS NULL OR length(\"description\") BETWEEN 1 AND 300",
+      "name": "playlists_description_check",
+      "entityType": "checks",
+      "table": "playlists"
+    },
+    {
+      "value": "\"available\" IN (0, 1)",
+      "name": "tracks_available_check",
+      "entityType": "checks",
+      "table": "tracks"
+    },
+    {
+      "value": "\"lossless\" IN (0, 1)",
+      "name": "tracks_lossless_check",
+      "entityType": "checks",
+      "table": "tracks"
+    }
+  ],
+  "renames": [
+    "track_state.starred_at->track_state.liked_at"
+  ]
+}

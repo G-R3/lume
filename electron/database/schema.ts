@@ -91,7 +91,7 @@ export const trackState = sqliteTable(
     trackId: integer("track_id")
       .notNull()
       .references(() => tracks.id, { onDelete: "cascade" }),
-    starredAt: integer("starred_at"),
+    likedAt: integer("liked_at"),
   },
   (table) => [primaryKey({ columns: [table.trackId] })],
 );

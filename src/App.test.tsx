@@ -119,6 +119,8 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
     removePlaylistTrack: () => Promise.resolve(),
     rescanSource: () => firstRunPromise,
     rescanSources: () => firstRunPromise,
+    setTrackLiked: (input) =>
+      Promise.resolve({ likedAt: input.liked ? Date.now() : null, trackId: input.trackId }),
     isMac: false,
   };
 }

@@ -1,5 +1,10 @@
 import { queryOptions, type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { PlaylistTrackInput, PlaylistTrackRemovalInput } from "../../shared/lib";
+import type {
+  LibrarySnapshot,
+  PlaylistTrackInput,
+  PlaylistTrackRemovalInput,
+  TrackLikeInput,
+} from "../../shared/lib";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -98,6 +103,53 @@ export function useRemovePlaylistTrackMutation() {
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
     onSuccess: (_result, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
+  });
+}
+
+export function useSetTrackLiked() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: window.lume.setTrackLiked,
+    networkMode: "always",
+    scope: { id: "library" },
+    onMutate: async (input: TrackLikeInput) => {
+      await queryClient.cancelQueries({ queryKey: libraryQueryOptions.queryKey });
+
+      const previousLibrary = queryClient.getQueryData<LibrarySnapshot>(
+        libraryQueryOptions.queryKey,
+      );
+
+      queryClient.setQueryData<LibrarySnapshot>(libraryQueryOptions.queryKey, (library) => {
+        if (!library || library.kind === "first-run") return library;
+
+        return {
+          ...library,
+          tracks: library.tracks.map((track) =>
+            track.id === input.trackId
+              ? { ...track, likedAt: input.liked ? Date.now() : null }
+              : track,
+          ),
+        };
+      });
+
+      return { previousLibrary };
+    },
+    onError: (_error, _input, context) => {
+      queryClient.setQueryData(libraryQueryOptions.queryKey, context?.previousLibrary);
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData<LibrarySnapshot>(libraryQueryOptions.queryKey, (library) => {
+        if (!library || library.kind === "first-run") return library;
+
+        return {
+          ...library,
+          tracks: library.tracks.map((track) =>
+            track.id === result.trackId ? { ...track, likedAt: result.likedAt } : track,
+          ),
+        };
+      });
+    },
   });
 }
 

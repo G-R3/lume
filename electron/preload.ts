@@ -57,6 +57,8 @@ const lumeApi = {
     ipcRenderer.invoke(lumeChannels.rescanSources),
   removePlaylistTrack: (input): ReturnType<LumeApi["removePlaylistTrack"]> =>
     ipcRenderer.invoke(lumeChannels.removePlaylistTrack, input),
+  setTrackLiked: (input): ReturnType<LumeApi["setTrackLiked"]> =>
+    ipcRenderer.invoke(lumeChannels.setTrackLiked, input),
   isMac: process.platform === "darwin",
 } satisfies LumeApi;
 

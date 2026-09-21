@@ -1,4 +1,10 @@
-import { DotsThreeIcon, LockSimpleIcon, PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
+import {
+  DotsThreeIcon,
+  HeartIcon,
+  LockSimpleIcon,
+  PlaylistIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
@@ -14,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { formatDuration } from "@/lib/format-duration";
-import { useCreatePlaylistFromTrackMutation } from "@/lib/library-query";
+import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
 type TrackListItem = {
@@ -33,6 +39,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
   const audioPlayer = useAudioPlayer();
   const navigate = useNavigate();
   const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
+  const setTrackLiked = useSetTrackLiked();
   const addDialogTriggerRef = useRef<HTMLElement | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -62,6 +69,22 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     });
   };
 
+  const handleSetTrackLiked = (track: Track) => {
+    setTrackLiked.mutate(
+      { liked: track.likedAt === null, trackId: track.id },
+      {
+        onError: (error) => {
+          toast.add({
+            description: error.message,
+            priority: "high",
+            title: "Could not update like",
+            type: "error",
+          });
+        },
+      },
+    );
+  };
+
   return (
     <div id="tracks">
       <table className="w-full table-fixed text-xs">
@@ -79,6 +102,9 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
             </th>
             <th className="w-18 px-2 py-2.5 text-right font-normal sm:w-24 sm:px-3" scope="col">
               Duration
+            </th>
+            <th className="w-8 py-2.5 text-center font-normal" scope="col">
+              <span className="sr-only">Like</span>
             </th>
             <th className="w-10 py-2.5 pr-3 pl-1 font-normal sm:w-12 sm:pr-5 sm:pl-2" scope="col">
               <span className="sr-only">Actions</span>
@@ -177,6 +203,30 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                 >
                   {formatDuration(track.duration)}
                 </td>
+                <td className="h-12 p-0 text-center" onClick={(event) => event.stopPropagation()}>
+                  <Button
+                    aria-label={
+                      track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`
+                    }
+                    aria-pressed={track.likedAt !== null}
+                    className={cn(
+                      "focus-visible:opacity-100",
+                      track.likedAt === null
+                        ? "text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 hover:text-neutral-100"
+                        : "text-lime-300 hover:text-lime-200",
+                    )}
+                    onClick={() => handleSetTrackLiked(track)}
+                    onPointerDown={(event) => event.preventDefault()}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <HeartIcon
+                      aria-hidden="true"
+                      weight={track.likedAt === null ? "regular" : "fill"}
+                    />
+                  </Button>
+                </td>
                 <td
                   className="h-12 py-1 pr-3 pl-1 text-right sm:pr-5 sm:pl-2"
                   onClick={(event) => event.stopPropagation()}
@@ -229,13 +279,16 @@ function TrackRowMenu({
           <Button
             aria-label={`More options for ${track.title}`}
             className="text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100 hover:text-neutral-100"
+            // this should prevent the rows focus styles from flashing during certaint instances
+            // of the menu opening
+            onMouseDown={(event) => event.preventDefault()}
             ref={triggerRef}
-            size="icon-xs"
+            size="icon"
             variant="ghost"
           />
         }
       >
-        <DotsThreeIcon aria-hidden="true" className="size-4" />
+        <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
         <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>

@@ -4,6 +4,7 @@ import {
   lumeChannels,
   type PlaylistCreationInput,
   type PlaylistCreationResult,
+  type TrackLikeInput,
 } from "../shared/lib";
 import {
   disableSource,
@@ -14,6 +15,7 @@ import {
   saveSource,
   scanEnabledSources,
   scanSource,
+  setTrackLiked,
 } from "./library";
 import {
   addTrackToPlaylist,
@@ -45,6 +47,11 @@ const playlistTrackRemovalSchema = z.object({
   playlistTrackId: rowIdSchema,
   playlistId: rowIdSchema,
 });
+
+const trackLikeInputSchema = z.object({
+  liked: z.boolean("Invalid track like input"),
+  trackId: rowIdSchema,
+}) satisfies z.ZodType<TrackLikeInput>;
 
 export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
   function handleTrusted<Result>(
@@ -144,6 +151,10 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     await scanEnabledSources();
 
     return getLibrarySnapshot();
+  });
+
+  handleTrusted(lumeChannels.setTrackLiked, (_window, input) => {
+    return setTrackLiked(trackLikeInputSchema.parse(input));
   });
 }
 

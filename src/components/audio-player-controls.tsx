@@ -3,7 +3,9 @@ import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
 import { Slider } from "@/components/ui/slider";
 import { useAudioPlayer, useAudioPlayerTime } from "@/hooks/use-audio-player";
 import { formatDuration } from "@/lib/format-duration";
+import { useSetTrackLiked } from "@/lib/library-query";
 import {
+  HeartIcon,
   PauseIcon,
   PlayIcon,
   SkipBackIcon,
@@ -15,23 +17,54 @@ import { useId, useState } from "react";
 
 export function AudioPlayerControls() {
   const audioPlayer = useAudioPlayer();
+  const setTrackLiked = useSetTrackLiked();
+  const activeTrack = audioPlayer.activeTrack;
 
-  if (!audioPlayer.activeTrack) return null;
+  if (!activeTrack) return null;
 
   return (
     <footer className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-t border-neutral-800 bg-black/95 px-4 py-3 text-neutral-50 shadow-2xl backdrop-blur-sm">
       <div className="flex min-w-0 items-center gap-3">
         <TrackArtwork
-          artworkUrl={audioPlayer.activeTrack.artworkUrl}
+          artworkUrl={activeTrack.artworkUrl}
           className="size-12 rounded-sm text-xs"
-          fallback={<ArtworkFallback track={audioPlayer.activeTrack} />}
+          fallback={<ArtworkFallback track={activeTrack} />}
         />
 
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{audioPlayer.activeTrack.title}</p>
-          <p className="mt-0.5 truncate text-xs text-neutral-400">
-            {audioPlayer.activeTrack.artists.join(", ") || "Unknown artist"}
-          </p>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="min-w-0 max-w-48 flex-1">
+            <p className="truncate text-sm font-medium">{activeTrack.title}</p>
+            <p className="mt-0.5 truncate text-xs text-neutral-400">
+              {activeTrack.artists.join(", ") || "Unknown artist"}
+            </p>
+          </div>
+          <Button
+            aria-label={
+              activeTrack.likedAt === null
+                ? `Like ${activeTrack.title}`
+                : `Unlike ${activeTrack.title}`
+            }
+            aria-pressed={activeTrack.likedAt !== null}
+            className={
+              activeTrack.likedAt === null
+                ? "text-neutral-400 hover:text-neutral-100"
+                : "text-lime-300 hover:text-lime-200"
+            }
+            onClick={() =>
+              setTrackLiked.mutate({
+                liked: activeTrack.likedAt === null,
+                trackId: activeTrack.id,
+              })
+            }
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <HeartIcon
+              aria-hidden="true"
+              weight={activeTrack.likedAt === null ? "regular" : "fill"}
+            />
+          </Button>
         </div>
       </div>
 
