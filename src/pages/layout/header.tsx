@@ -97,12 +97,12 @@ function PlaylistHeaderMenu({ playlist }: { playlist: PlaylistSummary }) {
               aria-label={`More options for ${playlist.title}`}
               className="ml-auto text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
               ref={menuTriggerRef}
-              size="icon-xs"
+              size="icon"
               variant="ghost"
             />
           }
         >
-          <DotsThreeIcon aria-hidden="true" className="size-4" />
+          <DotsThreeIcon aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-32 rounded-lg" finalFocus={false}>
           <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="destructive">
