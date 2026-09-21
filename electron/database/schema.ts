@@ -23,7 +23,13 @@ export const librarySources = sqliteTable(
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
-  (table) => [check("library_sources_enabled_check", sql`${table.enabled} IN (0, 1)`)],
+  (table) => [
+    check("library_sources_enabled_check", sql`${table.enabled} IN (0, 1)`),
+    check(
+      "library_sources_forgotten_check",
+      sql`${table.forgottenAt} IS NULL OR ${table.enabled} = 0`,
+    ),
+  ],
 );
 
 export const artwork = sqliteTable(

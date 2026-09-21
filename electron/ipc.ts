@@ -82,75 +82,60 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
   handleTrusted(lumeChannels.loadLibrary, () => getLibrarySnapshot());
 
-  handleTrusted(lumeChannels.createPlaylist, (_window, rawInput) => {
-    const playlist = createPlaylist(playlistCreationSchema.parse(rawInput));
+  handleTrusted(lumeChannels.createPlaylist, (_window, input) => {
+    const playlist = createPlaylist(playlistCreationSchema.parse(input));
 
     return { library: getLibrarySnapshot(), playlist } satisfies PlaylistCreationResult;
   });
 
-  handleTrusted(lumeChannels.createPlaylistFromTrack, (_window, rawTrackId) => {
-    return createPlaylistFromTrack(rowIdSchema.parse(rawTrackId));
+  handleTrusted(lumeChannels.createPlaylistFromTrack, (_window, trackId) => {
+    return createPlaylistFromTrack(rowIdSchema.parse(trackId));
   });
 
-  handleTrusted(lumeChannels.loadPlaylist, (_window, rawPlaylistId) => {
-    return getPlaylist(rowIdSchema.parse(rawPlaylistId));
+  handleTrusted(lumeChannels.loadPlaylist, (_window, playlistId) => {
+    return getPlaylist(rowIdSchema.parse(playlistId));
   });
 
-  handleTrusted(lumeChannels.deletePlaylist, (_window, rawPlaylistId) => {
-    deletePlaylist(rowIdSchema.parse(rawPlaylistId));
+  handleTrusted(lumeChannels.deletePlaylist, (_window, playlistId) => {
+    deletePlaylist(rowIdSchema.parse(playlistId));
 
     return getLibrarySnapshot();
   });
 
-  handleTrusted(lumeChannels.addTrackToPlaylist, (_window, rawPlaylistId, rawTrackId) => {
-    const input = playlistTrackInputSchema.parse({
-      playlistId: rawPlaylistId,
-      trackId: rawTrackId,
-    });
-
-    return addTrackToPlaylist(input.playlistId, input.trackId);
+  handleTrusted(lumeChannels.addTrackToPlaylist, (_window, input) => {
+    return addTrackToPlaylist(playlistTrackInputSchema.parse(input));
   });
 
-  handleTrusted(lumeChannels.confirmAddTrackToPlaylist, (_window, rawPlaylistId, rawTrackId) => {
-    const input = playlistTrackInputSchema.parse({
-      playlistId: rawPlaylistId,
-      trackId: rawTrackId,
-    });
-
-    return confirmAddTrackToPlaylist(input.playlistId, input.trackId);
+  handleTrusted(lumeChannels.confirmAddTrackToPlaylist, (_window, input) => {
+    return confirmAddTrackToPlaylist(playlistTrackInputSchema.parse(input));
   });
 
-  handleTrusted(lumeChannels.removePlaylistTrack, (_window, rawPlaylistId, rawPlaylistTrackId) => {
-    const input = playlistTrackRemovalSchema.parse({
-      playlistTrackId: rawPlaylistTrackId,
-      playlistId: rawPlaylistId,
-    });
-
-    removePlaylistTrack(input.playlistId, input.playlistTrackId);
+  handleTrusted(lumeChannels.removePlaylistTrack, (_window, input) => {
+    removePlaylistTrack(playlistTrackRemovalSchema.parse(input));
   });
 
-  handleTrusted(lumeChannels.enableSource, async (_window, rawSourceId) => {
-    const sourceId = rowIdSchema.parse(rawSourceId);
+  handleTrusted(lumeChannels.enableSource, async (_window, input) => {
+    const sourceId = rowIdSchema.parse(input);
     enableSource(sourceId);
     await scanSource(sourceId);
 
     return getLibrarySnapshot();
   });
 
-  handleTrusted(lumeChannels.disableSource, (_window, rawSourceId) => {
-    disableSource(rowIdSchema.parse(rawSourceId));
+  handleTrusted(lumeChannels.disableSource, (_window, input) => {
+    disableSource(rowIdSchema.parse(input));
 
     return getLibrarySnapshot();
   });
 
-  handleTrusted(lumeChannels.forgetSource, (_window, rawSourceId) => {
-    forgetSource(rowIdSchema.parse(rawSourceId));
+  handleTrusted(lumeChannels.forgetSource, (_window, input) => {
+    forgetSource(rowIdSchema.parse(input));
 
     return getLibrarySnapshot();
   });
 
-  handleTrusted(lumeChannels.rescanSource, async (_window, rawSourceId) => {
-    await scanSource(rowIdSchema.parse(rawSourceId));
+  handleTrusted(lumeChannels.rescanSource, async (_window, input) => {
+    await scanSource(rowIdSchema.parse(input));
 
     return getLibrarySnapshot();
   });

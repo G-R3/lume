@@ -48,7 +48,11 @@ export async function openLibraryDatabase(
 
     const database = drizzle({ client });
 
+    // Drizzle runs migrations in a transaction. SQLite only changes foreign-key enforcement outside
+    // a transaction, so suspend it before migrations rebuild referenced tables and verify afterward.
+    client.exec("PRAGMA foreign_keys = OFF;");
     migrate(database, { migrationsFolder });
+    client.exec("PRAGMA foreign_keys = ON;");
     validateForeignKeys(client);
 
     return database;

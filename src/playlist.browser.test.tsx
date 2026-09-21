@@ -78,8 +78,8 @@ describe("playlist behavior", () => {
     };
 
     const api = createTestApi(() => ({
-      addTrackToPlaylist: (playlistId, trackId) => {
-        calls.additions.push({ playlistId, trackId });
+      addTrackToPlaylist: (input) => {
+        calls.additions.push(input);
 
         if (calls.additions.length > 1) return Promise.resolve({ kind: "duplicate" });
 
@@ -91,8 +91,8 @@ describe("playlist behavior", () => {
 
         return Promise.resolve({ kind: "added", track: firstTrack });
       },
-      confirmAddTrackToPlaylist: (playlistId, trackId) => {
-        calls.confirmedAddition = { playlistId, trackId };
+      confirmAddTrackToPlaylist: (input) => {
+        calls.confirmedAddition = input;
         state.playlists.set(archive.id, {
           ...archive,
           tracks: [firstTrack, duplicateTrack],
@@ -130,8 +130,8 @@ describe("playlist behavior", () => {
       },
       loadLibrary: () => Promise.resolve(state.library),
       loadPlaylist: (playlistId) => Promise.resolve(state.playlists.get(playlistId) ?? null),
-      removePlaylistTrack: (playlistId, playlistTrackId) => {
-        calls.removed = { playlistId, playlistTrackId };
+      removePlaylistTrack: (input) => {
+        calls.removed = input;
         state.playlists.set(archive.id, { ...archive, tracks: [duplicateTrack] });
         state.library = {
           ...state.library,
@@ -251,8 +251,8 @@ describe("playlist behavior", () => {
       },
       loadLibrary: () => Promise.resolve(state.library),
       loadPlaylist: (playlistId) => Promise.resolve(state.playlists.get(playlistId) ?? null),
-      removePlaylistTrack: (playlistId, playlistTrackId) => {
-        calls.removed = { playlistId, playlistTrackId };
+      removePlaylistTrack: (input) => {
+        calls.removed = input;
         state.playlists.set(playlist.id, playlistAfterRemoval);
         state.library = {
           ...state.library,

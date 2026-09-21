@@ -74,22 +74,32 @@ describe("playlist behavior", () => {
       title: "Sequence",
     });
 
-    const firstTrackInPlaylist = addTrackToPlaylist(playlist.id, firstTrack.id);
-    const secondTrackInPlaylist = addTrackToPlaylist(playlist.id, secondTrack.id);
+    const firstTrackInPlaylist = addTrackToPlaylist({
+      playlistId: playlist.id,
+      trackId: firstTrack.id,
+    });
 
-    expect(addTrackToPlaylist(playlist.id, firstTrack.id)).toEqual({
+    const secondTrackInPlaylist = addTrackToPlaylist({
+      playlistId: playlist.id,
+      trackId: secondTrack.id,
+    });
+
+    expect(addTrackToPlaylist({ playlistId: playlist.id, trackId: firstTrack.id })).toEqual({
       kind: "duplicate",
     });
 
-    confirmAddTrackToPlaylist(playlist.id, firstTrack.id);
+    confirmAddTrackToPlaylist({ playlistId: playlist.id, trackId: firstTrack.id });
 
     if (firstTrackInPlaylist.kind !== "added" || secondTrackInPlaylist.kind !== "added") {
       throw new Error("Expected both distinct tracks to be added");
     }
 
-    removePlaylistTrack(playlist.id, firstTrackInPlaylist.track.id);
+    removePlaylistTrack({
+      playlistId: playlist.id,
+      playlistTrackId: firstTrackInPlaylist.track.id,
+    });
 
-    confirmAddTrackToPlaylist(playlist.id, thirdTrack.id);
+    confirmAddTrackToPlaylist({ playlistId: playlist.id, trackId: thirdTrack.id });
 
     const tracks = getPlaylist(playlist.id)?.tracks;
     expect(tracks?.map((track) => track.position)).toEqual([1, 2, 3]);
@@ -150,15 +160,22 @@ describe("playlist behavior", () => {
     const track = await addTrack("Belonging");
     const firstPlaylist = createPlaylist({ description: null, title: "First" });
     const secondPlaylist = createPlaylist({ description: null, title: "Second" });
-    const addition = addTrackToPlaylist(firstPlaylist.id, track.id);
+    const addition = addTrackToPlaylist({ playlistId: firstPlaylist.id, trackId: track.id });
 
     if (addition.kind !== "added") throw new Error("Expected the track to be added");
 
-    expect(() => addTrackToPlaylist(999_999, track.id)).toThrow("Playlist does not exist");
-    expect(() => addTrackToPlaylist(firstPlaylist.id, 999_999)).toThrow("Track does not exist");
-    expect(() => removePlaylistTrack(secondPlaylist.id, addition.track.id)).toThrow(
-      "Playlist track does not exist in this playlist",
+    expect(() => addTrackToPlaylist({ playlistId: 999_999, trackId: track.id })).toThrow(
+      "Playlist does not exist",
     );
+    expect(() => addTrackToPlaylist({ playlistId: firstPlaylist.id, trackId: 999_999 })).toThrow(
+      "Track does not exist",
+    );
+    expect(() =>
+      removePlaylistTrack({
+        playlistId: secondPlaylist.id,
+        playlistTrackId: addition.track.id,
+      }),
+    ).toThrow("Playlist track does not exist in this playlist");
     expect(getPlaylist(firstPlaylist.id)?.tracks).toEqual([addition.track]);
   });
 
@@ -174,7 +191,7 @@ describe("playlist behavior", () => {
     if (!track) throw new Error("Expected the scan to create a track");
 
     const playlist = createPlaylist({ description: null, title: "Keepers" });
-    const addition = addTrackToPlaylist(playlist.id, track.id);
+    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: track.id });
 
     if (addition.kind !== "added") throw new Error("Expected the track to be added");
 

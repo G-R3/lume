@@ -48,6 +48,16 @@ export type PlaylistCreationInput = {
   title: string;
 };
 
+export type PlaylistTrackInput = {
+  playlistId: number;
+  trackId: number;
+};
+
+export type PlaylistTrackRemovalInput = {
+  playlistId: number;
+  playlistTrackId: number;
+};
+
 export type PlaylistTrack = {
   id: number;
   position: number;
@@ -80,9 +90,9 @@ export type PlaylistCreationResult = {
 };
 
 export type LumeApi = {
-  addTrackToPlaylist: (playlistId: number, trackId: number) => Promise<AddTrackToPlaylistResult>;
+  addTrackToPlaylist: (input: PlaylistTrackInput) => Promise<AddTrackToPlaylistResult>;
   addSource: () => Promise<LibrarySnapshot>;
-  confirmAddTrackToPlaylist: (playlistId: number, trackId: number) => Promise<PlaylistTrack>;
+  confirmAddTrackToPlaylist: (input: PlaylistTrackInput) => Promise<PlaylistTrack>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   createPlaylistFromTrack: (trackId: number) => Promise<PlaylistDetails>;
   deletePlaylist: (playlistId: number) => Promise<LibrarySnapshot>;
@@ -95,7 +105,7 @@ export type LumeApi = {
   openDataFolder: () => Promise<void>;
   rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
   rescanSources: () => Promise<LibrarySnapshot>;
-  removePlaylistTrack: (playlistId: number, playlistTrackId: number) => Promise<void>;
+  removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
   isMac: boolean;
 };
 

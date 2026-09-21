@@ -1,4 +1,5 @@
 import { queryOptions, type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { PlaylistTrackInput, PlaylistTrackRemovalInput } from "../../shared/lib";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -7,16 +8,6 @@ type LibraryCommand =
   | { kind: "rescan-source"; sourceId: number }
   | { kind: "rescan-sources" }
   | { enabled: boolean; kind: "set-source-enabled"; sourceId: number };
-
-type PlaylistTrackInput = {
-  playlistId: number;
-  trackId: number;
-};
-
-type PlaylistTrackRemovalInput = {
-  playlistTrackId: number;
-  playlistId: number;
-};
 
 const playlistMutationOptions = {
   networkMode: "always",
@@ -67,8 +58,7 @@ export function useAddTrackToPlaylistMutation() {
 
   return useMutation({
     ...playlistMutationOptions,
-    mutationFn: (input: PlaylistTrackInput) =>
-      window.lume.addTrackToPlaylist(input.playlistId, input.trackId),
+    mutationFn: (input: PlaylistTrackInput) => window.lume.addTrackToPlaylist(input),
     onSuccess: (result, input) => {
       if (result.kind === "duplicate") return;
 
@@ -82,8 +72,7 @@ export function useConfirmAddTrackToPlaylistMutation() {
 
   return useMutation({
     ...playlistMutationOptions,
-    mutationFn: (input: PlaylistTrackInput) =>
-      window.lume.confirmAddTrackToPlaylist(input.playlistId, input.trackId),
+    mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
     onSuccess: (_track, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
   });
 }
@@ -107,8 +96,7 @@ export function useRemovePlaylistTrackMutation() {
 
   return useMutation({
     ...playlistMutationOptions,
-    mutationFn: (input: PlaylistTrackRemovalInput) =>
-      window.lume.removePlaylistTrack(input.playlistId, input.playlistTrackId),
+    mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
     onSuccess: (_result, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
   });
 }
