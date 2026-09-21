@@ -63,8 +63,8 @@ export function DeletePlaylistDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {playlist.title}?</AlertDialogTitle>
           <AlertDialogDescription>
-            This permanently deletes the playlist and its {playlist.entryCount.toLocaleString()}{" "}
-            {playlist.entryCount === 1 ? "entry" : "entries"}. Your music files will not be deleted.
+            This permanently deletes the playlist and its {playlist.trackCount.toLocaleString()}{" "}
+            {playlist.trackCount === 1 ? "track" : "tracks"}. Your music files will not be deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
 

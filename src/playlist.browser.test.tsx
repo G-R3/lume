@@ -21,12 +21,12 @@ type EditingCalls = {
   createdFromTrack: number | null;
   creation: PlaylistCreationInput | null;
   deleted: number | null;
-  removed: { entryId: number; playlistId: number } | null;
+  removed: { playlistId: number; playlistTrackId: number } | null;
 };
 
 type PlaybackCalls = {
   deleted: number | null;
-  removed: { entryId: number; playlistId: number } | null;
+  removed: { playlistId: number; playlistTrackId: number } | null;
 };
 
 const mountedRoots: Root[] = [];
@@ -50,22 +50,22 @@ describe("playlist behavior", () => {
 
     const archive = {
       description: null,
-      entries: [],
+      tracks: [],
       id: 10,
       title: "Archive",
     } satisfies PlaylistDetails;
 
     const directPlaylist = {
       description: null,
-      entries: [{ id: 101, position: 0, trackId: midnight.id }],
+      tracks: [{ id: 101, position: 0, trackId: midnight.id }],
       id: 11,
       title: "Midnight",
     } satisfies PlaylistDetails;
 
     const archiveSummary = summarize(archive);
     const directSummary = summarize(directPlaylist);
-    const firstEntry = { id: 102, position: 0, trackId: midnight.id };
-    const duplicateEntry = { id: 103, position: 1, trackId: midnight.id };
+    const firstTrack = { id: 102, position: 0, trackId: midnight.id };
+    const duplicateTrack = { id: 103, position: 1, trackId: midnight.id };
     const state = createRendererState([midnight]);
 
     const calls: EditingCalls = {
@@ -83,26 +83,26 @@ describe("playlist behavior", () => {
 
         if (calls.additions.length > 1) return Promise.resolve({ kind: "duplicate" });
 
-        state.playlists.set(archive.id, { ...archive, entries: [firstEntry] });
+        state.playlists.set(archive.id, { ...archive, tracks: [firstTrack] });
         state.library = {
           ...state.library,
-          playlists: [{ ...archiveSummary, entryCount: 1 }, directSummary],
+          playlists: [{ ...archiveSummary, trackCount: 1 }, directSummary],
         };
 
-        return Promise.resolve({ entry: firstEntry, kind: "added" });
+        return Promise.resolve({ kind: "added", track: firstTrack });
       },
       confirmAddTrackToPlaylist: (playlistId, trackId) => {
         calls.confirmedAddition = { playlistId, trackId };
         state.playlists.set(archive.id, {
           ...archive,
-          entries: [firstEntry, duplicateEntry],
+          tracks: [firstTrack, duplicateTrack],
         });
         state.library = {
           ...state.library,
-          playlists: [{ ...archiveSummary, entryCount: 2 }, directSummary],
+          playlists: [{ ...archiveSummary, trackCount: 2 }, directSummary],
         };
 
-        return Promise.resolve(duplicateEntry);
+        return Promise.resolve(duplicateTrack);
       },
       createPlaylist: (input) => {
         calls.creation = input;
@@ -130,12 +130,12 @@ describe("playlist behavior", () => {
       },
       loadLibrary: () => Promise.resolve(state.library),
       loadPlaylist: (playlistId) => Promise.resolve(state.playlists.get(playlistId) ?? null),
-      removePlaylistEntry: (playlistId, entryId) => {
-        calls.removed = { entryId, playlistId };
-        state.playlists.set(archive.id, { ...archive, entries: [duplicateEntry] });
+      removePlaylistTrack: (playlistId, playlistTrackId) => {
+        calls.removed = { playlistId, playlistTrackId };
+        state.playlists.set(archive.id, { ...archive, tracks: [duplicateTrack] });
         state.library = {
           ...state.library,
-          playlists: [{ ...archiveSummary, entryCount: 1 }, directSummary],
+          playlists: [{ ...archiveSummary, trackCount: 1 }, directSummary],
         };
 
         return Promise.resolve();
@@ -204,18 +204,18 @@ describe("playlist behavior", () => {
       createdFromTrack: midnight.id,
       creation: { description: null, title: "Archive" },
       deleted: archive.id,
-      removed: { entryId: firstEntry.id, playlistId: archive.id },
+      removed: { playlistId: archive.id, playlistTrackId: firstTrack.id },
     });
   });
 
-  it("keeps current audio through removal and deletion while skipping unavailable entries", async () => {
+  it("keeps current audio through removal and deletion while skipping unavailable tracks", async () => {
     const midnight = createTrack(1, "Midnight");
     const unavailable = createTrack(2, "Missing", false);
     const sunrise = createTrack(3, "Sunrise");
 
     const playlist = {
       description: null,
-      entries: [
+      tracks: [
         { id: 201, position: 0, trackId: midnight.id },
         { id: 202, position: 1, trackId: unavailable.id },
         { id: 203, position: 2, trackId: midnight.id },
@@ -227,7 +227,7 @@ describe("playlist behavior", () => {
 
     const playlistAfterRemoval = {
       ...playlist,
-      entries: [
+      tracks: [
         { id: 202, position: 1, trackId: unavailable.id },
         { id: 203, position: 2, trackId: midnight.id },
         { id: 204, position: 3, trackId: sunrise.id },
@@ -251,12 +251,12 @@ describe("playlist behavior", () => {
       },
       loadLibrary: () => Promise.resolve(state.library),
       loadPlaylist: (playlistId) => Promise.resolve(state.playlists.get(playlistId) ?? null),
-      removePlaylistEntry: (playlistId, entryId) => {
-        calls.removed = { entryId, playlistId };
+      removePlaylistTrack: (playlistId, playlistTrackId) => {
+        calls.removed = { playlistId, playlistTrackId };
         state.playlists.set(playlist.id, playlistAfterRemoval);
         state.library = {
           ...state.library,
-          playlists: [{ ...summarize(playlist), entryCount: 3 }],
+          playlists: [{ ...summarize(playlist), trackCount: 3 }],
         };
 
         return Promise.resolve();
@@ -301,7 +301,7 @@ describe("playlist behavior", () => {
 
     expect(calls).toEqual({
       deleted: playlist.id,
-      removed: { entryId: 201, playlistId: playlist.id },
+      removed: { playlistId: playlist.id, playlistTrackId: 201 },
     });
   });
 });
@@ -338,7 +338,7 @@ function createRendererState(tracks: Track[], playlists: PlaylistDetails[] = [])
 function summarize(playlist: PlaylistDetails): PlaylistSummary {
   return {
     description: playlist.description,
-    entryCount: playlist.entries.length,
+    trackCount: playlist.tracks.length,
     id: playlist.id,
     title: playlist.title,
   };
@@ -417,7 +417,7 @@ function createTestApi(createOverrides: () => Partial<LumeApi>): LumeApi {
     loadPlaylist: () => rejectUnexpected("loadPlaylist"),
     onLibraryUpdate: () => () => {},
     openDataFolder: () => rejectUnexpected("openDataFolder"),
-    removePlaylistEntry: () => rejectUnexpected("removePlaylistEntry"),
+    removePlaylistTrack: () => rejectUnexpected("removePlaylistTrack"),
     rescanSource: () => rejectUnexpected("rescanSource"),
     rescanSources: () => rejectUnexpected("rescanSources"),
     isMac: false,

@@ -56,8 +56,8 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
           </h1>
           {!isSettings && playlist && (
             <span className="font-berkeley shrink-0 rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
-              {playlist.entryCount.toLocaleString()}{" "}
-              {playlist.entryCount === 1 ? "entry" : "entries"}
+              {playlist.trackCount.toLocaleString()}{" "}
+              {playlist.trackCount === 1 ? "track" : "tracks"}
             </span>
           )}
           {!isSettings && !playlist && (

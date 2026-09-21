@@ -38,7 +38,7 @@ export type LibrarySource = {
 
 export type PlaylistSummary = {
   description: string | null;
-  entryCount: number;
+  trackCount: number;
   id: number;
   title: string;
 };
@@ -48,7 +48,7 @@ export type PlaylistCreationInput = {
   title: string;
 };
 
-export type PlaylistEntry = {
+export type PlaylistTrack = {
   id: number;
   position: number;
   trackId: number;
@@ -56,13 +56,13 @@ export type PlaylistEntry = {
 
 export type PlaylistDetails = {
   description: string | null;
-  entries: PlaylistEntry[];
+  tracks: PlaylistTrack[];
   id: number;
   title: string;
 };
 
 export type AddTrackToPlaylistResult =
-  | { entry: PlaylistEntry; kind: "added" }
+  | { kind: "added"; track: PlaylistTrack }
   | { kind: "duplicate" };
 
 export type MusicLibrary = {
@@ -82,7 +82,7 @@ export type PlaylistCreationResult = {
 export type LumeApi = {
   addTrackToPlaylist: (playlistId: number, trackId: number) => Promise<AddTrackToPlaylistResult>;
   addSource: () => Promise<LibrarySnapshot>;
-  confirmAddTrackToPlaylist: (playlistId: number, trackId: number) => Promise<PlaylistEntry>;
+  confirmAddTrackToPlaylist: (playlistId: number, trackId: number) => Promise<PlaylistTrack>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   createPlaylistFromTrack: (trackId: number) => Promise<PlaylistDetails>;
   deletePlaylist: (playlistId: number) => Promise<LibrarySnapshot>;
@@ -95,7 +95,7 @@ export type LumeApi = {
   openDataFolder: () => Promise<void>;
   rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
   rescanSources: () => Promise<LibrarySnapshot>;
-  removePlaylistEntry: (playlistId: number, entryId: number) => Promise<void>;
+  removePlaylistTrack: (playlistId: number, playlistTrackId: number) => Promise<void>;
   isMac: boolean;
 };
 
@@ -115,7 +115,7 @@ export const lumeChannels = {
   openDataFolder: "lume:open-data-folder",
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
-  removePlaylistEntry: "lume:remove-playlist-entry",
+  removePlaylistTrack: "lume:remove-playlist-track",
 } as const;
 
 export const appScheme = "lume";

@@ -111,7 +111,7 @@ function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
         <span>{playlist.title}</span>
       </SidebarMenuButton>
       <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-        {playlist.entryCount.toLocaleString()}
+        {playlist.trackCount.toLocaleString()}
       </SidebarMenuBadge>
       <DropdownMenu>
         <DropdownMenuTrigger

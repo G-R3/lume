@@ -22,7 +22,7 @@ import {
   createPlaylistFromTrack,
   deletePlaylist,
   getPlaylist,
-  removePlaylistEntry,
+  removePlaylistTrack,
 } from "./playlists";
 import { isTrustedRendererEvent } from "./protocol";
 
@@ -36,13 +36,13 @@ const playlistCreationSchema = z.object(
   "Invalid playlist creation input",
 ) satisfies z.ZodType<PlaylistCreationInput>;
 
-const playlistTrackSchema = z.object({
+const playlistTrackInputSchema = z.object({
   playlistId: rowIdSchema,
   trackId: rowIdSchema,
 });
 
-const playlistEntrySchema = z.object({
-  entryId: rowIdSchema,
+const playlistTrackRemovalSchema = z.object({
+  playlistTrackId: rowIdSchema,
   playlistId: rowIdSchema,
 });
 
@@ -103,7 +103,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 
   handleTrusted(lumeChannels.addTrackToPlaylist, (_window, rawPlaylistId, rawTrackId) => {
-    const input = playlistTrackSchema.parse({
+    const input = playlistTrackInputSchema.parse({
       playlistId: rawPlaylistId,
       trackId: rawTrackId,
     });
@@ -112,7 +112,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 
   handleTrusted(lumeChannels.confirmAddTrackToPlaylist, (_window, rawPlaylistId, rawTrackId) => {
-    const input = playlistTrackSchema.parse({
+    const input = playlistTrackInputSchema.parse({
       playlistId: rawPlaylistId,
       trackId: rawTrackId,
     });
@@ -120,13 +120,13 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     return confirmAddTrackToPlaylist(input.playlistId, input.trackId);
   });
 
-  handleTrusted(lumeChannels.removePlaylistEntry, (_window, rawPlaylistId, rawEntryId) => {
-    const input = playlistEntrySchema.parse({
-      entryId: rawEntryId,
+  handleTrusted(lumeChannels.removePlaylistTrack, (_window, rawPlaylistId, rawPlaylistTrackId) => {
+    const input = playlistTrackRemovalSchema.parse({
+      playlistTrackId: rawPlaylistTrackId,
       playlistId: rawPlaylistId,
     });
 
-    removePlaylistEntry(input.playlistId, input.entryId);
+    removePlaylistTrack(input.playlistId, input.playlistTrackId);
   });
 
   handleTrusted(lumeChannels.enableSource, async (_window, rawSourceId) => {

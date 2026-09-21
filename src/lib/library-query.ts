@@ -13,8 +13,8 @@ type PlaylistTrackInput = {
   trackId: number;
 };
 
-type PlaylistEntryInput = {
-  entryId: number;
+type PlaylistTrackRemovalInput = {
+  playlistTrackId: number;
   playlistId: number;
 };
 
@@ -84,7 +84,7 @@ export function useConfirmAddTrackToPlaylistMutation() {
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackInput) =>
       window.lume.confirmAddTrackToPlaylist(input.playlistId, input.trackId),
-    onSuccess: (_entry, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
+    onSuccess: (_track, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
   });
 }
 
@@ -102,13 +102,13 @@ export function useCreatePlaylistFromTrackMutation() {
   });
 }
 
-export function useRemovePlaylistEntryMutation() {
+export function useRemovePlaylistTrackMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
     ...playlistMutationOptions,
-    mutationFn: (input: PlaylistEntryInput) =>
-      window.lume.removePlaylistEntry(input.playlistId, input.entryId),
+    mutationFn: (input: PlaylistTrackRemovalInput) =>
+      window.lume.removePlaylistTrack(input.playlistId, input.playlistTrackId),
     onSuccess: (_result, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
   });
 }

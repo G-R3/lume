@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { playlistQueryOptions, useRemovePlaylistEntryMutation } from "@/lib/library-query";
+import { playlistQueryOptions, useRemovePlaylistTrackMutation } from "@/lib/library-query";
 import { TrackList } from "@/pages/tracks/track-list";
 
 export function PlaylistPage() {
@@ -44,18 +44,18 @@ export function PlaylistPage() {
 function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
   const audioPlayer = useAudioPlayer();
-  const removePlaylistEntry = useRemovePlaylistEntryMutation();
+  const removePlaylistTrack = useRemovePlaylistTrackMutation();
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
 
-  const items = playlist.entries.flatMap((entry) => {
-    const track = tracksById.get(entry.trackId);
+  const items = playlist.tracks.flatMap((playlistTrack) => {
+    const track = tracksById.get(playlistTrack.trackId);
 
-    return track ? [{ key: entry.id, track }] : [];
+    return track ? [{ key: playlistTrack.id, track }] : [];
   });
 
-  const handleRemove = (entryId: number) => {
-    removePlaylistEntry.mutate(
-      { entryId, playlistId: playlist.id },
+  const handleRemove = (playlistTrackId: number) => {
+    removePlaylistTrack.mutate(
+      { playlistTrackId, playlistId: playlist.id },
       {
         onError: (error) => {
           toast.add({
@@ -66,7 +66,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           });
         },
         onSuccess: () => {
-          audioPlayer.removeQueueItem(entryId);
+          audioPlayer.removeQueueItem(playlistTrackId);
           toast.add({ title: `Removed from ${playlist.title}`, type: "success" });
         },
       },
@@ -95,7 +95,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
         </div>
       </section>
 
-      {playlist.entries.length === 0 ? (
+      {playlist.tracks.length === 0 ? (
         <div className="grid min-h-64 place-items-center px-6 text-center">
           <div>
             <MusicNotesIcon aria-hidden="true" className="mx-auto mb-3 size-5 text-neutral-600" />
@@ -109,7 +109,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           playlistId={playlist.id}
           renderMenuItems={(item) => (
             <DropdownMenuItem
-              disabled={removePlaylistEntry.isPending}
+              disabled={removePlaylistTrack.isPending}
               onClick={() => handleRemove(item.key)}
               variant="destructive"
             >

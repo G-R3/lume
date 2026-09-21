@@ -112,7 +112,7 @@ export const playlists = sqliteTable(
   ],
 );
 
-export const playlistEntries = sqliteTable(
+export const playlistTracks = sqliteTable(
   "playlist_entries",
   {
     id: integer("id").primaryKey(),

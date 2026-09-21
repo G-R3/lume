@@ -15,7 +15,7 @@ import {
   deletePlaylist,
   getPlaylist,
   getPlaylists,
-  removePlaylistEntry,
+  removePlaylistTrack,
 } from "./playlists";
 
 const temporaryFolders: string[] = [];
@@ -54,16 +54,16 @@ describe("playlist behavior", () => {
     expect(
       getPlaylists().map((playlist) => ({
         description: playlist.description,
-        entryCount: playlist.entryCount,
+        trackCount: playlist.trackCount,
         title: playlist.title,
       })),
     ).toEqual([
-      { description: maximumDescription, entryCount: 0, title: maximumTitle },
-      { description: null, entryCount: 0, title: maximumTitle },
+      { description: maximumDescription, title: maximumTitle, trackCount: 0 },
+      { description: null, title: maximumTitle, trackCount: 0 },
     ]);
   });
 
-  it("preserves entry order and identity through duplicate confirmation, removal, and deletion", async () => {
+  it("preserves track order and identity through duplicate confirmation, removal, and deletion", async () => {
     await openTestDatabase();
     const firstTrack = await addTrack("First");
     const secondTrack = await addTrack("Second");
@@ -74,8 +74,8 @@ describe("playlist behavior", () => {
       title: "Sequence",
     });
 
-    const firstEntry = addTrackToPlaylist(playlist.id, firstTrack.id);
-    const secondEntry = addTrackToPlaylist(playlist.id, secondTrack.id);
+    const firstTrackInPlaylist = addTrackToPlaylist(playlist.id, firstTrack.id);
+    const secondTrackInPlaylist = addTrackToPlaylist(playlist.id, secondTrack.id);
 
     expect(addTrackToPlaylist(playlist.id, firstTrack.id)).toEqual({
       kind: "duplicate",
@@ -83,24 +83,24 @@ describe("playlist behavior", () => {
 
     confirmAddTrackToPlaylist(playlist.id, firstTrack.id);
 
-    if (firstEntry.kind !== "added" || secondEntry.kind !== "added") {
+    if (firstTrackInPlaylist.kind !== "added" || secondTrackInPlaylist.kind !== "added") {
       throw new Error("Expected both distinct tracks to be added");
     }
 
-    removePlaylistEntry(playlist.id, firstEntry.entry.id);
+    removePlaylistTrack(playlist.id, firstTrackInPlaylist.track.id);
 
     confirmAddTrackToPlaylist(playlist.id, thirdTrack.id);
 
-    const entries = getPlaylist(playlist.id)?.entries;
-    expect(entries?.map((entry) => entry.position)).toEqual([1, 2, 3]);
-    expect(entries?.map((entry) => entry.trackId)).toEqual([
+    const tracks = getPlaylist(playlist.id)?.tracks;
+    expect(tracks?.map((track) => track.position)).toEqual([1, 2, 3]);
+    expect(tracks?.map((track) => track.trackId)).toEqual([
       secondTrack.id,
       firstTrack.id,
       thirdTrack.id,
     ]);
-    expect(entries?.every((entry) => Number.isSafeInteger(entry.id) && entry.id > 0)).toBe(true);
-    expect(new Set(entries?.map((entry) => entry.id)).size).toBe(3);
-    expect(getPlaylists().map((summary) => summary.entryCount)).toEqual([3]);
+    expect(tracks?.every((track) => Number.isSafeInteger(track.id) && track.id > 0)).toBe(true);
+    expect(new Set(tracks?.map((track) => track.id)).size).toBe(3);
+    expect(getPlaylists().map((summary) => summary.trackCount)).toEqual([3]);
 
     deletePlaylist(playlist.id);
 
@@ -120,7 +120,7 @@ describe("playlist behavior", () => {
     expect(
       [namedPlaylist, blankPlaylist, longPlaylist].map((playlist) => ({
         title: playlist.title,
-        trackId: playlist.entries[0]?.trackId,
+        trackId: playlist.tracks[0]?.trackId,
       })),
     ).toEqual([
       { title: "Night Drive", trackId: namedTrack.id },
@@ -130,14 +130,14 @@ describe("playlist behavior", () => {
 
     const failingTrackId = insertTrack(database, "failing-track", "Uncommitted");
     database.$client.exec(`
-      CREATE TRIGGER reject_playlist_entry
+      CREATE TRIGGER reject_playlist_track
       BEFORE INSERT ON playlist_entries
       BEGIN
-        SELECT RAISE(ABORT, 'Entry insert failed');
+        SELECT RAISE(ABORT, 'Playlist track insert failed');
       END;
     `);
 
-    expect(() => createPlaylistFromTrack(failingTrackId)).toThrow("Entry insert failed");
+    expect(() => createPlaylistFromTrack(failingTrackId)).toThrow("Playlist track insert failed");
     expect(getPlaylists().map((playlist) => playlist.title)).toEqual([
       "Night Drive",
       "New Playlist",
@@ -145,7 +145,7 @@ describe("playlist behavior", () => {
     ]);
   });
 
-  it("validates membership and scopes entry removal to its playlist", async () => {
+  it("validates membership and scopes track removal to its playlist", async () => {
     await openTestDatabase();
     const track = await addTrack("Belonging");
     const firstPlaylist = createPlaylist({ description: null, title: "First" });
@@ -156,10 +156,10 @@ describe("playlist behavior", () => {
 
     expect(() => addTrackToPlaylist(999_999, track.id)).toThrow("Playlist does not exist");
     expect(() => addTrackToPlaylist(firstPlaylist.id, 999_999)).toThrow("Track does not exist");
-    expect(() => removePlaylistEntry(secondPlaylist.id, addition.entry.id)).toThrow(
-      "Playlist entry does not exist in this playlist",
+    expect(() => removePlaylistTrack(secondPlaylist.id, addition.track.id)).toThrow(
+      "Playlist track does not exist in this playlist",
     );
-    expect(getPlaylist(firstPlaylist.id)?.entries).toEqual([addition.entry]);
+    expect(getPlaylist(firstPlaylist.id)?.tracks).toEqual([addition.track]);
   });
 
   it("keeps playlist membership while a track disappears and returns", async () => {
@@ -183,7 +183,7 @@ describe("playlist behavior", () => {
 
     expect(readPlaylistTrack(playlist.id)).toEqual({
       available: false,
-      entryId: addition.entry.id,
+      playlistTrackId: addition.track.id,
       title: "Fading Light",
     });
 
@@ -192,7 +192,7 @@ describe("playlist behavior", () => {
 
     expect(readPlaylistTrack(playlist.id)).toEqual({
       available: true,
-      entryId: addition.entry.id,
+      playlistTrackId: addition.track.id,
       title: "Fading Light",
     });
   });
@@ -265,14 +265,17 @@ function insertTrack(database: LibraryDatabase, name: string, title: string) {
 }
 
 function readPlaylistTrack(playlistId: number) {
-  const entry = getPlaylist(playlistId)?.entries[0];
-  const track = entry ? getTracks().find((track) => track.id === entry.trackId) : undefined;
+  const playlistTrack = getPlaylist(playlistId)?.tracks[0];
 
-  if (!entry || !track) throw new Error("Expected the playlist track to exist");
+  const track = playlistTrack
+    ? getTracks().find((track) => track.id === playlistTrack.trackId)
+    : undefined;
+
+  if (!playlistTrack || !track) throw new Error("Expected the playlist track to exist");
 
   return {
     available: track.available,
-    entryId: entry.id,
+    playlistTrackId: playlistTrack.id,
     title: track.title,
   };
 }

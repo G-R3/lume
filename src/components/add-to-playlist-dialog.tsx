@@ -151,7 +151,7 @@ export function AddToPlaylistDialog({
                         )}
                       </span>
                       <span className="font-berkeley shrink-0 text-[10px] text-neutral-500 tabular-nums">
-                        {playlist.entryCount.toLocaleString()}
+                        {playlist.trackCount.toLocaleString()}
                       </span>
                     </Button>
                   </li>

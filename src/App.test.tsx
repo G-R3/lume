@@ -96,7 +96,7 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
         library: firstRun,
         playlist: {
           description: input.description,
-          entryCount: 0,
+          trackCount: 0,
           id: 1,
           title: input.title,
         },
@@ -104,7 +104,7 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
     createPlaylistFromTrack: (trackId) =>
       Promise.resolve({
         description: null,
-        entries: [{ id: 1, position: 0, trackId }],
+        tracks: [{ id: 1, position: 0, trackId }],
         id: 1,
         title: "Playlist",
       }),
@@ -116,7 +116,7 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
     loadPlaylist: () => Promise.resolve(null),
     onLibraryUpdate: () => () => {},
     openDataFolder: () => Promise.resolve(),
-    removePlaylistEntry: () => Promise.resolve(),
+    removePlaylistTrack: () => Promise.resolve(),
     rescanSource: () => firstRunPromise,
     rescanSources: () => firstRunPromise,
     isMac: false,

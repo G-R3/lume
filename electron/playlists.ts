@@ -6,7 +6,7 @@ import type {
   PlaylistSummary,
 } from "../shared/lib";
 import { getDatabase, runImmediateTransaction, type LibraryTransaction } from "./database";
-import { playlistEntries, playlists, tracks } from "./database/schema";
+import { playlistTracks, playlists, tracks } from "./database/schema";
 
 const playlistColumns = {
   description: playlists.description,
@@ -14,20 +14,20 @@ const playlistColumns = {
   title: playlists.title,
 };
 
-const playlistEntryColumns = {
-  id: playlistEntries.id,
-  position: playlistEntries.position,
-  trackId: playlistEntries.trackId,
+const playlistTrackColumns = {
+  id: playlistTracks.id,
+  position: playlistTracks.position,
+  trackId: playlistTracks.trackId,
 };
 
 export function getPlaylists(): PlaylistSummary[] {
   return getDatabase()
     .select({
       ...playlistColumns,
-      entryCount: count(playlistEntries.id),
+      trackCount: count(playlistTracks.id),
     })
     .from(playlists)
-    .leftJoin(playlistEntries, eq(playlistEntries.playlistId, playlists.id))
+    .leftJoin(playlistTracks, eq(playlistTracks.playlistId, playlists.id))
     .groupBy(playlists.id)
     .orderBy(playlists.createdAt, sql`${playlists}.rowid`)
     .all();
@@ -46,11 +46,11 @@ export function getPlaylist(playlistId: number): PlaylistDetails | null {
 
   return {
     ...playlist,
-    entries: database
-      .select(playlistEntryColumns)
-      .from(playlistEntries)
-      .where(eq(playlistEntries.playlistId, playlistId))
-      .orderBy(playlistEntries.position)
+    tracks: database
+      .select(playlistTrackColumns)
+      .from(playlistTracks)
+      .where(eq(playlistTracks.playlistId, playlistId))
+      .orderBy(playlistTracks.position)
       .all(),
   };
 }
@@ -80,7 +80,7 @@ export function createPlaylist(input: PlaylistCreationInput) {
     .returning(playlistColumns)
     .get();
 
-  return { ...playlist, entryCount: 0 } satisfies PlaylistSummary;
+  return { ...playlist, trackCount: 0 } satisfies PlaylistSummary;
 }
 
 export function createPlaylistFromTrack(trackId: number) {
@@ -108,18 +108,18 @@ export function createPlaylistFromTrack(trackId: number) {
       .returning(playlistColumns)
       .get();
 
-    const entry = transaction
-      .insert(playlistEntries)
+    const playlistTrack = transaction
+      .insert(playlistTracks)
       .values({
         createdAt: now,
         playlistId: playlist.id,
         position: 0,
         trackId,
       })
-      .returning(playlistEntryColumns)
+      .returning(playlistTrackColumns)
       .get();
 
-    return { ...playlist, entries: [entry] } satisfies PlaylistDetails;
+    return { ...playlist, tracks: [playlistTrack] } satisfies PlaylistDetails;
   });
 }
 
@@ -138,14 +138,16 @@ export function addTrackToPlaylist(playlistId: number, trackId: number): AddTrac
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
     const duplicate = transaction
-      .select({ id: playlistEntries.id })
-      .from(playlistEntries)
-      .where(and(eq(playlistEntries.playlistId, playlistId), eq(playlistEntries.trackId, trackId)))
+      .select({ id: playlistTracks.id })
+      .from(playlistTracks)
+      .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, trackId)))
       .get();
 
     if (duplicate) return { kind: "duplicate" };
 
-    return { entry: insertPlaylistEntry(transaction, playlistId, trackId), kind: "added" };
+    const track = insertPlaylistTrack(transaction, playlistId, trackId);
+
+    return { kind: "added", track };
   });
 }
 
@@ -153,11 +155,11 @@ export function confirmAddTrackToPlaylist(playlistId: number, trackId: number) {
   return runImmediateTransaction(getDatabase(), (transaction) => {
     requirePlaylistAndTrack(transaction, playlistId, trackId);
 
-    return insertPlaylistEntry(transaction, playlistId, trackId);
+    return insertPlaylistTrack(transaction, playlistId, trackId);
   });
 }
 
-export function removePlaylistEntry(playlistId: number, entryId: number) {
+export function removePlaylistTrack(playlistId: number, playlistTrackId: number) {
   runImmediateTransaction(getDatabase(), (transaction) => {
     const playlist = transaction
       .select({ id: playlists.id })
@@ -167,14 +169,14 @@ export function removePlaylistEntry(playlistId: number, entryId: number) {
 
     if (!playlist) throw new Error("Playlist does not exist");
 
-    const entry = transaction
-      .delete(playlistEntries)
-      .where(and(eq(playlistEntries.id, entryId), eq(playlistEntries.playlistId, playlistId)))
-      .returning({ id: playlistEntries.id })
+    const playlistTrack = transaction
+      .delete(playlistTracks)
+      .where(and(eq(playlistTracks.id, playlistTrackId), eq(playlistTracks.playlistId, playlistId)))
+      .returning({ id: playlistTracks.id })
       .get();
 
-    if (!entry) {
-      throw new Error("Playlist entry does not exist in this playlist");
+    if (!playlistTrack) {
+      throw new Error("Playlist track does not exist in this playlist");
     }
 
     transaction
@@ -203,28 +205,28 @@ function requirePlaylistAndTrack(
   if (!track) throw new Error("Track does not exist");
 }
 
-function insertPlaylistEntry(database: LibraryTransaction, playlistId: number, trackId: number) {
+function insertPlaylistTrack(database: LibraryTransaction, playlistId: number, trackId: number) {
   const now = Date.now();
 
-  const entry = database
-    .insert(playlistEntries)
+  const playlistTrack = database
+    .insert(playlistTracks)
     .values({
       createdAt: now,
       playlistId,
       position:
         database
           .select({
-            position: sql<number | null>`MAX(${playlistEntries.position}) + 1`,
+            position: sql<number | null>`MAX(${playlistTracks.position}) + 1`,
           })
-          .from(playlistEntries)
-          .where(eq(playlistEntries.playlistId, playlistId))
+          .from(playlistTracks)
+          .where(eq(playlistTracks.playlistId, playlistId))
           .get()?.position ?? 0,
       trackId,
     })
-    .returning(playlistEntryColumns)
+    .returning(playlistTrackColumns)
     .get();
 
   database.update(playlists).set({ updatedAt: now }).where(eq(playlists.id, playlistId)).run();
 
-  return entry;
+  return playlistTrack;
 }
