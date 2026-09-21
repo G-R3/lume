@@ -4,10 +4,10 @@ import {
   and,
   count,
   eq,
+  getColumns,
   isNotNull,
   isNull,
   notExists,
-  placeholder,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -20,6 +20,16 @@ import { getPlaylists } from "./playlists";
 type SourceWriter = Pick<LibraryDatabase, "update">;
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
+
+const {
+  createdAt: _createdAt,
+  fileSize: _fileSize,
+  metadataVersion: _metadataVersion,
+  modifiedAt: _modifiedAt,
+  sourceId: _sourceId,
+  updatedAt: _updatedAt,
+  ...trackColumns
+} = getColumns(tracks);
 
 export function getLibrarySnapshot() {
   const sources = getSources();
@@ -175,7 +185,7 @@ export async function saveSource(selectedPath: string) {
 export function enableSource(sourceId: number) {
   const now = Date.now();
 
-  const result = getDatabase()
+  const source = getDatabase()
     .update(librarySources)
     .set({
       enabled: true,
@@ -185,18 +195,17 @@ export function enableSource(sourceId: number) {
       END`,
     })
     .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
-    .run();
+    .returning({ id: librarySources.id })
+    .get();
 
-  if (result.changes !== 1 && result.changes !== 1n) {
-    throw new Error(`Library source ${sourceId} is not active`);
-  }
+  if (!source) throw new Error(`Library source ${sourceId} is not active`);
 }
 
 export function disableSource(sourceId: number) {
   const now = Date.now();
 
   runImmediateTransaction(getDatabase(), (transaction) => {
-    const result = transaction
+    const source = transaction
       .update(librarySources)
       .set({
         enabled: false,
@@ -206,11 +215,10 @@ export function disableSource(sourceId: number) {
           END`,
       })
       .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
-      .run();
+      .returning({ id: librarySources.id })
+      .get();
 
-    if (result.changes !== 1 && result.changes !== 1n) {
-      throw new Error(`Library source ${sourceId} is not active`);
-    }
+    if (!source) throw new Error(`Library source ${sourceId} is not active`);
 
     markSourceTracksUnavailable(transaction, sourceId, now);
   });
@@ -220,7 +228,7 @@ export function forgetSource(sourceId: number) {
   const now = Date.now();
 
   runImmediateTransaction(getDatabase(), (transaction) => {
-    const result = transaction
+    const source = transaction
       .update(librarySources)
       .set({
         enabled: false,
@@ -231,11 +239,10 @@ export function forgetSource(sourceId: number) {
           END`,
       })
       .where(eq(librarySources.id, sourceId))
-      .run();
+      .returning({ id: librarySources.id })
+      .get();
 
-    if (result.changes !== 1 && result.changes !== 1n) {
-      throw new Error(`Library source ${sourceId} does not exist`);
-    }
+    if (!source) throw new Error(`Library source ${sourceId} does not exist`);
 
     markSourceTracksUnavailable(transaction, sourceId, now);
   });
@@ -296,30 +303,7 @@ export function applyScanFailure(sourceId: number, error: string) {
 
 export function getTracks() {
   return getDatabase()
-    .select({
-      album: tracks.album,
-      albumArtists: tracks.albumArtists,
-      artists: tracks.artists,
-      artworkId: tracks.artworkId,
-      available: tracks.available,
-      bitrate: tracks.bitrate,
-      bitsPerSample: tracks.bitsPerSample,
-      channelCount: tracks.channelCount,
-      codec: tracks.codec,
-      discNumber: tracks.discNumber,
-      discTotal: tracks.discTotal,
-      duration: tracks.duration,
-      format: tracks.format,
-      genres: tracks.genres,
-      id: tracks.id,
-      lossless: tracks.lossless,
-      path: tracks.path,
-      sampleRate: tracks.sampleRate,
-      title: tracks.title,
-      trackNumber: tracks.trackNumber,
-      trackTotal: tracks.trackTotal,
-      year: tracks.year,
-    })
+    .select(trackColumns)
     .from(tracks)
     .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
     .all();
@@ -377,16 +361,16 @@ export function applySourceScan(sourceId: number, scannedTracks: readonly Scanne
 
     const restoreTrack = transaction
       .update(tracks)
-      .set({ available: true, updatedAt: placeholder("updatedAt") })
-      .where(and(eq(tracks.sourceId, sourceId), eq(tracks.path, placeholder("path"))))
+      .set({ available: true, updatedAt: sql.placeholder("updatedAt") })
+      .where(and(eq(tracks.sourceId, sourceId), eq(tracks.path, sql.placeholder("path"))))
       .prepare();
 
     const saveArtwork = transaction
       .insert(artwork)
       .values({
-        data: placeholder("data"),
-        id: placeholder("id"),
-        mediaType: placeholder("mediaType"),
+        data: sql.placeholder("data"),
+        id: sql.placeholder("id"),
+        mediaType: sql.placeholder("mediaType"),
       })
       .onConflictDoNothing({ target: artwork.id })
       .prepare();
@@ -394,33 +378,33 @@ export function applySourceScan(sourceId: number, scannedTracks: readonly Scanne
     const saveTrack = transaction
       .insert(tracks)
       .values({
-        album: placeholder("album"),
-        albumArtists: placeholder("albumArtists"),
-        artists: placeholder("artists"),
-        artworkId: placeholder("artworkId"),
+        album: sql.placeholder("album"),
+        albumArtists: sql.placeholder("albumArtists"),
+        artists: sql.placeholder("artists"),
+        artworkId: sql.placeholder("artworkId"),
         available: true,
-        bitrate: placeholder("bitrate"),
-        bitsPerSample: placeholder("bitsPerSample"),
-        channelCount: placeholder("channelCount"),
-        codec: placeholder("codec"),
+        bitrate: sql.placeholder("bitrate"),
+        bitsPerSample: sql.placeholder("bitsPerSample"),
+        channelCount: sql.placeholder("channelCount"),
+        codec: sql.placeholder("codec"),
         createdAt: now,
-        discNumber: placeholder("discNumber"),
-        discTotal: placeholder("discTotal"),
-        duration: placeholder("duration"),
-        fileSize: placeholder("fileSize"),
-        format: placeholder("format"),
-        genres: placeholder("genres"),
-        lossless: placeholder("lossless"),
+        discNumber: sql.placeholder("discNumber"),
+        discTotal: sql.placeholder("discTotal"),
+        duration: sql.placeholder("duration"),
+        fileSize: sql.placeholder("fileSize"),
+        format: sql.placeholder("format"),
+        genres: sql.placeholder("genres"),
+        lossless: sql.placeholder("lossless"),
         metadataVersion: trackMetadataVersion,
-        modifiedAt: placeholder("modifiedAt"),
-        path: placeholder("path"),
-        sampleRate: placeholder("sampleRate"),
+        modifiedAt: sql.placeholder("modifiedAt"),
+        path: sql.placeholder("path"),
+        sampleRate: sql.placeholder("sampleRate"),
         sourceId,
-        title: placeholder("title"),
-        trackNumber: placeholder("trackNumber"),
-        trackTotal: placeholder("trackTotal"),
+        title: sql.placeholder("title"),
+        trackNumber: sql.placeholder("trackNumber"),
+        trackTotal: sql.placeholder("trackTotal"),
         updatedAt: now,
-        year: placeholder("year"),
+        year: sql.placeholder("year"),
       })
       .onConflictDoUpdate({
         target: tracks.path,

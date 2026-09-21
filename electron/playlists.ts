@@ -8,13 +8,23 @@ import type {
 import { getDatabase, runImmediateTransaction, type LibraryTransaction } from "./database";
 import { playlistEntries, playlists, tracks } from "./database/schema";
 
+const playlistColumns = {
+  description: playlists.description,
+  id: playlists.id,
+  title: playlists.title,
+};
+
+const playlistEntryColumns = {
+  id: playlistEntries.id,
+  position: playlistEntries.position,
+  trackId: playlistEntries.trackId,
+};
+
 export function getPlaylists(): PlaylistSummary[] {
   return getDatabase()
     .select({
-      description: playlists.description,
+      ...playlistColumns,
       entryCount: count(playlistEntries.id),
-      id: playlists.id,
-      title: playlists.title,
     })
     .from(playlists)
     .leftJoin(playlistEntries, eq(playlistEntries.playlistId, playlists.id))
@@ -27,11 +37,7 @@ export function getPlaylist(playlistId: number): PlaylistDetails | null {
   const database = getDatabase();
 
   const playlist = database
-    .select({
-      description: playlists.description,
-      id: playlists.id,
-      title: playlists.title,
-    })
+    .select(playlistColumns)
     .from(playlists)
     .where(eq(playlists.id, playlistId))
     .get();
@@ -41,11 +47,7 @@ export function getPlaylist(playlistId: number): PlaylistDetails | null {
   return {
     ...playlist,
     entries: database
-      .select({
-        id: playlistEntries.id,
-        position: playlistEntries.position,
-        trackId: playlistEntries.trackId,
-      })
+      .select(playlistEntryColumns)
       .from(playlistEntries)
       .where(eq(playlistEntries.playlistId, playlistId))
       .orderBy(playlistEntries.position)
@@ -75,11 +77,7 @@ export function createPlaylist(input: PlaylistCreationInput) {
       title,
       updatedAt: now,
     })
-    .returning({
-      description: playlists.description,
-      id: playlists.id,
-      title: playlists.title,
-    })
+    .returning(playlistColumns)
     .get();
 
   return { ...playlist, entryCount: 0 } satisfies PlaylistSummary;
@@ -107,11 +105,7 @@ export function createPlaylistFromTrack(trackId: number) {
         title: trackTitle.length > 0 && trackTitle.length <= 100 ? trackTitle : "New Playlist",
         updatedAt: now,
       })
-      .returning({
-        description: playlists.description,
-        id: playlists.id,
-        title: playlists.title,
-      })
+      .returning(playlistColumns)
       .get();
 
     const entry = transaction
@@ -122,11 +116,7 @@ export function createPlaylistFromTrack(trackId: number) {
         position: 0,
         trackId,
       })
-      .returning({
-        id: playlistEntries.id,
-        position: playlistEntries.position,
-        trackId: playlistEntries.trackId,
-      })
+      .returning(playlistEntryColumns)
       .get();
 
     return { ...playlist, entries: [entry] } satisfies PlaylistDetails;
@@ -134,9 +124,13 @@ export function createPlaylistFromTrack(trackId: number) {
 }
 
 export function deletePlaylist(playlistId: number) {
-  const result = getDatabase().delete(playlists).where(eq(playlists.id, playlistId)).run();
+  const playlist = getDatabase()
+    .delete(playlists)
+    .where(eq(playlists.id, playlistId))
+    .returning({ id: playlists.id })
+    .get();
 
-  if (result.changes !== 1 && result.changes !== 1n) throw new Error("Playlist does not exist");
+  if (!playlist) throw new Error("Playlist does not exist");
 }
 
 export function addTrackToPlaylist(playlistId: number, trackId: number): AddTrackToPlaylistResult {
@@ -173,12 +167,13 @@ export function removePlaylistEntry(playlistId: number, entryId: number) {
 
     if (!playlist) throw new Error("Playlist does not exist");
 
-    const result = transaction
+    const entry = transaction
       .delete(playlistEntries)
       .where(and(eq(playlistEntries.id, entryId), eq(playlistEntries.playlistId, playlistId)))
-      .run();
+      .returning({ id: playlistEntries.id })
+      .get();
 
-    if (result.changes !== 1 && result.changes !== 1n) {
+    if (!entry) {
       throw new Error("Playlist entry does not exist in this playlist");
     }
 
@@ -226,11 +221,7 @@ function insertPlaylistEntry(database: LibraryTransaction, playlistId: number, t
           .get()?.position ?? 0,
       trackId,
     })
-    .returning({
-      id: playlistEntries.id,
-      position: playlistEntries.position,
-      trackId: playlistEntries.trackId,
-    })
+    .returning(playlistEntryColumns)
     .get();
 
   database.update(playlists).set({ updatedAt: now }).where(eq(playlists.id, playlistId)).run();
