@@ -145,23 +145,27 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
       if (!item?.track.available) return;
 
-      const playbackSequence = {
+      const nextPlaybackSequence = {
         activeItem: item,
         items,
         nextIndex: index + 1,
         playlistId,
       };
 
-      if (activeQueueKey === item.key) {
-        setPlaybackSequence(playbackSequence);
+      if (
+        playbackSequence?.activeItem.key === item.key &&
+        playbackSequence.activeItem.track.id === item.track.id &&
+        playbackSequence.playlistId === playlistId
+      ) {
+        setPlaybackSequence(nextPlaybackSequence);
         resume();
 
         return;
       }
 
-      changeTrack(playbackSequence, index);
+      changeTrack(nextPlaybackSequence, index);
     },
-    [activeQueueKey, changeTrack, resume],
+    [changeTrack, playbackSequence, resume],
   );
 
   const syncTracks = useCallback((tracks: readonly Track[]) => {
@@ -312,7 +316,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         <audio
           autoPlay
           muted={isMuted}
-          key={activeQueueKey}
+          key={`${playbackSequence.playlistId ?? "library"}:${activeQueueKey}`}
           onDurationChange={(event) => {
             const duration = event.currentTarget.duration;
 

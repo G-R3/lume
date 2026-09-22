@@ -23,7 +23,7 @@ import { formatDuration } from "@/lib/format-duration";
 import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
-type TrackListItem = {
+export type TrackListItem = {
   key: number;
   track: Track;
 };

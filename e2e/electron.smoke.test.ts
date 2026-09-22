@@ -55,7 +55,7 @@ it("keeps a scanned track and playlist working after restart", async () => {
   const creationDialog = firstWindow.getByRole("dialog");
   await creationDialog.getByLabel("Title").fill("Smoke playlist");
   await creationDialog.getByRole("button", { name: "Create playlist" }).click();
-  await firstWindow.getByRole("heading", { level: 2, name: "Smoke playlist" }).waitFor();
+  await firstWindow.getByRole("heading", { level: 1, name: "Smoke playlist" }).waitFor();
 
   await firstWindow.getByRole("link", { name: /All tracks/ }).click();
   await firstWindow.getByRole("button", { exact: true, name: "More options for smoke" }).click();
@@ -115,7 +115,7 @@ it("keeps a scanned track and playlist working after restart", async () => {
   const restartedWindow = await restartedApplication.firstWindow();
   await restartedWindow.getByRole("heading", { exact: true, name: "All Tracks" }).waitFor();
   await restartedWindow.getByRole("link", { name: "Smoke playlist" }).click();
-  await restartedWindow.getByRole("heading", { level: 2, name: "Smoke playlist" }).waitFor();
+  await restartedWindow.getByRole("heading", { level: 1, name: "Smoke playlist" }).waitFor();
   expect(
     await restartedWindow.getByRole("button", { exact: true, name: "smoke" }).isVisible(),
   ).toBe(true);

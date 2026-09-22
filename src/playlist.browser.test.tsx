@@ -41,6 +41,40 @@ afterEach(() => {
 });
 
 describe("playlist behavior", () => {
+  it("starts the first track from the beginning with the collection Play action", async () => {
+    const midnight = createTrack(1, "Midnight");
+    const sunrise = createTrack(2, "Sunrise");
+    const state = createRendererState([midnight, sunrise]);
+
+    renderApplication(createTestApi(() => ({ loadLibrary: () => Promise.resolve(state.library) })));
+
+    const table = page.getByRole("table", { name: "All tracks" });
+    const player = page.getByRole("contentinfo");
+    const playbackActions = page.getByRole("group", { name: "Playback actions" });
+
+    await table.getByRole("button", { exact: true, name: "Sunrise" }).click();
+    await expect.element(player.getByText("Sunrise", { exact: true })).toBeVisible();
+
+    await playbackActions.getByRole("button", { exact: true, name: "Play" }).click();
+    await expect.element(player.getByText("Midnight", { exact: true })).toBeVisible();
+    await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
+
+    const audio = document.querySelector("audio");
+
+    if (!audio) throw new Error("Expected the collection Play action to create audio");
+
+    await expect.poll(() => audio.duration).toBeGreaterThan(0);
+    audio.currentTime = 10;
+    await player.getByRole("button", { name: "Pause" }).click();
+    await playbackActions.getByRole("button", { exact: true, name: "Play" }).click();
+
+    await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
+    expect(audio.currentTime).toBeLessThan(1);
+    await expect
+      .element(playbackActions.getByRole("button", { name: "Shuffle, coming soon" }))
+      .toBeDisabled();
+  });
+
   it("completes the playlist editing lifecycle through the renderer API", async () => {
     const midnight = {
       ...createTrack(1, "Midnight"),
