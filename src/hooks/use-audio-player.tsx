@@ -10,12 +10,12 @@ type PlaybackSequence = {
 };
 
 type PlaybackQueueItem = {
-  key: number;
+  queueItemId: number;
   track: Track;
 };
 
 type AudioPlayerContextValue = {
-  activeQueueKey: number | null;
+  activeQueueItemId: number | null;
   activeTrack: Track | null;
   clearPlaylistQueue: (playlistId: number) => void;
   errorMessage: string | null;
@@ -24,7 +24,7 @@ type AudioPlayerContextValue = {
   duration: number;
   canGoNext: boolean;
   playFrom: (items: readonly PlaybackQueueItem[], index: number, playlistId?: number) => void;
-  removeQueueItem: (key: number) => void;
+  removeQueueItem: (queueItemId: number) => void;
   syncTracks: (tracks: readonly Track[]) => void;
   togglePlayback: () => void;
   toggleMute: () => void;
@@ -73,7 +73,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [duration, setDuration] = useState(0);
   const [playbackSequence, setPlaybackSequence] = useState<PlaybackSequence | null>(null);
 
-  const activeQueueKey = playbackSequence?.activeItem.key ?? null;
+  const activeQueueItemId = playbackSequence?.activeItem.queueItemId ?? null;
   const activeTrack = playbackSequence?.activeItem.track ?? null;
 
   const canGoNext = playbackSequence ? findNextAvailableTrackIndex(playbackSequence) !== -1 : false;
@@ -153,7 +153,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       };
 
       if (
-        playbackSequence?.activeItem.key === item.key &&
+        playbackSequence?.activeItem.queueItemId === item.queueItemId &&
         playbackSequence.activeItem.track.id === item.track.id &&
         playbackSequence.playlistId === playlistId
       ) {
@@ -190,17 +190,19 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
   }, []);
 
-  const removeQueueItem = useCallback((key: number) => {
+  const removeQueueItem = useCallback((queueItemId: number) => {
     setPlaybackSequence((playbackSequence) => {
       if (!playbackSequence) return null;
 
-      const removedIndex = playbackSequence.items.findIndex((item) => item.key === key);
+      const removedIndex = playbackSequence.items.findIndex(
+        (item) => item.queueItemId === queueItemId,
+      );
 
       if (removedIndex === -1) return playbackSequence;
 
       return {
         ...playbackSequence,
-        items: playbackSequence.items.filter((item) => item.key !== key),
+        items: playbackSequence.items.filter((item) => item.queueItemId !== queueItemId),
         nextIndex:
           removedIndex < playbackSequence.nextIndex
             ? playbackSequence.nextIndex - 1
@@ -249,7 +251,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     if (!playbackSequence) return;
 
     const activeIndex = playbackSequence.items.findIndex(
-      (item) => item.key === playbackSequence.activeItem.key,
+      (item) => item.queueItemId === playbackSequence.activeItem.queueItemId,
     );
 
     const previousIndex = playbackSequence.items.findLastIndex(
@@ -270,7 +272,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const contextValue = React.useMemo(
     () =>
       ({
-        activeQueueKey,
+        activeQueueItemId,
         activeTrack,
         clearPlaylistQueue,
         errorMessage,
@@ -288,7 +290,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         previous,
       }) satisfies AudioPlayerContextValue,
     [
-      activeQueueKey,
+      activeQueueItemId,
       activeTrack,
       clearPlaylistQueue,
       errorMessage,
@@ -316,7 +318,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         <audio
           autoPlay
           muted={isMuted}
-          key={`${playbackSequence.playlistId ?? "library"}:${activeQueueKey}`}
+          key={`${playbackSequence.playlistId ?? "library"}:${activeQueueItemId}`}
           onDurationChange={(event) => {
             const duration = event.currentTarget.duration;
 

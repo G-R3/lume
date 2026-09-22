@@ -5,7 +5,7 @@ import { TrackList } from "@/pages/tracks/track-list";
 
 export function TracksPage() {
   const library = useMusicLibrary();
-  const items = library.tracks.map((track) => ({ key: track.id, track }));
+  const items = library.tracks.map((track) => ({ queueItemId: track.id, track }));
 
   return (
     <main>

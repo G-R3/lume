@@ -24,7 +24,7 @@ import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/libr
 import { cn } from "@/lib/utils";
 
 export type TrackListItem = {
-  key: number;
+  queueItemId: number;
   track: Track;
 };
 
@@ -114,7 +114,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
         <tbody>
           {items.map((item, index) => {
             const track = item.track;
-            const isActive = audioPlayer.activeQueueKey === item.key;
+            const isActive = audioPlayer.activeQueueItemId === item.queueItemId;
             const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
             const artists = track.artists.join(", ") || "Unknown artist";
             const album = track.album || "Unknown album";
@@ -130,7 +130,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     ? "cursor-pointer hover:bg-neutral-950 focus-within:bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "bg-neutral-950/40",
                 )}
-                key={item.key}
+                key={item.queueItemId}
                 onClick={
                   track.available ? () => audioPlayer.playFrom(items, index, playlistId) : undefined
                 }
