@@ -155,14 +155,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, [audio, coordinator]);
 
   const resume = useCallback(() => {
-    const state = coordinator.getSnapshot();
-
-    if (
-      state.queue?.current &&
-      !state.library?.tracks.some(
-        (track) => track.id === state.queue?.current?.item.trackId && track.available,
-      )
-    ) {
+    if (coordinator.getSnapshot().queue?.current && !audio.hasRequest()) {
       coordinator.dispatch({ type: "next", reason: "error" });
       coordinator.setError("This track is unavailable");
 

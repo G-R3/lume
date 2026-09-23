@@ -104,9 +104,12 @@ export function selectQueueView(state: QueueState | null) {
 }
 
 export function selectCanGoNext(state: QueueState | null, availableTrackIds: ReadonlySet<number>) {
-  return Boolean(
-    state?.manualQueue.some((item) => availableTrackIds.has(item.trackId)) ||
-    state?.sourceQueue.some((item) => availableTrackIds.has(item.trackId)),
+  if (!state) return false;
+
+  return (
+    state.manualQueue.length > 0 ||
+    state.sourceQueue.length > 0 ||
+    (state.current !== null && !availableTrackIds.has(state.current.item.trackId))
   );
 }
 
@@ -129,7 +132,7 @@ export function transition(
     case "removeQueueItem":
       return removeQueueItem(state, command.queueItemId);
     case "next":
-      return next(state, command.reason, availableTrackIds);
+      return next(state, availableTrackIds);
     case "previous":
       return previous(state, availableTrackIds);
     case "playbackStarted":
@@ -190,7 +193,7 @@ function startFromSource(
     sourceQueue: items.slice(selectedIndex + 1),
     previousSource: items.slice(0, selectedIndex),
     suppressedSourceOccurrenceIds: [],
-    playedQueueItemIds: [],
+    playedQueueItemIds: previous ? recordPlayedItem(previous) : [],
     status: "playing",
     lastItem: items[selectedIndex],
   };
@@ -228,13 +231,8 @@ function addNext(
   return { ...state, manualQueue: [...state.manualQueue, item] };
 }
 
-function next(
-  state: QueueState,
-  reason: Extract<QueueCommand, { type: "next" }>["reason"],
-  availableTrackIds: ReadonlySet<number>,
-): QueueState {
-  const playedQueueItemIds =
-    reason === "error" ? state.playedQueueItemIds : recordPlayedItem(state);
+function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueState {
+  const playedQueueItemIds = recordPlayedItem(state);
 
   const previousSource = appendCurrentSource(state);
   const manualIndex = state.manualQueue.findIndex((item) => availableTrackIds.has(item.trackId));
@@ -274,7 +272,8 @@ function next(
     ...state,
     current: null,
     manualQueue: [],
-    previousSource,
+    previousSource: [...previousSource, ...state.sourceQueue],
+    sourceQueue: [],
     playedQueueItemIds,
     status: "stopped",
   };

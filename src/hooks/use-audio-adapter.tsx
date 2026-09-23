@@ -158,6 +158,7 @@ export function useAudioAdapter(options: {
       />
     ),
     getPosition: timeStore.getSnapshot,
+    hasRequest: () => requestRef.current !== null,
     isMuted,
     isPlaying,
     load,

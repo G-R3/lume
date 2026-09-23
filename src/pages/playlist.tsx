@@ -6,7 +6,6 @@ import type { PlaylistDetails } from "../../shared/lib";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { playlistQueryOptions, useRemovePlaylistTrackMutation } from "@/lib/library-query";
 import { TrackCollectionHeader } from "@/pages/tracks/track-collection-header";
@@ -44,7 +43,6 @@ export function PlaylistPage() {
 
 function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
-  const audioPlayer = useAudioPlayer();
   const removePlaylistTrack = useRemovePlaylistTrackMutation();
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
 
@@ -67,11 +65,6 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           });
         },
         onSuccess: () => {
-          audioPlayer.dispatchQueue({
-            type: "sourceEntryRemoved",
-            playlistId: playlist.id,
-            occurrenceId: playlistTrackId,
-          });
           toast.add({ title: `Removed from ${playlist.title}`, type: "success" });
         },
       },

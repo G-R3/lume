@@ -12,7 +12,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FieldError } from "@/components/ui/field";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useLibraryMutation } from "@/lib/library-query";
 
 type DeletePlaylistDialogProps = {
@@ -28,7 +27,6 @@ export function DeletePlaylistDialog({
   open,
   playlist,
 }: DeletePlaylistDialogProps) {
-  const audioPlayer = useAudioPlayer();
   const libraryMutation = useLibraryMutation();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
@@ -47,8 +45,6 @@ export function DeletePlaylistDialog({
       { kind: "delete-playlist", playlistId: playlist.id },
       {
         onSuccess: () => {
-          audioPlayer.dispatchQueue({ type: "sourceDeleted", playlistId: playlist.id });
-
           if (isOpenPlaylist) void navigate({ replace: true, to: "/" });
           libraryMutation.reset();
           onOpenChange(false);

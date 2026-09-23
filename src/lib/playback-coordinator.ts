@@ -65,6 +65,15 @@ export function createPlaybackCoordinator(
   };
 
   const dispatch = (command: QueueIntent) => {
+    if (
+      command.type === "startFromSource" &&
+      !command.occurrences.some(
+        (item) =>
+          item.occurrenceId === command.atOccurrenceId && availableTrackIds.has(item.trackId),
+      )
+    )
+      return;
+
     const queueCommand: QueueCommand =
       command.type === "addNext"
         ? { ...command, queueItemId: crypto.randomUUID() }
@@ -113,14 +122,6 @@ export function createPlaybackCoordinator(
         type: "libraryRescanned",
         occurrences: library.tracks.map((track) => ({ occurrenceId: track.id, trackId: track.id })),
       });
-
-      const source = snapshot.queue?.source;
-
-      if (
-        source?.kind === "playlist" &&
-        !library.playlists.some((playlist) => playlist.id === source.playlistId)
-      )
-        dispatch({ type: "sourceDeleted", playlistId: source.playlistId });
 
       return;
     }

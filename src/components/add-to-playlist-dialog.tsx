@@ -1,5 +1,5 @@
 import { type RefObject, useState } from "react";
-import type { PlaylistSummary, PlaylistTrack, Track } from "../../shared/lib";
+import type { PlaylistSummary, Track } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +13,6 @@ import {
 import { FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import {
   useAddTrackToPlaylistMutation,
@@ -34,7 +33,6 @@ export function AddToPlaylistDialog({
   track,
 }: AddToPlaylistDialogProps) {
   const library = useMusicLibrary();
-  const audioPlayer = useAudioPlayer();
   const addTrack = useAddTrackToPlaylistMutation();
   const confirmAddTrack = useConfirmAddTrackToPlaylistMutation();
   const [playlistToConfirm, setPlaylistToConfirm] = useState<PlaylistSummary | null>(null);
@@ -55,12 +53,7 @@ export function AddToPlaylistDialog({
     setSearch("");
   };
 
-  const handleAdded = (playlist: PlaylistSummary, entry: PlaylistTrack) => {
-    audioPlayer.dispatchQueue({
-      type: "sourceEntryAdded",
-      playlistId: playlist.id,
-      entry: { occurrenceId: entry.id, trackId: entry.trackId },
-    });
+  const handleAdded = (playlist: PlaylistSummary) => {
     toast.add({ title: `Added to ${playlist.title}`, type: "success" });
     onOpenChange(false);
   };
@@ -76,7 +69,7 @@ export function AddToPlaylistDialog({
             return;
           }
 
-          handleAdded(playlist, result.track);
+          handleAdded(playlist);
         },
       },
     );
@@ -87,7 +80,7 @@ export function AddToPlaylistDialog({
 
     confirmAddTrack.mutate(
       { playlistId: playlistToConfirm.id, trackId: track.id },
-      { onSuccess: (entry) => handleAdded(playlistToConfirm, entry) },
+      { onSuccess: () => handleAdded(playlistToConfirm) },
     );
   };
 
