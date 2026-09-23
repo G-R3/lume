@@ -47,7 +47,7 @@ export function DeletePlaylistDialog({
       { kind: "delete-playlist", playlistId: playlist.id },
       {
         onSuccess: () => {
-          audioPlayer.clearPlaylistQueue(playlist.id);
+          audioPlayer.dispatchQueue({ type: "sourceDeleted", playlistId: playlist.id });
 
           if (isOpenPlaylist) void navigate({ replace: true, to: "/" });
           libraryMutation.reset();

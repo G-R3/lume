@@ -11,7 +11,7 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 export function AppLayout() {
   const library = useMusicLibrary();
   const audioPlayer = useAudioPlayer();
-  const syncTracks = audioPlayer.syncTracks;
+  const syncLibrary = audioPlayer.syncLibrary;
 
   const isSettings = useLocation({
     select: (location) =>
@@ -19,8 +19,10 @@ export function AppLayout() {
   });
 
   useEffect(() => {
-    syncTracks(library.tracks);
-  }, [library.tracks, syncTracks]);
+    syncLibrary(library);
+  }, [library, syncLibrary]);
+
+  if (!audioPlayer.ready) return <div className="min-h-screen bg-black" />;
 
   return (
     <SidebarProvider className="h-svh flex-col bg-neutral-950 text-neutral-50">

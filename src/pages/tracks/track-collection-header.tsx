@@ -70,8 +70,7 @@ export function TrackCollectionHeader({
             className="h-10 gap-2 px-4"
             disabled={firstAvailableTrackIndex === -1}
             onClick={() => {
-              audioPlayer.seek(0);
-              audioPlayer.playFrom(items, firstAvailableTrackIndex, playlistId);
+              audioPlayer.playFromSource(items, firstAvailableTrackIndex, playlistId);
             }}
             size="lg"
             type="button"

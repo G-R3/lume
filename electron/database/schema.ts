@@ -137,3 +137,8 @@ export const playlistTracks = sqliteTable(
     check("playlist_entries_position_check", sql`${table.position} >= 0`),
   ],
 );
+
+export const playbackSession = sqliteTable("playback_session", {
+  id: integer("id").primaryKey(),
+  payload: text("payload").notNull(),
+});

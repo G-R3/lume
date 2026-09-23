@@ -114,6 +114,11 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
     forgetSource: () => firstRunPromise,
     loadLibrary,
     loadPlaylist: () => Promise.resolve(null),
+    playbackSession: {
+      flush: () => {},
+      load: () => Promise.resolve(null),
+      save: () => Promise.resolve(),
+    },
     onLibraryUpdate: () => () => {},
     openDataFolder: () => Promise.resolve(),
     removePlaylistTrack: () => Promise.resolve(),

@@ -500,6 +500,11 @@ function createTestApi(createOverrides: () => Partial<LumeApi>): LumeApi {
     forgetSource: () => rejectUnexpected("forgetSource"),
     loadLibrary: () => rejectUnexpected("loadLibrary"),
     loadPlaylist: () => rejectUnexpected("loadPlaylist"),
+    playbackSession: {
+      flush: () => {},
+      load: () => Promise.resolve(null),
+      save: () => Promise.resolve(),
+    },
     onLibraryUpdate: () => () => {},
     openDataFolder: () => rejectUnexpected("openDataFolder"),
     removePlaylistTrack: () => rejectUnexpected("removePlaylistTrack"),

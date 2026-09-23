@@ -1,374 +1,239 @@
-import React, { useCallback, useContext, useRef, useState, useSyncExternalStore } from "react";
-import type { Track } from "../../shared/lib";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import type { MusicLibrary, Track } from "../../shared/lib";
+import { useAudioAdapter } from "@/hooks/use-audio-adapter";
+import { createPlaybackCoordinator, type QueueIntent } from "@/lib/playback-coordinator";
+import { selectCanGoNext, selectQueueView } from "@/lib/queue";
 
-type PlaybackSequence = {
-  // Keep the active item separate so removing it from the queue cannot interrupt its audio.
-  activeItem: PlaybackQueueItem;
-  items: readonly PlaybackQueueItem[];
-  nextIndex: number;
-  playlistId: number | null;
-};
-
-type PlaybackQueueItem = {
-  queueItemId: number;
-  track: Track;
-};
+type SourceListItem = { occurrenceId: number; track: Track };
 
 type AudioPlayerContextValue = {
-  activeQueueItemId: number | null;
+  activeQueueItemId: string | null;
+  activeSourceOccurrenceId: number | null;
+  activeSourcePlaylistId: number | null;
   activeTrack: Track | null;
-  clearPlaylistQueue: (playlistId: number) => void;
-  errorMessage: string | null;
-  isPlaying: boolean;
-  isMuted: boolean;
-  duration: number;
   canGoNext: boolean;
-  playFrom: (items: readonly PlaybackQueueItem[], index: number, playlistId?: number) => void;
-  removeQueueItem: (queueItemId: number) => void;
-  syncTracks: (tracks: readonly Track[]) => void;
-  togglePlayback: () => void;
-  toggleMute: () => void;
-  seek: (time: number) => void;
+  dispatchQueue: (command: QueueIntent) => void;
+  duration: number;
+  errorMessage: string | null;
+  isMuted: boolean;
+  isPlaying: boolean;
+  queue: ReturnType<typeof selectQueueView>;
+  ready: boolean;
   next: () => void;
+  playFromSource: (items: readonly SourceListItem[], index: number, playlistId?: number) => void;
   previous: () => void;
+  seek: (time: number) => void;
+  syncLibrary: (library: MusicLibrary) => void;
+  toggleMute: () => void;
+  togglePlayback: () => void;
 };
 
-type AudioPlayerTimeStore = ReturnType<typeof createAudioPlayerTimeStore>;
+type AudioPlayerTimeStore = ReturnType<typeof useAudioAdapter>["timeStore"];
 
 const AudioPlayerContext = React.createContext<AudioPlayerContextValue | null>(null);
 
 const AudioPlayerTimeContext = React.createContext<AudioPlayerTimeStore | null>(null);
 
-const previousTrackThreshold = 2;
-
 export function useAudioPlayer() {
   const context = useContext(AudioPlayerContext);
 
-  if (!context) {
-    throw new Error("useAudioPlayer must be used within AudioPlayerProvider");
-  }
+  if (!context) throw new Error("useAudioPlayer must be used within AudioPlayerProvider");
 
   return context;
 }
 
-// keep frequent timer updates out of the main context so other controls do not
-// rerender every time the audio element reports progress.
+// Audio progress does not rerender the queue or the rest of the player.
 export function useAudioPlayerTime() {
   const store = useContext(AudioPlayerTimeContext);
 
-  if (!store) {
-    throw new Error("useAudioPlayerTime must be used within AudioPlayerProvider");
-  }
+  if (!store) throw new Error("useAudioPlayerTime must be used within AudioPlayerProvider");
 
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
-  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const playbackRequestRef = useRef(0);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [timeStore] = useState(createAudioPlayerTimeStore);
-  const [duration, setDuration] = useState(0);
-  const [playbackSequence, setPlaybackSequence] = useState<PlaybackSequence | null>(null);
+  const coordinatorRef = useRef<ReturnType<typeof createPlaybackCoordinator> | null>(null);
 
-  const activeQueueItemId = playbackSequence?.activeItem.queueItemId ?? null;
-  const activeTrack = playbackSequence?.activeItem.track ?? null;
+  const audio = useAudioAdapter({
+    onEvent: (event) => coordinatorRef.current?.onAudioEvent(event),
+    onPosition: (position) => coordinatorRef.current?.onPosition(position),
+  });
 
-  const canGoNext = playbackSequence ? findNextAvailableTrackIndex(playbackSequence) !== -1 : false;
-
-  const resume = useCallback(() => {
-    const playbackRequest = ++playbackRequestRef.current;
-    setErrorMessage(null);
-
-    const audio = audioPlayerRef.current;
-
-    if (!audio) return;
-
-    void audio.play().catch((error: DOMException) => {
-      if (playbackRequest !== playbackRequestRef.current) return;
-
-      setIsPlaying(false);
-      setErrorMessage(error.message || "Playback failed");
-    });
-  }, []);
-
-  const pause = useCallback(() => {
-    const audio = audioPlayerRef.current;
-
-    if (!audio) return;
-
-    ++playbackRequestRef.current;
-    audio.pause();
-    setIsPlaying(false);
-  }, []);
-
-  const togglePlayback = useCallback(() => {
-    if (isPlaying) {
-      pause();
-
-      return;
-    }
-
-    resume();
-  }, [isPlaying, pause, resume]);
-
-  const changeTrack = useCallback(
-    (playbackSequence: PlaybackSequence, index: number) => {
-      const item = playbackSequence.items[index];
-      const track = item?.track;
-
-      if (!track?.available) return;
-
-      ++playbackRequestRef.current;
-      setPlaybackSequence({ ...playbackSequence, activeItem: item, nextIndex: index + 1 });
-      setErrorMessage(null);
-      setIsPlaying(false);
-      timeStore.set(0);
-
-      // use track duration metadata until the audio element
-      // reports its decoded duration through onDurationChange
-      // avoid having `0:00` duration on the UI and prevent the timer from exceeding the duration near the end
-      setDuration(
-        track.duration !== null && Number.isFinite(track.duration) && track.duration > 0
-          ? track.duration
-          : 0,
-      );
-    },
-    [timeStore],
+  const [coordinator] = useState(() =>
+    createPlaybackCoordinator(
+      { load: audio.load, getPosition: audio.getPosition },
+      window.lume.playbackSession,
+    ),
   );
 
-  const playFrom = useCallback(
-    (items: readonly PlaybackQueueItem[], index: number, playlistId: number | null = null) => {
-      const item = items[index];
+  coordinatorRef.current = coordinator;
+  const snapshot = useSyncExternalStore(coordinator.subscribe, coordinator.getSnapshot);
 
-      if (!item?.track.available) return;
+  useEffect(() => {
+    window.addEventListener("beforeunload", coordinator.flush);
 
-      const nextPlaybackSequence = {
-        activeItem: item,
-        items,
-        nextIndex: index + 1,
-        playlistId,
-      };
+    return () => window.removeEventListener("beforeunload", coordinator.flush);
+  }, [coordinator]);
 
-      if (
-        playbackSequence?.activeItem.queueItemId === item.queueItemId &&
-        playbackSequence.activeItem.track.id === item.track.id &&
-        playbackSequence.playlistId === playlistId
-      ) {
-        setPlaybackSequence(nextPlaybackSequence);
-        resume();
-
-        return;
-      }
-
-      changeTrack(nextPlaybackSequence, index);
-    },
-    [changeTrack, playbackSequence, resume],
+  const tracksById = useMemo(
+    () => new Map(snapshot.library?.tracks.map((track) => [track.id, track]) ?? []),
+    [snapshot.library],
   );
 
-  const syncTracks = useCallback((tracks: readonly Track[]) => {
-    setPlaybackSequence((playbackSequence) => {
-      if (!playbackSequence) return null;
+  const availableTrackIds = useMemo(
+    () =>
+      new Set(
+        snapshot.library?.tracks.filter((track) => track.available).map((track) => track.id) ?? [],
+      ),
+    [snapshot.library],
+  );
 
-      const tracksById = new Map(tracks.map((track) => [track.id, track]));
+  const current = snapshot.queue?.current;
+  const displayItem = current?.item ?? snapshot.queue?.lastItem;
+  const activeTrack = displayItem ? (tracksById.get(displayItem.trackId) ?? null) : null;
 
-      return {
-        ...playbackSequence,
-        activeItem: {
-          ...playbackSequence.activeItem,
-          track:
-            tracksById.get(playbackSequence.activeItem.track.id) ??
-            playbackSequence.activeItem.track,
-        },
-        items: playbackSequence.items.map((item) => ({
-          ...item,
-          track: tracksById.get(item.track.id) ?? item.track,
+  const activeSourceOccurrenceId =
+    current?.lane === "source" && current.item.origin.kind === "source"
+      ? current.item.origin.occurrenceId
+      : null;
+
+  const activeSourcePlaylistId =
+    snapshot.queue?.source.kind === "playlist" ? snapshot.queue.source.playlistId : null;
+
+  const playFromSource = useCallback(
+    (items: readonly SourceListItem[], index: number, playlistId?: number) => {
+      if (!snapshot.ready || !items[index]?.track.available) return;
+      coordinator.dispatch({
+        type: "startFromSource",
+        source:
+          playlistId === undefined
+            ? { kind: "all-tracks" }
+            : {
+                kind: "playlist",
+                playlistId,
+                title:
+                  coordinator
+                    .getSnapshot()
+                    .library?.playlists.find((playlist) => playlist.id === playlistId)?.title ??
+                  "Playlist",
+              },
+        occurrences: items.map((item) => ({
+          occurrenceId: item.occurrenceId,
+          trackId: item.track.id,
         })),
-      };
-    });
-  }, []);
-
-  const removeQueueItem = useCallback((queueItemId: number) => {
-    setPlaybackSequence((playbackSequence) => {
-      if (!playbackSequence) return null;
-
-      const removedIndex = playbackSequence.items.findIndex(
-        (item) => item.queueItemId === queueItemId,
-      );
-
-      if (removedIndex === -1) return playbackSequence;
-
-      return {
-        ...playbackSequence,
-        items: playbackSequence.items.filter((item) => item.queueItemId !== queueItemId),
-        nextIndex:
-          removedIndex < playbackSequence.nextIndex
-            ? playbackSequence.nextIndex - 1
-            : playbackSequence.nextIndex,
-      };
-    });
-  }, []);
-
-  const clearPlaylistQueue = useCallback((playlistId: number) => {
-    setPlaybackSequence((playbackSequence) => {
-      if (!playbackSequence || playbackSequence.playlistId !== playlistId) return playbackSequence;
-
-      if (playbackSequence.nextIndex >= playbackSequence.items.length) return playbackSequence;
-
-      return {
-        ...playbackSequence,
-        items: playbackSequence.items.slice(0, playbackSequence.nextIndex),
-      };
-    });
-  }, []);
-
-  const toggleMute = useCallback(() => {
-    setIsMuted((isMuted) => !isMuted);
-  }, []);
-
-  const seek = useCallback(
-    (time: number) => {
-      const audio = audioPlayerRef.current;
-
-      if (!audio) return;
-
-      audio.currentTime = time;
-      // update the timeStore timer before AudioPlayerProgress clears its previewTime to prevent a flicker on the slider.
-      timeStore.set(audio.currentTime);
+        atOccurrenceId: items[index].occurrenceId,
+      });
     },
-    [timeStore],
+    [coordinator, snapshot.ready],
   );
 
-  const next = useCallback(() => {
-    if (!playbackSequence) return;
-
-    changeTrack(playbackSequence, findNextAvailableTrackIndex(playbackSequence));
-  }, [changeTrack, playbackSequence]);
+  const next = useCallback(
+    () => coordinator.dispatch({ type: "next", reason: "skip" }),
+    [coordinator],
+  );
 
   const previous = useCallback(() => {
-    if (!playbackSequence) return;
+    const state = coordinator.getSnapshot().queue;
 
-    const activeIndex = playbackSequence.items.findIndex(
-      (item) => item.queueItemId === playbackSequence.activeItem.queueItemId,
-    );
+    if (!state) return;
 
-    const previousIndex = playbackSequence.items.findLastIndex(
-      (item, index) =>
-        index < (activeIndex === -1 ? playbackSequence.nextIndex : activeIndex) &&
-        item.track.available,
-    );
-
-    if (previousIndex === -1 || Math.floor(timeStore.getSnapshot()) > previousTrackThreshold) {
-      seek(0);
+    if (state.current && audio.getPosition() > 2) {
+      audio.seek(0);
 
       return;
     }
 
-    changeTrack(playbackSequence, previousIndex);
-  }, [changeTrack, playbackSequence, seek, timeStore]);
+    coordinator.dispatch({ type: "previous" });
+  }, [audio, coordinator]);
 
-  const contextValue = React.useMemo(
+  const resume = useCallback(() => {
+    const state = coordinator.getSnapshot();
+
+    if (
+      state.queue?.current &&
+      !state.library?.tracks.some(
+        (track) => track.id === state.queue?.current?.item.trackId && track.available,
+      )
+    ) {
+      coordinator.dispatch({ type: "next", reason: "error" });
+      coordinator.setError("This track is unavailable");
+
+      return;
+    }
+
+    coordinator.setError(null);
+    audio.play();
+  }, [audio, coordinator]);
+
+  const pause = useCallback(() => {
+    audio.pause();
+    coordinator.dispatch({ type: "playbackPaused" });
+  }, [audio, coordinator]);
+
+  const togglePlayback = useCallback(() => {
+    if (audio.isPlaying) pause();
+    else resume();
+  }, [audio.isPlaying, pause, resume]);
+
+  const contextValue = useMemo(
     () =>
       ({
-        activeQueueItemId,
+        activeQueueItemId: current?.item.queueItemId ?? null,
+        activeSourceOccurrenceId,
+        activeSourcePlaylistId,
         activeTrack,
-        clearPlaylistQueue,
-        errorMessage,
-        isPlaying,
-        isMuted,
-        duration,
-        canGoNext,
-        playFrom,
-        removeQueueItem,
-        syncTracks,
-        togglePlayback,
-        toggleMute,
-        seek,
+        canGoNext: selectCanGoNext(snapshot.queue, availableTrackIds),
+        dispatchQueue: coordinator.dispatch,
+        duration: audio.duration,
+        errorMessage: snapshot.errorMessage,
+        isMuted: audio.isMuted,
+        isPlaying: audio.isPlaying,
+        queue: selectQueueView(snapshot.queue),
+        ready: snapshot.ready,
         next,
+        playFromSource,
         previous,
+        seek: audio.seek,
+        syncLibrary: coordinator.syncLibrary,
+        toggleMute: audio.toggleMute,
+        togglePlayback,
       }) satisfies AudioPlayerContextValue,
     [
-      activeQueueItemId,
+      activeSourceOccurrenceId,
+      activeSourcePlaylistId,
       activeTrack,
-      clearPlaylistQueue,
-      errorMessage,
-      isPlaying,
-      isMuted,
-      duration,
-      canGoNext,
-      playFrom,
-      removeQueueItem,
-      syncTracks,
-      togglePlayback,
-      toggleMute,
-      seek,
+      audio.duration,
+      audio.isMuted,
+      audio.isPlaying,
+      audio.seek,
+      audio.toggleMute,
+      availableTrackIds,
+      coordinator,
+      current?.item.queueItemId,
       next,
+      playFromSource,
       previous,
+      snapshot.errorMessage,
+      snapshot.queue,
+      snapshot.ready,
+      togglePlayback,
     ],
   );
 
   return (
     <AudioPlayerContext.Provider value={contextValue}>
-      <AudioPlayerTimeContext.Provider value={timeStore}>
+      <AudioPlayerTimeContext.Provider value={audio.timeStore}>
         {children}
       </AudioPlayerTimeContext.Provider>
-      {playbackSequence && activeTrack && (
-        <audio
-          autoPlay
-          muted={isMuted}
-          key={`${playbackSequence.playlistId ?? "library"}:${activeQueueItemId}`}
-          onDurationChange={(event) => {
-            const duration = event.currentTarget.duration;
-
-            if (!Number.isFinite(duration) || duration <= 0) return;
-            setDuration(duration);
-          }}
-          onEnded={() => {
-            if (canGoNext) next();
-          }}
-          onError={(event) => {
-            setIsPlaying(false);
-            setErrorMessage(event.currentTarget.error?.message || "Playback failed");
-          }}
-          onPause={() => setIsPlaying(false)}
-          onPlay={() => setIsPlaying(true)}
-          ref={audioPlayerRef}
-          src={activeTrack.url}
-          onTimeUpdate={(event) => {
-            timeStore.set(event.currentTarget.currentTime);
-          }}
-        />
-      )}
+      {audio.element}
     </AudioPlayerContext.Provider>
   );
-}
-
-function findNextAvailableTrackIndex(playbackSequence: PlaybackSequence) {
-  return playbackSequence.items.findIndex(
-    (item, index) => index >= playbackSequence.nextIndex && item.track.available,
-  );
-}
-
-function createAudioPlayerTimeStore() {
-  const listeners = new Set<() => void>();
-  let currentTime = 0;
-
-  return {
-    getSnapshot: () => currentTime,
-    set: (time: number) => {
-      if (!Number.isFinite(time) || time < 0 || time === currentTime) return;
-
-      currentTime = time;
-      listeners.forEach((listener) => listener());
-    },
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
 }

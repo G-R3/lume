@@ -51,7 +51,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const items = playlist.tracks.flatMap((playlistTrack) => {
     const track = tracksById.get(playlistTrack.trackId);
 
-    return track ? [{ queueItemId: playlistTrack.id, track }] : [];
+    return track ? [{ occurrenceId: playlistTrack.id, track }] : [];
   });
 
   const handleRemove = (playlistTrackId: number) => {
@@ -67,7 +67,11 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           });
         },
         onSuccess: () => {
-          audioPlayer.removeQueueItem(playlistTrackId);
+          audioPlayer.dispatchQueue({
+            type: "sourceEntryRemoved",
+            playlistId: playlist.id,
+            occurrenceId: playlistTrackId,
+          });
           toast.add({ title: `Removed from ${playlist.title}`, type: "success" });
         },
       },
@@ -102,7 +106,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           renderMenuItems={(item) => (
             <DropdownMenuItem
               disabled={removePlaylistTrack.isPending}
-              onClick={() => handleRemove(item.queueItemId)}
+              onClick={() => handleRemove(item.occurrenceId)}
               variant="destructive"
             >
               <MinusCircleIcon aria-hidden="true" />
