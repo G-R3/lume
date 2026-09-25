@@ -2,6 +2,7 @@ import {
   DotsThreeIcon,
   HeartIcon,
   LockSimpleIcon,
+  ListPlusIcon,
   PlaylistIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
@@ -128,10 +129,10 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                 className={cn(
                   "group/track-row border-b border-l-2 border-neutral-900",
                   isActive
-                    ? "border-l-lime-300 bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
+                    ? "border-l-lime-300 bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "border-l-transparent",
                   track.available
-                    ? "cursor-pointer hover:bg-neutral-950 focus-within:bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
+                    ? "cursor-pointer hover:bg-sidebar-accent focus-within:bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "bg-neutral-950/40",
                 )}
                 key={item.occurrenceId}
@@ -238,7 +239,11 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   onClick={(event) => event.stopPropagation()}
                 >
                   <TrackRowMenu
+                    canAddToQueue={audioPlayer.queue !== null}
                     isCreatingPlaylist={createPlaylistFromTrack.isPending}
+                    onAddToQueue={() =>
+                      audioPlayer.dispatchQueue({ type: "addNext", trackId: track.id })
+                    }
                     onAddToPlaylist={handleAddToPlaylist}
                     onCreatePlaylist={handleCreatePlaylist}
                     track={track}
@@ -264,14 +269,18 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
 }
 
 function TrackRowMenu({
+  canAddToQueue,
   children,
   isCreatingPlaylist,
+  onAddToQueue,
   onAddToPlaylist,
   onCreatePlaylist,
   track,
 }: {
+  canAddToQueue: boolean;
   children?: ReactNode;
   isCreatingPlaylist: boolean;
+  onAddToQueue: () => void;
   onAddToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   onCreatePlaylist: (track: Track) => void;
   track: Track;
@@ -297,6 +306,12 @@ function TrackRowMenu({
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
+        {canAddToQueue && (
+          <DropdownMenuItem onClick={onAddToQueue}>
+            <ListPlusIcon aria-hidden="true" />
+            Add to queue
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
           <PlusIcon aria-hidden="true" />
           New playlist

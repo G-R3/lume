@@ -1,9 +1,10 @@
 import { Outlet, useLocation } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { AudioPlayerControls } from "@/components/audio-player-controls";
 import { AppHeader } from "@/pages/layout/header";
 import { AppSidebar } from "@/pages/layout/sidebar";
+import { QueueSidebar } from "@/pages/layout/queue-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
@@ -12,6 +13,7 @@ export function AppLayout() {
   const library = useMusicLibrary();
   const audioPlayer = useAudioPlayer();
   const syncLibrary = audioPlayer.syncLibrary;
+  const [queueOpen, setQueueOpen] = useState(false);
 
   const isSettings = useLocation({
     select: (location) =>
@@ -38,7 +40,11 @@ export function AppLayout() {
         )}
 
         <SidebarInset className="min-h-0 overflow-auto bg-background">
-          <AppHeader isSettings={isSettings} />
+          <AppHeader
+            isSettings={isSettings}
+            onToggleQueue={() => setQueueOpen((open) => !open)}
+            queueOpen={queueOpen}
+          />
           <div className="flex-1">
             {audioPlayer.errorMessage && (
               <p className="m-4 text-sm text-red-300" role="alert">
@@ -48,6 +54,7 @@ export function AppLayout() {
             <Outlet />
           </div>
         </SidebarInset>
+        <QueueSidebar onOpenChange={setQueueOpen} open={queueOpen} />
       </div>
       <AudioPlayerControls />
     </SidebarProvider>

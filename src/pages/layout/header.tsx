@@ -1,4 +1,4 @@
-import { DotsThreeIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { useParams } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
@@ -16,7 +16,15 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
-export function AppHeader({ isSettings }: { isSettings: boolean }) {
+export function AppHeader({
+  isSettings,
+  onToggleQueue,
+  queueOpen,
+}: {
+  isSettings: boolean;
+  onToggleQueue: () => void;
+  queueOpen: boolean;
+}) {
   const library = useMusicLibrary();
   const libraryMutation = useLibraryMutation();
   const params = useParams({ strict: false });
@@ -72,7 +80,21 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
           )}
         </div>
 
-        {playlist && <PlaylistHeaderMenu playlist={playlist} />}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {playlist && <PlaylistHeaderMenu playlist={playlist} />}
+          <Button
+            aria-controls="queue-sidebar"
+            aria-expanded={queueOpen}
+            aria-label={queueOpen ? "Close queue sidebar" : "Open queue sidebar"}
+            className={cn("-mr-1.5", queueOpen && "bg-transparent! hover:bg-transparent!")}
+            onClick={onToggleQueue}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <SidebarSimpleIcon aria-hidden="true" className="-scale-x-100" />
+          </Button>
+        </div>
       </header>
 
       {libraryMutation.error && (
@@ -95,7 +117,7 @@ function PlaylistHeaderMenu({ playlist }: { playlist: PlaylistSummary }) {
           render={
             <Button
               aria-label={`More options for ${playlist.title}`}
-              className="ml-auto text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
+              className="text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
               ref={menuTriggerRef}
               size="icon"
               variant="ghost"
