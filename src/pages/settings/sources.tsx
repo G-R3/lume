@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useLibraryMutation } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 import { getSourceName } from "@/lib/source-name";
+import { Switch } from "@/components/ui/switch";
 
 const scanDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -94,34 +95,20 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
                 >
                   Forget
                 </Button>
-                <button
+
+                <Switch
+                  checked={source.enabled}
                   aria-checked={source.enabled}
                   aria-label={`${source.enabled ? "Disable" : "Enable"} ${name}`}
-                  className={cn(
-                    "relative h-5 w-9 cursor-pointer rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300 disabled:cursor-not-allowed disabled:opacity-50",
-                    source.enabled
-                      ? "border-lime-300 bg-lime-300"
-                      : "border-neutral-700 bg-neutral-800",
-                  )}
                   disabled={libraryMutation.isPending}
-                  onClick={() =>
+                  onCheckedChange={() => {
                     libraryMutation.mutate({
                       enabled: !source.enabled,
                       kind: "set-source-enabled",
                       sourceId: source.id,
-                    })
-                  }
-                  role="switch"
-                  type="button"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "absolute top-0.5 size-3.5 rounded-full bg-neutral-950 transition-transform",
-                      source.enabled ? "translate-x-4" : "translate-x-0.5",
-                    )}
-                  />
-                </button>
+                    });
+                  }}
+                />
               </div>
             </article>
           );
