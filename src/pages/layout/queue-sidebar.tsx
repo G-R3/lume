@@ -84,11 +84,11 @@ export function QueueSidebar({
       {window.lume.isMac && (
         <div aria-hidden="true" className="h-9 shrink-0 [-webkit-app-region:drag]" />
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-5 [scrollbar-width:thin]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-5 scrollbar-thin">
         <div
           className={cn(
             "flex items-center justify-between",
-            window.lume.isMac ? "pt-6" : "pt-[4.625rem]",
+            window.lume.isMac ? "pt-6" : "pt-18.5",
           )}
         >
           <h2 className="pl-2 text-sm font-semibold tracking-wide">Queue</h2>
@@ -297,6 +297,7 @@ function QueueRowMenu({
           <Button
             aria-label={`Queue options for ${track?.title ?? `track ${item.trackId}`}`}
             className="absolute top-3 right-2 text-neutral-500 opacity-0 group-focus-within/queue-row:opacity-100 group-hover/queue-row:opacity-100 data-popup-open:opacity-100 focus-visible:opacity-100"
+            onMouseDown={(event) => event.preventDefault()}
             size="icon-sm"
             variant="ghost"
           />
@@ -304,7 +305,7 @@ function QueueRowMenu({
       >
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
         <DropdownMenuItem onClick={onRemove} variant="destructive">
           Remove from queue
         </DropdownMenuItem>
