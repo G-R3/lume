@@ -41,6 +41,44 @@ afterEach(() => {
 });
 
 describe("playlist behavior", () => {
+  it("adds, removes, and jumps in the queue without changing the source list", async () => {
+    const state = createRendererState([
+      createTrack(1, "A"),
+      createTrack(2, "B"),
+      createTrack(3, "C"),
+    ]);
+
+    renderApplication(createTestApi(() => ({ loadLibrary: () => Promise.resolve(state.library) })));
+
+    const table = page.getByRole("table", { name: "All tracks" });
+    await table.getByRole("button", { exact: true, name: "A" }).click();
+    await page.getByRole("button", { name: "Open queue sidebar" }).click();
+    const panel = page.getByRole("complementary", { name: "Playback queue" });
+
+    await table.getByRole("button", { name: "More options for C" }).click();
+    await page.getByRole("menuitem", { name: "Add to queue" }).click();
+    await expect
+      .element(panel.getByRole("region", { name: "Next in queue" }))
+      .toHaveTextContent("C");
+
+    await panel.getByRole("button", { name: "Queue options for B" }).click();
+    await page.getByRole("menuitem", { name: "Remove from queue" }).click();
+    await expect.element(panel.getByRole("button", { name: "Play C now" }).last()).toHaveFocus();
+    await expect.element(table.getByRole("button", { exact: true, name: "B" })).toBeVisible();
+
+    await panel
+      .getByRole("region", { name: "Next in queue" })
+      .getByRole("button", {
+        name: "Play C now",
+      })
+      .click();
+    await expect.element(panel.getByRole("heading", { name: "Now playing" })).toHaveFocus();
+    await expect.element(panel.getByRole("region", { name: "Now playing" })).toHaveTextContent("C");
+    await expect
+      .element(panel.getByRole("region", { name: "Next from All tracks" }))
+      .toHaveTextContent("C");
+  });
+
   it("starts the first track from the beginning with the collection Play action", async () => {
     const midnight = createTrack(1, "Midnight");
     const sunrise = createTrack(2, "Sunrise");
@@ -69,7 +107,11 @@ describe("playlist behavior", () => {
     await playbackActions.getByRole("button", { exact: true, name: "Play" }).click();
 
     await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
-    expect(audio.currentTime).toBeLessThan(1);
+    const restartedAudio = document.querySelector("audio");
+
+    if (!restartedAudio) throw new Error("Expected the collection Play action to restart audio");
+
+    expect(restartedAudio.currentTime).toBeLessThan(1);
     await expect
       .element(playbackActions.getByRole("button", { name: "Shuffle, coming soon" }))
       .toBeDisabled();
@@ -331,7 +373,9 @@ describe("playlist behavior", () => {
     await expect.poll(() => window.location.hash).toBe("#/");
     await expect.element(player.getByText("Midnight", { exact: true })).toBeVisible();
     await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
-    await expect.element(nextButton).toBeDisabled();
+    await expect.element(nextButton).toBeEnabled();
+    await nextButton.click();
+    await expect.element(player.getByText("Sunrise", { exact: true })).toBeVisible();
 
     expect(calls).toEqual({
       deleted: playlist.id,
