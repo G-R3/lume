@@ -6,13 +6,13 @@ import { AppHeader } from "@/pages/layout/header";
 import { AppSidebar } from "@/pages/layout/sidebar";
 import { QueueSidebar } from "@/pages/layout/queue-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 
 export function AppLayout() {
   const library = useMusicLibrary();
-  const audioPlayer = useAudioPlayer();
-  const syncLibrary = audioPlayer.syncLibrary;
+  const playback = usePlayback();
+  const syncLibrary = playback.syncLibrary;
   const [queueOpen, setQueueOpen] = useState(false);
 
   const isSettings = useLocation({
@@ -24,7 +24,7 @@ export function AppLayout() {
     syncLibrary(library);
   }, [library, syncLibrary]);
 
-  if (!audioPlayer.ready) return <div className="min-h-screen bg-black" />;
+  if (!playback.ready) return <div className="min-h-screen bg-black" />;
 
   return (
     <SidebarProvider className="h-svh flex-col bg-neutral-950 text-neutral-50">
@@ -46,9 +46,9 @@ export function AppLayout() {
             queueOpen={queueOpen}
           />
           <div className="flex-1">
-            {audioPlayer.errorMessage && (
+            {playback.errorMessage && (
               <p className="m-4 text-sm text-red-300" role="alert">
-                {audioPlayer.errorMessage}
+                {playback.errorMessage}
               </p>
             )}
             <Outlet />

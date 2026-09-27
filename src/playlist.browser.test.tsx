@@ -11,7 +11,7 @@ import type {
   PlaylistSummary,
   Track,
 } from "../shared/lib";
-import { AudioPlayerProvider } from "@/hooks/use-audio-player";
+import { PlaybackProvider } from "@/hooks/use-playback";
 import { createAppRouter } from "@/router";
 import "@/index.css";
 
@@ -444,9 +444,9 @@ function renderApplication(api: LumeApi, hash = "#/") {
   mountedRoots.push(root);
   root.render(
     <QueryClientProvider client={new QueryClient()}>
-      <AudioPlayerProvider>
+      <PlaybackProvider>
         <RouterProvider router={createAppRouter()} />
-      </AudioPlayerProvider>
+      </PlaybackProvider>
     </QueryClientProvider>,
   );
 }

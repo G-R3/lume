@@ -5,7 +5,7 @@ import type {
   PlaylistTrackRemovalInput,
   TrackLikeInput,
 } from "../../shared/lib";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -39,7 +39,7 @@ export function playlistQueryOptions(playlistId: number) {
 
 export function useLibraryMutation() {
   const queryClient = useQueryClient();
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
 
   return useMutation({
     mutationFn: runLibraryCommand,
@@ -47,7 +47,7 @@ export function useLibraryMutation() {
     scope: { id: "library" },
     onSuccess: (library, command) => {
       if (command.kind === "delete-playlist")
-        audioPlayer.dispatchQueue({ type: "sourceDeleted", playlistId: command.playlistId });
+        playback.dispatchQueue({ type: "sourceDeleted", playlistId: command.playlistId });
 
       queryClient.setQueryData(libraryQueryOptions.queryKey, library);
     },
@@ -67,7 +67,7 @@ export function useCreatePlaylistMutation() {
 
 export function useAddTrackToPlaylistMutation() {
   const queryClient = useQueryClient();
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
 
   return useMutation({
     ...playlistMutationOptions,
@@ -75,7 +75,7 @@ export function useAddTrackToPlaylistMutation() {
     onSuccess: (result, input) => {
       if (result.kind === "duplicate") return;
 
-      audioPlayer.dispatchQueue({
+      playback.dispatchQueue({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { occurrenceId: result.track.id, trackId: result.track.trackId },
@@ -88,13 +88,13 @@ export function useAddTrackToPlaylistMutation() {
 
 export function useConfirmAddTrackToPlaylistMutation() {
   const queryClient = useQueryClient();
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
 
   return useMutation({
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
     onSuccess: (track, input) => {
-      audioPlayer.dispatchQueue({
+      playback.dispatchQueue({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { occurrenceId: track.id, trackId: track.trackId },
@@ -121,13 +121,13 @@ export function useCreatePlaylistFromTrackMutation() {
 
 export function useRemovePlaylistTrackMutation() {
   const queryClient = useQueryClient();
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
 
   return useMutation({
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
     onSuccess: (_result, input) => {
-      audioPlayer.dispatchQueue({
+      playback.dispatchQueue({
         type: "sourceEntryRemoved",
         playlistId: input.playlistId,
         occurrenceId: input.playlistTrackId,

@@ -6,20 +6,7 @@ import {
   type QueueCommand,
   type QueueState,
 } from "@/lib/queue";
-
-export type PlaybackRequest = {
-  queueItemId: string;
-  url: string;
-  shouldPlay: boolean;
-  position: number;
-  durationHint: number;
-};
-
-export type AudioEvent =
-  | { type: "started"; queueItemId: string }
-  | { type: "paused"; queueItemId: string }
-  | { type: "ended"; queueItemId: string }
-  | { type: "error"; queueItemId: string; message: string; source: "play" | "media" };
+import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 
 type Snapshot = {
   queue: QueueState | null;
@@ -33,10 +20,24 @@ export type QueueIntent =
   | Omit<Extract<QueueCommand, { type: "startFromSource" }>, "sessionId">
   | Exclude<QueueCommand, { type: "addNext" | "startFromSource" }>;
 
-export function createPlaybackCoordinator(
+type SourceListItem = {
+  occurrenceId: number;
+  track: { id: number };
+};
+
+/**
+ * Coordinates the queue and audio element. Sends actions to the queue, loads
+ * the item it selects, and responds when audio ends or fails. Also handles the
+ * two-second Previous restart rule and saves the session.
+ */
+export function createPlaybackController(
   audio: {
     load: (request: PlaybackRequest | null, position?: number) => void;
     getPosition: () => number;
+    hasRequest: () => boolean;
+    play: () => void;
+    pause: () => void;
+    seek: (time: number) => void;
   },
   storage: LumeApi["playbackSession"],
 ) {
@@ -108,6 +109,58 @@ export function createPlaybackCoordinator(
         : null,
     );
     setError(null);
+  };
+
+  const playFromSource = (items: readonly SourceListItem[], index: number, playlistId?: number) => {
+    if (!snapshot.ready || !items[index]) return;
+
+    dispatch({
+      type: "startFromSource",
+      source:
+        playlistId === undefined
+          ? { kind: "all-tracks" }
+          : {
+              kind: "playlist",
+              playlistId,
+              title:
+                snapshot.library?.playlists.find((playlist) => playlist.id === playlistId)?.title ??
+                "Playlist",
+            },
+      occurrences: items.map((item) => ({
+        occurrenceId: item.occurrenceId,
+        trackId: item.track.id,
+      })),
+      atOccurrenceId: items[index].occurrenceId,
+    });
+  };
+
+  const previous = () => {
+    if (!snapshot.queue) return;
+
+    if (snapshot.queue.current && audio.getPosition() > 2) {
+      audio.seek(0);
+
+      return;
+    }
+
+    dispatch({ type: "previous" });
+  };
+
+  const resume = () => {
+    if (snapshot.queue?.current && !audio.hasRequest()) {
+      dispatch({ type: "next", reason: "error" });
+      setError("This track is unavailable");
+
+      return;
+    }
+
+    setError(null);
+    audio.play();
+  };
+
+  const pause = () => {
+    audio.pause();
+    dispatch({ type: "playbackPaused" });
   };
 
   const syncLibrary = (library: MusicLibrary) => {
@@ -220,6 +273,10 @@ export function createPlaybackCoordinator(
     onPosition: (position: number) => {
       if (snapshot.queue) persist(snapshot.queue, position);
     },
+    pause,
+    playFromSource,
+    previous,
+    resume,
     setError,
     subscribe: (listener: () => void) => {
       listeners.add(listener);

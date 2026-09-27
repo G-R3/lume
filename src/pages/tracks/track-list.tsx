@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
 import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
@@ -37,7 +37,7 @@ type TrackListProps = {
 };
 
 export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
   const navigate = useNavigate();
   const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
   const setTrackLiked = useSetTrackLiked();
@@ -117,8 +117,8 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
             const track = item.track;
 
             const isActive =
-              audioPlayer.activeSourceOccurrenceId === item.occurrenceId &&
-              audioPlayer.activeSourcePlaylistId === (playlistId ?? null);
+              playback.activeSourceOccurrenceId === item.occurrenceId &&
+              playback.activeSourcePlaylistId === (playlistId ?? null);
 
             const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
             const artists = track.artists.join(", ") || "Unknown artist";
@@ -138,7 +138,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                 key={item.occurrenceId}
                 onClick={
                   track.available
-                    ? () => audioPlayer.playFromSource(items, index, playlistId)
+                    ? () => playback.playFromSource(items, index, playlistId)
                     : undefined
                 }
               >
@@ -148,7 +148,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     metadataColor,
                   )}
                 >
-                  {isActive && audioPlayer.isPlaying ? (
+                  {isActive && playback.isPlaying ? (
                     <span aria-label="Playing" className="flex h-3 items-end gap-0.5">
                       <i className="h-1 w-0.5 bg-lime-300" />
                       <i className="h-2.5 w-0.5 bg-lime-300" />
@@ -239,10 +239,10 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   onClick={(event) => event.stopPropagation()}
                 >
                   <TrackRowMenu
-                    canAddToQueue={audioPlayer.queue !== null}
+                    canAddToQueue={playback.queue !== null}
                     isCreatingPlaylist={createPlaylistFromTrack.isPending}
                     onAddToQueue={() =>
-                      audioPlayer.dispatchQueue({ type: "addNext", trackId: track.id })
+                      playback.dispatchQueue({ type: "addNext", trackId: track.id })
                     }
                     onAddToPlaylist={handleAddToPlaylist}
                     onCreatePlaylist={handleCreatePlaylist}

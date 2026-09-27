@@ -113,6 +113,10 @@ export function selectCanGoNext(state: QueueState | null, availableTrackIds: Rea
   );
 }
 
+/**
+ * Updates queue order, the current item, navigation, and history. It does not
+ * play audio.
+ */
 export function transition(
   state: QueueState | null,
   command: QueueCommand,

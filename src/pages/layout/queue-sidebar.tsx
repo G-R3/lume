@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sidebar } from "@/components/ui/sidebar";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import type { QueueItem, QueueLane } from "@/lib/queue";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,7 @@ export function QueueSidebar({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
   const library = useMusicLibrary();
   const [visibleCounts, setVisibleCounts] = useState({ manual: PAGE_SIZE, source: PAGE_SIZE });
   const playButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -42,7 +42,7 @@ export function QueueSidebar({
     [library],
   );
 
-  const queue = audioPlayer.queue;
+  const queue = playback.queue;
 
   const sourceName =
     queue?.source.kind === "all-tracks" ? "All tracks" : (queue?.source.title ?? "source");
@@ -59,7 +59,7 @@ export function QueueSidebar({
     lane: QueueLane,
   ) => {
     const nextId = items[index + 1]?.queueItemId ?? items[index - 1]?.queueItemId;
-    audioPlayer.dispatchQueue({ type: "removeQueueItem", queueItemId });
+    playback.dispatchQueue({ type: "removeQueueItem", queueItemId });
 
     requestAnimationFrame(() => {
       const target = nextId ? playButtons.current.get(nextId) : null;
@@ -103,8 +103,8 @@ export function QueueSidebar({
             <XIcon aria-hidden="true" />
           </Button>
         </div>
-        {audioPlayer.errorMessage && (
-          <p className="mt-3 pl-2 text-xs text-red-300">{audioPlayer.errorMessage}</p>
+        {playback.errorMessage && (
+          <p className="mt-3 pl-2 text-xs text-red-300">{playback.errorMessage}</p>
         )}
         {!queue ? (
           <p className="mt-6 pl-2 text-xs text-neutral-500">Play a track to start a queue.</p>
@@ -124,7 +124,7 @@ export function QueueSidebar({
                   current
                   item={queue.current.item}
                   paused={queue.status === "paused"}
-                  playing={audioPlayer.isPlaying}
+                  playing={playback.isPlaying}
                   track={tracksById.get(queue.current.item.trackId)}
                 />
               ) : (
@@ -164,7 +164,7 @@ export function QueueSidebar({
                           <QueueTrack
                             item={item}
                             onJump={() => {
-                              audioPlayer.dispatchQueue({
+                              playback.dispatchQueue({
                                 type: "jumpTo",
                                 queueItemId: item.queueItemId,
                               });

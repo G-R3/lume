@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AudioEvent, PlaybackRequest } from "@/lib/playback-coordinator";
+import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 
-export function useAudioAdapter(options: {
+/**
+ * Loads and plays the current item, handles pause and seek, and reports audio
+ * events. It does not choose the next item.
+ */
+export function useMediaElement(options: {
   onEvent: (event: AudioEvent) => void;
   onPosition: (position: number) => void;
 }) {
@@ -16,7 +20,7 @@ export function useAudioAdapter(options: {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [timeStore] = useState(createAudioPlayerTimeStore);
+  const [timeStore] = useState(createAudioTimeStore);
 
   const load = useCallback(
     (next: PlaybackRequest | null, position = next?.position ?? 0) => {
@@ -170,7 +174,7 @@ export function useAudioAdapter(options: {
   };
 }
 
-function createAudioPlayerTimeStore() {
+function createAudioTimeStore() {
   const listeners = new Set<() => void>();
   let currentTime = 0;
 

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import "./index.css";
 import { Toaster } from "@/components/ui/toast";
-import { AudioPlayerProvider } from "@/hooks/use-audio-player";
+import { PlaybackProvider } from "@/hooks/use-playback";
 import { createAppRouter } from "@/router";
 
 const queryClient = new QueryClient();
@@ -14,10 +14,10 @@ const router = createAppRouter();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <AudioPlayerProvider>
+      <PlaybackProvider>
         <RouterProvider router={router} />
         <Toaster />
-      </AudioPlayerProvider>
+      </PlaybackProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
