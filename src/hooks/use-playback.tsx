@@ -14,7 +14,7 @@ import { selectCanGoNext, selectQueueView } from "@/lib/queue";
 
 type PlaybackContextValue = {
   activeQueueItemId: string | null;
-  activeSourceOccurrenceId: number | null;
+  activeSourceEntryId: number | null;
   activeSourcePlaylistId: number | null;
   activeTrack: Track | null;
   canGoNext: boolean;
@@ -24,7 +24,7 @@ type PlaybackContextValue = {
   isMuted: boolean;
   isPlaying: boolean;
   queue: ReturnType<typeof selectQueueView>;
-  ready: boolean;
+  isInitialized: boolean;
   next: () => void;
   playFromSource: ReturnType<typeof createPlaybackController>["playFromSource"];
   previous: () => void;
@@ -40,7 +40,7 @@ const PlaybackContext = React.createContext<PlaybackContextValue | null>(null);
 
 const PlaybackTimeContext = React.createContext<PlaybackTimeStore | null>(null);
 
-/** Gives the UI access to queue actions, audio controls, and current playback state. */
+/** Lets components read the queue and control playback. */
 export function usePlayback() {
   const context = useContext(PlaybackContext);
 
@@ -49,7 +49,7 @@ export function usePlayback() {
   return context;
 }
 
-/** Subscribes to audio time without rerendering queue consumers on each update. */
+/** Updates components that show playback time without rerendering those that only use the queue. */
 export function usePlaybackTime() {
   const store = useContext(PlaybackTimeContext);
 
@@ -58,7 +58,7 @@ export function usePlaybackTime() {
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
-/** Connects the controller and media element, then provides their state and actions to React. */
+/** Connects the queue to audio playback and lets child components use the playback hooks. */
 export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const controllerRef = useRef<ReturnType<typeof createPlaybackController> | null>(null);
 
@@ -78,6 +78,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         seek: media.seek,
       },
       window.lume.playbackSession,
+      window.lume.loadPlaylist,
     ),
   );
 
@@ -104,12 +105,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   );
 
   const current = snapshot.queue?.current;
-  const displayItem = current?.item ?? snapshot.queue?.lastItem;
+  const displayItem = current?.item ?? snapshot.queue?.lastSelectedItem;
   const activeTrack = displayItem ? (tracksById.get(displayItem.trackId) ?? null) : null;
 
-  const activeSourceOccurrenceId =
-    current?.lane === "source" && current.item.origin.kind === "source"
-      ? current.item.origin.occurrenceId
+  const activeSourceEntryId =
+    snapshot.queue?.source.kind !== "detached" &&
+    current?.participatesInSourceNavigation &&
+    current.lane === "source" &&
+    current.item.origin.kind === "source"
+      ? current.item.origin.sourceEntryId
       : null;
 
   const activeSourcePlaylistId =
@@ -129,7 +133,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     () =>
       ({
         activeQueueItemId: current?.item.queueItemId ?? null,
-        activeSourceOccurrenceId,
+        activeSourceEntryId,
         activeSourcePlaylistId,
         activeTrack,
         canGoNext: selectCanGoNext(snapshot.queue, availableTrackIds),
@@ -139,7 +143,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         isMuted: media.isMuted,
         isPlaying: media.isPlaying,
         queue: selectQueueView(snapshot.queue),
-        ready: snapshot.ready,
+        isInitialized: snapshot.isInitialized,
         next,
         playFromSource: controller.playFromSource,
         previous: controller.previous,
@@ -149,7 +153,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         togglePlayback,
       }) satisfies PlaybackContextValue,
     [
-      activeSourceOccurrenceId,
+      activeSourceEntryId,
       activeSourcePlaylistId,
       activeTrack,
       media.duration,
@@ -163,7 +167,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       next,
       snapshot.errorMessage,
       snapshot.queue,
-      snapshot.ready,
+      snapshot.isInitialized,
       togglePlayback,
     ],
   );

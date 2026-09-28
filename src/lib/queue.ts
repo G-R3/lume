@@ -16,9 +16,9 @@ const queueItemSchema = z.object({
   trackId: databaseId,
   origin: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("manual") }),
-    z.object({ kind: z.literal("source"), occurrenceId: databaseId }),
+    z.object({ kind: z.literal("source"), sourceEntryId: databaseId }),
   ]),
-  anchor: z.object({ occurrenceId: databaseId, side: z.enum(["before", "after"]) }).optional(),
+  anchor: z.object({ sourceEntryId: databaseId, side: z.enum(["before", "after"]) }).optional(),
 });
 
 const queueStateSchema = z.object({
@@ -28,21 +28,29 @@ const queueStateSchema = z.object({
     .object({
       item: queueItemSchema,
       lane: z.enum(["manual", "source"]),
-      started: z.boolean(),
-      inSourceNavigation: z.boolean(),
+      hasStartedPlayback: z.boolean(),
+      // When true, going forward adds the current track to `previousSourceItems`.
+      // Going back puts the current track back in `sourceQueue` so it can be played again.
+      // Removing the track from its playlist sets this to false and the
+      // audio keeps playing if its currently playing.
+      participatesInSourceNavigation: z.boolean(),
     })
     .nullable(),
   manualQueue: z.array(queueItemSchema),
   sourceQueue: z.array(queueItemSchema),
-  previousSource: z.array(queueItemSchema),
-  suppressedSourceOccurrenceIds: z.array(databaseId),
+
+  // Tracks that were played, skipped, or came before the first selected track.
+  // The `previous` command uses this list to go back to an earlier track.
+  // Unavailable tracks stay in the list but are skipped.
+  previousSourceItems: z.array(queueItemSchema),
+  suppressedSourceEntryIds: z.array(databaseId),
   playedQueueItemIds: z.array(queueItemId),
   status: z.enum(["playing", "paused", "stopped"]),
-  lastItem: queueItemSchema.nullable(),
+  lastSelectedItem: queueItemSchema.nullable(),
 });
 
 const savedSessionSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   state: queueStateSchema,
   position: z.number().finite().nonnegative(),
 });
@@ -55,17 +63,18 @@ export type QueueState = z.infer<typeof queueStateSchema>;
 
 export type QueueLane = "manual" | "source";
 
-export type SourceOccurrence = { occurrenceId: number; trackId: number };
+export type SourceEntry = { sourceEntryId: number; trackId: number };
 
 export type QueueCommand =
   | {
       type: "startFromSource";
       source: SourceRef;
-      occurrences: readonly SourceOccurrence[];
-      atOccurrenceId: number;
+      entries: readonly SourceEntry[];
+      startEntryId: number;
       sessionId: string;
+      startPaused?: boolean;
     }
-  | { type: "addNext"; trackId: number; queueItemId: string }
+  | { type: "enqueueTrack"; trackId: number; queueItemId: string }
   | { type: "jumpTo"; queueItemId: string }
   | {
       type: "moveQueueItem";
@@ -78,18 +87,18 @@ export type QueueCommand =
   | { type: "previous" }
   | { type: "playbackStarted" }
   | { type: "playbackPaused" }
-  | { type: "sourceEntryAdded"; playlistId: number; entry: SourceOccurrence }
-  | { type: "sourceEntryRemoved"; playlistId: number; occurrenceId: number }
+  | { type: "sourceEntryAdded"; playlistId: number; entry: SourceEntry }
+  | { type: "sourceEntryRemoved"; playlistId: number; sourceEntryId: number }
   | {
       type: "sourceEntryMoved";
       playlistId: number;
-      occurrenceId: number;
-      targetOccurrenceId: number;
+      sourceEntryId: number;
+      targetSourceEntryId: number;
       side: "before" | "after";
-      orderedOccurrenceIds: readonly number[];
+      orderedSourceEntryIds: readonly number[];
     }
   | { type: "sourceDeleted"; playlistId: number }
-  | { type: "libraryRescanned"; occurrences: readonly SourceOccurrence[] };
+  | { type: "libraryRescanned"; entries: readonly SourceEntry[] };
 
 export function selectQueueView(state: QueueState | null) {
   if (!state) return null;
@@ -114,8 +123,8 @@ export function selectCanGoNext(state: QueueState | null, availableTrackIds: Rea
 }
 
 /**
- * Updates queue order, the current item, navigation, and history. It does not
- * play audio.
+ * Applies a queue command, such as adding a track or going to the next track.
+ * Returns the updated queue. Audio playback is handled by the playback controller.
  */
 export function transition(
   state: QueueState | null,
@@ -127,8 +136,8 @@ export function transition(
   if (!state) return null;
 
   switch (command.type) {
-    case "addNext":
-      return addNext(state, command);
+    case "enqueueTrack":
+      return enqueueTrack(state, command);
     case "jumpTo":
       return jumpTo(state, command.queueItemId, availableTrackIds);
     case "moveQueueItem":
@@ -140,11 +149,12 @@ export function transition(
     case "previous":
       return previous(state, availableTrackIds);
     case "playbackStarted":
-      if (!state.current || (state.current.started && state.status === "playing")) return state;
+      if (!state.current || (state.current.hasStartedPlayback && state.status === "playing"))
+        return state;
 
       return {
         ...state,
-        current: { ...state.current, started: true },
+        current: { ...state.current, hasStartedPlayback: true },
         status: "playing",
       };
     case "playbackPaused":
@@ -155,7 +165,7 @@ export function transition(
         : state;
     case "sourceEntryRemoved":
       return isActivePlaylist(state, command.playlistId)
-        ? removeSourceEntry(state, command.occurrenceId)
+        ? removeSourceEntry(state, command.sourceEntryId)
         : state;
     case "sourceEntryMoved":
       return isActivePlaylist(state, command.playlistId) ? moveSourceEntry(state, command) : state;
@@ -164,7 +174,7 @@ export function transition(
         ? { ...state, source: { kind: "detached", title: state.source.title } }
         : state;
     case "libraryRescanned":
-      return reconcileAllTracks(state, command.occurrences);
+      return appendNewLibraryTracks(state, command.entries);
   }
 }
 
@@ -172,16 +182,16 @@ function startFromSource(
   previous: QueueState | null,
   command: Extract<QueueCommand, { type: "startFromSource" }>,
 ): QueueState | null {
-  const selectedIndex = command.occurrences.findIndex(
-    (item) => item.occurrenceId === command.atOccurrenceId,
+  const selectedIndex = command.entries.findIndex(
+    (item) => item.sourceEntryId === command.startEntryId,
   );
 
   if (selectedIndex === -1) return previous;
 
-  const items: QueueItem[] = command.occurrences.map((item) => ({
-    queueItemId: command.sessionId + ":source:" + item.occurrenceId,
+  const items: QueueItem[] = command.entries.map((item) => ({
+    queueItemId: command.sessionId + ":source:" + item.sourceEntryId,
     trackId: item.trackId,
-    origin: { kind: "source", occurrenceId: item.occurrenceId },
+    origin: { kind: "source", sourceEntryId: item.sourceEntryId },
   }));
 
   return {
@@ -190,29 +200,29 @@ function startFromSource(
     current: {
       item: items[selectedIndex],
       lane: "source",
-      started: false,
-      inSourceNavigation: true,
+      hasStartedPlayback: false,
+      participatesInSourceNavigation: true,
     },
     manualQueue: previous?.manualQueue ?? [],
     sourceQueue: items.slice(selectedIndex + 1),
-    previousSource: items.slice(0, selectedIndex),
-    suppressedSourceOccurrenceIds: [],
+    previousSourceItems: items.slice(0, selectedIndex),
+    suppressedSourceEntryIds: [],
     playedQueueItemIds: previous ? recordPlayedItem(previous) : [],
-    status: "playing",
-    lastItem: items[selectedIndex],
+    status: command.startPaused ? "paused" : "playing",
+    lastSelectedItem: items[selectedIndex],
   };
 }
 
-function addNext(
+function enqueueTrack(
   state: QueueState,
-  command: Extract<QueueCommand, { type: "addNext" }>,
+  command: Extract<QueueCommand, { type: "enqueueTrack" }>,
 ): QueueState {
   if (
     state.current?.item.queueItemId === command.queueItemId ||
-    state.lastItem?.queueItemId === command.queueItemId ||
+    state.lastSelectedItem?.queueItemId === command.queueItemId ||
     state.manualQueue.some((item) => item.queueItemId === command.queueItemId) ||
     state.sourceQueue.some((item) => item.queueItemId === command.queueItemId) ||
-    state.previousSource.some((item) => item.queueItemId === command.queueItemId) ||
+    state.previousSourceItems.some((item) => item.queueItemId === command.queueItemId) ||
     state.playedQueueItemIds.includes(command.queueItemId)
   )
     return state;
@@ -226,9 +236,14 @@ function addNext(
   if (!state.current && state.status === "stopped") {
     return {
       ...state,
-      current: { item, lane: "manual", started: false, inSourceNavigation: false },
+      current: {
+        item,
+        lane: "manual",
+        hasStartedPlayback: false,
+        participatesInSourceNavigation: false,
+      },
       status: "playing",
-      lastItem: item,
+      lastSelectedItem: item,
     };
   }
 
@@ -238,7 +253,7 @@ function addNext(
 function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueState {
   const playedQueueItemIds = recordPlayedItem(state);
 
-  const previousSource = appendCurrentSource(state);
+  const previousSourceItems = appendCurrentSource(state);
   const manualIndex = state.manualQueue.findIndex((item) => availableTrackIds.has(item.trackId));
 
   if (manualIndex !== -1) {
@@ -246,12 +261,17 @@ function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueS
 
     return {
       ...state,
-      current: { item, lane: "manual", started: false, inSourceNavigation: false },
+      current: {
+        item,
+        lane: "manual",
+        hasStartedPlayback: false,
+        participatesInSourceNavigation: false,
+      },
       manualQueue: state.manualQueue.slice(manualIndex + 1),
-      previousSource,
+      previousSourceItems,
       playedQueueItemIds,
       status: "playing",
-      lastItem: item,
+      lastSelectedItem: item,
     };
   }
 
@@ -262,13 +282,18 @@ function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueS
 
     return {
       ...state,
-      current: { item, lane: "source", started: false, inSourceNavigation: true },
+      current: {
+        item,
+        lane: "source",
+        hasStartedPlayback: false,
+        participatesInSourceNavigation: true,
+      },
       manualQueue: [],
-      previousSource: [...previousSource, ...state.sourceQueue.slice(0, sourceIndex)],
+      previousSourceItems: [...previousSourceItems, ...state.sourceQueue.slice(0, sourceIndex)],
       sourceQueue: state.sourceQueue.slice(sourceIndex + 1),
       playedQueueItemIds,
       status: "playing",
-      lastItem: item,
+      lastSelectedItem: item,
     };
   }
 
@@ -276,7 +301,7 @@ function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueS
     ...state,
     current: null,
     manualQueue: [],
-    previousSource: [...previousSource, ...state.sourceQueue],
+    previousSourceItems: [...previousSourceItems, ...state.sourceQueue],
     sourceQueue: [],
     playedQueueItemIds,
     status: "stopped",
@@ -284,26 +309,31 @@ function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueS
 }
 
 function previous(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueState {
-  const previousIndex = state.previousSource.findLastIndex((item) =>
+  const previousIndex = state.previousSourceItems.findLastIndex((item) =>
     availableTrackIds.has(item.trackId),
   );
 
   if (previousIndex === -1) return state;
 
-  const item = state.previousSource[previousIndex];
+  const item = state.previousSourceItems[previousIndex];
 
   return {
     ...state,
-    current: { item, lane: "source", started: false, inSourceNavigation: true },
-    previousSource: state.previousSource.slice(0, previousIndex),
+    current: {
+      item,
+      lane: "source",
+      hasStartedPlayback: false,
+      participatesInSourceNavigation: true,
+    },
+    previousSourceItems: state.previousSourceItems.slice(0, previousIndex),
     sourceQueue: [
-      ...state.previousSource.slice(previousIndex + 1),
-      ...(state.current?.inSourceNavigation ? [state.current.item] : []),
+      ...state.previousSourceItems.slice(previousIndex + 1),
+      ...(state.current?.participatesInSourceNavigation ? [state.current.item] : []),
       ...state.sourceQueue,
     ],
     playedQueueItemIds: recordPlayedItem(state),
     status: "playing",
-    lastItem: item,
+    lastSelectedItem: item,
   };
 }
 
@@ -321,12 +351,17 @@ function jumpTo(
 
     return {
       ...state,
-      current: { item, lane: "manual", started: false, inSourceNavigation: false },
+      current: {
+        item,
+        lane: "manual",
+        hasStartedPlayback: false,
+        participatesInSourceNavigation: false,
+      },
       manualQueue: state.manualQueue.slice(manualIndex + 1),
-      previousSource: appendCurrentSource(state),
+      previousSourceItems: appendCurrentSource(state),
       playedQueueItemIds: recordPlayedItem(state),
       status: "playing",
-      lastItem: item,
+      lastSelectedItem: item,
     };
   }
 
@@ -339,12 +374,20 @@ function jumpTo(
 
   return {
     ...state,
-    current: { item, lane: "source", started: false, inSourceNavigation: true },
-    previousSource: [...appendCurrentSource(state), ...state.sourceQueue.slice(0, sourceIndex)],
+    current: {
+      item,
+      lane: "source",
+      hasStartedPlayback: false,
+      participatesInSourceNavigation: true,
+    },
+    previousSourceItems: [
+      ...appendCurrentSource(state),
+      ...state.sourceQueue.slice(0, sourceIndex),
+    ],
     sourceQueue: state.sourceQueue.slice(sourceIndex + 1),
     playedQueueItemIds: recordPlayedItem(state),
     status: "playing",
-    lastItem: item,
+    lastSelectedItem: item,
   };
 }
 
@@ -366,10 +409,10 @@ function removeQueueItem(state: QueueState, queueItemId: string): QueueState {
       state.sourceQueue.filter((candidate) => candidate.queueItemId !== queueItemId),
       item,
     ),
-    suppressedSourceOccurrenceIds:
+    suppressedSourceEntryIds:
       item.origin.kind === "source"
-        ? addUnique(state.suppressedSourceOccurrenceIds, item.origin.occurrenceId)
-        : state.suppressedSourceOccurrenceIds,
+        ? addUnique(state.suppressedSourceEntryIds, item.origin.sourceEntryId)
+        : state.suppressedSourceEntryIds,
   };
 }
 
@@ -414,27 +457,27 @@ function moveQueueItem(
 
   destination.splice(insertionIndex, 0, movedItem);
 
-  const sourceOccurrenceId = item.origin.kind === "source" ? item.origin.occurrenceId : null;
+  const sourceEntryId = item.origin.kind === "source" ? item.origin.sourceEntryId : null;
 
-  const suppressedSourceOccurrenceIds =
-    sourceOccurrenceId === null
-      ? state.suppressedSourceOccurrenceIds
+  const suppressedSourceEntryIds =
+    sourceEntryId === null
+      ? state.suppressedSourceEntryIds
       : command.to === "manual"
-        ? addUnique(state.suppressedSourceOccurrenceIds, sourceOccurrenceId)
-        : state.suppressedSourceOccurrenceIds.filter((id) => id !== sourceOccurrenceId);
+        ? addUnique(state.suppressedSourceEntryIds, sourceEntryId)
+        : state.suppressedSourceEntryIds.filter((id) => id !== sourceEntryId);
 
-  return { ...state, manualQueue, sourceQueue, suppressedSourceOccurrenceIds };
+  return { ...state, manualQueue, sourceQueue, suppressedSourceEntryIds };
 }
 
-function addSourceEntry(state: QueueState, entry: SourceOccurrence): QueueState {
+function addSourceEntry(state: QueueState, entry: SourceEntry): QueueState {
   if (
-    state.suppressedSourceOccurrenceIds.includes(entry.occurrenceId) ||
+    state.suppressedSourceEntryIds.includes(entry.sourceEntryId) ||
     [
-      ...state.previousSource,
+      ...state.previousSourceItems,
       ...state.sourceQueue,
       ...(state.current ? [state.current.item] : []),
     ].some(
-      (item) => item.origin.kind === "source" && item.origin.occurrenceId === entry.occurrenceId,
+      (item) => item.origin.kind === "source" && item.origin.sourceEntryId === entry.sourceEntryId,
     )
   )
     return state;
@@ -444,35 +487,34 @@ function addSourceEntry(state: QueueState, entry: SourceOccurrence): QueueState 
     sourceQueue: [
       ...state.sourceQueue,
       {
-        queueItemId: state.sessionId + ":source:" + entry.occurrenceId,
+        queueItemId: state.sessionId + ":source:" + entry.sourceEntryId,
         trackId: entry.trackId,
-        origin: { kind: "source", occurrenceId: entry.occurrenceId },
+        origin: { kind: "source", sourceEntryId: entry.sourceEntryId },
       },
     ],
   };
 }
 
-function removeSourceEntry(state: QueueState, occurrenceId: number): QueueState {
+function removeSourceEntry(state: QueueState, sourceEntryId: number): QueueState {
   const matches = (item: QueueItem) =>
-    item.origin.kind === "source" && item.origin.occurrenceId === occurrenceId;
+    item.origin.kind === "source" && item.origin.sourceEntryId === sourceEntryId;
 
-  const currentRemoved = state.current?.inSourceNavigation && matches(state.current.item);
+  const currentRemoved =
+    state.current?.participatesInSourceNavigation && matches(state.current.item);
 
   return {
     ...state,
     current:
       currentRemoved && state.current
-        ? { ...state.current, inSourceNavigation: false }
+        ? { ...state.current, participatesInSourceNavigation: false }
         : state.current,
-    previousSource: state.previousSource
+    previousSourceItems: state.previousSourceItems
       .filter((item) => !matches(item))
-      .map((item) => clearItemAnchor(item, occurrenceId)),
+      .map((item) => clearItemAnchor(item, sourceEntryId)),
     sourceQueue: state.sourceQueue
       .filter((item) => !matches(item))
-      .map((item) => clearItemAnchor(item, occurrenceId)),
-    suppressedSourceOccurrenceIds: state.suppressedSourceOccurrenceIds.filter(
-      (id) => id !== occurrenceId,
-    ),
+      .map((item) => clearItemAnchor(item, sourceEntryId)),
+    suppressedSourceEntryIds: state.suppressedSourceEntryIds.filter((id) => id !== sourceEntryId),
   };
 }
 
@@ -480,17 +522,17 @@ function moveSourceEntry(
   state: QueueState,
   command: Extract<QueueCommand, { type: "sourceEntryMoved" }>,
 ): QueueState {
-  if (command.occurrenceId === command.targetOccurrenceId) return state;
+  if (command.sourceEntryId === command.targetSourceEntryId) return state;
 
   const boundary = { kind: "boundary" as const };
 
   const marker =
-    state.current?.inSourceNavigation && state.current.lane === "source"
+    state.current?.participatesInSourceNavigation && state.current.lane === "source"
       ? state.current.item
       : boundary;
 
   const path: (QueueItem | typeof boundary)[] = [
-    ...state.previousSource,
+    ...state.previousSourceItems,
     marker,
     ...state.sourceQueue,
   ];
@@ -499,14 +541,14 @@ function moveSourceEntry(
     (item) =>
       isQueueItem(item) &&
       item.origin.kind === "source" &&
-      item.origin.occurrenceId === command.occurrenceId,
+      item.origin.sourceEntryId === command.sourceEntryId,
   );
 
   if (!movedItem || !isQueueItem(movedItem)) return state;
 
   const attached = path.filter(
     (item): item is QueueItem =>
-      isQueueItem(item) && item.anchor?.occurrenceId === command.occurrenceId,
+      isQueueItem(item) && item.anchor?.sourceEntryId === command.sourceEntryId,
   );
 
   const movedIds = new Set([movedItem.queueItemId, ...attached.map((item) => item.queueItemId)]);
@@ -517,23 +559,23 @@ function moveSourceEntry(
     (item) =>
       isQueueItem(item) &&
       item.origin.kind === "source" &&
-      item.origin.occurrenceId === command.targetOccurrenceId,
+      item.origin.sourceEntryId === command.targetSourceEntryId,
   );
 
   const targetGroupIndexes = remaining.flatMap((item, index) =>
     isQueueItem(item) &&
-    item.anchor?.occurrenceId === command.targetOccurrenceId &&
+    item.anchor?.sourceEntryId === command.targetSourceEntryId &&
     item.anchor.side === command.side
       ? [index]
       : [],
   );
 
-  const targetPosition = command.orderedOccurrenceIds.indexOf(command.targetOccurrenceId);
+  const targetPosition = command.orderedSourceEntryIds.indexOf(command.targetSourceEntryId);
 
   const sourceIndexes = new Map(
     remaining.flatMap((item, index) =>
       isQueueItem(item) && item.origin.kind === "source"
-        ? [[item.origin.occurrenceId, index] as const]
+        ? [[item.origin.sourceEntryId, index] as const]
         : [],
     ),
   );
@@ -541,9 +583,9 @@ function moveSourceEntry(
   const fallbackIndex =
     targetPosition === -1
       ? undefined
-      : command.orderedOccurrenceIds
+      : command.orderedSourceEntryIds
           .slice(targetPosition + 1)
-          .map((occurrenceId) => sourceIndexes.get(occurrenceId))
+          .map((sourceEntryId) => sourceIndexes.get(sourceEntryId))
           .find((index) => index !== undefined);
 
   const insertionIndex =
@@ -571,31 +613,28 @@ function moveSourceEntry(
 
   return {
     ...state,
-    previousSource: remaining.slice(0, currentIndex).filter(isQueueItem),
+    previousSourceItems: remaining.slice(0, currentIndex).filter(isQueueItem),
     sourceQueue: remaining.slice(currentIndex + 1).filter(isQueueItem),
   };
 }
 
-function reconcileAllTracks(
-  state: QueueState,
-  occurrences: readonly SourceOccurrence[],
-): QueueState {
+function appendNewLibraryTracks(state: QueueState, entries: readonly SourceEntry[]): QueueState {
   if (state.source.kind !== "all-tracks") return state;
 
   const known = new Set([
-    ...state.previousSource.flatMap((item) =>
-      item.origin.kind === "source" ? [item.origin.occurrenceId] : [],
+    ...state.previousSourceItems.flatMap((item) =>
+      item.origin.kind === "source" ? [item.origin.sourceEntryId] : [],
     ),
     ...state.sourceQueue.flatMap((item) =>
-      item.origin.kind === "source" ? [item.origin.occurrenceId] : [],
+      item.origin.kind === "source" ? [item.origin.sourceEntryId] : [],
     ),
     ...(state.current?.item.origin.kind === "source"
-      ? [state.current.item.origin.occurrenceId]
+      ? [state.current.item.origin.sourceEntryId]
       : []),
-    ...state.suppressedSourceOccurrenceIds,
+    ...state.suppressedSourceEntryIds,
   ]);
 
-  const added = occurrences.filter((item) => !known.has(item.occurrenceId));
+  const added = entries.filter((item) => !known.has(item.sourceEntryId));
 
   if (added.length === 0) return state;
 
@@ -604,22 +643,22 @@ function reconcileAllTracks(
     sourceQueue: [
       ...state.sourceQueue,
       ...added.map((item) => ({
-        queueItemId: state.sessionId + ":source:" + item.occurrenceId,
+        queueItemId: state.sessionId + ":source:" + item.sourceEntryId,
         trackId: item.trackId,
-        origin: { kind: "source" as const, occurrenceId: item.occurrenceId },
+        origin: { kind: "source" as const, sourceEntryId: item.sourceEntryId },
       })),
     ],
   };
 }
 
 function appendCurrentSource(state: QueueState) {
-  return state.current?.inSourceNavigation
-    ? [...state.previousSource, state.current.item]
-    : state.previousSource;
+  return state.current?.participatesInSourceNavigation
+    ? [...state.previousSourceItems, state.current.item]
+    : state.previousSourceItems;
 }
 
 function recordPlayedItem(state: QueueState) {
-  return state.current?.started
+  return state.current?.hasStartedPlayback
     ? [...state.playedQueueItemIds, state.current.item.queueItemId]
     : state.playedQueueItemIds;
 }
@@ -630,28 +669,28 @@ function findSourceAnchor(sourceQueue: readonly QueueItem[], insertionIndex: num
   );
 
   if (nextSource?.origin.kind === "source")
-    return { occurrenceId: nextSource.origin.occurrenceId, side: "before" as const };
+    return { sourceEntryId: nextSource.origin.sourceEntryId, side: "before" as const };
 
-  const previousSource = sourceQueue.findLast(
+  const previousSourceEntry = sourceQueue.findLast(
     (item, index) => index < insertionIndex && item.origin.kind === "source",
   );
 
-  if (previousSource?.origin.kind === "source")
-    return { occurrenceId: previousSource.origin.occurrenceId, side: "after" as const };
+  if (previousSourceEntry?.origin.kind === "source")
+    return { sourceEntryId: previousSourceEntry.origin.sourceEntryId, side: "after" as const };
 
   return undefined;
 }
 
 function clearAnchor(items: readonly QueueItem[], removed: QueueItem) {
-  const occurrenceId = removed.origin.kind === "source" ? removed.origin.occurrenceId : null;
+  const sourceEntryId = removed.origin.kind === "source" ? removed.origin.sourceEntryId : null;
 
-  return occurrenceId !== null
-    ? items.map((item) => clearItemAnchor(item, occurrenceId))
+  return sourceEntryId !== null
+    ? items.map((item) => clearItemAnchor(item, sourceEntryId))
     : [...items];
 }
 
-function clearItemAnchor(item: QueueItem, occurrenceId: number) {
-  return item.anchor?.occurrenceId === occurrenceId ? { ...item, anchor: undefined } : item;
+function clearItemAnchor(item: QueueItem, sourceEntryId: number) {
+  return item.anchor?.sourceEntryId === sourceEntryId ? { ...item, anchor: undefined } : item;
 }
 
 function addUnique(items: readonly number[], value: number) {
@@ -668,7 +707,7 @@ function isQueueItem(item: QueueItem | { kind: "boundary" }): item is QueueItem 
 
 export function serializeQueueSession(state: QueueState, position: number) {
   return JSON.stringify({
-    version: 2,
+    version: 3,
     state,
     position: Number.isFinite(position) ? Math.max(0, position) : 0,
   });
@@ -686,7 +725,7 @@ export function parseQueueSession(raw: string | null, library: MusicLibrary) {
 
     const items = [
       ...state.manualQueue,
-      ...state.previousSource,
+      ...state.previousSourceItems,
       ...state.sourceQueue,
       ...(state.current ? [state.current.item] : []),
     ];

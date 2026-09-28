@@ -23,8 +23,8 @@ it("restores a saved queue paused at its position after its playlist is deleted"
       {
         type: "startFromSource",
         source: { kind: "playlist", playlistId: 1, title: "Deleted playlist" },
-        occurrences: [1, 2, 3].map((trackId) => ({ occurrenceId: trackId, trackId })),
-        atOccurrenceId: 1,
+        entries: [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId })),
+        startEntryId: 1,
         sessionId: "session",
       },
       available,
@@ -32,7 +32,7 @@ it("restores a saved queue paused at its position after its playlist is deleted"
 
     const withManual = transition(
       started,
-      { type: "addNext", trackId: 3, queueItemId: "manual" },
+      { type: "enqueueTrack", trackId: 3, queueItemId: "manual" },
       available,
     );
 

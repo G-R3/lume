@@ -4,23 +4,23 @@ import { transition, type QueueState } from "./queue";
 it("plays each manual addition before returning to the source", () => {
   const available = new Set([1, 2, 3]);
   const source = { kind: "all-tracks" as const };
-  const occurrences = [1, 2, 3].map((trackId) => ({ occurrenceId: trackId, trackId }));
+  const entries = [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
-    { type: "startFromSource", source, occurrences, atOccurrenceId: 1, sessionId: "session" },
+    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "session" },
     available,
   );
 
   const withFirstAddition = transition(
     started,
-    { type: "addNext", trackId: 3, queueItemId: "manual-1" },
+    { type: "enqueueTrack", trackId: 3, queueItemId: "manual-1" },
     available,
   );
 
   const withBothAdditions = transition(
     withFirstAddition,
-    { type: "addNext", trackId: 3, queueItemId: "manual-2" },
+    { type: "enqueueTrack", trackId: 3, queueItemId: "manual-2" },
     available,
   );
 
@@ -38,11 +38,11 @@ it("plays each manual addition before returning to the source", () => {
 it("keeps a queue reorder when the playlist later moves one occurrence", () => {
   const available = new Set([1, 2, 3, 4, 5]);
   const source = { kind: "playlist" as const, playlistId: 1, title: "A–E" };
-  const occurrences = [1, 2, 3, 4, 5].map((trackId) => ({ occurrenceId: trackId, trackId }));
+  const entries = [1, 2, 3, 4, 5].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
-    { type: "startFromSource", source, occurrences, atOccurrenceId: 1, sessionId: "session" },
+    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "session" },
     available,
   );
 
@@ -59,16 +59,16 @@ it("keeps a queue reorder when the playlist later moves one occurrence", () => {
 
   expect(reorderedQueue?.sourceQueue.map((item) => item.trackId)).toEqual([3, 2, 4, 5]);
 
-  const moveBefore = (state: typeof reorderedQueue, targetOccurrenceId: number, order: number[]) =>
+  const moveBefore = (state: typeof reorderedQueue, targetSourceEntryId: number, order: number[]) =>
     transition(
       state,
       {
         type: "sourceEntryMoved",
         playlistId: 1,
-        occurrenceId: 5,
-        targetOccurrenceId,
+        sourceEntryId: 5,
+        targetSourceEntryId,
         side: "before",
-        orderedOccurrenceIds: order,
+        orderedSourceEntryIds: order,
       },
       available,
     );
@@ -85,15 +85,15 @@ it("keeps a queue reorder when the playlist later moves one occurrence", () => {
 
 it("lets Previous visit source items skipped by a jump", () => {
   const available = new Set([1, 2, 3, 4]);
-  const occurrences = [1, 2, 3, 4].map((trackId) => ({ occurrenceId: trackId, trackId }));
+  const entries = [1, 2, 3, 4].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
     {
       type: "startFromSource",
       source: { kind: "all-tracks" },
-      occurrences,
-      atOccurrenceId: 1,
+      entries,
+      startEntryId: 1,
       sessionId: "session",
     },
     available,
@@ -120,15 +120,15 @@ it("lets Previous visit source items skipped by a jump", () => {
 
 it("skips unavailable source items after a manual jump and Previous", () => {
   const available = new Set([1, 3, 4]);
-  const occurrences = [1, 2, 3].map((trackId) => ({ occurrenceId: trackId, trackId }));
+  const entries = [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
     {
       type: "startFromSource",
       source: { kind: "all-tracks" },
-      occurrences,
-      atOccurrenceId: 1,
+      entries,
+      startEntryId: 1,
       sessionId: "session",
     },
     available,
@@ -136,13 +136,13 @@ it("skips unavailable source items after a manual jump and Previous", () => {
 
   const firstManual = transition(
     started,
-    { type: "addNext", trackId: 4, queueItemId: "manual-1" },
+    { type: "enqueueTrack", trackId: 4, queueItemId: "manual-1" },
     available,
   );
 
   const secondManual = transition(
     firstManual,
-    { type: "addNext", trackId: 4, queueItemId: "manual-2" },
+    { type: "enqueueTrack", trackId: 4, queueItemId: "manual-2" },
     available,
   );
 
@@ -160,11 +160,11 @@ it("skips unavailable source items after a manual jump and Previous", () => {
 it("keeps a moved manual item when its source is rebuilt", () => {
   const available = new Set([1, 2, 3]);
   const source = { kind: "playlist" as const, playlistId: 1, title: "Playlist" };
-  const occurrences = [1, 2, 3].map((trackId) => ({ occurrenceId: trackId, trackId }));
+  const entries = [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
-    { type: "startFromSource", source, occurrences, atOccurrenceId: 1, sessionId: "first" },
+    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "first" },
     available,
   );
 
@@ -179,7 +179,7 @@ it("keeps a moved manual item when its source is rebuilt", () => {
 
   const rebuilt = transition(
     moved,
-    { type: "startFromSource", source, occurrences, atOccurrenceId: 1, sessionId: "second" },
+    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "second" },
     available,
   );
 
@@ -187,13 +187,13 @@ it("keeps a moved manual item when its source is rebuilt", () => {
   expect(rebuilt?.sourceQueue.map((item) => item.trackId)).toEqual([2, 3]);
 });
 
-function sourceQueueItemId(state: QueueState | null, occurrenceId: number) {
+function sourceQueueItemId(state: QueueState | null, sourceEntryId: number) {
   const item = state?.sourceQueue.find(
     (candidate) =>
-      candidate.origin.kind === "source" && candidate.origin.occurrenceId === occurrenceId,
+      candidate.origin.kind === "source" && candidate.origin.sourceEntryId === sourceEntryId,
   );
 
-  if (!item) throw new Error(`Expected source occurrence ${occurrenceId} in the queue`);
+  if (!item) throw new Error(`Expected source entry ${sourceEntryId} in the queue`);
 
   return item.queueItemId;
 }

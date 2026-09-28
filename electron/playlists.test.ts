@@ -7,6 +7,7 @@ import { closeDatabase, getDatabase, initializeDatabase, type LibraryDatabase } 
 import { librarySources, tracks } from "./database/schema";
 import { applySourceScan, getTracks, saveSource } from "./library";
 import { scanAudioFiles, trackMetadataVersion } from "./library-files";
+import { transition } from "../src/lib/queue";
 import {
   addTrackToPlaylist,
   confirmAddTrackToPlaylist,
@@ -28,6 +29,64 @@ afterEach(async () => {
 });
 
 describe("playlist behavior", () => {
+  it("keeps the current track and queues a new addition after removing the playing entry", async () => {
+    await openTestDatabase();
+    const firstTrack = await addTrack("A");
+    const secondTrack = await addTrack("B");
+    const playlist = createPlaylistFromTrack(firstTrack.id);
+    const available = new Set([firstTrack.id, secondTrack.id]);
+    const titlesById = new Map(getTracks().map((track) => [track.id, track.title]));
+
+    const started = transition(
+      null,
+      {
+        type: "startFromSource",
+        source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
+        sessionId: "session",
+        entries: playlist.tracks.map((entry) => ({
+          sourceEntryId: entry.id,
+          trackId: entry.trackId,
+        })),
+        startEntryId: playlist.tracks[0].id,
+      },
+      available,
+    );
+
+    removePlaylistTrack({ playlistId: playlist.id, playlistTrackId: playlist.tracks[0].id });
+
+    const removed = transition(
+      started,
+      {
+        type: "sourceEntryRemoved",
+        playlistId: playlist.id,
+        sourceEntryId: playlist.tracks[0].id,
+      },
+      available,
+    );
+
+    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: secondTrack.id });
+
+    if (addition.kind !== "added") throw new Error("Expected B to be added to the playlist");
+
+    const queued = transition(
+      removed,
+      {
+        type: "sourceEntryAdded",
+        playlistId: playlist.id,
+        entry: { sourceEntryId: addition.track.id, trackId: addition.track.trackId },
+      },
+      available,
+    );
+
+    expect({
+      current: queued?.current && titlesById.get(queued.current.item.trackId),
+      next: queued?.sourceQueue.map((item) => titlesById.get(item.trackId)),
+    }).toEqual({ current: "A", next: ["B"] });
+
+    const advanced = transition(queued, { type: "next", reason: "ended" }, available);
+    expect(advanced?.current && titlesById.get(advanced.current.item.trackId)).toBe("B");
+  });
+
   it("accepts valid boundaries and preserves normalized creation order after reopening", async () => {
     const folder = await createTemporaryFolder("lume-playlists-");
     const databasePath = join(folder, "library.sqlite");

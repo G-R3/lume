@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 
 /**
- * Loads and plays the current item, handles pause and seek, and reports audio
- * events. It does not choose the next item.
+ * Loads and plays the selected track. Supports pausing and jumping to a time in the track.
+ * Reports playback changes, such as the track ending, to the playback controller.
  */
 export function useMediaElement(options: {
   onEvent: (event: AudioEvent) => void;
@@ -11,9 +11,9 @@ export function useMediaElement(options: {
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const requestRef = useRef<PlaybackRequest | null>(null);
-  const restorePositionRef = useRef<number | null>(null);
+  const pendingSeekRef = useRef<number | null>(null);
   const playbackAttemptRef = useRef(0);
-  const lastPositionWriteRef = useRef(-1);
+  const lastReportedSecondRef = useRef(-1);
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
   const [request, setRequest] = useState<PlaybackRequest | null>(null);
@@ -26,8 +26,8 @@ export function useMediaElement(options: {
     (next: PlaybackRequest | null, position = next?.position ?? 0) => {
       ++playbackAttemptRef.current;
       requestRef.current = next;
-      restorePositionRef.current = next?.position ?? null;
-      lastPositionWriteRef.current = -1;
+      pendingSeekRef.current = next?.position ?? null;
+      lastReportedSecondRef.current = -1;
       timeStore.set(position);
       setDuration(next?.durationHint ?? 0);
       setIsPlaying(false);
@@ -83,7 +83,7 @@ export function useMediaElement(options: {
         Math.min(time, Number.isFinite(audio.duration) ? audio.duration : time),
       );
       timeStore.set(audio.currentTime);
-      lastPositionWriteRef.current = Math.floor(audio.currentTime) - 1;
+      lastReportedSecondRef.current = Math.floor(audio.currentTime) - 1;
       callbacksRef.current.onPosition(audio.currentTime);
     },
     [timeStore],
@@ -118,7 +118,7 @@ export function useMediaElement(options: {
           });
         }}
         onLoadedMetadata={(event) => {
-          const position = restorePositionRef.current;
+          const position = pendingSeekRef.current;
 
           if (position === null) return;
 
@@ -128,8 +128,8 @@ export function useMediaElement(options: {
             Number.isFinite(audio.duration) ? audio.duration : position,
           );
           timeStore.set(audio.currentTime);
-          lastPositionWriteRef.current = Math.floor(audio.currentTime) - 1;
-          restorePositionRef.current = null;
+          lastReportedSecondRef.current = Math.floor(audio.currentTime) - 1;
+          pendingSeekRef.current = null;
         }}
         onPause={(event) => {
           if (requestRef.current?.queueItemId !== request.queueItemId) return;
@@ -152,8 +152,8 @@ export function useMediaElement(options: {
           timeStore.set(position);
           const second = Math.floor(position);
 
-          if (second > lastPositionWriteRef.current) {
-            lastPositionWriteRef.current = second;
+          if (second > lastReportedSecondRef.current) {
+            lastReportedSecondRef.current = second;
             callbacksRef.current.onPosition(position);
           }
         }}

@@ -25,7 +25,7 @@ import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/libr
 import { cn } from "@/lib/utils";
 
 export type TrackListItem = {
-  occurrenceId: number;
+  sourceEntryId: number;
   track: Track;
 };
 
@@ -117,7 +117,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
             const track = item.track;
 
             const isActive =
-              playback.activeSourceOccurrenceId === item.occurrenceId &&
+              playback.activeSourceEntryId === item.sourceEntryId &&
               playback.activeSourcePlaylistId === (playlistId ?? null);
 
             const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
@@ -135,7 +135,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     ? "cursor-pointer hover:bg-sidebar-accent focus-within:bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "bg-neutral-950/40",
                 )}
-                key={item.occurrenceId}
+                key={item.sourceEntryId}
                 onClick={
                   track.available
                     ? () => playback.playFromSource(items, index, playlistId)
@@ -242,7 +242,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     canAddToQueue={playback.queue !== null}
                     isCreatingPlaylist={createPlaylistFromTrack.isPending}
                     onAddToQueue={() =>
-                      playback.dispatchQueue({ type: "addNext", trackId: track.id })
+                      playback.dispatchQueue({ type: "enqueueTrack", trackId: track.id })
                     }
                     onAddToPlaylist={handleAddToPlaylist}
                     onCreatePlaylist={handleCreatePlaylist}

@@ -12,6 +12,7 @@ import type {
   Track,
 } from "../shared/lib";
 import { PlaybackProvider } from "@/hooks/use-playback";
+import { serializeQueueSession, transition } from "@/lib/queue";
 import { createAppRouter } from "@/router";
 import "@/index.css";
 
@@ -41,6 +42,130 @@ afterEach(() => {
 });
 
 describe("playlist behavior", () => {
+  it("returns a finished single-track playlist to the beginning paused, then plays again", async () => {
+    const midnight = createTrack(1, "Midnight");
+
+    const playlist = {
+      id: 20,
+      title: "Playback",
+      description: null,
+      tracks: [{ id: 201, trackId: midnight.id, position: 0 }],
+    } satisfies PlaylistDetails;
+
+    const state = createRendererState([midnight], [playlist]);
+
+    renderApplication(
+      createTestApi(() => ({
+        loadLibrary: () => Promise.resolve(state.library),
+        loadPlaylist: () => Promise.resolve(playlist),
+      })),
+      "#/playlists/20",
+    );
+
+    await page
+      .getByRole("table", { name: "Playback tracks" })
+      .getByRole("button", { exact: true, name: "Midnight" })
+      .click();
+
+    const player = page.getByRole("contentinfo");
+    await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
+    const audio = document.querySelector("audio");
+
+    if (!audio) throw new Error("Expected the playing audio");
+
+    await expect.poll(() => audio.duration).toBeGreaterThan(0);
+
+    audio.currentTime = audio.duration - 0.05;
+
+    await expect.element(player.getByRole("button", { exact: true, name: "Play" })).toBeVisible();
+    await expect.poll(() => document.querySelector("audio")?.currentTime).toBe(0);
+
+    expect(document.querySelector("audio")?.paused).toBe(true);
+
+    await player.getByRole("button", { exact: true, name: "Play" }).click();
+    await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
+    await expect.poll(() => document.querySelector("audio")?.currentTime ?? 0).toBeGreaterThan(0);
+  });
+
+  it("resumes a restored track at its saved position after enabling its source", async () => {
+    const midnight = createTrack(1, "Midnight", false);
+
+    const state: { library: MusicLibrary } = createRendererState([
+      midnight,
+      createTrack(2, "Sunrise"),
+    ]);
+
+    state.library.sources.push({
+      id: 1,
+      path: "/Music",
+      enabled: false,
+      lastScanError: null,
+      lastScannedAt: null,
+      trackCount: 0,
+    });
+
+    const queue = transition(
+      null,
+      {
+        type: "startFromSource",
+        source: { kind: "all-tracks" },
+        sessionId: "saved",
+        entries: state.library.tracks.map((track) => ({
+          sourceEntryId: track.id,
+          trackId: track.id,
+        })),
+        startEntryId: midnight.id,
+      },
+      new Set([1, 2]),
+    );
+
+    if (!queue) throw new Error("Expected a saved queue");
+    renderApplication(
+      createTestApi(() => ({
+        loadLibrary: () => Promise.resolve(state.library),
+        playbackSession: {
+          load: () => Promise.resolve(serializeQueueSession(queue, 7.25)),
+          save: () => Promise.resolve(),
+          flush: () => {},
+        },
+        enableSource: () => {
+          state.library = {
+            ...state.library,
+            sources: state.library.sources.map((source) => ({
+              ...source,
+              enabled: true,
+              trackCount: 2,
+            })),
+            tracks: state.library.tracks.map((track) => ({ ...track, available: true })),
+          };
+
+          return Promise.resolve(state.library);
+        },
+      })),
+      "#/settings",
+    );
+    const player = page.getByRole("contentinfo");
+    await expect.element(player.getByText("Midnight", { exact: true })).toBeVisible();
+
+    expect(document.querySelector("audio")).toBeNull();
+
+    await page.getByRole("switch", { name: "Enable Music" }).click();
+    await expect.poll(() => document.querySelector("audio")?.currentTime).toBe(7.25);
+
+    expect(document.querySelector("audio")?.paused).toBe(true);
+
+    await player.getByRole("button", { exact: true, name: "Play" }).click();
+
+    await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
+    await expect.element(player.getByText("Midnight", { exact: true })).toBeVisible();
+
+    await expect
+      .poll(() => document.querySelector("audio")?.currentTime ?? 0)
+      .toBeGreaterThan(7.25);
+
+    await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("adds, removes, and jumps in the queue without changing the source list", async () => {
     const state = createRendererState([
       createTrack(1, "A"),
@@ -382,6 +507,78 @@ describe("playlist behavior", () => {
       removed: { playlistId: playlist.id, playlistTrackId: 201 },
     });
   });
+  it.each([false, true])(
+    "does not highlight All tracks after deleting the playing playlist, current entry removed: %s",
+    async (removeCurrent) => {
+      const midnight = createTrack(1, "Midnight");
+      const sunrise = createTrack(2, "Sunrise");
+
+      const playlist = {
+        description: null,
+        id: 20,
+        title: "Playback",
+        tracks: [
+          { id: 2, position: 0, trackId: midnight.id },
+          { id: 3, position: 1, trackId: sunrise.id },
+        ],
+      } satisfies PlaylistDetails;
+
+      const state = createRendererState([midnight, sunrise], [playlist]);
+
+      renderApplication(
+        createTestApi(() => ({
+          loadLibrary: () => Promise.resolve(state.library),
+          loadPlaylist: (id) => Promise.resolve(state.playlists.get(id) ?? null),
+          removePlaylistTrack: () => {
+            state.playlists.set(playlist.id, { ...playlist, tracks: playlist.tracks.slice(1) });
+
+            return Promise.resolve();
+          },
+          deletePlaylist: () => {
+            state.playlists.delete(playlist.id);
+            state.library = { ...state.library, playlists: [] };
+
+            return Promise.resolve(state.library);
+          },
+        })),
+        "#/playlists/20",
+      );
+
+      const table = page.getByRole("table", { name: "Playback tracks" });
+      await table.getByRole("button", { exact: true, name: "Midnight" }).click();
+      const player = page.getByRole("contentinfo");
+      await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
+      await expect
+        .element(table.getByRole("button", { exact: true, name: "Midnight" }))
+        .toHaveAttribute("aria-current", "true");
+      await expect.element(table.getByLabelText("Playing")).toBeVisible();
+
+      if (removeCurrent) {
+        await table.getByRole("button", { name: "More options for Midnight" }).click();
+        await page.getByRole("menuitem", { name: "Remove from playlist" }).click();
+        await expect
+          .element(table.getByRole("button", { exact: true, name: "Midnight" }))
+          .not.toBeInTheDocument();
+      }
+
+      await page.getByRole("button", { name: "More options for Playback" }).last().click();
+      await page.getByRole("menuitem", { name: "Delete playlist" }).click();
+      await page.getByRole("button", { name: "Delete playlist" }).click();
+      await expect.poll(() => window.location.hash).toBe("#/");
+      await expect.element(player.getByText("Midnight", { exact: true })).toBeVisible();
+      await expect.element(player.getByRole("button", { name: "Pause" })).toBeVisible();
+
+      const allTracks = page.getByRole("table", { name: "All tracks" });
+      await expect
+        .element(allTracks.getByRole("button", { exact: true, name: "Sunrise" }))
+        .not.toHaveAttribute("aria-current", "true");
+      await expect
+        .element(allTracks.getByRole("button", { exact: true, name: "Midnight" }))
+        .not.toHaveAttribute("aria-current", "true");
+      await expect.element(allTracks.getByLabelText("Playing")).not.toBeInTheDocument();
+    },
+  );
+
   it("likes a track directly from its row", async () => {
     const track = createTrack(1, "Midnight");
     const state = createRendererState([track]);

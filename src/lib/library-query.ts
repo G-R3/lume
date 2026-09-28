@@ -78,7 +78,7 @@ export function useAddTrackToPlaylistMutation() {
       playback.dispatchQueue({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
-        entry: { occurrenceId: result.track.id, trackId: result.track.trackId },
+        entry: { sourceEntryId: result.track.id, trackId: result.track.trackId },
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -97,7 +97,7 @@ export function useConfirmAddTrackToPlaylistMutation() {
       playback.dispatchQueue({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
-        entry: { occurrenceId: track.id, trackId: track.trackId },
+        entry: { sourceEntryId: track.id, trackId: track.trackId },
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -130,7 +130,7 @@ export function useRemovePlaylistTrackMutation() {
       playback.dispatchQueue({
         type: "sourceEntryRemoved",
         playlistId: input.playlistId,
-        occurrenceId: input.playlistTrackId,
+        sourceEntryId: input.playlistTrackId,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);

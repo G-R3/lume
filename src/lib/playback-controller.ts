@@ -11,24 +11,24 @@ import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 type Snapshot = {
   queue: QueueState | null;
   library: MusicLibrary | null;
-  ready: boolean;
+  isInitialized: boolean;
   errorMessage: string | null;
 };
 
 export type QueueIntent =
-  | Omit<Extract<QueueCommand, { type: "addNext" }>, "queueItemId">
+  | Omit<Extract<QueueCommand, { type: "enqueueTrack" }>, "queueItemId">
   | Omit<Extract<QueueCommand, { type: "startFromSource" }>, "sessionId">
-  | Exclude<QueueCommand, { type: "addNext" | "startFromSource" }>;
+  | Exclude<QueueCommand, { type: "enqueueTrack" | "startFromSource" }>;
 
 type SourceListItem = {
-  occurrenceId: number;
+  sourceEntryId: number;
   track: { id: number };
 };
 
 /**
- * Coordinates the queue and audio element. Sends actions to the queue, loads
- * the item it selects, and responds when audio ends or fails. Also handles the
- * two-second Previous restart rule and saves the session.
+ * Loads the track selected by the queue and moves to the next track when audio ends or fails.
+ * Pressing Previous after more than two seconds restarts the current track.
+ * Saves the queue and playback position so they can be restored when the app reopens.
  */
 export function createPlaybackController(
   audio: {
@@ -40,10 +40,11 @@ export function createPlaybackController(
     seek: (time: number) => void;
   },
   storage: LumeApi["playbackSession"],
+  loadPlaylist: LumeApi["loadPlaylist"],
 ) {
   const listeners = new Set<() => void>();
-  let snapshot: Snapshot = { queue: null, library: null, ready: false, errorMessage: null };
-  let hydrationStarted = false;
+  let snapshot: Snapshot = { queue: null, library: null, isInitialized: false, errorMessage: null };
+  let sessionRestoreStarted = false;
   let closing = false;
   let saveChain = Promise.resolve();
   let tracksById = new Map<number, MusicLibrary["tracks"][number]>();
@@ -65,18 +66,63 @@ export function createPlaybackController(
       .catch((error: Error) => setError(error.message || "Could not save playback"));
   };
 
+  const loadCurrent = (position: number, shouldPlay = snapshot.queue?.status === "playing") => {
+    const queue = snapshot.queue;
+    const track = queue?.current ? tracksById.get(queue.current.item.trackId) : undefined;
+
+    audio.load(
+      queue?.current && track?.available
+        ? {
+            queueItemId: queue.current.item.queueItemId,
+            url: track.url,
+            shouldPlay,
+            position,
+            durationHint: track.duration && Number.isFinite(track.duration) ? track.duration : 0,
+          }
+        : null,
+      position,
+    );
+  };
+
+  const resetToSourceStart = async (queue: QueueState) => {
+    if (queue.source.kind === "detached") return;
+
+    const entries =
+      queue.source.kind === "playlist"
+        ? (await loadPlaylist(queue.source.playlistId))?.tracks.map((item) => ({
+            sourceEntryId: item.id,
+            trackId: item.trackId,
+          }))
+        : snapshot.library?.tracks.map((track) => ({ sourceEntryId: track.id, trackId: track.id }));
+
+    // Loading the playlist takes time. Keep any queue changes made while waiting.
+    if (closing || snapshot.queue !== queue) return;
+
+    const first = entries?.find((item) => availableTrackIds.has(item.trackId));
+
+    if (!entries || !first) return;
+
+    dispatch({
+      type: "startFromSource",
+      source: queue.source,
+      entries,
+      startEntryId: first.sourceEntryId,
+      startPaused: true,
+    });
+  };
+
   const dispatch = (command: QueueIntent) => {
     if (
       command.type === "startFromSource" &&
-      !command.occurrences.some(
+      !command.entries.some(
         (item) =>
-          item.occurrenceId === command.atOccurrenceId && availableTrackIds.has(item.trackId),
+          item.sourceEntryId === command.startEntryId && availableTrackIds.has(item.trackId),
       )
     )
       return;
 
     const queueCommand: QueueCommand =
-      command.type === "addNext"
+      command.type === "enqueueTrack"
         ? { ...command, queueItemId: crypto.randomUUID() }
         : command.type === "startFromSource"
           ? { ...command, sessionId: crypto.randomUUID() }
@@ -93,26 +139,19 @@ export function createPlaybackController(
     publish({ ...snapshot, queue });
     persist(queue, currentChanged ? 0 : audio.getPosition());
 
-    if (!currentChanged) return;
+    if (currentChanged) {
+      loadCurrent(0);
+      setError(null);
+    }
 
-    const track = queue.current ? tracksById.get(queue.current.item.trackId) : undefined;
-
-    audio.load(
-      queue.current && track?.available
-        ? {
-            queueItemId: queue.current.item.queueItemId,
-            url: track.url,
-            shouldPlay: queue.status === "playing",
-            position: 0,
-            durationHint: track.duration && Number.isFinite(track.duration) ? track.duration : 0,
-          }
-        : null,
-    );
-    setError(null);
+    if (command.type === "next" && !queue.current)
+      void resetToSourceStart(queue).catch((error: Error) => {
+        if (snapshot.queue === queue) setError(error.message || "Could not reset playback");
+      });
   };
 
   const playFromSource = (items: readonly SourceListItem[], index: number, playlistId?: number) => {
-    if (!snapshot.ready || !items[index]) return;
+    if (!snapshot.isInitialized || !items[index]) return;
 
     dispatch({
       type: "startFromSource",
@@ -126,11 +165,11 @@ export function createPlaybackController(
                 snapshot.library?.playlists.find((playlist) => playlist.id === playlistId)?.title ??
                 "Playlist",
             },
-      occurrences: items.map((item) => ({
-        occurrenceId: item.occurrenceId,
+      entries: items.map((item) => ({
+        sourceEntryId: item.sourceEntryId,
         trackId: item.track.id,
       })),
-      atOccurrenceId: items[index].occurrenceId,
+      startEntryId: items[index].sourceEntryId,
     });
   };
 
@@ -148,6 +187,13 @@ export function createPlaybackController(
 
   const resume = () => {
     if (snapshot.queue?.current && !audio.hasRequest()) {
+      if (availableTrackIds.has(snapshot.queue.current.item.trackId)) {
+        loadCurrent(audio.getPosition(), true);
+        setError(null);
+
+        return;
+      }
+
       dispatch({ type: "next", reason: "error" });
       setError("This track is unavailable");
 
@@ -170,16 +216,23 @@ export function createPlaybackController(
     );
     publish({ ...snapshot, library });
 
-    if (hydrationStarted) {
+    if (sessionRestoreStarted) {
       dispatch({
         type: "libraryRescanned",
-        occurrences: library.tracks.map((track) => ({ occurrenceId: track.id, trackId: track.id })),
+        entries: library.tracks.map((track) => ({ sourceEntryId: track.id, trackId: track.id })),
       });
+
+      if (
+        snapshot.queue?.current &&
+        availableTrackIds.has(snapshot.queue.current.item.trackId) &&
+        !audio.hasRequest()
+      )
+        loadCurrent(audio.getPosition());
 
       return;
     }
 
-    hydrationStarted = true;
+    sessionRestoreStarted = true;
     void storage
       .load()
       .then((raw) => {
@@ -191,8 +244,8 @@ export function createPlaybackController(
             restored.state,
             {
               type: "libraryRescanned",
-              occurrences: latestLibrary.tracks.map((track) => ({
-                occurrenceId: track.id,
+              entries: latestLibrary.tracks.map((track) => ({
+                sourceEntryId: track.id,
                 trackId: track.id,
               })),
             },
@@ -200,33 +253,18 @@ export function createPlaybackController(
           );
 
           if (queue) {
-            const item = queue.current?.item;
-            const track = item ? tracksById.get(item.trackId) : undefined;
-
             publish({ ...snapshot, queue });
-            audio.load(
-              item && track?.available
-                ? {
-                    queueItemId: item.queueItemId,
-                    url: track.url,
-                    shouldPlay: false,
-                    position: restored.position,
-                    durationHint:
-                      track.duration && Number.isFinite(track.duration) ? track.duration : 0,
-                  }
-                : null,
-              restored.position,
-            );
+            loadCurrent(restored.position);
           }
         }
 
-        publish({ ...snapshot, ready: true });
+        publish({ ...snapshot, isInitialized: true });
       })
       .catch((error: Error) => {
         publish({
           ...snapshot,
           errorMessage: error.message || "Could not restore playback",
-          ready: true,
+          isInitialized: true,
         });
       });
   };

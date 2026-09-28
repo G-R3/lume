@@ -49,7 +49,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const items = playlist.tracks.flatMap((playlistTrack) => {
     const track = tracksById.get(playlistTrack.trackId);
 
-    return track ? [{ occurrenceId: playlistTrack.id, track }] : [];
+    return track ? [{ sourceEntryId: playlistTrack.id, track }] : [];
   });
 
   const handleRemove = (playlistTrackId: number) => {
@@ -99,7 +99,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           renderMenuItems={(item) => (
             <DropdownMenuItem
               disabled={removePlaylistTrack.isPending}
-              onClick={() => handleRemove(item.occurrenceId)}
+              onClick={() => handleRemove(item.sourceEntryId)}
               variant="destructive"
             >
               <MinusCircleIcon aria-hidden="true" />
