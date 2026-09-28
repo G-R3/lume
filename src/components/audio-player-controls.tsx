@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
 import { Slider } from "@/components/ui/slider";
-import { useAudioPlayer, useAudioPlayerTime } from "@/hooks/use-audio-player";
+import { usePlayback, usePlaybackTime } from "@/hooks/use-playback";
 import { formatDuration } from "@/lib/format-duration";
 import { useSetTrackLiked } from "@/lib/library-query";
 import {
@@ -16,9 +16,9 @@ import {
 import { useId, useState } from "react";
 
 export function AudioPlayerControls() {
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
   const setTrackLiked = useSetTrackLiked();
-  const activeTrack = audioPlayer.activeTrack;
+  const activeTrack = playback.activeTrack;
 
   if (!activeTrack) return null;
 
@@ -73,18 +73,18 @@ export function AudioPlayerControls() {
           <button
             aria-label="Previous track"
             className="grid size-8 cursor-pointer place-items-center"
-            onClick={audioPlayer.previous}
+            onClick={playback.previous}
             type="button"
           >
             <SkipBackIcon aria-hidden="true" size={18} weight="fill" />
           </button>
           <button
-            aria-label={audioPlayer.isPlaying ? "Pause" : "Play"}
+            aria-label={playback.isPlaying ? "Pause" : "Play"}
             className="cursor-pointer grid size-9 place-items-center rounded-full bg-neutral-50 text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300"
             type="button"
-            onClick={audioPlayer.togglePlayback}
+            onClick={playback.togglePlayback}
           >
-            {audioPlayer.isPlaying ? (
+            {playback.isPlaying ? (
               <PauseIcon aria-hidden="true" size={17} weight="fill" />
             ) : (
               <PlayIcon aria-hidden="true" size={17} weight="fill" />
@@ -93,27 +93,27 @@ export function AudioPlayerControls() {
           <button
             aria-label="Next track"
             className="cursor-pointer grid size-8 place-items-center disabled:text-neutral-600 disabled:cursor-not-allowed"
-            disabled={!audioPlayer.canGoNext}
-            onClick={audioPlayer.next}
+            disabled={!playback.canGoNext}
+            onClick={playback.next}
             type="button"
           >
             <SkipForwardIcon aria-hidden="true" size={18} weight="fill" />
           </button>
         </div>
 
-        <AudioPlayerProgress key={audioPlayer.activeQueueItemId} />
+        <AudioPlayerProgress key={playback.activeQueueItemId} />
       </div>
 
       <div className="flex items-center justify-end gap-3 text-neutral-400">
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={audioPlayer.isMuted ? "Unmute audio" : "Mute audio"}
+          aria-label={playback.isMuted ? "Unmute audio" : "Mute audio"}
           className="cursor-pointer grid size-8 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-lime-300"
           type="button"
-          onClick={audioPlayer.toggleMute}
+          onClick={playback.toggleMute}
         >
-          {audioPlayer.isMuted ? (
+          {playback.isMuted ? (
             <SpeakerSlashIcon aria-hidden="true" className="size-4.5" />
           ) : (
             <SpeakerHighIcon aria-hidden="true" className="size-4.5" />
@@ -130,12 +130,12 @@ export function AudioPlayerControls() {
 }
 
 function AudioPlayerProgress() {
-  const audioPlayer = useAudioPlayer();
-  const currentTime = useAudioPlayerTime();
+  const playback = usePlayback();
+  const currentTime = usePlaybackTime();
   const labelId = useId();
   const [previewTime, setPreviewTime] = useState<number | null>(null);
-  const displayedTime = Math.min(previewTime ?? currentTime, audioPlayer.duration);
-  const progress = audioPlayer.duration > 0 ? (displayedTime / audioPlayer.duration) * 100 : 0;
+  const displayedTime = Math.min(previewTime ?? currentTime, playback.duration);
+  const progress = playback.duration > 0 ? (displayedTime / playback.duration) * 100 : 0;
   const textureOffset = 8 - progress * 0.16;
   const textureMask = `linear-gradient(to right, transparent calc(${progress}% + ${textureOffset - 52}px), black calc(${progress}% + ${textureOffset - 18}px), black calc(${progress}% + ${textureOffset + 18}px), transparent calc(${progress}% + ${textureOffset + 52}px))`;
 
@@ -159,13 +159,13 @@ function AudioPlayerProgress() {
         <Slider
           aria-labelledby={labelId}
           className="cursor-pointer **:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
-          disabled={audioPlayer.duration <= 0}
-          max={audioPlayer.duration > 0 ? audioPlayer.duration : 1}
+          disabled={playback.duration <= 0}
+          max={playback.duration > 0 ? playback.duration : 1}
           min={0}
           onPointerCancel={() => setPreviewTime(null)}
           onValueChange={setPreviewTime}
           onValueCommitted={(value) => {
-            audioPlayer.seek(value);
+            playback.seek(value);
             setPreviewTime(null);
           }}
           step={0.1}
@@ -173,7 +173,7 @@ function AudioPlayerProgress() {
         />
       </div>
       <span className="text-right text-[11px] text-neutral-400 tabular-nums">
-        {formatDuration(audioPlayer.duration)}
+        {formatDuration(playback.duration)}
       </span>
     </div>
   );

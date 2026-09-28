@@ -1,4 +1,11 @@
-import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
+import {
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  shell,
+  type IpcMainEvent,
+  type IpcMainInvokeEvent,
+} from "electron";
 import { z } from "zod";
 import {
   lumeChannels,
@@ -26,6 +33,7 @@ import {
   getPlaylist,
   removePlaylistTrack,
 } from "./playlists";
+import { loadPlaybackSession, savePlaybackSession } from "./playback-session";
 import { isTrustedRendererEvent } from "./protocol";
 
 const rowIdSchema = z.number("Invalid database ID").int().positive().safe();
@@ -52,6 +60,8 @@ const trackLikeInputSchema = z.object({
   liked: z.boolean("Invalid track like input"),
   trackId: rowIdSchema,
 }) satisfies z.ZodType<TrackLikeInput>;
+
+const playbackPayloadSchema = z.string().max(16_000_000);
 
 export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
   function handleTrusted<Result>(
@@ -88,6 +98,22 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 
   handleTrusted(lumeChannels.loadLibrary, () => getLibrarySnapshot());
+
+  handleTrusted(lumeChannels.loadPlaybackSession, () => loadPlaybackSession());
+
+  handleTrusted(lumeChannels.savePlaybackSession, (_window, payload) => {
+    savePlaybackSession(playbackPayloadSchema.parse(payload));
+  });
+
+  ipcMain.on(lumeChannels.flushPlaybackSession, (event, payload) => {
+    try {
+      requireTrustedWindow(event, options.rendererUrl);
+      savePlaybackSession(playbackPayloadSchema.parse(payload));
+      event.returnValue = true;
+    } catch (error) {
+      event.returnValue = error instanceof Error ? error.message : "Could not save playback";
+    }
+  });
 
   handleTrusted(lumeChannels.createPlaylist, (_window, input) => {
     const playlist = createPlaylist(playlistCreationSchema.parse(input));
@@ -158,7 +184,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   });
 }
 
-function requireTrustedWindow(event: IpcMainInvokeEvent, rendererUrl: string) {
+function requireTrustedWindow(event: IpcMainEvent | IpcMainInvokeEvent, rendererUrl: string) {
   const window = BrowserWindow.fromWebContents(event.sender);
 
   if (!window || window.isDestroyed() || !isTrustedRendererEvent(event, rendererUrl)) {

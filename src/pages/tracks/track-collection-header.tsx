@@ -1,7 +1,7 @@
 import { PlayIcon, ShuffleAngularIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
 import type { TrackListItem } from "@/pages/tracks/track-list";
@@ -27,7 +27,7 @@ export function TrackCollectionHeader({
   title,
   trackCount = items.length,
 }: TrackCollectionHeaderProps) {
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
   const firstAvailableTrackIndex = items.findIndex((item) => item.track.available);
   const totalDuration = items.reduce((duration, item) => duration + (item.track.duration ?? 0), 0);
 
@@ -70,8 +70,7 @@ export function TrackCollectionHeader({
             className="h-10 gap-2 px-4"
             disabled={firstAvailableTrackIndex === -1}
             onClick={() => {
-              audioPlayer.seek(0);
-              audioPlayer.playFrom(items, firstAvailableTrackIndex, playlistId);
+              playback.playFromSource(items, firstAvailableTrackIndex, playlistId);
             }}
             size="lg"
             type="button"

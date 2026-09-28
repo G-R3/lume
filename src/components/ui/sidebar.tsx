@@ -55,8 +55,8 @@ function useSidebar() {
 
 function SidebarProvider({
   defaultOpen = true,
-  open: openProp,
-  onOpenChange: setOpenProp,
+  open: controlledOpen,
+  onOpenChange,
   className,
   style,
   children,
@@ -70,17 +70,17 @@ function SidebarProvider({
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
+  // An explicit open value lets callers control this provider.
   const [_open, _setOpen] = React.useState(defaultOpen);
-  const open = openProp ?? _open;
+  const open = controlledOpen ?? _open;
 
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       // eslint-disable-next-line anti-slop/no-runtime-typeof
       const openState = typeof value === "function" ? value(open) : value;
 
-      if (setOpenProp) {
-        setOpenProp(openState);
+      if (onOpenChange) {
+        onOpenChange(openState);
       } else {
         _setOpen(openState);
       }
@@ -88,7 +88,7 @@ function SidebarProvider({
       // This sets the cookie to keep the sidebar state.
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
     },
-    [setOpenProp, open],
+    [onOpenChange, open],
   );
 
   // Helper to toggle the sidebar.
@@ -141,21 +141,32 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  open,
+  onOpenChange,
   className,
   children,
   dir,
+  id,
+  style,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const sidebar = useSidebar();
+  const state = (open ?? sidebar.open) ? "expanded" : "collapsed";
+  const openMobile = open ?? sidebar.openMobile;
+  const setOpenMobile = onOpenChange ?? sidebar.setOpenMobile;
 
   if (collapsible === "none") {
     return (
       <div
+        id={id}
         data-slot="sidebar"
+        style={style}
         className={cn(
           "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
           className,
@@ -167,15 +178,19 @@ function Sidebar({
     );
   }
 
-  if (isMobile) {
+  if (sidebar.isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      <Sheet open={openMobile} onOpenChange={setOpenMobile}>
         <SheetContent
+          id={id}
           dir={dir}
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className={cn(
+            "w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-opacity [&>button]:hidden",
+            className,
+          )}
           style={
             // SAFETY: React passes this valid CSS custom property through to the DOM.
             {
@@ -185,8 +200,10 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{side === "right" ? "Queue" : "Sidebar"}</SheetTitle>
+            <SheetDescription>
+              Displays the {side === "right" ? "queue" : "library"} sidebar.
+            </SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -196,6 +213,8 @@ function Sidebar({
 
   return (
     <div
+      id={id}
+      style={style}
       className="group peer hidden text-sidebar-foreground md:block"
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -207,7 +226,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear motion-reduce:transition-none",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -219,7 +238,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:-left-(--sidebar-width) data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:-right-(--sidebar-width) md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear motion-reduce:transition-none data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:-left-(--sidebar-width) data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:-right-(--sidebar-width) md:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"

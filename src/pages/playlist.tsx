@@ -6,7 +6,6 @@ import type { PlaylistDetails } from "../../shared/lib";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { playlistQueryOptions, useRemovePlaylistTrackMutation } from "@/lib/library-query";
 import { TrackCollectionHeader } from "@/pages/tracks/track-collection-header";
@@ -44,14 +43,13 @@ export function PlaylistPage() {
 
 function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
-  const audioPlayer = useAudioPlayer();
   const removePlaylistTrack = useRemovePlaylistTrackMutation();
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
 
   const items = playlist.tracks.flatMap((playlistTrack) => {
     const track = tracksById.get(playlistTrack.trackId);
 
-    return track ? [{ queueItemId: playlistTrack.id, track }] : [];
+    return track ? [{ sourceEntryId: playlistTrack.id, track }] : [];
   });
 
   const handleRemove = (playlistTrackId: number) => {
@@ -67,7 +65,6 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           });
         },
         onSuccess: () => {
-          audioPlayer.removeQueueItem(playlistTrackId);
           toast.add({ title: `Removed from ${playlist.title}`, type: "success" });
         },
       },
@@ -102,7 +99,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           renderMenuItems={(item) => (
             <DropdownMenuItem
               disabled={removePlaylistTrack.isPending}
-              onClick={() => handleRemove(item.queueItemId)}
+              onClick={() => handleRemove(item.sourceEntryId)}
               variant="destructive"
             >
               <MinusCircleIcon aria-hidden="true" />

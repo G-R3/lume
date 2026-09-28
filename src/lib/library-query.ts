@@ -5,6 +5,7 @@ import type {
   PlaylistTrackRemovalInput,
   TrackLikeInput,
 } from "../../shared/lib";
+import { usePlayback } from "@/hooks/use-playback";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -38,12 +39,18 @@ export function playlistQueryOptions(playlistId: number) {
 
 export function useLibraryMutation() {
   const queryClient = useQueryClient();
+  const playback = usePlayback();
 
   return useMutation({
     mutationFn: runLibraryCommand,
     networkMode: "always",
     scope: { id: "library" },
-    onSuccess: (library) => queryClient.setQueryData(libraryQueryOptions.queryKey, library),
+    onSuccess: (library, command) => {
+      if (command.kind === "delete-playlist")
+        playback.dispatchQueue({ type: "sourceDeleted", playlistId: command.playlistId });
+
+      queryClient.setQueryData(libraryQueryOptions.queryKey, library);
+    },
   });
 }
 
@@ -60,12 +67,19 @@ export function useCreatePlaylistMutation() {
 
 export function useAddTrackToPlaylistMutation() {
   const queryClient = useQueryClient();
+  const playback = usePlayback();
 
   return useMutation({
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackInput) => window.lume.addTrackToPlaylist(input),
     onSuccess: (result, input) => {
       if (result.kind === "duplicate") return;
+
+      playback.dispatchQueue({
+        type: "sourceEntryAdded",
+        playlistId: input.playlistId,
+        entry: { sourceEntryId: result.track.id, trackId: result.track.trackId },
+      });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
     },
@@ -74,11 +88,20 @@ export function useAddTrackToPlaylistMutation() {
 
 export function useConfirmAddTrackToPlaylistMutation() {
   const queryClient = useQueryClient();
+  const playback = usePlayback();
 
   return useMutation({
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
-    onSuccess: (_track, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
+    onSuccess: (track, input) => {
+      playback.dispatchQueue({
+        type: "sourceEntryAdded",
+        playlistId: input.playlistId,
+        entry: { sourceEntryId: track.id, trackId: track.trackId },
+      });
+
+      return invalidatePlaylistQueries(queryClient, input.playlistId);
+    },
   });
 }
 
@@ -98,11 +121,20 @@ export function useCreatePlaylistFromTrackMutation() {
 
 export function useRemovePlaylistTrackMutation() {
   const queryClient = useQueryClient();
+  const playback = usePlayback();
 
   return useMutation({
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
-    onSuccess: (_result, input) => invalidatePlaylistQueries(queryClient, input.playlistId),
+    onSuccess: (_result, input) => {
+      playback.dispatchQueue({
+        type: "sourceEntryRemoved",
+        playlistId: input.playlistId,
+        sourceEntryId: input.playlistTrackId,
+      });
+
+      return invalidatePlaylistQueries(queryClient, input.playlistId);
+    },
   });
 }
 

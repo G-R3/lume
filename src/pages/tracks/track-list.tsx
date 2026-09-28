@@ -2,12 +2,13 @@ import {
   DotsThreeIcon,
   HeartIcon,
   LockSimpleIcon,
+  ListPlusIcon,
   PlaylistIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
 import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
@@ -24,7 +25,7 @@ import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/libr
 import { cn } from "@/lib/utils";
 
 export type TrackListItem = {
-  queueItemId: number;
+  sourceEntryId: number;
   track: Track;
 };
 
@@ -36,7 +37,7 @@ type TrackListProps = {
 };
 
 export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
   const navigate = useNavigate();
   const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
   const setTrackLiked = useSetTrackLiked();
@@ -114,7 +115,11 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
         <tbody>
           {items.map((item, index) => {
             const track = item.track;
-            const isActive = audioPlayer.activeQueueItemId === item.queueItemId;
+
+            const isActive =
+              playback.activeSourceEntryId === item.sourceEntryId &&
+              playback.activeSourcePlaylistId === (playlistId ?? null);
+
             const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
             const artists = track.artists.join(", ") || "Unknown artist";
             const album = track.album || "Unknown album";
@@ -124,15 +129,17 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                 className={cn(
                   "group/track-row border-b border-l-2 border-neutral-900",
                   isActive
-                    ? "border-l-lime-300 bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
+                    ? "border-l-lime-300 bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "border-l-transparent",
                   track.available
-                    ? "cursor-pointer hover:bg-neutral-950 focus-within:bg-neutral-900 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
+                    ? "cursor-pointer hover:bg-sidebar-accent focus-within:bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
                     : "bg-neutral-950/40",
                 )}
-                key={item.queueItemId}
+                key={item.sourceEntryId}
                 onClick={
-                  track.available ? () => audioPlayer.playFrom(items, index, playlistId) : undefined
+                  track.available
+                    ? () => playback.playFromSource(items, index, playlistId)
+                    : undefined
                 }
               >
                 <td
@@ -141,7 +148,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     metadataColor,
                   )}
                 >
-                  {isActive && audioPlayer.isPlaying ? (
+                  {isActive && playback.isPlaying ? (
                     <span aria-label="Playing" className="flex h-3 items-end gap-0.5">
                       <i className="h-1 w-0.5 bg-lime-300" />
                       <i className="h-2.5 w-0.5 bg-lime-300" />
@@ -232,7 +239,11 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   onClick={(event) => event.stopPropagation()}
                 >
                   <TrackRowMenu
+                    canAddToQueue={playback.queue !== null}
                     isCreatingPlaylist={createPlaylistFromTrack.isPending}
+                    onAddToQueue={() =>
+                      playback.dispatchQueue({ type: "enqueueTrack", trackId: track.id })
+                    }
                     onAddToPlaylist={handleAddToPlaylist}
                     onCreatePlaylist={handleCreatePlaylist}
                     track={track}
@@ -258,14 +269,18 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
 }
 
 function TrackRowMenu({
+  canAddToQueue,
   children,
   isCreatingPlaylist,
+  onAddToQueue,
   onAddToPlaylist,
   onCreatePlaylist,
   track,
 }: {
+  canAddToQueue: boolean;
   children?: ReactNode;
   isCreatingPlaylist: boolean;
+  onAddToQueue: () => void;
   onAddToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   onCreatePlaylist: (track: Track) => void;
   track: Track;
@@ -291,6 +306,12 @@ function TrackRowMenu({
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
+        {canAddToQueue && (
+          <DropdownMenuItem onClick={onAddToQueue}>
+            <ListPlusIcon aria-hidden="true" />
+            Add to queue
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
           <PlusIcon aria-hidden="true" />
           New playlist

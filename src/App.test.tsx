@@ -7,7 +7,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { describe, expect, it } from "vite-plus/test";
 import type { LibrarySnapshot, LumeApi } from "../shared/lib";
 import App from "./App";
-import { AudioPlayerProvider } from "@/hooks/use-audio-player";
+import { PlaybackProvider } from "@/hooks/use-playback";
 import { createAppRouter } from "@/router";
 
 describe("App library startup", () => {
@@ -27,9 +27,9 @@ describe("App library startup", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <AudioPlayerProvider>
+          <PlaybackProvider>
             <App />
-          </AudioPlayerProvider>
+          </PlaybackProvider>
         </QueryClientProvider>,
       );
     });
@@ -69,9 +69,9 @@ describe("App library startup", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <AudioPlayerProvider>
+          <PlaybackProvider>
             <RouterProvider router={router} />
-          </AudioPlayerProvider>
+          </PlaybackProvider>
         </QueryClientProvider>,
       );
     });
@@ -114,6 +114,11 @@ function createLumeApi(loadLibrary: LumeApi["loadLibrary"]): LumeApi {
     forgetSource: () => firstRunPromise,
     loadLibrary,
     loadPlaylist: () => Promise.resolve(null),
+    playbackSession: {
+      flush: () => {},
+      load: () => Promise.resolve(null),
+      save: () => Promise.resolve(),
+    },
     onLibraryUpdate: () => () => {},
     openDataFolder: () => Promise.resolve(),
     removePlaylistTrack: () => Promise.resolve(),

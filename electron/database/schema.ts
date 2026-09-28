@@ -121,7 +121,7 @@ export const playlists = sqliteTable(
 export const playlistTracks = sqliteTable(
   "playlist_entries",
   {
-    id: integer("id").primaryKey(),
+    id: integer("id").primaryKey({ autoIncrement: true }),
     playlistId: integer("playlist_id")
       .notNull()
       .references(() => playlists.id, { onDelete: "cascade" }),
@@ -137,3 +137,8 @@ export const playlistTracks = sqliteTable(
     check("playlist_entries_position_check", sql`${table.position} >= 0`),
   ],
 );
+
+export const playbackSession = sqliteTable("playback_session", {
+  id: integer("id").primaryKey(),
+  payload: text("payload").notNull(),
+});

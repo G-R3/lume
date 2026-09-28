@@ -1,17 +1,19 @@
 import { Outlet, useLocation } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { AudioPlayerControls } from "@/components/audio-player-controls";
 import { AppHeader } from "@/pages/layout/header";
 import { AppSidebar } from "@/pages/layout/sidebar";
+import { QueueSidebar } from "@/pages/layout/queue-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 
 export function AppLayout() {
   const library = useMusicLibrary();
-  const audioPlayer = useAudioPlayer();
-  const syncTracks = audioPlayer.syncTracks;
+  const playback = usePlayback();
+  const syncLibrary = playback.syncLibrary;
+  const [queueOpen, setQueueOpen] = useState(false);
 
   const isSettings = useLocation({
     select: (location) =>
@@ -19,8 +21,10 @@ export function AppLayout() {
   });
 
   useEffect(() => {
-    syncTracks(library.tracks);
-  }, [library.tracks, syncTracks]);
+    syncLibrary(library);
+  }, [library, syncLibrary]);
+
+  if (!playback.isInitialized) return <div className="min-h-screen bg-black" />;
 
   return (
     <SidebarProvider className="h-svh flex-col bg-neutral-950 text-neutral-50">
@@ -36,16 +40,21 @@ export function AppLayout() {
         )}
 
         <SidebarInset className="min-h-0 overflow-auto bg-background">
-          <AppHeader isSettings={isSettings} />
+          <AppHeader
+            isSettings={isSettings}
+            onToggleQueue={() => setQueueOpen((open) => !open)}
+            queueOpen={queueOpen}
+          />
           <div className="flex-1">
-            {audioPlayer.errorMessage && (
+            {playback.errorMessage && (
               <p className="m-4 text-sm text-red-300" role="alert">
-                {audioPlayer.errorMessage}
+                {playback.errorMessage}
               </p>
             )}
             <Outlet />
           </div>
         </SidebarInset>
+        <QueueSidebar onOpenChange={setQueueOpen} open={queueOpen} />
       </div>
       <AudioPlayerControls />
     </SidebarProvider>

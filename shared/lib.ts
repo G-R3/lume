@@ -112,6 +112,11 @@ export type LumeApi = {
   forgetSource: (sourceId: number) => Promise<LibrarySnapshot>;
   loadLibrary: () => Promise<LibrarySnapshot>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
+  playbackSession: {
+    flush: (payload: string) => void;
+    load: () => Promise<string | null>;
+    save: (payload: string) => Promise<void>;
+  };
   onLibraryUpdate: (listener: (library: LibrarySnapshot) => void) => () => void;
   openDataFolder: () => Promise<void>;
   rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
@@ -133,6 +138,9 @@ export const lumeChannels = {
   forgetSource: "lume:forget-source",
   loadLibrary: "lume:load-library",
   loadPlaylist: "lume:load-playlist",
+  loadPlaybackSession: "lume:load-playback-session",
+  flushPlaybackSession: "lume:flush-playback-session",
+  savePlaybackSession: "lume:save-playback-session",
   libraryUpdated: "lume:library-updated",
   openDataFolder: "lume:open-data-folder",
   rescanSource: "lume:rescan-source",

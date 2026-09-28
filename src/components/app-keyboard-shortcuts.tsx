@@ -1,9 +1,9 @@
 import { useSidebar } from "@/components/ui/sidebar";
-import { useAudioPlayer } from "@/hooks/use-audio-player";
+import { usePlayback } from "@/hooks/use-playback";
 import { useKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
 
 export function AppKeyboardShortcuts() {
-  const audioPlayer = useAudioPlayer();
+  const playback = usePlayback();
   const sidebar = useSidebar();
 
   useKeyboardShortcuts(
@@ -11,19 +11,19 @@ export function AppKeyboardShortcuts() {
       {
         name: "Toggle playback",
         key: " ",
-        action: audioPlayer.togglePlayback,
+        action: playback.togglePlayback,
       },
       {
         name: "Next track",
         key: "ArrowRight",
         primary: true,
-        action: audioPlayer.next,
+        action: playback.next,
       },
       {
         name: "Previous track",
         key: "ArrowLeft",
         primary: true,
-        action: audioPlayer.previous,
+        action: playback.previous,
       },
       {
         name: "Toggle sidebar",
