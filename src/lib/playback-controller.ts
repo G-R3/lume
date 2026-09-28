@@ -200,6 +200,12 @@ export function createPlaybackController(
       return;
     }
 
+    if (snapshot.queue && !snapshot.queue.current) {
+      dispatch({ type: "next", reason: "skip" });
+
+      return;
+    }
+
     setError(null);
     audio.play();
   };
