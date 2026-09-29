@@ -148,9 +148,14 @@
   background-size: 4px 4px;
 }
 
+/* Keep the control clickable where the thumb's padded hit area extends beyond it. */
+.audio-player-progress [data-base-ui-slider-control]::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+
 /* The dot field stays fixed while the thumb moves its reveal mask. */
-.audio-player-progress:has([data-slot="slider-thumb"]:hover) [data-slot="slider-texture"],
-.audio-player-progress:has([data-slot="slider-thumb"] :focus-visible) [data-slot="slider-texture"],
 .audio-player-progress:has([data-slot="slider"][data-dragging]) [data-slot="slider-texture"] {
   opacity: 1;
 }
