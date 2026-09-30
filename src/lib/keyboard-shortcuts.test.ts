@@ -34,30 +34,6 @@ describe("keyboard shortcut matching", () => {
 
   it.each([
     {
-      description: "Command on macOS",
-      eventInit: { key: "k", metaKey: true },
-      isMac: true,
-    },
-    {
-      description: "Control on other platforms",
-      eventInit: { ctrlKey: true, key: "k" },
-      isMac: false,
-    },
-  ])("uses $description as the primary modifier", (testCase) => {
-    let calls = 0;
-
-    dispatchShortcut(
-      document.body,
-      [{ name: "Open search", key: "k", primary: true, action: () => calls++ }],
-      testCase.eventInit,
-      testCase.isMac,
-    );
-
-    expect(calls).toBe(1);
-  });
-
-  it.each([
-    {
       description: "Control on macOS",
       isMac: true,
       matchingEventInit: { key: "k", metaKey: true },

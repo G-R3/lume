@@ -1,8 +1,9 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, rm, writeFile } from "node:fs/promises";
+import { openTestDatabase } from "./helpers/database";
+import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, getDatabase, initializeDatabase } from "./database";
+import { describe, expect, it } from "vite-plus/test";
+
 import {
   applySourceScan,
   disableSource,
@@ -11,17 +12,8 @@ import {
   saveSource,
   scanEnabledSources,
   scanSource,
-} from "./library";
-import { scanAudioFiles, type ScannedTrack } from "./library-files";
-
-const temporaryFolders: string[] = [];
-
-afterEach(async () => {
-  closeDatabase();
-  await Promise.all(
-    temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
-  );
-});
+} from "../electron/library";
+import { scanAudioFiles, type ScannedTrack } from "../electron/library-files";
 
 describe("enabled source scanning", () => {
   it("discards an older scan that finishes after a newer scan", async () => {
@@ -150,22 +142,6 @@ describe("enabled source scanning", () => {
     },
   );
 });
-
-async function openTestDatabase() {
-  await initializeDatabase({
-    location: ":memory:",
-    migrationsFolder: join(import.meta.dirname, "../drizzle"),
-  });
-
-  return getDatabase();
-}
-
-async function createTemporaryFolder(prefix: string) {
-  const folder = await mkdtemp(join(tmpdir(), prefix));
-  temporaryFolders.push(folder);
-
-  return folder;
-}
 
 function createScannedTrack(path: string, title: string) {
   return {

@@ -1,16 +1,9 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
+import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
+import { createWaveAudio } from "../tests/helpers/wave-audio";
 import { scanAudioFiles } from "./library-files";
-
-const temporaryFolders: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
-  );
-});
 
 describe("scanAudioFiles", () => {
   it("recursively finds supported audio files", async () => {
@@ -110,32 +103,6 @@ describe("scanAudioFiles", () => {
     ]);
   });
 });
-
-async function createTemporaryFolder(prefix: string) {
-  const folder = await mkdtemp(join(tmpdir(), prefix));
-  temporaryFolders.push(folder);
-
-  return folder;
-}
-
-function createWaveAudio() {
-  const sampleRate = 8_000;
-  const audio = Buffer.alloc(44 + sampleRate, 128);
-  audio.write("RIFF", 0);
-  audio.writeUInt32LE(audio.length - 8, 4);
-  audio.write("WAVEfmt ", 8);
-  audio.writeUInt32LE(16, 16);
-  audio.writeUInt16LE(1, 20);
-  audio.writeUInt16LE(1, 22);
-  audio.writeUInt32LE(sampleRate, 24);
-  audio.writeUInt32LE(sampleRate, 28);
-  audio.writeUInt16LE(1, 32);
-  audio.writeUInt16LE(8, 34);
-  audio.write("data", 36);
-  audio.writeUInt32LE(sampleRate, 40);
-
-  return audio;
-}
 
 function createId3Tag(frames: readonly Buffer[]) {
   const body = Buffer.concat(frames);

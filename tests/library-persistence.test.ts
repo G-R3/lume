@@ -1,8 +1,9 @@
-import { mkdtemp, mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { openTestDatabase } from "./helpers/database";
+import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, getDatabase, initializeDatabase } from "./database";
+import { describe, expect, it } from "vite-plus/test";
+import { closeDatabase } from "../electron/database";
 import {
   applySourceScan,
   disableSource,
@@ -17,40 +18,20 @@ import {
   hasForgottenSources,
   saveSource,
   setTrackLiked,
-} from "./library";
-import { scanAudioFiles } from "./library-files";
-
-const temporaryFolders: string[] = [];
-
-afterEach(async () => {
-  closeDatabase();
-  await Promise.all(
-    temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
-  );
-});
+} from "../electron/library";
+import { addTrackToPlaylist, createPlaylist, getPlaylist } from "../electron/playlists";
+import { scanAudioFiles } from "../electron/library-files";
 
 describe("library source persistence", () => {
-  it("reports whether a library has forgotten sources", async () => {
-    await openTestDatabase();
-    const folder = await createTemporaryFolder("lume-source-");
-
-    expect(hasForgottenSources()).toBe(false);
-    const source = await saveSource(folder);
-    expect(hasForgottenSources()).toBe(false);
-    forgetSource(source.id);
-    expect(hasForgottenSources()).toBe(true);
-  });
-
   it("reuses a source ID after the database is reopened", async () => {
     const folder = await createTemporaryFolder("lume-source-");
     const databaseFolder = await createTemporaryFolder("lume-database-");
-    const databasePath = join(databaseFolder, "library.sqlite");
+    const databasePath = join(databaseFolder, "nested", "library.sqlite");
     await openTestDatabase(databasePath);
     const source = await saveSource(folder);
     closeDatabase();
 
     await openTestDatabase(databasePath);
-    await expect(saveSource(folder)).resolves.toEqual(source);
     expect(getSources()).toEqual([
       {
         enabled: true,
@@ -61,6 +42,7 @@ describe("library source persistence", () => {
         trackCount: 0,
       },
     ]);
+    await expect(saveSource(folder)).resolves.toEqual(source);
   });
 
   it("rejects nested and containing source folders", async () => {
@@ -104,13 +86,16 @@ describe("library source persistence", () => {
 
   it("restores forgotten sources with the same track IDs", async () => {
     const database = await openTestDatabase();
+    expect(hasForgottenSources()).toBe(false);
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(folder);
+    expect(hasForgottenSources()).toBe(false);
     applySourceScan(source.id, await scanAudioFiles(folder));
     const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
 
     forgetSource(source.id);
+    expect(hasForgottenSources()).toBe(true);
     expect(getSources()).toEqual([]);
     expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
       available: 0,
@@ -197,53 +182,40 @@ describe("track persistence", () => {
       mediaType: "image/png",
     };
 
-    applySourceScan(
-      source.id,
-      ["first", "second"].map((title) => ({
-        album: "Album",
-        albumArtists: ["Album artist"],
-        artists: ["Artist", "Guest"],
-        artwork,
-        bitrate: 2_304_000,
-        bitsPerSample: 24,
-        channelCount: 2,
-        codec: "FLAC",
-        discNumber: 1,
-        discTotal: 2,
-        duration: 180,
-        fileSize: 1,
-        format: "FLAC",
-        genres: ["Electronic"],
-        kind: "changed" as const,
-        lossless: true,
-        modifiedAt: 1,
-        path: join(folder, `${title}.flac`),
-        sampleRate: 96_000,
-        trackNumber: 1,
-        trackTotal: 10,
-        title,
-        year: 2007,
-      })),
-    );
-
-    expect(getTracks()[0]).toMatchObject({
+    const metadata = {
       album: "Album",
       albumArtists: ["Album artist"],
       artists: ["Artist", "Guest"],
-      artworkId: artwork.id,
       bitrate: 2_304_000,
       bitsPerSample: 24,
       channelCount: 2,
       codec: "FLAC",
       discNumber: 1,
       discTotal: 2,
+      duration: 180,
+      format: "FLAC",
       genres: ["Electronic"],
       lossless: true,
       sampleRate: 96_000,
       trackNumber: 1,
       trackTotal: 10,
       year: 2007,
-    });
+    };
+
+    applySourceScan(
+      source.id,
+      ["first", "second"].map((title) => ({
+        ...metadata,
+        artwork,
+        fileSize: 1,
+        kind: "changed" as const,
+        modifiedAt: 1,
+        path: join(folder, `${title}.flac`),
+        title,
+      })),
+    );
+
+    expect(getTracks()[0]).toMatchObject({ ...metadata, artworkId: artwork.id });
     expect(getArtworkData(artwork.id)).toEqual({
       data: artwork.data,
       mediaType: artwork.mediaType,
@@ -300,40 +272,49 @@ describe("track persistence", () => {
     expect(new Set(tracks.map((track) => track.id)).size).toBe(3);
   });
 
-  it("marks missing tracks unavailable and restores the same record", async () => {
+  it("restores a missing track and its playlist entry with the same IDs", async () => {
     const database = await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     const trackPath = join(folder, "song.mp3");
     await writeFile(trackPath, "original");
     const source = await saveSource(folder);
     applySourceScan(source.id, await scanAudioFiles(folder));
-    const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
+    const track = getTracks()[0];
+
+    if (!track) throw new Error("Expected the scan to create a track");
+
+    const playlist = createPlaylist({ description: null, title: "Keepers" });
+    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: track.id });
+
+    if (addition.kind !== "added") throw new Error("Expected the track to be added");
 
     await rm(trackPath);
     applySourceScan(source.id, await scanAudioFiles(folder));
     expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
       available: 0,
-      id: trackId,
+      id: track.id,
     });
-    expect(getTracks().map((track) => track.available)).toEqual([false]);
+    expect(getTracks()).toMatchObject([{ available: false, title: "song" }]);
+    expect(getPlaylist(playlist.id)?.tracks).toEqual([addition.track]);
 
     await writeFile(trackPath, "restored");
     applySourceScan(source.id, await scanAudioFiles(folder));
     expect(database.$client.prepare("SELECT id, available, file_size FROM tracks").get()).toEqual({
       available: 1,
       file_size: 8,
-      id: trackId,
+      id: track.id,
     });
     expect(getTracks()).toMatchObject([
       {
         available: true,
         duration: null,
         format: "MP3",
-        id: trackId,
+        id: track.id,
         title: "song",
         path: trackPath,
       },
     ]);
+    expect(getPlaylist(playlist.id)?.tracks).toEqual([addition.track]);
   });
 
   it("creates a new track after a file is renamed", async () => {
@@ -363,16 +344,3 @@ describe("track persistence", () => {
     expect(tracks[0]?.id).not.toBe(originalId);
   });
 });
-
-async function openTestDatabase(location = ":memory:") {
-  await initializeDatabase({ location, migrationsFolder: join(import.meta.dirname, "../drizzle") });
-
-  return getDatabase();
-}
-
-async function createTemporaryFolder(prefix: string) {
-  const folder = await mkdtemp(join(tmpdir(), prefix));
-  temporaryFolders.push(folder);
-
-  return folder;
-}

@@ -22,9 +22,11 @@
   "include": [
     "e2e",
     "electron",
+    "tests",
     "drizzle.config.ts",
     "electron.vite.config.ts",
     "vite.config.ts",
     "vite.e2e.config.ts"
-  ]
+  ],
+  "exclude": ["tests/**/*.browser.test.*"]
 }

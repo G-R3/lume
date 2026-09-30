@@ -18,7 +18,7 @@ export default defineConfig({
         extends: true,
         test: {
           exclude: ["**/*.browser.test.{ts,tsx}"],
-          include: ["{electron,src}/**/*.test.{ts,tsx}"],
+          include: ["{electron,src,tests}/**/*.test.{ts,tsx}"],
           name: "unit",
         },
       },

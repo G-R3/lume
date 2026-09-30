@@ -128,22 +128,7 @@ it("stays stopped when the source no longer has any available tracks", async () 
 });
 
 it("keeps the active source in order through playlist edits", async () => {
-  const controller = createPlaybackController(
-    {
-      load: () => {},
-      getPosition: () => 0,
-      hasRequest: () => true,
-      play: () => {},
-      pause: () => {},
-      seek: () => {},
-    },
-    {
-      load: () => Promise.resolve(null),
-      save: () => Promise.resolve(),
-      flush: () => {},
-    },
-    () => Promise.resolve(null),
-  );
+  const controller = createTestPlayback().controller;
 
   const library = {
     kind: "library",
@@ -178,26 +163,8 @@ it("keeps the active source in order through playlist edits", async () => {
 });
 
 it("restarts the current track before navigating to the prior source item", async () => {
-  let position = 0;
-
-  const controller = createPlaybackController(
-    {
-      load: () => {},
-      getPosition: () => position,
-      hasRequest: () => true,
-      play: () => {},
-      pause: () => {},
-      seek: (time) => {
-        position = time;
-      },
-    },
-    {
-      load: () => Promise.resolve(null),
-      save: () => Promise.resolve(),
-      flush: () => {},
-    },
-    () => Promise.resolve(null),
-  );
+  const playback = createTestPlayback();
+  const controller = playback.controller;
 
   const tracks = [track(1), track(2), track(3)];
   controller.syncLibrary({ kind: "library", playlists: [], sources: [], tracks });
@@ -207,9 +174,10 @@ it("restarts the current track before navigating to the prior source item", asyn
     1,
   );
 
-  position = 3;
+  playback.media.seek(3);
   controller.previous();
-  expect(position).toBe(0);
+  expect(playback.seeks).toEqual([3, 0]);
+  expect(playback.media.getPosition()).toBe(0);
   expect(controller.getSnapshot().queue?.current?.item.trackId).toBe(2);
 
   controller.previous();
@@ -219,22 +187,26 @@ it("restarts the current track before navigating to the prior source item", asyn
 
 function createTestPlayback(loadPlaylist: LumeApi["loadPlaylist"] = () => Promise.resolve(null)) {
   const requests: (PlaybackRequest | null)[] = [];
+  const seeks: number[] = [];
   let position = 0;
 
-  const controller = createPlaybackController(
-    {
-      load: (request, time = request?.position ?? 0) => {
-        requests.push(request);
-        position = time;
-      },
-      getPosition: () => position,
-      hasRequest: () => !!requests.at(-1),
-      play: () => {},
-      pause: () => {},
-      seek: (time) => {
-        position = time;
-      },
+  const media = {
+    load: (request, time = request?.position ?? 0) => {
+      requests.push(request);
+      position = time;
     },
+    getPosition: () => position,
+    hasRequest: () => !!requests.at(-1),
+    play: () => {},
+    pause: () => {},
+    seek: (time) => {
+      seeks.push(time);
+      position = time;
+    },
+  } satisfies Parameters<typeof createPlaybackController>[0];
+
+  const controller = createPlaybackController(
+    media,
     {
       load: () => Promise.resolve(null),
       save: () => Promise.resolve(),
@@ -243,7 +215,7 @@ function createTestPlayback(loadPlaylist: LumeApi["loadPlaylist"] = () => Promis
     loadPlaylist,
   );
 
-  return { controller, requests };
+  return { controller, media, requests, seeks };
 }
 
 function track(id: number): Track {

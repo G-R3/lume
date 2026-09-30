@@ -1,12 +1,13 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { writeFile } from "node:fs/promises";
+import { openTestDatabase } from "./helpers/database";
+import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, getDatabase, initializeDatabase, type LibraryDatabase } from "./database";
-import { librarySources, tracks } from "./database/schema";
-import { applySourceScan, getTracks, saveSource } from "./library";
-import { scanAudioFiles, trackMetadataVersion } from "./library-files";
+import { describe, expect, it } from "vite-plus/test";
+import { closeDatabase, type LibraryDatabase } from "../electron/database";
+import { librarySources, tracks } from "../electron/database/schema";
+import { applySourceScan, getTracks, saveSource } from "../electron/library";
+import { scanAudioFiles, trackMetadataVersion } from "../electron/library-files";
 import { transition } from "../src/lib/queue";
 import {
   addTrackToPlaylist,
@@ -17,16 +18,7 @@ import {
   getPlaylist,
   getPlaylists,
   removePlaylistTrack,
-} from "./playlists";
-
-const temporaryFolders: string[] = [];
-
-afterEach(async () => {
-  closeDatabase();
-  await Promise.all(
-    temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
-  );
-});
+} from "../electron/playlists";
 
 describe("playlist behavior", () => {
   it("keeps the current track and queues a new addition after removing the playing entry", async () => {
@@ -237,55 +229,7 @@ describe("playlist behavior", () => {
     ).toThrow("Playlist track does not exist in this playlist");
     expect(getPlaylist(firstPlaylist.id)?.tracks).toEqual([addition.track]);
   });
-
-  it("keeps playlist membership while a track disappears and returns", async () => {
-    await openTestDatabase();
-    const folder = await createTemporaryFolder("lume-playlist-source-");
-    const trackPath = join(folder, "Fading Light.mp3");
-    await writeFile(trackPath, "audio");
-    const source = await saveSource(folder);
-    applySourceScan(source.id, await scanAudioFiles(folder));
-    const track = getTracks()[0];
-
-    if (!track) throw new Error("Expected the scan to create a track");
-
-    const playlist = createPlaylist({ description: null, title: "Keepers" });
-    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: track.id });
-
-    if (addition.kind !== "added") throw new Error("Expected the track to be added");
-
-    await rm(trackPath);
-    applySourceScan(source.id, await scanAudioFiles(folder));
-
-    expect(readPlaylistTrack(playlist.id)).toEqual({
-      available: false,
-      playlistTrackId: addition.track.id,
-      title: "Fading Light",
-    });
-
-    await writeFile(trackPath, "restored audio");
-    applySourceScan(source.id, await scanAudioFiles(folder));
-
-    expect(readPlaylistTrack(playlist.id)).toEqual({
-      available: true,
-      playlistTrackId: addition.track.id,
-      title: "Fading Light",
-    });
-  });
 });
-
-async function openTestDatabase(location = ":memory:") {
-  await initializeDatabase({ location, migrationsFolder: join(import.meta.dirname, "../drizzle") });
-
-  return getDatabase();
-}
-
-async function createTemporaryFolder(prefix: string) {
-  const folder = await mkdtemp(join(tmpdir(), prefix));
-  temporaryFolders.push(folder);
-
-  return folder;
-}
 
 async function addTrack(title: string) {
   const folder = await createTemporaryFolder("lume-playlist-track-");
@@ -338,20 +282,4 @@ function insertTrack(database: LibraryDatabase, name: string, title: string) {
     })
     .returning({ id: tracks.id })
     .get().id;
-}
-
-function readPlaylistTrack(playlistId: number) {
-  const playlistTrack = getPlaylist(playlistId)?.tracks[0];
-
-  const track = playlistTrack
-    ? getTracks().find((track) => track.id === playlistTrack.trackId)
-    : undefined;
-
-  if (!playlistTrack || !track) throw new Error("Expected the playlist track to exist");
-
-  return {
-    available: track.available,
-    playlistTrackId: playlistTrack.id,
-    title: track.title,
-  };
 }

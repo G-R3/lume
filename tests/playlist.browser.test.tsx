@@ -11,6 +11,8 @@ import type {
   PlaylistSummary,
   Track,
 } from "../shared/lib";
+import { createTestApi } from "./helpers/lume-api";
+import { createWaveAudio } from "./helpers/wave-audio";
 import { PlaybackProvider } from "@/hooks/use-playback";
 import { serializeQueueSession, transition } from "@/lib/queue";
 import { createAppRouter } from "@/router";
@@ -579,7 +581,7 @@ describe("playlist behavior", () => {
     },
   );
 
-  it("likes a track directly from its row", async () => {
+  it.each(["row", "audio player"] as const)("likes a track from its %s", async (entryPoint) => {
     const track = createTrack(1, "Midnight");
     const state = createRendererState([track]);
     const calls: { liked: boolean; trackId: number }[] = [];
@@ -596,38 +598,16 @@ describe("playlist behavior", () => {
     renderApplication(api);
 
     const table = page.getByRole("table", { name: "All tracks" });
-    await table.getByRole("button", { name: "Like Midnight" }).click();
+
+    if (entryPoint === "audio player") {
+      await table.getByRole("button", { exact: true, name: "Midnight" }).click();
+    }
+
+    const target = entryPoint === "row" ? table : page.getByRole("contentinfo");
+    await target.getByRole("button", { name: "Like Midnight" }).click();
 
     expect(calls).toEqual([{ liked: true, trackId: track.id }]);
-    await expect.element(table.getByRole("button", { name: "Unlike Midnight" })).toBeVisible();
-  });
-
-  it("likes the active track from the audio player", async () => {
-    const track = createTrack(1, "Midnight");
-    const state = createRendererState([track]);
-    const calls: { liked: boolean; trackId: number }[] = [];
-
-    const api = createTestApi(() => ({
-      loadLibrary: () => Promise.resolve(state.library),
-      setTrackLiked: (input) => {
-        calls.push(input);
-
-        return Promise.resolve({ likedAt: 1, trackId: input.trackId });
-      },
-    }));
-
-    renderApplication(api);
-
-    await page
-      .getByRole("table", { name: "All tracks" })
-      .getByRole("button", { exact: true, name: "Midnight" })
-      .click();
-
-    const player = page.getByRole("contentinfo");
-    await player.getByRole("button", { name: "Like Midnight" }).click();
-
-    expect(calls).toEqual([{ liked: true, trackId: track.id }]);
-    await expect.element(player.getByRole("button", { name: "Unlike Midnight" })).toBeVisible();
+    await expect.element(target.getByRole("button", { name: "Unlike Midnight" })).toBeVisible();
   });
 });
 
@@ -698,62 +678,8 @@ function createTrack(id: number, title: string, available = true): Track {
 }
 
 function createSilentAudioUrl() {
-  const sampleRate = 8_000;
-  const dataLength = sampleRate * 30;
-  const bytes = new Uint8Array(44 + dataLength);
-  const view = new DataView(bytes.buffer);
-
-  bytes.set(new TextEncoder().encode("RIFF"), 0);
-  view.setUint32(4, 36 + dataLength, true);
-  bytes.set(new TextEncoder().encode("WAVE"), 8);
-  bytes.set(new TextEncoder().encode("fmt "), 12);
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate, true);
-  view.setUint16(32, 1, true);
-  view.setUint16(34, 8, true);
-  bytes.set(new TextEncoder().encode("data"), 36);
-  view.setUint32(40, dataLength, true);
-  bytes.fill(128, 44);
-
-  const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+  const url = URL.createObjectURL(new Blob([createWaveAudio(30)], { type: "audio/wav" }));
   audioUrls.push(url);
 
   return url;
-}
-
-function createTestApi(createOverrides: () => Partial<LumeApi>): LumeApi {
-  // Browser tests advance through fixed API responses. Store rules belong to the SQLite tests.
-  const rejectUnexpected = (operation: string) =>
-    Promise.reject(new Error(`Unexpected ${operation} request`));
-
-  return {
-    addTrackToPlaylist: () => rejectUnexpected("addTrackToPlaylist"),
-    addSource: () => rejectUnexpected("addSource"),
-    confirmAddTrackToPlaylist: () => rejectUnexpected("confirmAddTrackToPlaylist"),
-    createPlaylist: () => rejectUnexpected("createPlaylist"),
-    createPlaylistFromTrack: () => rejectUnexpected("createPlaylistFromTrack"),
-    deletePlaylist: () => rejectUnexpected("deletePlaylist"),
-    disableSource: () => rejectUnexpected("disableSource"),
-    enableSource: () => rejectUnexpected("enableSource"),
-    forgetSource: () => rejectUnexpected("forgetSource"),
-    loadLibrary: () => rejectUnexpected("loadLibrary"),
-    loadPlaylist: () => rejectUnexpected("loadPlaylist"),
-    playbackSession: {
-      flush: () => {},
-      load: () => Promise.resolve(null),
-      save: () => Promise.resolve(),
-    },
-    onLibraryUpdate: () => () => {},
-    openDataFolder: () => rejectUnexpected("openDataFolder"),
-    removePlaylistTrack: () => rejectUnexpected("removePlaylistTrack"),
-    rescanSource: () => rejectUnexpected("rescanSource"),
-    rescanSources: () => rejectUnexpected("rescanSources"),
-    setTrackLiked: (input) =>
-      Promise.resolve({ likedAt: input.liked ? Date.now() : null, trackId: input.trackId }),
-    isMac: false,
-    ...createOverrides(),
-  };
 }

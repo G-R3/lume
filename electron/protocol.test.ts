@@ -1,7 +1,7 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { writeFile } from "node:fs/promises";
+import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { join, resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import { getArtworkUrl, getTrackUrl } from "../shared/lib";
 import {
   createArtworkResponse,
@@ -15,14 +15,6 @@ import {
 const rendererDirectory = resolve("app", "out", "renderer");
 
 const packagedRendererUrl = "lume://app/index.html";
-
-const temporaryFolders: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    temporaryFolders.splice(0).map((folder) => rm(folder, { force: true, recursive: true })),
-  );
-});
 
 describe("isTrustedRendererUrl", () => {
   it("accepts the configured document URL", () => {
@@ -210,8 +202,7 @@ describe("createTrackResponse", () => {
 });
 
 async function createAudioFile(name: string) {
-  const folder = await mkdtemp(join(tmpdir(), "lume-protocol-"));
-  temporaryFolders.push(folder);
+  const folder = await createTemporaryFolder("lume-protocol-");
   const path = join(folder, name);
   await writeFile(
     path,
