@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 100;
 
+export const QUEUE_SIDEBAR_WIDTH = "20.25rem";
+
 export function QueueSidebar({
   open,
   onOpenChange,
@@ -79,11 +81,10 @@ export function QueueSidebar({
       open={open}
       role="complementary"
       side="right"
-      style={{ "--sidebar-width": "20.25rem" } as CSSProperties}
+      style={{ "--sidebar-width": QUEUE_SIDEBAR_WIDTH } as CSSProperties}
     >
-      {window.lume.isMac && (
-        <div aria-hidden="true" className="h-9 shrink-0 [-webkit-app-region:drag]" />
-      )}
+      {window.lume.isMac && <div aria-hidden="true" className="h-9 shrink-0" />}
+
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-5 scrollbar-thin">
         <div
           className={cn(

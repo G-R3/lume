@@ -1,4 +1,4 @@
-import { DotsThreeIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
 import { useParams } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
@@ -10,21 +10,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
-export function AppHeader({
-  isSettings,
-  onToggleQueue,
-  queueOpen,
-}: {
-  isSettings: boolean;
-  onToggleQueue: () => void;
-  queueOpen: boolean;
-}) {
+export function AppHeader({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
   const libraryMutation = useLibraryMutation();
   const params = useParams({ strict: false });
@@ -48,17 +39,12 @@ export function AppHeader({
       >
         <div
           className={cn(
-            "flex min-w-0 items-center gap-2",
-            window.lume.isMac &&
-              "transition-transform duration-200 ease-linear motion-reduce:transition-none",
-            window.lume.isMac && sidebar.state === "collapsed" && "translate-x-17.5",
+            "flex min-w-0 items-center gap-2 pl-7.5 md:ml-1 md:pl-0 md:transition-transform md:duration-200 md:ease-linear motion-reduce:transition-none",
+            window.lume.isMac && "pl-24 md:pl-0",
+            sidebar.state === "collapsed" &&
+              (window.lume.isMac ? "md:translate-x-23" : "md:translate-x-8"),
           )}
         >
-          <SidebarTrigger className="-ml-1.5" />
-          <Separator
-            className="-ml-0.5 mr-1 h-4 bg-neutral-800 data-vertical:self-center!"
-            orientation="vertical"
-          />
           <h1 className="truncate text-sm font-semibold tracking-tight">
             {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
           </h1>
@@ -80,20 +66,8 @@ export function AppHeader({
           )}
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="ml-auto mr-6.5 flex shrink-0 items-center gap-1">
           {playlist && <PlaylistHeaderMenu playlist={playlist} />}
-          <Button
-            aria-controls="queue-sidebar"
-            aria-expanded={queueOpen}
-            aria-label={queueOpen ? "Close queue sidebar" : "Open queue sidebar"}
-            className={cn("-mr-1.5", queueOpen && "bg-transparent! hover:bg-transparent!")}
-            onClick={onToggleQueue}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <SidebarSimpleIcon aria-hidden="true" className="-scale-x-100" />
-          </Button>
         </div>
       </header>
 
