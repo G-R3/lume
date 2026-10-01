@@ -15,7 +15,7 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
-export function AppHeader({ isSettings }: { isSettings: boolean }) {
+export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queueOpen: boolean }) {
   const library = useMusicLibrary();
   const libraryMutation = useLibraryMutation();
   const params = useParams({ strict: false });
@@ -66,7 +66,12 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
           )}
         </div>
 
-        <div className="ml-auto mr-6.5 flex shrink-0 items-center gap-1">
+        <div
+          className={cn(
+            "ml-auto mr-7.5 flex shrink-0 items-center gap-1 transition-[margin-right] duration-200 ease-linear md:mr-6 motion-reduce:transition-none",
+            queueOpen && "md:mr-1",
+          )}
+        >
           {playlist && <PlaylistHeaderMenu playlist={playlist} />}
         </div>
       </header>
