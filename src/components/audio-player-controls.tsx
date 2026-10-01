@@ -120,9 +120,16 @@ export function AudioPlayerControls() {
           )}
           <span className="sr-only">Toggle mute</span>
         </Button>
-        <div
-          aria-hidden="true"
-          className="hidden h-0.5 w-20 bg-linear-to-r from-neutral-300 from-60% to-neutral-800 to-60% sm:block"
+        <Slider
+          aria-label="Volume"
+          aria-valuetext={`${Math.round(playback.volume * 100)}%`}
+          className="audio-player-slider hidden w-20! cursor-pointer sm:block **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-range]:bg-neutral-300 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-800"
+          min={0}
+          max={1}
+          step={0.01}
+          largeStep={0.1}
+          value={playback.volume}
+          onValueChange={playback.setVolume}
         />
       </div>
     </footer>
@@ -160,7 +167,7 @@ function AudioPlayerProgress() {
         />
         <Slider
           aria-labelledby={labelId}
-          className="cursor-pointer **:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
+          className="audio-player-slider cursor-pointer **:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
           disabled={playback.duration <= 0}
           max={playback.duration > 0 ? playback.duration : 1}
           min={0}

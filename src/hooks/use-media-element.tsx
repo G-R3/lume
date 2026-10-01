@@ -18,7 +18,7 @@ export function useMediaElement(options: {
   callbacksRef.current = options;
   const [request, setRequest] = useState<PlaybackRequest | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [audioPreferences, setAudioPreferences] = useState(loadAudioPreferences);
   const [duration, setDuration] = useState(0);
   const [timeStore] = useState(createAudioTimeStore);
 
@@ -70,7 +70,48 @@ export function useMediaElement(options: {
     setIsPlaying(false);
   }, []);
 
-  const toggleMute = useCallback(() => setIsMuted((value) => !value), []);
+  const isMuted = audioPreferences.isMuted || audioPreferences.volume === 0;
+
+  const attachAudio = useCallback(
+    (audio: HTMLAudioElement | null) => {
+      audioRef.current = audio;
+
+      // Apply the saved level before a newly mounted track can start playing.
+      if (audio) audio.volume = audioPreferences.volume;
+    },
+    [audioPreferences.volume],
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("lume.audio.volume", String(audioPreferences.volume));
+      localStorage.setItem("lume.audio.muted", String(audioPreferences.isMuted));
+    } catch (error) {
+      console.warn("Could not save audio preferences", error);
+    }
+  }, [audioPreferences]);
+
+  const setVolume = useCallback((value: number) => {
+    if (!Number.isFinite(value)) return;
+
+    const volume = Math.max(0, Math.min(1, value));
+
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+      audioRef.current.muted = false;
+    }
+
+    setAudioPreferences({ volume, isMuted: false });
+  }, []);
+
+  const toggleMute = useCallback(
+    () =>
+      setAudioPreferences((current) => ({
+        volume: current.volume === 0 ? 1 : current.volume,
+        isMuted: current.volume === 0 ? false : !current.isMuted,
+      })),
+    [],
+  );
 
   const seek = useCallback(
     (time: number) => {
@@ -157,7 +198,7 @@ export function useMediaElement(options: {
             callbacksRef.current.onPosition(position);
           }
         }}
-        ref={audioRef}
+        ref={attachAudio}
         src={request.url}
       />
     ),
@@ -169,9 +210,27 @@ export function useMediaElement(options: {
     pause,
     play,
     seek,
+    setVolume,
     timeStore,
     toggleMute,
+    volume: audioPreferences.volume,
   };
+}
+
+function loadAudioPreferences() {
+  try {
+    const savedVolume = localStorage.getItem("lume.audio.volume");
+    const volume = savedVolume === null || savedVolume.trim() === "" ? 1 : Number(savedVolume);
+
+    return {
+      volume: Number.isFinite(volume) && volume >= 0 && volume <= 1 ? volume : 1,
+      isMuted: localStorage.getItem("lume.audio.muted") === "true",
+    };
+  } catch (error) {
+    console.warn("Could not load audio preferences", error);
+
+    return { volume: 1, isMuted: false };
+  }
 }
 
 function createAudioTimeStore() {

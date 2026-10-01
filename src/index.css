@@ -149,10 +149,10 @@
 }
 
 /* Keep the control clickable where the thumb's padded hit area extends beyond it. */
-.audio-player-progress [data-base-ui-slider-control]::before {
+.audio-player-slider [data-base-ui-slider-control]::before {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: 2px -4px;
 }
 
 /* The dot field stays fixed while the thumb moves its reveal mask. */

@@ -39,6 +39,8 @@ function Slider<Value extends number | readonly number[]>({
         </SliderPrimitive.Track>
         {Array.from({ length: thumbCount }, (_, index) => (
           <SliderPrimitive.Thumb
+            aria-label={props["aria-label"]}
+            aria-valuetext={props["aria-valuetext"]}
             data-slot="slider-thumb"
             index={index}
             key={index}

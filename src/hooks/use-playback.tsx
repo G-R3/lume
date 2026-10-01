@@ -29,9 +29,11 @@ type PlaybackContextValue = {
   playFromSource: ReturnType<typeof createPlaybackController>["playFromSource"];
   previous: () => void;
   seek: (time: number) => void;
+  setVolume: (volume: number) => void;
   syncLibrary: (library: MusicLibrary) => void;
   toggleMute: () => void;
   togglePlayback: () => void;
+  volume: number;
 };
 
 type PlaybackTimeStore = ReturnType<typeof useMediaElement>["timeStore"];
@@ -148,9 +150,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         playFromSource: controller.playFromSource,
         previous: controller.previous,
         seek: media.seek,
+        setVolume: media.setVolume,
         syncLibrary: controller.syncLibrary,
         toggleMute: media.toggleMute,
         togglePlayback,
+        volume: media.volume,
       }) satisfies PlaybackContextValue,
     [
       activeSourceEntryId,
@@ -160,7 +164,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       media.isMuted,
       media.isPlaying,
       media.seek,
+      media.setVolume,
       media.toggleMute,
+      media.volume,
       availableTrackIds,
       controller,
       current?.item.queueItemId,
