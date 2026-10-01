@@ -16,20 +16,25 @@ export function AppKeyboardShortcuts() {
       {
         name: "Next track",
         key: "ArrowRight",
-        primary: true,
+        commandOrControl: true,
         action: playback.next,
       },
       {
         name: "Previous track",
         key: "ArrowLeft",
-        primary: true,
+        commandOrControl: true,
         action: playback.previous,
       },
       {
         name: "Toggle sidebar",
         key: "b",
-        primary: true,
+        commandOrControl: true,
         action: sidebar.toggleSidebar,
+      },
+      {
+        name: "Toggle mute",
+        key: "m",
+        action: playback.toggleMute,
       },
     ],
     window.lume.isMac,

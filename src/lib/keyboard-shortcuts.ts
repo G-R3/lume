@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 export type KeyboardShortcut = {
   name: string;
   key: string;
-  primary?: boolean;
+  commandOrControl?: boolean;
   shift?: boolean;
   alt?: boolean;
   allowInEditable?: boolean;
@@ -60,8 +60,8 @@ export function createKeyboardShortcutHandler(
 function getShortcutSignature(shortcut: KeyboardShortcut, isMac: boolean) {
   return createSignature(
     shortcut.key,
-    Boolean(shortcut.primary && !isMac),
-    Boolean(shortcut.primary && isMac),
+    Boolean(shortcut.commandOrControl && !isMac),
+    Boolean(shortcut.commandOrControl && isMac),
     Boolean(shortcut.shift),
     Boolean(shortcut.alt),
   );
@@ -98,7 +98,7 @@ function isEditingEvent(event: KeyboardEvent) {
 
 function formatShortcut(shortcut: KeyboardShortcut) {
   return [
-    shortcut.primary && "Primary",
+    shortcut.commandOrControl && "Command/Control",
     shortcut.shift && "Shift",
     shortcut.alt && "Alt",
     shortcut.key === " " ? "Space" : shortcut.key,

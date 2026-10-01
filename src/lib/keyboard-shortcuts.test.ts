@@ -63,7 +63,7 @@ describe("keyboard shortcut matching", () => {
     const shortcut = {
       name: "Open search",
       key: "k",
-      primary: true,
+      commandOrControl: true,
       action: () => calls++,
     };
 
@@ -90,12 +90,12 @@ describe("keyboard shortcut matching", () => {
     expect(() =>
       createKeyboardShortcutHandler(
         [
-          { name: "First search", key: "K", primary: true, action: () => undefined },
-          { name: "Second search", key: "k", primary: true, action: () => undefined },
+          { name: "First search", key: "K", commandOrControl: true, action: () => undefined },
+          { name: "Second search", key: "k", commandOrControl: true, action: () => undefined },
         ],
         true,
       ),
-    ).toThrow('Keyboard shortcut "Second search" duplicates "First search" (Primary+k)');
+    ).toThrow('Keyboard shortcut "Second search" duplicates "First search" (Command/Control+k)');
   });
 });
 
@@ -118,18 +118,18 @@ describe("keyboard shortcut event policy", () => {
   });
 
   it.each([
-    { description: "Space", eventInit: { key: " " }, key: " ", primary: false },
+    { description: "Space", eventInit: { key: " " }, key: " ", commandOrControl: false },
     {
       description: "Command+ArrowLeft",
       eventInit: { key: "ArrowLeft", metaKey: true },
       key: "ArrowLeft",
-      primary: true,
+      commandOrControl: true,
     },
     {
       description: "Command+ArrowRight",
       eventInit: { key: "ArrowRight", metaKey: true },
       key: "ArrowRight",
-      primary: true,
+      commandOrControl: true,
     },
   ])("handles $description from range inputs", (testCase) => {
     let calls = 0;
@@ -142,7 +142,7 @@ describe("keyboard shortcut event policy", () => {
         {
           name: "Audio shortcut",
           key: testCase.key,
-          primary: testCase.primary,
+          commandOrControl: testCase.commandOrControl,
           action: () => calls++,
         },
       ],
@@ -191,7 +191,7 @@ describe("keyboard shortcut event policy", () => {
   it("prevents native behavior when a matched action does nothing", () => {
     const event = dispatchShortcut(
       document.body,
-      [{ name: "Next track", key: "ArrowRight", primary: true, action: () => undefined }],
+      [{ name: "Next track", key: "ArrowRight", commandOrControl: true, action: () => undefined }],
       { key: "ArrowRight", metaKey: true },
       true,
     );
