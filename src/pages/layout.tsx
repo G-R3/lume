@@ -33,17 +33,17 @@ export function AppLayout() {
   return (
     <SidebarProvider className="h-svh flex-col bg-neutral-950 text-neutral-50">
       <AppKeyboardShortcuts />
-      <div className="relative flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 overflow-x-clip">
         <AppSidebar />
 
-        {/* right sidebar drag region */}
+        {/* left-sidebar drag region */}
         {window.lume.isMac && (
           <div
             aria-hidden="true"
             className="pointer-events-none fixed top-0 left-0 z-50 h-9 w-(--sidebar-width) border-r border-neutral-800 bg-sidebar transition-[width] duration-200 ease-linear peer-data-[state=collapsed]:w-0 peer-data-[state=collapsed]:border-r-0 motion-reduce:transition-none [-webkit-app-region:drag]"
           />
         )}
-        {/* left-sidebar drag region */}
+        {/* right-sidebar drag region */}
         {window.lume.isMac && queueOpen && (
           <div
             aria-hidden="true"
