@@ -128,7 +128,7 @@ export function AudioPlayerControls() {
           max={1}
           step={0.01}
           largeStep={0.1}
-          value={playback.volume}
+          value={playback.isMuted ? 0 : playback.volume}
           onValueChange={playback.setVolume}
         />
       </div>

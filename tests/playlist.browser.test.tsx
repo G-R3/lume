@@ -76,6 +76,8 @@ describe("playlist behavior", () => {
 
     await page.getByRole("button", { name: "Mute audio", exact: true }).click();
     await expect.poll(() => document.querySelector("audio")?.muted).toBe(true);
+    await expect.element(volume).toHaveAttribute("aria-valuenow", "0");
+    await expect.element(volume).toHaveAttribute("aria-valuetext", "0%");
     await page.getByRole("button", { name: "Next track" }).click();
     await expect
       .element(page.getByRole("contentinfo").getByText("Sunrise", { exact: true }))
@@ -98,6 +100,8 @@ describe("playlist behavior", () => {
     await expect.poll(() => document.querySelector("audio")?.muted).toBe(true);
     await page.getByRole("button", { name: "Unmute audio", exact: true }).click();
     await expect.poll(() => document.querySelector("audio")?.muted).toBe(false);
+    await expect.element(volume).toHaveAttribute("aria-valuenow", "0.01");
+    await expect.element(volume).toHaveAttribute("aria-valuetext", "1%");
     expect(document.querySelector("audio")?.volume).toBe(0.01);
 
     page.getByRole("slider", { name: "Volume" }).element().focus();
