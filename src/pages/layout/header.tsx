@@ -68,8 +68,8 @@ export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queu
 
         <div
           className={cn(
-            "ml-auto mr-7.5 flex shrink-0 items-center gap-1 transition-[margin-right] duration-200 ease-linear md:mr-6 motion-reduce:transition-none",
-            queueOpen && "md:mr-1",
+            "ml-auto mr-6 flex shrink-0 items-center gap-1 transition-[margin-right] duration-200 ease-linear sm:mr-7 motion-reduce:transition-none",
+            queueOpen && "md:-mr-2",
           )}
         >
           {playlist && <PlaylistHeaderMenu playlist={playlist} />}

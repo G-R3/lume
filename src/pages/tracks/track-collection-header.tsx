@@ -32,7 +32,7 @@ export function TrackCollectionHeader({
   const totalDuration = items.reduce((duration, item) => duration + (item.track.duration ?? 0), 0);
 
   return (
-    <header className="flex items-end gap-6 p-6 max-sm:flex-col max-sm:items-start">
+    <header className="flex items-end gap-6 px-5 py-6 max-sm:flex-col max-sm:items-start">
       <div
         aria-hidden="true"
         className={cn(

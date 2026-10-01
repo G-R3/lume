@@ -56,7 +56,7 @@ export function AppLayout() {
           <AppHeader isSettings={isSettings} queueOpen={queueOpen} />
           <div
             className={cn(
-              "pointer-events-none fixed inset-x-0 top-0 z-50 flex h-12.5 items-center justify-between pr-3.5 pl-3.5 md:pr-2",
+              "pointer-events-none fixed inset-x-0 top-0 z-50 flex h-12.5 items-center justify-between pr-2 pl-3.5 sm:pr-3",
               window.lume.isMac ? "h-9 pl-20" : "md:pl-5",
             )}
           >

@@ -23,7 +23,7 @@ export function AudioPlayerControls() {
   if (!activeTrack) return null;
 
   return (
-    <footer className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-t border-neutral-800 bg-black/95 px-4 py-3 text-neutral-50 shadow-2xl backdrop-blur-sm">
+    <footer className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-t border-neutral-800 bg-black/95 px-5 py-3 text-neutral-50 shadow-2xl backdrop-blur-sm">
       <div className="flex min-w-0 items-center gap-3">
         <TrackArtwork
           artworkUrl={activeTrack.artworkUrl}
