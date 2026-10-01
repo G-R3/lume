@@ -122,7 +122,7 @@ export function AudioPlayerControls() {
         </Button>
         <Slider
           aria-label="Volume"
-          aria-valuetext={`${Math.round(playback.volume * 100)}%`}
+          format={{ style: "percent" }}
           className="audio-player-slider hidden w-20! cursor-pointer sm:block **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-range]:bg-neutral-300 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-800"
           min={0}
           max={1}

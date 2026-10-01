@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 
 /**
@@ -70,7 +71,7 @@ export function useMediaElement(options: {
     setIsPlaying(false);
   }, []);
 
-  const isMuted = audioPreferences.isMuted || audioPreferences.volume === 0;
+  const isMuted = audioPreferences.muted || audioPreferences.volume === 0;
 
   const attachAudio = useCallback(
     (audio: HTMLAudioElement | null) => {
@@ -84,31 +85,22 @@ export function useMediaElement(options: {
 
   useEffect(() => {
     try {
-      localStorage.setItem("lume.audio.volume", String(audioPreferences.volume));
-      localStorage.setItem("lume.audio.muted", String(audioPreferences.isMuted));
+      localStorage.setItem("lume.audio", JSON.stringify(audioPreferences));
     } catch (error) {
       console.warn("Could not save audio preferences", error);
     }
   }, [audioPreferences]);
 
-  const setVolume = useCallback((value: number) => {
-    if (!Number.isFinite(value)) return;
-
-    const volume = Math.max(0, Math.min(1, value));
-
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-      audioRef.current.muted = false;
-    }
-
-    setAudioPreferences({ volume, isMuted: false });
-  }, []);
+  const setVolume = useCallback(
+    (volume: number) => setAudioPreferences({ volume, muted: false }),
+    [],
+  );
 
   const toggleMute = useCallback(
     () =>
       setAudioPreferences((current) => ({
         volume: current.volume === 0 ? 1 : current.volume,
-        isMuted: current.volume === 0 ? false : !current.isMuted,
+        muted: current.volume === 0 ? false : !current.muted,
       })),
     [],
   );
@@ -219,18 +211,16 @@ export function useMediaElement(options: {
 
 function loadAudioPreferences() {
   try {
-    const savedVolume = localStorage.getItem("lume.audio.volume");
-    const volume = savedVolume === null || savedVolume.trim() === "" ? 1 : Number(savedVolume);
+    const parsed = z
+      .object({ volume: z.number().min(0).max(1), muted: z.boolean() })
+      .safeParse(JSON.parse(localStorage.getItem("lume.audio") ?? "null"));
 
-    return {
-      volume: Number.isFinite(volume) && volume >= 0 && volume <= 1 ? volume : 1,
-      isMuted: localStorage.getItem("lume.audio.muted") === "true",
-    };
+    if (parsed.success) return parsed.data;
   } catch (error) {
     console.warn("Could not load audio preferences", error);
-
-    return { volume: 1, isMuted: false };
   }
+
+  return { volume: 1, muted: false };
 }
 
 function createAudioTimeStore() {

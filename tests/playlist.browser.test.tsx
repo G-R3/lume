@@ -41,13 +41,12 @@ afterEach(() => {
   audioUrls.splice(0).forEach((url) => URL.revokeObjectURL(url));
   document.body.replaceChildren();
   window.location.hash = "#/";
-  localStorage.removeItem("lume.audio.volume");
-  localStorage.removeItem("lume.audio.muted");
+  localStorage.removeItem("lume.audio");
 });
 
 describe("playlist behavior", () => {
   it("adjusts volume immediately and restores volume and mute across player restarts", async () => {
-    localStorage.setItem("lume.audio.volume", "0.6");
+    localStorage.setItem("lume.audio", JSON.stringify({ volume: 0.6, muted: false }));
     const state = createRendererState([createTrack(1, "Midnight"), createTrack(2, "Sunrise")]);
     const api = createTestApi(() => ({ loadLibrary: () => Promise.resolve(state.library) }));
 
@@ -60,10 +59,9 @@ describe("playlist behavior", () => {
     const volume = page.getByRole("slider", { name: "Volume" });
 
     await expect.poll(() => document.querySelector("audio")?.volume).toBe(0.6);
-    const thumb = volume.element().parentElement;
-    const control = thumb?.parentElement;
+    const control = volume.element().closest("[data-base-ui-slider-control]");
 
-    if (!thumb || !control) throw new Error("Expected the volume slider control");
+    if (!control) throw new Error("Expected the volume slider control");
 
     await userEvent.dragAndDrop(control, control, { targetPosition: { x: 20, y: 12 } });
     await expect.poll(() => document.querySelector("audio")?.volume).toBeLessThan(0.6);
@@ -72,7 +70,9 @@ describe("playlist behavior", () => {
     await userEvent.keyboard("{Home}{ArrowRight}");
     await expect.poll(() => document.querySelector("audio")?.volume).toBe(0.01);
     await expect.element(volume).toHaveAttribute("aria-valuetext", "1%");
-    await expect.poll(() => localStorage.getItem("lume.audio.volume")).toBe("0.01");
+    await expect
+      .poll(() => JSON.parse(localStorage.getItem("lume.audio") ?? "null"))
+      .toEqual({ volume: 0.01, muted: false });
 
     await page.getByRole("button", { name: "Mute audio", exact: true }).click();
     await expect.poll(() => document.querySelector("audio")?.muted).toBe(true);
@@ -82,7 +82,9 @@ describe("playlist behavior", () => {
       .toBeVisible();
     await expect.poll(() => document.querySelector("audio")?.volume).toBe(0.01);
     await expect.poll(() => document.querySelector("audio")?.muted).toBe(true);
-    await expect.poll(() => localStorage.getItem("lume.audio.muted")).toBe("true");
+    await expect
+      .poll(() => JSON.parse(localStorage.getItem("lume.audio") ?? "null"))
+      .toEqual({ volume: 0.01, muted: true });
 
     mountedRoots.splice(0).forEach((root) => root.unmount());
     document.body.replaceChildren();
