@@ -1,69 +1,24 @@
-import { z } from "zod";
-import type { MusicLibrary } from "../../shared/lib";
+import type {
+  QueueItem,
+  QueueLane,
+  QueueState,
+  SourceEntry,
+  SourceIdentity,
+  SourcePosition,
+  SourceRef,
+} from "./queue-model";
 
-const databaseId = z.number().int().positive().safe();
+export type {
+  QueueItem,
+  QueueLane,
+  QueueState,
+  SourceEntry,
+  SourceIdentity,
+  SourcePosition,
+  SourceRef,
+} from "./queue-model";
 
-const queueItemId = z.string().min(1);
-
-const sourceSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("all-tracks") }),
-  z.object({ kind: z.literal("playlist"), playlistId: databaseId, title: z.string() }),
-  z.object({ kind: z.literal("detached"), title: z.string() }),
-]);
-
-const queueItemSchema = z.object({
-  queueItemId,
-  trackId: databaseId,
-  origin: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("manual") }),
-    z.object({ kind: z.literal("source"), sourceEntryId: databaseId }),
-  ]),
-  anchor: z.object({ sourceEntryId: databaseId, side: z.enum(["before", "after"]) }).optional(),
-});
-
-const queueStateSchema = z.object({
-  source: sourceSchema,
-  sessionId: queueItemId,
-  current: z
-    .object({
-      item: queueItemSchema,
-      lane: z.enum(["manual", "source"]),
-      hasStartedPlayback: z.boolean(),
-      // When true, going forward adds the current track to `previousSourceItems`.
-      // Going back puts the current track back in `sourceQueue` so it can be played again.
-      // Removing the track from its playlist sets this to false and the
-      // audio keeps playing if its currently playing.
-      participatesInSourceNavigation: z.boolean(),
-    })
-    .nullable(),
-  manualQueue: z.array(queueItemSchema),
-  sourceQueue: z.array(queueItemSchema),
-
-  // Tracks that were played, skipped, or came before the first selected track.
-  // The `previous` command uses this list to go back to an earlier track.
-  // Unavailable tracks stay in the list but are skipped.
-  previousSourceItems: z.array(queueItemSchema),
-  suppressedSourceEntryIds: z.array(databaseId),
-  playedQueueItemIds: z.array(queueItemId),
-  status: z.enum(["playing", "paused", "stopped"]),
-  lastSelectedItem: queueItemSchema.nullable(),
-});
-
-const savedSessionSchema = z.object({
-  version: z.literal(3),
-  state: queueStateSchema,
-  position: z.number().finite().nonnegative(),
-});
-
-export type SourceRef = z.infer<typeof sourceSchema>;
-
-export type QueueItem = z.infer<typeof queueItemSchema>;
-
-export type QueueState = z.infer<typeof queueStateSchema>;
-
-export type QueueLane = "manual" | "source";
-
-export type SourceEntry = { sourceEntryId: number; trackId: number };
+export { parseQueueSession, serializeQueueSession } from "./queue-session";
 
 export type QueueCommand =
   | {
@@ -74,6 +29,7 @@ export type QueueCommand =
       sessionId: string;
       startPaused?: boolean;
     }
+  | { type: "selectSourceEntry"; source: SourceIdentity; sourceEntryId: number }
   | { type: "enqueueTrack"; trackId: number; queueItemId: string }
   | { type: "jumpTo"; queueItemId: string }
   | {
@@ -87,7 +43,13 @@ export type QueueCommand =
   | { type: "previous" }
   | { type: "playbackStarted" }
   | { type: "playbackPaused" }
-  | { type: "sourceEntryAdded"; playlistId: number; entry: SourceEntry }
+  | {
+      type: "sourceEntryAdded";
+      playlistId: number;
+      entry: SourceEntry;
+      canonicalIndex?: number;
+      insertionIndex?: number;
+    }
   | { type: "sourceEntryRemoved"; playlistId: number; sourceEntryId: number }
   | {
       type: "sourceEntryMoved";
@@ -123,8 +85,8 @@ export function selectCanGoNext(state: QueueState | null, availableTrackIds: Rea
 }
 
 /**
- * Applies a queue command, such as adding a track or going to the next track.
- * Returns the updated queue. Audio playback is handled by the playback controller.
+ * applies a queue command and returns the updated queue.
+ * The playback controller controls audio playback.
  */
 export function transition(
   state: QueueState | null,
@@ -136,6 +98,8 @@ export function transition(
   if (!state) return null;
 
   switch (command.type) {
+    case "selectSourceEntry":
+      return selectSourceEntry(state, command.source, command.sourceEntryId, availableTrackIds);
     case "enqueueTrack":
       return enqueueTrack(state, command);
     case "jumpTo":
@@ -161,7 +125,7 @@ export function transition(
       return state.current && state.status !== "paused" ? { ...state, status: "paused" } : state;
     case "sourceEntryAdded":
       return isActivePlaylist(state, command.playlistId)
-        ? addSourceEntry(state, command.entry)
+        ? addSourceEntry(state, command.entry, command.canonicalIndex, command.insertionIndex)
         : state;
     case "sourceEntryRemoved":
       return isActivePlaylist(state, command.playlistId)
@@ -178,6 +142,351 @@ export function transition(
   }
 }
 
+/** This function selects eligible source entries. The controller supplies their order. */
+export function prepareShuffle(state: QueueState, enabled: boolean) {
+  if (state.shuffleEnabled === enabled) return null;
+
+  const sourceEntryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
+  const currentEntryId =
+    state.current &&
+    isSourceItem(state, state.current.item, sourceEntryIds) &&
+    state.current.participatesInSourceNavigation &&
+    state.current.item.origin.kind === "source"
+      ? state.current.item.origin.sourceEntryId
+      : null;
+
+  const suppressedEntryIds = new Set(state.suppressedSourceEntryIds);
+
+  const manualEntryIds = new Set(
+    state.manualQueue.flatMap((item) =>
+      isSourceItem(state, item, sourceEntryIds) && item.origin.kind === "source"
+        ? [item.origin.sourceEntryId]
+        : [],
+    ),
+  );
+
+  const position = state.sourcePosition;
+
+  const startIndex =
+    position?.kind === "entry"
+      ? state.sourceEntries.findIndex((entry) => entry.sourceEntryId === position.sourceEntryId) + 1
+      : position?.kind === "boundary"
+        ? position.index
+        : 0;
+
+  return {
+    state,
+    enabled,
+    entries: state.sourceEntries.filter(
+      (entry, index) =>
+        (enabled || index >= startIndex) &&
+        entry.sourceEntryId !== currentEntryId &&
+        !suppressedEntryIds.has(entry.sourceEntryId) &&
+        !manualEntryIds.has(entry.sourceEntryId),
+    ),
+    queueOnlyItems: state.sourceQueue.filter((item) => !isSourceItem(state, item, sourceEntryIds)),
+  };
+}
+
+/**
+ * If the setting changes, use the state object passed to prepareShuffle.
+ * If the setting has not changed, this function returns the original state object.
+ */
+export function setShuffleEnabled(
+  state: QueueState,
+  enabled: boolean,
+  prepared: ReturnType<typeof prepareShuffle> = null,
+  orderedSourceEntryIds: readonly number[] = [],
+): QueueState {
+  if (state.shuffleEnabled === enabled) return state;
+
+  if (!prepared || prepared.state !== state || prepared.enabled !== enabled) return state;
+
+  const entries = orderSourceEntries(
+    prepared.entries,
+    enabled ? orderedSourceEntryIds : prepared.entries.map((entry) => entry.sourceEntryId),
+  );
+
+  if (!entries) return state;
+
+  const sourceEntryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
+  const existing = new Map(
+    state.sourceQueue.flatMap((item) =>
+      isSourceItem(state, item, sourceEntryIds) && item.origin.kind === "source"
+        ? [[item.origin.sourceEntryId, item] as const]
+        : [],
+    ),
+  );
+
+  const created = createSourceItems(
+    state,
+    entries.filter((entry) => !existing.has(entry.sourceEntryId)),
+    state.sourceIdentity,
+    state.sessionId,
+  );
+
+  const createdByEntry = new Map(
+    created.flatMap((item) =>
+      item.origin.kind === "source" ? [[item.origin.sourceEntryId, item] as const] : [],
+    ),
+  );
+
+  const sourceItems = entries.flatMap((entry) => {
+    const item = existing.get(entry.sourceEntryId) ?? createdByEntry.get(entry.sourceEntryId);
+
+    return item ? [item] : [];
+  });
+
+  // Keep queue-only items in their chosen order around each source entry.
+  const before = new Map<number, QueueItem[]>();
+  const after = new Map<number, QueueItem[]>();
+  prepared.queueOnlyItems.forEach((item) => {
+    if (!item.anchor) return;
+
+    const groups = item.anchor.side === "before" ? before : after;
+    const group = groups.get(item.anchor.sourceEntryId) ?? [];
+
+    group.push(item);
+    groups.set(item.anchor.sourceEntryId, group);
+  });
+
+  const sourceQueue = sourceItems.flatMap((item) =>
+    item.origin.kind === "source"
+      ? [
+          ...(before.get(item.origin.sourceEntryId) ?? []),
+          item,
+          ...(after.get(item.origin.sourceEntryId) ?? []),
+        ]
+      : [item],
+  );
+
+  const includedEntries = new Set(entries.map((entry) => entry.sourceEntryId));
+
+  return {
+    ...state,
+    shuffleEnabled: enabled,
+    sourceQueue: [
+      ...sourceQueue,
+      ...prepared.queueOnlyItems.filter(
+        (item) => !item.anchor || !includedEntries.has(item.anchor.sourceEntryId),
+      ),
+    ],
+  };
+}
+
+export function prepareShufflePlay(
+  state: QueueState | null,
+  source: Exclude<SourceRef, { kind: "detached" }>,
+  entries: readonly SourceEntry[],
+  sessionId: string,
+  availableTrackIds: ReadonlySet<number>,
+  startEntryId?: number,
+) {
+  if (new Set(entries.map((entry) => entry.sourceEntryId)).size !== entries.length) return null;
+
+  const availableStartEntryIds = entries.flatMap((entry) =>
+    availableTrackIds.has(entry.trackId) ? [entry.sourceEntryId] : [],
+  );
+
+  if (
+    availableStartEntryIds.length === 0 ||
+    (startEntryId !== undefined && !availableStartEntryIds.includes(startEntryId))
+  )
+    return null;
+
+  return { state, source, entries: [...entries], sessionId, availableStartEntryIds, startEntryId };
+}
+
+export function shufflePlay(
+  state: QueueState | null,
+  prepared: ReturnType<typeof prepareShufflePlay>,
+  orderedSourceEntryIds: readonly number[],
+  startPaused = false,
+): QueueState | null {
+  if (!prepared || prepared.state !== state) return state;
+  const entries = orderSourceEntries(prepared.entries, orderedSourceEntryIds);
+
+  if (!entries) return state;
+  const availableStartEntryIds = new Set(prepared.availableStartEntryIds);
+
+  const start = entries.find((entry) =>
+    prepared.startEntryId === undefined
+      ? availableStartEntryIds.has(entry.sourceEntryId)
+      : entry.sourceEntryId === prepared.startEntryId,
+  );
+
+  if (!start) return state;
+
+  const started = startFromSource(state, {
+    type: "startFromSource",
+    source: prepared.source,
+    entries: prepared.entries,
+    sessionId: prepared.sessionId,
+    startEntryId: start.sourceEntryId,
+    startPaused,
+  });
+
+  if (!started) return state;
+
+  const byId = new Map(
+    [
+      ...started.previousSourceItems,
+      ...started.sourceQueue,
+      ...(started.current ? [started.current.item] : []),
+    ].flatMap((item) =>
+      item.origin.kind === "source" ? [[item.origin.sourceEntryId, item] as const] : [],
+    ),
+  );
+
+  return {
+    ...started,
+    shuffleEnabled: true,
+    previousSourceItems: [],
+    sourceQueue: entries.flatMap((entry) => {
+      const item = byId.get(entry.sourceEntryId);
+
+      return item && entry.sourceEntryId !== start.sourceEntryId ? [item] : [];
+    }),
+  };
+}
+
+/** selects a source entry during shuffle without removing other upcoming queue items. */
+function selectSourceEntry(
+  state: QueueState,
+  source: SourceIdentity,
+  sourceEntryId: number,
+  availableTrackIds: ReadonlySet<number>,
+): QueueState {
+  if (!state.shuffleEnabled || !sameSource(state.sourceIdentity, source)) return state;
+  const entry = state.sourceEntries.find((candidate) => candidate.sourceEntryId === sourceEntryId);
+
+  if (!entry || !availableTrackIds.has(entry.trackId)) return state;
+
+  const sourceEntryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
+  if (
+    state.current &&
+    isSourceItem(state, state.current.item, sourceEntryIds) &&
+    state.current.item.origin.kind === "source" &&
+    state.current.item.origin.sourceEntryId === sourceEntryId &&
+    state.current.participatesInSourceNavigation
+  )
+    return {
+      ...state,
+      current: { ...state.current, hasStartedPlayback: false },
+      playedQueueItemIds: recordPlayedItem(state),
+      status: "playing",
+    };
+
+  const upcoming = state.sourceQueue.find(
+    (item) =>
+      isSourceItem(state, item, sourceEntryIds) &&
+      item.origin.kind === "source" &&
+      item.origin.sourceEntryId === sourceEntryId,
+  );
+
+  const item =
+    upcoming ?? createSourceItems(state, [entry], state.sourceIdentity, state.sessionId)[0];
+
+  return {
+    ...state,
+    sourcePosition: { kind: "entry", sourceEntryId },
+    current: {
+      item,
+      lane: "source",
+      hasStartedPlayback: false,
+      participatesInSourceNavigation: true,
+    },
+    sourceQueue: state.sourceQueue.filter((queued) => queued.queueItemId !== item.queueItemId),
+    previousSourceItems: appendCurrentSource(state),
+    playedQueueItemIds: recordPlayedItem(state),
+    lastSelectedItem: item,
+    status: "playing",
+  };
+}
+
+function orderSourceEntries(entries: readonly SourceEntry[], orderedIds: readonly number[]) {
+  if (orderedIds.length !== entries.length || new Set(orderedIds).size !== entries.length)
+    return null;
+  const byId = new Map(entries.map((entry) => [entry.sourceEntryId, entry]));
+
+  if (orderedIds.some((id) => !byId.has(id))) return null;
+
+  return orderedIds.flatMap((id) => {
+    const entry = byId.get(id);
+
+    return entry ? [entry] : [];
+  });
+}
+
+function sameSource(left: SourceIdentity, right: SourceIdentity) {
+  return (
+    left.kind === right.kind &&
+    (left.kind === "all-tracks" ||
+      (right.kind === "playlist" && left.playlistId === right.playlistId))
+  );
+}
+
+function isSourceItem(state: QueueState, item: QueueItem, sourceEntryIds?: ReadonlySet<number>) {
+  return (
+    item.origin.kind === "source" &&
+    item.origin.sessionId === state.sessionId &&
+    sameSource(state.sourceIdentity, item.origin.source) &&
+    (sourceEntryIds
+      ? sourceEntryIds.has(item.origin.sourceEntryId)
+      : state.sourceEntries.some(
+          (entry) =>
+            item.origin.kind === "source" && entry.sourceEntryId === item.origin.sourceEntryId,
+        ))
+  );
+}
+
+function sourcePositionForItem(state: QueueState, item: QueueItem): SourcePosition {
+  if (!isSourceItem(state, item) || item.origin.kind !== "source") return state.sourcePosition;
+
+  return { kind: "entry", sourceEntryId: item.origin.sourceEntryId };
+}
+
+/** creates source queue items with IDs that differ from all stored queue item IDs. */
+function createSourceItems(
+  state: QueueState | null,
+  entries: readonly SourceEntry[],
+  source: SourceIdentity,
+  sessionId: string,
+): QueueItem[] {
+  const retainedIds = new Set(
+    state
+      ? [
+          ...state.manualQueue,
+          ...state.sourceQueue,
+          ...state.previousSourceItems,
+          ...(state.current ? [state.current.item] : []),
+          ...(state.lastSelectedItem ? [state.lastSelectedItem] : []),
+        ]
+          .map((item) => item.queueItemId)
+          .concat(state.playedQueueItemIds)
+      : [],
+  );
+
+  return entries.map((entry) => {
+    const base = sessionId + ":source:" + entry.sourceEntryId;
+    let visit = 0;
+
+    while (retainedIds.has(visit === 0 ? base : base + ":visit:" + visit)) visit++;
+
+    const queueItemId = visit === 0 ? base : base + ":visit:" + visit;
+    retainedIds.add(queueItemId);
+
+    return {
+      queueItemId,
+      trackId: entry.trackId,
+      origin: { kind: "source", sourceEntryId: entry.sourceEntryId, source, sessionId },
+    };
+  });
+}
+
 function startFromSource(
   previous: QueueState | null,
   command: Extract<QueueCommand, { type: "startFromSource" }>,
@@ -188,14 +497,21 @@ function startFromSource(
 
   if (selectedIndex === -1) return previous;
 
-  const items: QueueItem[] = command.entries.map((item) => ({
-    queueItemId: command.sessionId + ":source:" + item.sourceEntryId,
-    trackId: item.trackId,
-    origin: { kind: "source", sourceEntryId: item.sourceEntryId },
-  }));
+  if (command.source.kind === "detached") return previous;
+
+  const sourceIdentity: SourceIdentity =
+    command.source.kind === "all-tracks"
+      ? { kind: "all-tracks" }
+      : { kind: "playlist", playlistId: command.source.playlistId };
+
+  const items = createSourceItems(previous, command.entries, sourceIdentity, command.sessionId);
 
   return {
     source: command.source,
+    sourceIdentity,
+    sourceEntries: [...command.entries],
+    sourcePosition: { kind: "entry", sourceEntryId: command.startEntryId },
+    shuffleEnabled: false,
     sessionId: command.sessionId,
     current: {
       item: items[selectedIndex],
@@ -282,6 +598,7 @@ function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueS
 
     return {
       ...state,
+      sourcePosition: sourcePositionForItem(state, item),
       current: {
         item,
         lane: "source",
@@ -319,6 +636,7 @@ function previous(state: QueueState, availableTrackIds: ReadonlySet<number>): Qu
 
   return {
     ...state,
+    sourcePosition: sourcePositionForItem(state, item),
     current: {
       item,
       lane: "source",
@@ -374,6 +692,7 @@ function jumpTo(
 
   return {
     ...state,
+    sourcePosition: sourcePositionForItem(state, item),
     current: {
       item,
       lane: "source",
@@ -392,6 +711,8 @@ function jumpTo(
 }
 
 function removeQueueItem(state: QueueState, queueItemId: string): QueueState {
+  const sourceEntryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
   if (state.manualQueue.some((item) => item.queueItemId === queueItemId)) {
     return {
       ...state,
@@ -403,15 +724,37 @@ function removeQueueItem(state: QueueState, queueItemId: string): QueueState {
 
   if (!item) return state;
 
+  const removedSourceEntryId =
+    isSourceItem(state, item, sourceEntryIds) && item.origin.kind === "source"
+      ? item.origin.sourceEntryId
+      : null;
+
+  const matchesOccurrence = (candidate: QueueItem) =>
+    removedSourceEntryId !== null &&
+    isSourceItem(state, candidate, sourceEntryIds) &&
+    candidate.origin.kind === "source" &&
+    candidate.origin.sourceEntryId === removedSourceEntryId;
+
   return {
     ...state,
+    current:
+      state.current && matchesOccurrence(state.current.item)
+        ? { ...state.current, participatesInSourceNavigation: false }
+        : state.current,
+    previousSourceItems:
+      removedSourceEntryId !== null
+        ? state.previousSourceItems.filter((previous) => !matchesOccurrence(previous))
+        : state.previousSourceItems,
     sourceQueue: clearAnchor(
-      state.sourceQueue.filter((candidate) => candidate.queueItemId !== queueItemId),
+      state,
+      state.sourceQueue.filter(
+        (candidate) => candidate.queueItemId !== queueItemId && !matchesOccurrence(candidate),
+      ),
       item,
     ),
     suppressedSourceEntryIds:
-      item.origin.kind === "source"
-        ? addUnique(state.suppressedSourceEntryIds, item.origin.sourceEntryId)
+      removedSourceEntryId !== null
+        ? addUnique(state.suppressedSourceEntryIds, removedSourceEntryId)
         : state.suppressedSourceEntryIds,
   };
 }
@@ -437,6 +780,7 @@ function moveQueueItem(
   const sourceQueue =
     from === "source"
       ? clearAnchor(
+          state,
           state.sourceQueue.filter((candidate) => candidate.queueItemId !== item.queueItemId),
           item,
         )
@@ -451,13 +795,14 @@ function moveQueueItem(
   if (insertionIndex === -1) return state;
 
   const movedItem =
-    command.to === "source" && item.origin.kind === "manual"
-      ? { ...item, anchor: findSourceAnchor(sourceQueue, insertionIndex) }
+    command.to === "source" && !isSourceItem(state, item)
+      ? { ...item, anchor: findSourceAnchor(state, sourceQueue, insertionIndex) }
       : { ...item, anchor: undefined };
 
   destination.splice(insertionIndex, 0, movedItem);
 
-  const sourceEntryId = item.origin.kind === "source" ? item.origin.sourceEntryId : null;
+  const sourceEntryId =
+    isSourceItem(state, item) && item.origin.kind === "source" ? item.origin.sourceEntryId : null;
 
   const suppressedSourceEntryIds =
     sourceEntryId === null
@@ -469,41 +814,77 @@ function moveQueueItem(
   return { ...state, manualQueue, sourceQueue, suppressedSourceEntryIds };
 }
 
-function addSourceEntry(state: QueueState, entry: SourceEntry): QueueState {
+function addSourceEntry(
+  state: QueueState,
+  entry: SourceEntry,
+  canonicalIndex = state.sourceEntries.length,
+  insertionIndex?: number,
+): QueueState {
+  if (state.sourceEntries.some((item) => item.sourceEntryId === entry.sourceEntryId)) return state;
+
   if (
-    state.suppressedSourceEntryIds.includes(entry.sourceEntryId) ||
-    [
-      ...state.previousSourceItems,
-      ...state.sourceQueue,
-      ...(state.current ? [state.current.item] : []),
-    ].some(
-      (item) => item.origin.kind === "source" && item.origin.sourceEntryId === entry.sourceEntryId,
-    )
+    !Number.isInteger(canonicalIndex) ||
+    canonicalIndex < 0 ||
+    canonicalIndex > state.sourceEntries.length
   )
     return state;
 
+  // The controller supplies a random queue position for new playlist entries during shuffle.
+  if (
+    (state.shuffleEnabled && insertionIndex === undefined) ||
+    (insertionIndex !== undefined &&
+      (!Number.isInteger(insertionIndex) ||
+        insertionIndex < 0 ||
+        insertionIndex > state.sourceQueue.length))
+  )
+    return state;
+  const sourceEntries = [...state.sourceEntries];
+  sourceEntries.splice(canonicalIndex, 0, entry);
+  const sourceQueue = [...state.sourceQueue];
+  sourceQueue.splice(
+    insertionIndex ?? sourceQueue.length,
+    0,
+    ...createSourceItems(state, [entry], state.sourceIdentity, state.sessionId),
+  );
+
   return {
     ...state,
-    sourceQueue: [
-      ...state.sourceQueue,
-      {
-        queueItemId: state.sessionId + ":source:" + entry.sourceEntryId,
-        trackId: entry.trackId,
-        origin: { kind: "source", sourceEntryId: entry.sourceEntryId },
-      },
-    ],
+    sourceEntries,
+    sourceQueue,
+    sourcePosition:
+      state.sourcePosition?.kind === "boundary" && canonicalIndex < state.sourcePosition.index
+        ? { kind: "boundary", index: state.sourcePosition.index + 1 }
+        : state.sourcePosition,
   };
 }
 
 function removeSourceEntry(state: QueueState, sourceEntryId: number): QueueState {
+  const sourceEntryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
   const matches = (item: QueueItem) =>
-    item.origin.kind === "source" && item.origin.sourceEntryId === sourceEntryId;
+    isSourceItem(state, item, sourceEntryIds) &&
+    item.origin.kind === "source" &&
+    item.origin.sourceEntryId === sourceEntryId;
+
+  const removedIndex = state.sourceEntries.findIndex(
+    (entry) => entry.sourceEntryId === sourceEntryId,
+  );
 
   const currentRemoved =
     state.current?.participatesInSourceNavigation && matches(state.current.item);
 
   return {
     ...state,
+    sourceEntries: state.sourceEntries.filter((entry) => entry.sourceEntryId !== sourceEntryId),
+    sourcePosition:
+      removedIndex === -1
+        ? state.sourcePosition
+        : state.sourcePosition?.kind === "entry" &&
+            state.sourcePosition.sourceEntryId === sourceEntryId
+          ? { kind: "boundary", index: removedIndex }
+          : state.sourcePosition?.kind === "boundary" && removedIndex < state.sourcePosition.index
+            ? { kind: "boundary", index: state.sourcePosition.index - 1 }
+            : state.sourcePosition,
     current:
       currentRemoved && state.current
         ? { ...state.current, participatesInSourceNavigation: false }
@@ -522,7 +903,36 @@ function moveSourceEntry(
   state: QueueState,
   command: Extract<QueueCommand, { type: "sourceEntryMoved" }>,
 ): QueueState {
+  const sourceEntryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
   if (command.sourceEntryId === command.targetSourceEntryId) return state;
+
+  const fromIndex = state.sourceEntries.findIndex(
+    (entry) => entry.sourceEntryId === command.sourceEntryId,
+  );
+
+  const toIndex = command.orderedSourceEntryIds.indexOf(command.sourceEntryId);
+
+  if (fromIndex === -1 || toIndex === -1) return state;
+  const sourceEntries = orderSourceEntries(state.sourceEntries, command.orderedSourceEntryIds);
+
+  if (!sourceEntries) return state;
+
+  const afterRemoval =
+    state.sourcePosition?.kind === "boundary"
+      ? state.sourcePosition.index - Number(fromIndex < state.sourcePosition.index)
+      : null;
+
+  state = {
+    ...state,
+    sourceEntries,
+    sourcePosition:
+      afterRemoval === null
+        ? state.sourcePosition
+        : { kind: "boundary", index: afterRemoval + Number(toIndex < afterRemoval) },
+  };
+
+  if (state.shuffleEnabled) return state;
 
   const boundary = { kind: "boundary" as const };
 
@@ -537,48 +947,41 @@ function moveSourceEntry(
     ...state.sourceQueue,
   ];
 
-  const movedItem = path.find(
-    (item) =>
-      isQueueItem(item) &&
-      item.origin.kind === "source" &&
-      item.origin.sourceEntryId === command.sourceEntryId,
-  );
+  const movedItem =
+    path[sourceVisitIndexes(state, path, sourceEntryIds).get(command.sourceEntryId) ?? -1];
 
   if (!movedItem || !isQueueItem(movedItem)) return state;
 
+  const historicalIds = new Set(state.previousSourceItems.map((item) => item.queueItemId));
+  const movedFromHistory = historicalIds.has(movedItem.queueItemId);
+
   const attached = path.filter(
     (item): item is QueueItem =>
-      isQueueItem(item) && item.anchor?.sourceEntryId === command.sourceEntryId,
+      isQueueItem(item) &&
+      item.anchor?.sourceEntryId === command.sourceEntryId &&
+      historicalIds.has(item.queueItemId) === movedFromHistory,
   );
 
   const movedIds = new Set([movedItem.queueItemId, ...attached.map((item) => item.queueItemId)]);
 
   const remaining = path.filter((item) => !isQueueItem(item) || !movedIds.has(item.queueItemId));
+  const sourceIndexes = sourceVisitIndexes(state, remaining, sourceEntryIds);
+  const targetIndex = sourceIndexes.get(command.targetSourceEntryId) ?? -1;
+  const target = remaining[targetIndex];
 
-  const targetIndex = remaining.findIndex(
-    (item) =>
-      isQueueItem(item) &&
-      item.origin.kind === "source" &&
-      item.origin.sourceEntryId === command.targetSourceEntryId,
-  );
+  const targetFromHistory =
+    target && isQueueItem(target) ? historicalIds.has(target.queueItemId) : false;
 
   const targetGroupIndexes = remaining.flatMap((item, index) =>
     isQueueItem(item) &&
     item.anchor?.sourceEntryId === command.targetSourceEntryId &&
-    item.anchor.side === command.side
+    item.anchor.side === command.side &&
+    historicalIds.has(item.queueItemId) === targetFromHistory
       ? [index]
       : [],
   );
 
   const targetPosition = command.orderedSourceEntryIds.indexOf(command.targetSourceEntryId);
-
-  const sourceIndexes = new Map(
-    remaining.flatMap((item, index) =>
-      isQueueItem(item) && item.origin.kind === "source"
-        ? [[item.origin.sourceEntryId, index] as const]
-        : [],
-    ),
-  );
 
   const fallbackIndex =
     targetPosition === -1
@@ -618,35 +1021,59 @@ function moveSourceEntry(
   };
 }
 
+/**
+ * This function selects one queue item per source entry.
+ * It prefers the current item, then the first upcoming item.
+ * If neither exists, it selects the last item from previousSourceItems.
+ */
+function sourceVisitIndexes(
+  state: QueueState,
+  items: readonly (QueueItem | { kind: "boundary" })[],
+  sourceEntryIds?: ReadonlySet<number>,
+) {
+  const upcomingIds = new Set(state.sourceQueue.map((item) => item.queueItemId));
+  const indexes = new Map<number, number>();
+  items.forEach((item, index) => {
+    if (
+      !isQueueItem(item) ||
+      !isSourceItem(state, item, sourceEntryIds) ||
+      item.origin.kind !== "source"
+    )
+      return;
+    const previousIndex = indexes.get(item.origin.sourceEntryId);
+    const previousItem = previousIndex === undefined ? undefined : items[previousIndex];
+
+    if (previousItem && isQueueItem(previousItem)) {
+      if (previousItem.queueItemId === state.current?.item.queueItemId) return;
+
+      if (
+        item.queueItemId !== state.current?.item.queueItemId &&
+        upcomingIds.has(previousItem.queueItemId)
+      )
+        return;
+    }
+
+    indexes.set(item.origin.sourceEntryId, index);
+  });
+
+  return indexes;
+}
+
 function appendNewLibraryTracks(state: QueueState, entries: readonly SourceEntry[]): QueueState {
   if (state.source.kind !== "all-tracks") return state;
 
-  const known = new Set([
-    ...state.previousSourceItems.flatMap((item) =>
-      item.origin.kind === "source" ? [item.origin.sourceEntryId] : [],
-    ),
-    ...state.sourceQueue.flatMap((item) =>
-      item.origin.kind === "source" ? [item.origin.sourceEntryId] : [],
-    ),
-    ...(state.current?.item.origin.kind === "source"
-      ? [state.current.item.origin.sourceEntryId]
-      : []),
-    ...state.suppressedSourceEntryIds,
-  ]);
+  const known = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
 
-  const added = entries.filter((item) => !known.has(item.sourceEntryId));
+  const added = entries.filter((entry) => !known.has(entry.sourceEntryId));
 
   if (added.length === 0) return state;
 
   return {
     ...state,
+    sourceEntries: [...state.sourceEntries, ...added],
     sourceQueue: [
       ...state.sourceQueue,
-      ...added.map((item) => ({
-        queueItemId: state.sessionId + ":source:" + item.sourceEntryId,
-        trackId: item.trackId,
-        origin: { kind: "source" as const, sourceEntryId: item.sourceEntryId },
-      })),
+      ...createSourceItems(state, added, state.sourceIdentity, state.sessionId),
     ],
   };
 }
@@ -659,20 +1086,28 @@ function appendCurrentSource(state: QueueState) {
 
 function recordPlayedItem(state: QueueState) {
   return state.current?.hasStartedPlayback
-    ? [...state.playedQueueItemIds, state.current.item.queueItemId]
+    ? state.playedQueueItemIds.includes(state.current.item.queueItemId)
+      ? state.playedQueueItemIds
+      : [...state.playedQueueItemIds, state.current.item.queueItemId]
     : state.playedQueueItemIds;
 }
 
-function findSourceAnchor(sourceQueue: readonly QueueItem[], insertionIndex: number) {
+function findSourceAnchor(
+  state: QueueState,
+  sourceQueue: readonly QueueItem[],
+  insertionIndex: number,
+) {
+  const sourceEntryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
   const nextSource = sourceQueue.find(
-    (item, index) => index >= insertionIndex && item.origin.kind === "source",
+    (item, index) => index >= insertionIndex && isSourceItem(state, item, sourceEntryIds),
   );
 
   if (nextSource?.origin.kind === "source")
     return { sourceEntryId: nextSource.origin.sourceEntryId, side: "before" as const };
 
   const previousSourceEntry = sourceQueue.findLast(
-    (item, index) => index < insertionIndex && item.origin.kind === "source",
+    (item, index) => index < insertionIndex && isSourceItem(state, item, sourceEntryIds),
   );
 
   if (previousSourceEntry?.origin.kind === "source")
@@ -681,8 +1116,11 @@ function findSourceAnchor(sourceQueue: readonly QueueItem[], insertionIndex: num
   return undefined;
 }
 
-function clearAnchor(items: readonly QueueItem[], removed: QueueItem) {
-  const sourceEntryId = removed.origin.kind === "source" ? removed.origin.sourceEntryId : null;
+function clearAnchor(state: QueueState, items: readonly QueueItem[], removed: QueueItem) {
+  const sourceEntryId =
+    isSourceItem(state, removed) && removed.origin.kind === "source"
+      ? removed.origin.sourceEntryId
+      : null;
 
   return sourceEntryId !== null
     ? items.map((item) => clearItemAnchor(item, sourceEntryId))
@@ -703,55 +1141,4 @@ function isActivePlaylist(state: QueueState, playlistId: number) {
 
 function isQueueItem(item: QueueItem | { kind: "boundary" }): item is QueueItem {
   return "queueItemId" in item;
-}
-
-export function serializeQueueSession(state: QueueState, position: number) {
-  return JSON.stringify({
-    version: 3,
-    state,
-    position: Number.isFinite(position) ? Math.max(0, position) : 0,
-  });
-}
-
-export function parseQueueSession(raw: string | null, library: MusicLibrary) {
-  if (!raw) return null;
-
-  try {
-    const parsed = savedSessionSchema.safeParse(JSON.parse(raw));
-
-    if (!parsed.success) return null;
-
-    const state = parsed.data.state;
-
-    const items = [
-      ...state.manualQueue,
-      ...state.previousSourceItems,
-      ...state.sourceQueue,
-      ...(state.current ? [state.current.item] : []),
-    ];
-
-    if (new Set(items.map((item) => item.queueItemId)).size !== items.length) return null;
-
-    if (state.current === null && state.status !== "stopped") return null;
-
-    const playlistId = state.source.kind === "playlist" ? state.source.playlistId : null;
-
-    const source =
-      state.source.kind === "playlist" &&
-      playlistId !== null &&
-      !library.playlists.some((playlist) => playlist.id === playlistId)
-        ? { kind: "detached" as const, title: state.source.title }
-        : state.source;
-
-    return {
-      state: {
-        ...state,
-        source,
-        status: state.current ? ("paused" as const) : ("stopped" as const),
-      },
-      position: parsed.data.position,
-    };
-  } catch {
-    return null;
-  }
 }
