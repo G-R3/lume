@@ -2,7 +2,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
 import { useKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
 
-export function AppKeyboardShortcuts() {
+export function AppKeyboardShortcuts({ toggleQueue }: { toggleQueue: () => void }) {
   const playback = usePlayback();
   const sidebar = useSidebar();
 
@@ -35,6 +35,11 @@ export function AppKeyboardShortcuts() {
         name: "Toggle mute",
         key: "m",
         action: playback.toggleMute,
+      },
+      {
+        name: "Toggle queue",
+        key: "q",
+        action: toggleQueue,
       },
     ],
     window.lume.isMac,

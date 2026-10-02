@@ -32,7 +32,7 @@ export function AppLayout() {
 
   return (
     <SidebarProvider className="h-svh flex-col bg-neutral-950 text-neutral-50">
-      <AppKeyboardShortcuts />
+      <AppKeyboardShortcuts toggleQueue={toggleQueue} />
       <div className="relative flex min-h-0 flex-1 overflow-x-clip">
         <AppSidebar />
 
