@@ -50,7 +50,6 @@ export const queueStateSchema = z.object({
     .object({
       item: queueItemSchema,
       lane: z.enum(["manual", "source"]),
-      hasStartedPlayback: z.boolean(),
       // This value controls whether Previous can return to the current queue item.
       // Previous can include queue-only items without changing sourcePosition.
       participatesInSourceNavigation: z.boolean(),
@@ -61,8 +60,6 @@ export const queueStateSchema = z.object({
   // Previous can return to these queue items, including items that did not start playback.
   previousSourceItems: z.array(queueItemSchema),
   suppressedSourceEntryIds: z.array(databaseId),
-  // These queueItemId values identify items that started playback. Each ID appears once.
-  playedQueueItemIds: z.array(queueItemId),
   status: z.enum(["playing", "paused", "stopped"]),
   lastSelectedItem: queueItemSchema.nullable(),
 });

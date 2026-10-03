@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { MusicLibrary } from "../../shared/lib";
-import { queueStateSchema, type QueueState } from "./queue-model";
+import { queueStateSchema, type QueueItem, type QueueState } from "./queue-model";
 
 const savedSessionSchema = z.object({
   version: z.literal(4),
@@ -38,7 +38,34 @@ export function parseQueueSession(raw: string | null, library: MusicLibrary) {
 
     if (new Set(items.map((item) => item.queueItemId)).size !== items.length) return null;
 
-    if (state.current === null && state.status !== "stopped") return null;
+    if ((state.current === null) !== (state.status === "stopped")) return null;
+
+    if (state.current?.lane === "manual" && state.current.participatesInSourceNavigation)
+      return null;
+
+    if (new Set(state.suppressedSourceEntryIds).size !== state.suppressedSourceEntryIds.length)
+      return null;
+
+    const entriesById = new Map(state.sourceEntries.map((entry) => [entry.sourceEntryId, entry]));
+
+    if (state.suppressedSourceEntryIds.some((id) => !entriesById.has(id))) return null;
+
+    const retainedItems = state.lastSelectedItem ? [...items, state.lastSelectedItem] : items;
+
+    if (retainedItems.some((item) => !validQueueItem(state, item, entriesById))) return null;
+
+    if (state.lastSelectedItem) {
+      const selected = items.find(
+        (item) => item.queueItemId === state.lastSelectedItem?.queueItemId,
+      );
+
+      if (
+        selected &&
+        (selected.trackId !== state.lastSelectedItem.trackId ||
+          JSON.stringify(selected.origin) !== JSON.stringify(state.lastSelectedItem.origin))
+      )
+        return null;
+    }
 
     const playlistId = state.source.kind === "playlist" ? state.source.playlistId : null;
 
@@ -87,4 +114,28 @@ function validQueueState(state: QueueState) {
     return false;
 
   return true;
+}
+
+/** check each item's source and session. Allow retained items from earlier sessions */
+function validQueueItem(
+  state: QueueState,
+  item: QueueItem,
+  entriesById: ReadonlyMap<number, QueueState["sourceEntries"][number]>,
+) {
+  if (item.anchor && !entriesById.has(item.anchor.sourceEntryId)) return false;
+
+  if (item.origin.kind !== "source" || item.origin.sessionId !== state.sessionId) return true;
+
+  if (item.origin.source.kind !== state.sourceIdentity.kind) return false;
+
+  if (
+    item.origin.source.kind === "playlist" &&
+    (state.sourceIdentity.kind !== "playlist" ||
+      item.origin.source.playlistId !== state.sourceIdentity.playlistId)
+  )
+    return false;
+
+  const entry = entriesById.get(item.origin.sourceEntryId);
+
+  return !entry || entry.trackId === item.trackId;
 }

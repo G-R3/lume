@@ -1,10 +1,15 @@
 import { queryOptions, type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   LibrarySnapshot,
+  PlaylistTrack,
   PlaylistTrackInput,
   PlaylistTrackRemovalInput,
   TrackLikeInput,
 } from "../../shared/lib";
+import { playlistQueryOptions } from "@/lib/playback-source";
+
+export { playlistQueryOptions } from "@/lib/playback-source";
+
 import { usePlayback } from "@/hooks/use-playback";
 
 type LibraryCommand =
@@ -28,15 +33,6 @@ export const libraryQueryOptions = queryOptions({
   staleTime: Infinity,
 });
 
-export function playlistQueryOptions(playlistId: number) {
-  return queryOptions({
-    networkMode: "always",
-    queryKey: ["playlist", playlistId],
-    queryFn: () => window.lume.loadPlaylist(playlistId),
-    retry: false,
-  });
-}
-
 export function useLibraryMutation() {
   const queryClient = useQueryClient();
   const playback = usePlayback();
@@ -46,8 +42,12 @@ export function useLibraryMutation() {
     networkMode: "always",
     scope: { id: "library" },
     onSuccess: (library, command) => {
-      if (command.kind === "delete-playlist")
-        playback.dispatchQueue({ type: "sourceDeleted", playlistId: command.playlistId });
+      if (command.kind === "delete-playlist") {
+        const options = playlistQueryOptions(command.playlistId);
+        void queryClient.cancelQueries({ queryKey: options.queryKey });
+        queryClient.setQueryData(options.queryKey, null);
+        playback.applySourceChange({ type: "sourceDeleted", playlistId: command.playlistId });
+      }
 
       queryClient.setQueryData(libraryQueryOptions.queryKey, library);
     },
@@ -75,10 +75,12 @@ export function useAddTrackToPlaylistMutation() {
     onSuccess: (result, input) => {
       if (result.kind === "duplicate") return;
 
-      playback.dispatchQueue({
+      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, result.track);
+      playback.applySourceChange({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { sourceEntryId: result.track.id, trackId: result.track.trackId },
+        canonicalIndex,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -94,10 +96,12 @@ export function useConfirmAddTrackToPlaylistMutation() {
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
     onSuccess: (track, input) => {
-      playback.dispatchQueue({
+      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, track);
+      playback.applySourceChange({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { sourceEntryId: track.id, trackId: track.trackId },
+        canonicalIndex,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -127,7 +131,20 @@ export function useRemovePlaylistTrackMutation() {
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
     onSuccess: (_result, input) => {
-      playback.dispatchQueue({
+      const options = playlistQueryOptions(input.playlistId);
+
+      void queryClient.cancelQueries({ queryKey: options.queryKey });
+
+      queryClient.setQueryData(
+        options.queryKey,
+        (playlist) =>
+          playlist && {
+            ...playlist,
+            tracks: playlist.tracks.filter((track) => track.id !== input.playlistTrackId),
+          },
+      );
+
+      playback.applySourceChange({
         type: "sourceEntryRemoved",
         playlistId: input.playlistId,
         sourceEntryId: input.playlistTrackId,
@@ -211,4 +228,28 @@ function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number)
     queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey }),
     queryClient.invalidateQueries({ queryKey: playlistQueryOptions(playlistId).queryKey }),
   ]);
+}
+
+/** cancel old reads before adding the committed occurrence to cached canonical data. */
+function commitPlaylistAddition(
+  queryClient: QueryClient,
+  playlistId: number,
+  track: PlaylistTrack,
+) {
+  const options = playlistQueryOptions(playlistId);
+  void queryClient.cancelQueries({ queryKey: options.queryKey });
+  const playlist = queryClient.getQueryData(options.queryKey);
+
+  if (!playlist) return undefined;
+
+  const canonicalIndex = playlist.tracks.filter((entry) => entry.position < track.position).length;
+
+  queryClient.setQueryData(options.queryKey, () => ({
+    ...playlist,
+    tracks: [...playlist.tracks.filter((entry) => entry.id !== track.id), track].sort(
+      (left, right) => left.position - right.position,
+    ),
+  }));
+
+  return canonicalIndex;
 }

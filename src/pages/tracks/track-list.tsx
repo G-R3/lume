@@ -138,7 +138,14 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                 key={item.sourceEntryId}
                 onClick={
                   track.available
-                    ? () => playback.playFromSource(items, index, playlistId)
+                    ? () =>
+                        playback.playSourceEntry({
+                          source:
+                            playlistId === undefined
+                              ? { kind: "all-tracks" }
+                              : { kind: "playlist", playlistId },
+                          sourceEntryId: item.sourceEntryId,
+                        })
                     : undefined
                 }
               >
@@ -241,9 +248,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   <TrackRowMenu
                     canAddToQueue={playback.queue !== null}
                     isCreatingPlaylist={createPlaylistFromTrack.isPending}
-                    onAddToQueue={() =>
-                      playback.dispatchQueue({ type: "enqueueTrack", trackId: track.id })
-                    }
+                    onAddToQueue={() => playback.enqueueTrack(track.id)}
                     onAddToPlaylist={handleAddToPlaylist}
                     onCreatePlaylist={handleCreatePlaylist}
                     track={track}

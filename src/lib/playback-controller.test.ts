@@ -23,15 +23,11 @@ it.each(["all-tracks", "playlist"] as const)(
 
     await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
 
-    playback.controller.playFromSource(
-      tracks.slice(0, 3).map((item) => ({
-        sourceEntryId: source === "playlist" ? item.id + 10 : item.id,
-        track: item,
-      })),
-      2,
-      source === "playlist" ? 1 : undefined,
-    );
-    playback.controller.dispatch({ type: "enqueueTrack", trackId: 4 });
+    await playback.controller.playSourceEntry({
+      source: source === "playlist" ? { kind: "playlist", playlistId: 1 } : { kind: "all-tracks" },
+      sourceEntryId: source === "playlist" ? 13 : 4,
+    });
+    playback.controller.enqueueTrack(4);
 
     expect(
       playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId),
@@ -40,7 +36,11 @@ it.each(["all-tracks", "playlist"] as const)(
     const lastSourceItem = playback.requests.at(-1);
 
     if (!lastSourceItem) throw new Error("Expected the source track to load");
-    playback.controller.onAudioEvent({ type: "ended", queueItemId: lastSourceItem.queueItemId });
+    playback.controller.handleAudioEvent({
+      type: "ended",
+      requestId: lastSourceItem.requestId,
+      queueItemId: lastSourceItem.queueItemId,
+    });
 
     expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(4);
     expect(playback.requests.at(-1)?.shouldPlay).toBe(true);
@@ -48,7 +48,11 @@ it.each(["all-tracks", "playlist"] as const)(
     const manualItem = playback.requests.at(-1);
 
     if (!manualItem) throw new Error("Expected the manual track to load");
-    playback.controller.onAudioEvent({ type: "ended", queueItemId: manualItem.queueItemId });
+    playback.controller.handleAudioEvent({
+      type: "ended",
+      requestId: manualItem.requestId,
+      queueItemId: manualItem.queueItemId,
+    });
 
     await expect.poll(() => playback.controller.getSnapshot().queue?.status).toBe("paused");
 
@@ -70,16 +74,31 @@ it("does not replace a new selection when the finished playlist read resolves", 
     finishRead = resolve;
   });
 
-  const playback = createTestPlayback(() => pending);
+  let reads = 0;
+
+  const playback = createTestPlayback(() =>
+    reads++ === 0
+      ? Promise.resolve({
+          id: 1,
+          title: "Source",
+          description: null,
+          tracks: [{ id: 10, trackId: 1, position: 0 }],
+        })
+      : pending,
+  );
+
   const tracks = [track(1), track(2)];
 
   playback.controller.syncLibrary({ kind: "library", sources: [], playlists: [], tracks });
 
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
 
-  playback.controller.playFromSource([{ sourceEntryId: 10, track: tracks[0] }], 0, 1);
-  playback.controller.dispatch({ type: "next", reason: "ended" });
-  playback.controller.playFromSource([{ sourceEntryId: 2, track: tracks[1] }], 0);
+  await playback.controller.playSourceEntry({
+    source: { kind: "playlist", playlistId: 1 },
+    sourceEntryId: 10,
+  });
+  playback.controller.next();
+  await playback.controller.playSourceEntry({ source: { kind: "all-tracks" }, sourceEntryId: 2 });
 
   if (!finishRead) throw new Error("Expected the playlist read to start");
   finishRead({
@@ -110,7 +129,7 @@ it("stays stopped when the source no longer has any available tracks", async () 
 
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
 
-  playback.controller.playFromSource([{ sourceEntryId: 1, track: track(1) }], 0);
+  await playback.controller.playSourceEntry({ source: { kind: "all-tracks" }, sourceEntryId: 1 });
 
   expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/1", shouldPlay: true });
 
@@ -121,14 +140,21 @@ it("stays stopped when the source no longer has any available tracks", async () 
     tracks: [{ ...track(1), available: false }],
   });
 
-  playback.controller.dispatch({ type: "next", reason: "ended" });
+  playback.controller.next();
 
   expect(playback.controller.getSnapshot().queue?.status).toBe("stopped");
   expect(playback.requests.at(-1)).toBeNull();
 });
 
 it("keeps the active source in order through playlist edits", async () => {
-  const controller = createTestPlayback().controller;
+  const controller = createTestPlayback(() =>
+    Promise.resolve({
+      id: 1,
+      title: "Source",
+      description: null,
+      tracks: [1, 2, 3].map((trackId, position) => ({ id: trackId, trackId, position })),
+    }),
+  ).controller;
 
   const library = {
     kind: "library",
@@ -139,23 +165,22 @@ it("keeps the active source in order through playlist edits", async () => {
 
   controller.syncLibrary(library);
   await expect.poll(() => controller.getSnapshot().isInitialized).toBe(true);
-  controller.playFromSource(
-    library.tracks.slice(0, 3).map((item) => ({ sourceEntryId: item.id, track: item })),
-    0,
-    1,
-  );
+  await controller.playSourceEntry({
+    source: { kind: "playlist", playlistId: 1 },
+    sourceEntryId: 1,
+  });
 
-  controller.dispatch({ type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 });
+  controller.applySourceChange({ type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 });
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([3]);
 
-  controller.dispatch({
+  controller.applySourceChange({
     type: "sourceEntryAdded",
     playlistId: 1,
     entry: { sourceEntryId: 4, trackId: 4 },
   });
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([3, 4]);
 
-  controller.dispatch({ type: "sourceDeleted", playlistId: 1 });
+  controller.applySourceChange({ type: "sourceDeleted", playlistId: 1 });
 
   expect(controller.getSnapshot().queue?.source).toEqual({ kind: "detached", title: "Source" });
   expect(controller.getSnapshot().queue?.current?.item.trackId).toBe(1);
@@ -169,10 +194,7 @@ it("restarts the current track before navigating to the prior source item", asyn
   const tracks = [track(1), track(2), track(3)];
   controller.syncLibrary({ kind: "library", playlists: [], sources: [], tracks });
   await expect.poll(() => controller.getSnapshot().isInitialized).toBe(true);
-  controller.playFromSource(
-    tracks.map((item) => ({ sourceEntryId: item.id, track: item })),
-    1,
-  );
+  await controller.playSourceEntry({ source: { kind: "all-tracks" }, sourceEntryId: 2 });
 
   playback.media.seek(3);
   controller.previous();
@@ -203,17 +225,33 @@ function createTestPlayback(loadPlaylist: LumeApi["loadPlaylist"] = () => Promis
       seeks.push(time);
       position = time;
     },
-  } satisfies Parameters<typeof createPlaybackController>[0];
+  } satisfies Parameters<typeof createPlaybackController>[0]["audio"];
 
-  const controller = createPlaybackController(
-    media,
-    {
+  const controller = createPlaybackController({
+    audio: media,
+    storage: {
       load: () => Promise.resolve(null),
       save: () => Promise.resolve(),
       flush: () => {},
     },
-    loadPlaylist,
-  );
+    sourceReader: {
+      read: async (source) => {
+        if (source.kind === "all-tracks") return null;
+        const playlist = await loadPlaylist(source.playlistId);
+
+        return (
+          playlist && {
+            source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
+            entries: playlist.tracks.map((entry) => ({
+              sourceEntryId: entry.id,
+              trackId: entry.trackId,
+            })),
+          }
+        );
+      },
+    },
+    random: Math.random,
+  });
 
   return { controller, media, requests, seeks };
 }
