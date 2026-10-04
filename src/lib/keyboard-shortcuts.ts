@@ -46,6 +46,18 @@ export function createKeyboardShortcutHandler(
   return (event: KeyboardEvent) => {
     if (event.repeat || event.isComposing) return;
 
+    if (
+      event.key === " " &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      event
+        .composedPath()
+        .some((target) => target instanceof Element && target.matches("button, [role='button']"))
+    )
+      return;
+
     const shortcut = shortcutsBySignature.get(
       createSignature(event.key, event.ctrlKey, event.metaKey, event.shiftKey, event.altKey),
     );

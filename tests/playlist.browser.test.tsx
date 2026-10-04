@@ -313,8 +313,8 @@ describe("playlist behavior", () => {
 
     expect(restartedAudio.currentTime).toBeLessThan(1);
     await expect
-      .element(playbackActions.getByRole("button", { name: "Shuffle, coming soon" }))
-      .toBeDisabled();
+      .element(playbackActions.getByRole("button", { name: "Shuffle play" }))
+      .toBeEnabled();
   });
 
   it("completes the playlist editing lifecycle through the renderer API", async () => {

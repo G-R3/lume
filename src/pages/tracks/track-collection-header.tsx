@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { usePlayback } from "@/hooks/use-playback";
 import { formatDuration } from "@/lib/format-duration";
+import type { SourceIdentity } from "@/lib/queue";
 import { cn } from "@/lib/utils";
 import type { TrackListItem } from "@/pages/tracks/track-list";
 
@@ -28,11 +29,16 @@ export function TrackCollectionHeader({
   trackCount = items.length,
 }: TrackCollectionHeaderProps) {
   const playback = usePlayback();
-  const firstAvailableTrackIndex = items.findIndex((item) => item.track.available);
+
+  const source = (
+    playlistId === undefined ? { kind: "all-tracks" } : { kind: "playlist", playlistId }
+  ) satisfies SourceIdentity;
+
+  const hasAvailableTracks = items.some((item) => item.track.available);
   const totalDuration = items.reduce((duration, item) => duration + (item.track.duration ?? 0), 0);
 
   return (
-    <header className="flex items-end gap-6 px-5 py-6 max-sm:flex-col max-sm:items-start">
+    <header className="flex flex-wrap items-end gap-6 px-5 py-6 max-sm:flex-col max-sm:items-start">
       <div
         aria-hidden="true"
         className={cn(
@@ -43,7 +49,7 @@ export function TrackCollectionHeader({
         {artwork}
       </div>
 
-      <div className="min-w-0 pb-0.5">
+      <div className="min-w-0 pb-0.5 sm:flex-1 sm:basis-56">
         {eyebrow && (
           <p className="font-berkeley mb-2 text-[10px] tracking-[0.12em] text-lime-300 uppercase">
             {eyebrow}
@@ -65,17 +71,11 @@ export function TrackCollectionHeader({
           </p>
         </div>
 
-        <div aria-label="Playback actions" className="mt-5 flex gap-2" role="group">
+        <div aria-label="Playback actions" className="mt-5 flex flex-wrap gap-2" role="group">
           <Button
             className="h-10 gap-2 px-4"
-            disabled={firstAvailableTrackIndex === -1}
-            onClick={() => {
-              void playback.playSource(
-                playlistId === undefined
-                  ? { kind: "all-tracks" }
-                  : { kind: "playlist", playlistId },
-              );
-            }}
+            disabled={!playback.isInitialized || !hasAvailableTracks}
+            onClick={() => void playback.playSource(source)}
             size="lg"
             type="button"
           >
@@ -83,16 +83,15 @@ export function TrackCollectionHeader({
             Play
           </Button>
           <Button
-            aria-label="Shuffle, coming soon"
             className="h-10 gap-2 px-4"
-            disabled
+            disabled={!playback.isInitialized || !hasAvailableTracks}
+            onClick={() => void playback.shufflePlay(source)}
             size="lg"
-            title="Shuffle is not available yet"
             type="button"
             variant="outline"
           >
             <ShuffleAngularIcon aria-hidden="true" className="size-4" />
-            Shuffle
+            Shuffle play
           </Button>
         </div>
       </div>

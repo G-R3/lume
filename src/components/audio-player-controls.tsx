@@ -2,12 +2,14 @@ import { Button } from "@/components/ui/button";
 import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
 import { Slider } from "@/components/ui/slider";
 import { usePlayback, usePlaybackTime } from "@/hooks/use-playback";
+import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/format-duration";
 import { useSetTrackLiked } from "@/lib/library-query";
 import {
   HeartIcon,
   PauseIcon,
   PlayIcon,
+  ShuffleAngularIcon,
   SkipBackIcon,
   SkipForwardIcon,
   SpeakerHighIcon,
@@ -69,7 +71,30 @@ export function AudioPlayerControls() {
       </div>
 
       <div className="w-[clamp(16rem,38vw,28rem)]">
-        <div className="flex items-center justify-center gap-4">
+        <div className="relative mx-auto flex w-fit items-center gap-4">
+          <Button
+            aria-label="Shuffle"
+            aria-pressed={playback.shuffleEnabled}
+            className={cn(
+              "absolute right-full mr-4 grid size-8 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-lime-300",
+              playback.shuffleEnabled
+                ? "text-lime-300 hover:text-lime-200"
+                : "text-neutral-400 hover:text-neutral-100",
+            )}
+            disabled={!playback.isInitialized || playback.queue === null}
+            onClick={() => playback.setShuffleEnabled(!playback.shuffleEnabled)}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <ShuffleAngularIcon aria-hidden="true" className="size-4.5" />
+            {playback.shuffleEnabled && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-current"
+              />
+            )}
+          </Button>
           <button
             aria-label="Previous track"
             className="grid size-8 cursor-pointer place-items-center"
