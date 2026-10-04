@@ -100,9 +100,7 @@ function isEditingEvent(event: KeyboardEvent) {
     (target) =>
       target instanceof Element &&
       target.matches(
-        // `input:not([type='range'])` allows all range inputs. should maybe make it narrow it to the audio control slider
-        // also buttons are hijacked so shortcuts don't trigger when they are focused. Might add to the list here if it doesn't
-        // feel right :)
+        // Allow playback shortcuts while a range input has focus.
         "input:not([type='range']), textarea, select, [contenteditable]:not([contenteditable='false'])",
       ),
   );
