@@ -7,7 +7,8 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { playlistQueryOptions, useRemovePlaylistTrackMutation } from "@/lib/library-query";
+import { useRemovePlaylistTrackMutation } from "@/lib/library-query";
+import { playlistQueryOptions } from "@/lib/playlist-query";
 import { TrackCollectionHeader } from "@/pages/tracks/track-collection-header";
 import { TrackList } from "@/pages/tracks/track-list";
 

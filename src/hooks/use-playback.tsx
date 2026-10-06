@@ -7,18 +7,31 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { MusicLibrary, Track } from "../../shared/lib";
 import { useMediaElement } from "@/hooks/use-media-element";
-import { createPlaybackController, type QueueIntent } from "@/lib/playback-controller";
-import { selectCanGoNext, selectQueueView } from "@/lib/queue";
+import { createPlaybackController } from "@/lib/playback-controller";
+import { createPlaylistReader } from "@/lib/playlist-query";
+import { selectActiveSourceEntryId, selectCanGoNext, selectQueueView } from "@/lib/queue/selectors";
 
-type PlaybackContextValue = {
+type PlaybackContextValue = Pick<
+  ReturnType<typeof createPlaybackController>,
+  | "applySourceChange"
+  | "enqueueTrack"
+  | "jumpToQueueItem"
+  | "moveQueueItem"
+  | "playSource"
+  | "playSourceEntry"
+  | "removeQueueItem"
+  | "setShuffleEnabled"
+  | "shufflePlay"
+> & {
+  shuffleEnabled: boolean;
   activeQueueItemId: string | null;
   activeSourceEntryId: number | null;
   activeSourcePlaylistId: number | null;
   activeTrack: Track | null;
   canGoNext: boolean;
-  dispatchQueue: (command: QueueIntent) => void;
   duration: number;
   errorMessage: string | null;
   isMuted: boolean;
@@ -26,7 +39,6 @@ type PlaybackContextValue = {
   queue: ReturnType<typeof selectQueueView>;
   isInitialized: boolean;
   next: () => void;
-  playFromSource: ReturnType<typeof createPlaybackController>["playFromSource"];
   previous: () => void;
   seek: (time: number) => void;
   setVolume: (volume: number) => void;
@@ -62,16 +74,17 @@ export function usePlaybackTime() {
 
 /** Connects the queue to audio playback and lets child components use the playback hooks. */
 export function PlaybackProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const controllerRef = useRef<ReturnType<typeof createPlaybackController> | null>(null);
 
   const media = useMediaElement({
-    onEvent: (event) => controllerRef.current?.onAudioEvent(event),
+    onEvent: (event) => controllerRef.current?.handleAudioEvent(event),
     onPosition: (position) => controllerRef.current?.onPosition(position),
   });
 
   const [controller] = useState(() =>
-    createPlaybackController(
-      {
+    createPlaybackController({
+      audio: {
         load: media.load,
         getPosition: media.getPosition,
         hasRequest: media.hasRequest,
@@ -79,9 +92,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         pause: media.pause,
         seek: media.seek,
       },
-      window.lume.playbackSession,
-      window.lume.loadPlaylist,
-    ),
+      storage: window.lume.playbackSession,
+      playlistReader: createPlaylistReader(queryClient),
+      random: Math.random,
+    }),
   );
 
   controllerRef.current = controller;
@@ -110,21 +124,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const displayItem = current?.item ?? snapshot.queue?.lastSelectedItem;
   const activeTrack = displayItem ? (tracksById.get(displayItem.trackId) ?? null) : null;
 
-  const activeSourceEntryId =
-    snapshot.queue?.source.kind !== "detached" &&
-    current?.participatesInSourceNavigation &&
-    current.lane === "source" &&
-    current.item.origin.kind === "source"
-      ? current.item.origin.sourceEntryId
-      : null;
+  const activeSourceEntryId = selectActiveSourceEntryId(snapshot.queue);
 
   const activeSourcePlaylistId =
     snapshot.queue?.source.kind === "playlist" ? snapshot.queue.source.playlistId : null;
-
-  const next = useCallback(
-    () => controller.dispatch({ type: "next", reason: "skip" }),
-    [controller],
-  );
 
   const togglePlayback = useCallback(() => {
     if (media.isPlaying) controller.pause();
@@ -139,17 +142,25 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         activeSourcePlaylistId,
         activeTrack,
         canGoNext: selectCanGoNext(snapshot.queue, availableTrackIds),
-        dispatchQueue: controller.dispatch,
+        applySourceChange: controller.applySourceChange,
+        enqueueTrack: controller.enqueueTrack,
+        jumpToQueueItem: controller.jumpToQueueItem,
+        moveQueueItem: controller.moveQueueItem,
+        playSource: controller.playSource,
+        playSourceEntry: controller.playSourceEntry,
+        removeQueueItem: controller.removeQueueItem,
+        setShuffleEnabled: controller.setShuffleEnabled,
+        shufflePlay: controller.shufflePlay,
+        shuffleEnabled: snapshot.queue?.shuffleEnabled ?? false,
         duration: media.duration,
         errorMessage: snapshot.errorMessage,
         isMuted: media.isMuted,
         isPlaying: media.isPlaying,
         queue: selectQueueView(snapshot.queue),
         isInitialized: snapshot.isInitialized,
-        next,
-        playFromSource: controller.playFromSource,
+        next: controller.next,
         previous: controller.previous,
-        seek: media.seek,
+        seek: controller.seek,
         setVolume: media.setVolume,
         syncLibrary: controller.syncLibrary,
         toggleMute: media.toggleMute,
@@ -163,14 +174,12 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       media.duration,
       media.isMuted,
       media.isPlaying,
-      media.seek,
       media.setVolume,
       media.toggleMute,
       media.volume,
       availableTrackIds,
       controller,
       current?.item.queueItemId,
-      next,
       snapshot.errorMessage,
       snapshot.queue,
       snapshot.isInitialized,

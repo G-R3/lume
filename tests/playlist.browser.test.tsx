@@ -14,9 +14,11 @@ import type {
 import { createTestApi } from "./helpers/lume-api";
 import { createWaveAudio } from "./helpers/wave-audio";
 import { PlaybackProvider } from "@/hooks/use-playback";
-import { serializeQueueSession, transition } from "@/lib/queue";
+import { serializeQueueSession } from "@/lib/queue/persistence";
+import { transition } from "@/lib/queue/transition";
 import { createAppRouter } from "@/router";
 import "@/index.css";
+import { queueContext } from "./helpers/queue-context";
 
 type EditingCalls = {
   additions: { playlistId: number; trackId: number }[];
@@ -45,6 +47,63 @@ afterEach(() => {
 });
 
 describe("playlist behavior", () => {
+  it("toggles shuffle with the keyboard without interrupting audio and starts fresh header playback", async () => {
+    const playlist = {
+      id: 20,
+      title: "Playback",
+      description: null,
+      tracks: [{ id: 201, trackId: 1, position: 0 }],
+    } satisfies PlaylistDetails;
+
+    const state = createRendererState([createTrack(1, "Midnight")], [playlist]);
+    renderApplication(
+      createTestApi(() => ({
+        loadLibrary: () => Promise.resolve(state.library),
+        loadPlaylist: () => Promise.resolve(playlist),
+      })),
+      "#/playlists/20",
+    );
+    await page
+      .getByRole("table", { name: "Playback tracks" })
+      .getByRole("button", { exact: true, name: "Midnight" })
+      .click();
+    const player = page.getByRole("contentinfo");
+    const pauseButton = player.getByRole("button", { exact: true, name: "Pause" });
+    await pauseButton.click();
+    const audio = currentAudio();
+    await expect.poll(() => audio.readyState).toBe(4);
+    audio.currentTime = 19;
+    const toggle = player.getByRole("button", { exact: true, name: "Shuffle" });
+    toggle.element().focus();
+    await userEvent.keyboard(" ");
+    await expect.element(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect.element(player.getByText("Midnight", { exact: true })).toBeVisible();
+    await expect.element(player.getByRole("button", { exact: true, name: "Play" })).toBeVisible();
+    expect(currentAudio()).toBe(audio);
+    expect(audio.currentTime).toBe(19);
+    expect(audio.paused).toBe(true);
+
+    await userEvent.keyboard("{Enter}");
+    await expect.element(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(currentAudio()).toBe(audio);
+    expect(audio.currentTime).toBe(19);
+    expect(audio.paused).toBe(true);
+
+    const header = page.getByRole("button", { exact: true, name: "Shuffle play" });
+    await expect.element(header).not.toHaveAttribute("aria-pressed");
+
+    // Each click starts over from zero, even after the previous session was paused partway
+    for (let click = 0; click < 2; click++) {
+      await header.click();
+      await expect.element(toggle).toHaveAttribute("aria-pressed", "true");
+      await expect.element(pauseButton).toBeVisible();
+      expect(currentAudio().currentTime).toBeLessThan(2);
+      expect(currentAudio().paused).toBe(false);
+      await pauseButton.click();
+      currentAudio().currentTime = 19;
+    }
+  });
+
   it("adjusts volume immediately and restores volume and mute across player restarts", async () => {
     localStorage.setItem("lume.audio", JSON.stringify({ volume: 0.6, muted: false }));
     const state = createRendererState([createTrack(1, "Midnight"), createTrack(2, "Sunrise")]);
@@ -182,16 +241,17 @@ describe("playlist behavior", () => {
     const queue = transition(
       null,
       {
-        type: "startFromSource",
+        type: "startSession",
         source: { kind: "all-tracks" },
         sessionId: "saved",
         entries: state.library.tracks.map((track) => ({
           sourceEntryId: track.id,
           trackId: track.id,
         })),
-        startEntryId: midnight.id,
+        start: { kind: "entry", sourceEntryId: midnight.id },
+        shuffled: false,
       },
-      new Set([1, 2]),
+      queueContext([1, 2]),
     );
 
     if (!queue) throw new Error("Expected a saved queue");
@@ -199,8 +259,9 @@ describe("playlist behavior", () => {
       createTestApi(() => ({
         loadLibrary: () => Promise.resolve(state.library),
         playbackSession: {
-          load: () => Promise.resolve(serializeQueueSession(queue, 7.25)),
+          load: () => Promise.resolve({ payload: serializeQueueSession(queue), position: 7.25 }),
           save: () => Promise.resolve(),
+          savePosition: () => Promise.resolve(),
           flush: () => {},
         },
         enableSource: () => {
@@ -313,8 +374,8 @@ describe("playlist behavior", () => {
 
     expect(restartedAudio.currentTime).toBeLessThan(1);
     await expect
-      .element(playbackActions.getByRole("button", { name: "Shuffle, coming soon" }))
-      .toBeDisabled();
+      .element(playbackActions.getByRole("button", { name: "Shuffle play" }))
+      .toBeEnabled();
   });
 
   it("completes the playlist editing lifecycle through the renderer API", async () => {
@@ -683,6 +744,14 @@ describe("playlist behavior", () => {
     await expect.element(target.getByRole("button", { name: "Unlike Midnight" })).toBeVisible();
   });
 });
+
+function currentAudio() {
+  const audio = document.querySelector("audio");
+
+  if (!audio) throw new Error("Expected loaded audio");
+
+  return audio;
+}
 
 function renderApplication(api: LumeApi, hash = "#/") {
   window.lume = api;

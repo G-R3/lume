@@ -8,7 +8,7 @@ import { closeDatabase, type LibraryDatabase } from "../electron/database";
 import { librarySources, tracks } from "../electron/database/schema";
 import { applySourceScan, getTracks, saveSource } from "../electron/library";
 import { scanAudioFiles, trackMetadataVersion } from "../electron/library-files";
-import { transition } from "../src/lib/queue";
+import { transition } from "../src/lib/queue/transition";
 import {
   addTrackToPlaylist,
   confirmAddTrackToPlaylist,
@@ -19,6 +19,7 @@ import {
   getPlaylists,
   removePlaylistTrack,
 } from "../electron/playlists";
+import { queueContext } from "./helpers/queue-context";
 
 describe("playlist behavior", () => {
   it("keeps the current track and queues a new addition after removing the playing entry", async () => {
@@ -26,22 +27,23 @@ describe("playlist behavior", () => {
     const firstTrack = await addTrack("A");
     const secondTrack = await addTrack("B");
     const playlist = createPlaylistFromTrack(firstTrack.id);
-    const available = new Set([firstTrack.id, secondTrack.id]);
+    const context = queueContext([firstTrack.id, secondTrack.id]);
     const titlesById = new Map(getTracks().map((track) => [track.id, track.title]));
 
     const started = transition(
       null,
       {
-        type: "startFromSource",
+        type: "startSession",
         source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
         sessionId: "session",
         entries: playlist.tracks.map((entry) => ({
           sourceEntryId: entry.id,
           trackId: entry.trackId,
         })),
-        startEntryId: playlist.tracks[0].id,
+        start: { kind: "entry", sourceEntryId: playlist.tracks[0].id },
+        shuffled: false,
       },
-      available,
+      context,
     );
 
     removePlaylistTrack({ playlistId: playlist.id, playlistTrackId: playlist.tracks[0].id });
@@ -53,7 +55,7 @@ describe("playlist behavior", () => {
         playlistId: playlist.id,
         sourceEntryId: playlist.tracks[0].id,
       },
-      available,
+      context,
     );
 
     const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: secondTrack.id });
@@ -67,7 +69,7 @@ describe("playlist behavior", () => {
         playlistId: playlist.id,
         entry: { sourceEntryId: addition.track.id, trackId: addition.track.trackId },
       },
-      available,
+      context,
     );
 
     expect({
@@ -75,7 +77,7 @@ describe("playlist behavior", () => {
       next: queued?.sourceQueue.map((item) => titlesById.get(item.trackId)),
     }).toEqual({ current: "A", next: ["B"] });
 
-    const advanced = transition(queued, { type: "next", reason: "ended" }, available);
+    const advanced = transition(queued, { type: "next" }, context);
     expect(advanced?.current && titlesById.get(advanced.current.item.trackId)).toBe("B");
   });
 

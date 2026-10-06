@@ -13,7 +13,7 @@ import {
 import { Sidebar } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import type { QueueItem, QueueLane } from "@/lib/queue";
+import type { QueueItem, QueueLane } from "@/lib/queue/model";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 100;
@@ -61,7 +61,7 @@ export function QueueSidebar({
     lane: QueueLane,
   ) => {
     const nextId = items[index + 1]?.queueItemId ?? items[index - 1]?.queueItemId;
-    playback.dispatchQueue({ type: "removeQueueItem", queueItemId });
+    playback.removeQueueItem(queueItemId);
 
     requestAnimationFrame(() => {
       const target = nextId ? playButtons.current.get(nextId) : null;
@@ -165,10 +165,7 @@ export function QueueSidebar({
                           <QueueTrack
                             item={item}
                             onJump={() => {
-                              playback.dispatchQueue({
-                                type: "jumpTo",
-                                queueItemId: item.queueItemId,
-                              });
+                              playback.jumpToQueueItem(item.queueItemId);
                               requestAnimationFrame(() => currentHeading.current?.focus());
                             }}
                             playRef={(element) => {

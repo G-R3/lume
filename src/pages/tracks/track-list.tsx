@@ -9,6 +9,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
 import { usePlayback } from "@/hooks/use-playback";
+import { collectionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
 import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
@@ -138,7 +139,11 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                 key={item.sourceEntryId}
                 onClick={
                   track.available
-                    ? () => playback.playFromSource(items, index, playlistId)
+                    ? () =>
+                        playback.playSourceEntry({
+                          source: collectionSource(playlistId),
+                          sourceEntryId: item.sourceEntryId,
+                        })
                     : undefined
                 }
               >
@@ -241,9 +246,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   <TrackRowMenu
                     canAddToQueue={playback.queue !== null}
                     isCreatingPlaylist={createPlaylistFromTrack.isPending}
-                    onAddToQueue={() =>
-                      playback.dispatchQueue({ type: "enqueueTrack", trackId: track.id })
-                    }
+                    onAddToQueue={() => playback.enqueueTrack(track.id)}
                     onAddToPlaylist={handleAddToPlaylist}
                     onCreatePlaylist={handleCreatePlaylist}
                     track={track}

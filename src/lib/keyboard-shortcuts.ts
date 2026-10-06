@@ -7,6 +7,8 @@ export type KeyboardShortcut = {
   shift?: boolean;
   alt?: boolean;
   allowInEditable?: boolean;
+  // Lets a focused button handle the key instead, such as Space activating it.
+  yieldToButtons?: boolean;
   action: () => void;
 };
 
@@ -50,7 +52,12 @@ export function createKeyboardShortcutHandler(
       createSignature(event.key, event.ctrlKey, event.metaKey, event.shiftKey, event.altKey),
     );
 
-    if (!shortcut || (!shortcut.allowInEditable && isEditingEvent(event))) return;
+    if (
+      !shortcut ||
+      (!shortcut.allowInEditable && eventTargetMatches(event, editableSelector)) ||
+      (shortcut.yieldToButtons && eventTargetMatches(event, buttonSelector))
+    )
+      return;
 
     event.preventDefault();
     shortcut.action();
@@ -83,17 +90,16 @@ function normalizeKey(key: string) {
   return key.toLowerCase();
 }
 
-function isEditingEvent(event: KeyboardEvent) {
-  return event.composedPath().some(
-    (target) =>
-      target instanceof Element &&
-      target.matches(
-        // `input:not([type='range'])` allows all range inputs. should maybe make it narrow it to the audio control slider
-        // also buttons are hijacked so shortcuts don't trigger when they are focused. Might add to the list here if it doesn't
-        // feel right :)
-        "input:not([type='range']), textarea, select, [contenteditable]:not([contenteditable='false'])",
-      ),
-  );
+// Range inputs are not editable here, so playback shortcuts work while a slider has focus.
+const editableSelector =
+  "input:not([type='range']), textarea, select, [contenteditable]:not([contenteditable='false'])";
+
+const buttonSelector = "button, [role='button']";
+
+function eventTargetMatches(event: KeyboardEvent, selector: string) {
+  return event
+    .composedPath()
+    .some((target) => target instanceof Element && target.matches(selector));
 }
 
 function formatShortcut(shortcut: KeyboardShortcut) {

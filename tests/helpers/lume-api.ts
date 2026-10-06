@@ -20,6 +20,7 @@ export function createTestApi(createOverrides: () => Partial<LumeApi>): LumeApi 
       flush: () => {},
       load: () => Promise.resolve(null),
       save: () => Promise.resolve(),
+      savePosition: () => Promise.resolve(),
     },
     onLibraryUpdate: () => () => {},
     openDataFolder: () => rejectUnexpected("openDataFolder"),

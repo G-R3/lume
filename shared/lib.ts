@@ -95,6 +95,12 @@ export type MusicLibrary = {
 
 export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
 
+/** The serialized queue and the playback position, which is saved separately. */
+export type SavedPlaybackSession = {
+  payload: string;
+  position: number;
+};
+
 export type PlaylistCreationResult = {
   library: LibrarySnapshot;
   playlist: PlaylistSummary;
@@ -113,9 +119,10 @@ export type LumeApi = {
   loadLibrary: () => Promise<LibrarySnapshot>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
   playbackSession: {
-    flush: (payload: string) => void;
-    load: () => Promise<string | null>;
-    save: (payload: string) => Promise<void>;
+    flush: (session: SavedPlaybackSession) => void;
+    load: () => Promise<SavedPlaybackSession | null>;
+    save: (session: SavedPlaybackSession) => Promise<void>;
+    savePosition: (position: number) => Promise<void>;
   };
   onLibraryUpdate: (listener: (library: LibrarySnapshot) => void) => () => void;
   openDataFolder: () => Promise<void>;
@@ -141,6 +148,7 @@ export const lumeChannels = {
   loadPlaybackSession: "lume:load-playback-session",
   flushPlaybackSession: "lume:flush-playback-session",
   savePlaybackSession: "lume:save-playback-session",
+  savePlaybackPosition: "lume:save-playback-position",
   libraryUpdated: "lume:library-updated",
   openDataFolder: "lume:open-data-folder",
   rescanSource: "lume:rescan-source",
