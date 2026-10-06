@@ -386,7 +386,7 @@ it("restores a shuffled pass and lets Previous return through repeated visits", 
   );
 
   if (!manualOrder) throw new Error("Expected an active queue");
-  const restored = parseQueueSession(serializeQueueSession(manualOrder, 19.5), library);
+  const restored = restore(manualOrder, 19.5);
 
   if (!restored) throw new Error("Expected a restored session");
   expect(restored.position).toBe(19.5);
@@ -431,9 +431,9 @@ it("rejects duplicate stored queue IDs and restores valid deleted-anchor continu
     ),
   };
 
-  expect(parseQueueSession(serializeQueueSession(duplicateIds, 7.25), library)).toBe(null);
+  expect(restore(duplicateIds, 7.25)).toBe(null);
 
-  const restored = parseQueueSession(serializeQueueSession(removed, 7.25), library);
+  const restored = restore(removed, 7.25);
 
   if (!restored) throw new Error("Expected a restored session");
   expect(restored.position).toBe(7.25);
@@ -448,6 +448,75 @@ it("rejects duplicate stored queue IDs and restores valid deleted-anchor continu
     transition(sequential, { type: "next", reason: "skip" }, available)?.current?.item.trackId,
   ).toBe(3);
 });
+
+it("restores items from other sessions, anchors, repeat visits, and a deleted current entry exactly", () => {
+  const started = startPlaylist(1);
+  const carriedItemId = sourceQueueItemId(started, 4);
+
+  const carried = transition(
+    started,
+    { type: "moveQueueItem", queueItemId: carriedItemId, to: "manual" },
+    available,
+  );
+
+  const rebuilt = transition(
+    carried,
+    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "second" },
+    available,
+  );
+
+  const anchored = transition(
+    rebuilt,
+    {
+      type: "moveQueueItem",
+      queueItemId: carriedItemId,
+      to: "source",
+      beforeQueueItemId: sourceQueueItemId(rebuilt, 3),
+    },
+    available,
+  );
+
+  const second = transition(anchored, { type: "next", reason: "skip" }, available);
+
+  const deletedCurrent = transition(
+    shuffle(second, [5, 1, 3, 4]),
+    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    available,
+  );
+
+  const state = transition(
+    deletedCurrent,
+    { type: "enqueueTrack", trackId: 6, queueItemId: "manual-6" },
+    available,
+  );
+
+  if (!state) throw new Error("Expected an active queue");
+  expect(state.current?.item.queueItemId).toBe("second:source:2");
+  expect(state.sourceEntries.map((entry) => entry.sourceEntryId)).toEqual([1, 3, 4, 5]);
+  expect(state.sourceQueue.map((item) => item.queueItemId)).toEqual([
+    "second:source:5",
+    "second:source:1:visit:1",
+    "first:source:4",
+    "second:source:3",
+    "second:source:4",
+  ]);
+  expect(state.sourceQueue[2]?.anchor).toEqual({ sourceEntryId: 3, side: "before" });
+
+  expect(restore(state, 12)).toEqual({ state: { ...state, status: "paused" }, position: 12 });
+});
+
+it("rejects a saved session whose short-form item names an unknown source entry", () => {
+  const state = startPlaylist(1);
+  const saved = JSON.parse(serializeQueueSession(state));
+  expect(restore(state, 0)?.state.sourceQueue.map((item) => item.trackId)).toEqual([2, 3, 4, 5]);
+
+  saved.state.sourceQueue[0] = 9;
+  expect(parseQueueSession({ payload: JSON.stringify(saved), position: 0 }, library)).toBe(null);
+});
+
+function restore(state: QueueState, position: number) {
+  return parseQueueSession({ payload: serializeQueueSession(state), position }, library);
+}
 
 function startPlaylist(startEntryId: number) {
   const state = transition(

@@ -1,5 +1,11 @@
 import { expect, it } from "vite-plus/test";
-import type { LumeApi, MusicLibrary, PlaylistDetails, Track } from "../../shared/lib";
+import type {
+  LumeApi,
+  MusicLibrary,
+  PlaylistDetails,
+  SavedPlaybackSession,
+  Track,
+} from "../../shared/lib";
 import { createPlaybackController } from "./playback-controller";
 import type { PlaybackRequest } from "./playback-media";
 import { parseQueueSession } from "./queue";
@@ -264,17 +270,15 @@ it.each([false, true])(
     ).toEqual([4, 1, 3]);
     expect(playback.audioState).toEqual({ request, position: 19, playing: !paused });
     expect(request).toMatchObject({ url: "lume://track/2", position: 0, shouldPlay: true });
-    await expect
-      .poll(() => parseQueueSession(playback.saves.at(-1) ?? null, library)?.position)
-      .toBe(19);
+    await expect.poll(() => parseQueueSession(playback.stored(), library)?.position).toBe(19);
 
     const shuffled = playback.controller.getSnapshot().queue;
-    const saves = playback.saves.slice();
+    const writes = playback.writes.slice();
     allowRandom = false;
     playback.controller.setShuffleEnabled(true);
     await settle();
     expect(playback.controller.getSnapshot().queue).toBe(shuffled);
-    expect(playback.saves).toEqual(saves);
+    expect(playback.writes).toEqual(writes);
     expect(playback.audioState).toEqual({ request, position: 19, playing: !paused });
 
     playback.controller.setShuffleEnabled(false);
@@ -287,14 +291,14 @@ it.each([false, true])(
       current: { item: { trackId: 2 } },
     });
     await expect
-      .poll(() => parseQueueSession(playback.saves.at(-1) ?? null, library)?.state.shuffleEnabled)
+      .poll(() => parseQueueSession(playback.stored(), library)?.state.shuffleEnabled)
       .toBe(false);
     const ordered = playback.controller.getSnapshot().queue;
-    const orderedSaves = playback.saves.slice();
+    const orderedWrites = playback.writes.slice();
     playback.controller.setShuffleEnabled(false);
     await settle();
     expect(playback.controller.getSnapshot().queue).toBe(ordered);
-    expect(playback.saves).toEqual(orderedSaves);
+    expect(playback.writes).toEqual(orderedWrites);
     expect(playback.audioState).toEqual({ request, position: 19, playing: !paused });
   },
 );
@@ -389,7 +393,12 @@ it("restores a shuffled queue and position exactly, paused without new randomnes
   const saved = original.flushes.at(-1) ?? null;
 
   const restored = createTestPlayback({
-    storage: { load: () => Promise.resolve(saved), save: () => Promise.resolve(), flush: () => {} },
+    storage: {
+      load: () => Promise.resolve(saved),
+      save: () => Promise.resolve(),
+      savePosition: () => Promise.resolve(),
+      flush: () => {},
+    },
     random: () => {
       throw new Error("Restoration must not randomize");
     },
@@ -553,6 +562,7 @@ it("saves only the latest pending queue and flushes the final position before cl
     storage: {
       load: () => Promise.resolve(null),
       save: () => (holdSave ? pending : Promise.resolve()),
+      savePosition: () => Promise.resolve(),
       flush: () => {},
     },
   });
@@ -567,9 +577,7 @@ it("saves only the latest pending queue and flushes the final position before cl
   playback.controller.syncLibrary(library);
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   await playback.controller.playSourceEntry({ source: { kind: "all-tracks" }, sourceEntryId: 2 });
-  await expect
-    .poll(() => parseQueueSession(playback.saves[0] ?? null, library)?.state.current?.item.trackId)
-    .toBe(2);
+  await expect.poll(() => describeWrites(playback.writes, library)).toEqual(["queue 2 at 0"]);
   playback.controller.setShuffleEnabled(true);
   playback.controller.enqueueTrack(3);
   playback.controller.seek(7);
@@ -579,9 +587,9 @@ it("saves only the latest pending queue and flushes the final position before cl
   if (!finishSave) throw new Error("Expected an in-flight save");
   finishSave();
   await expect
-    .poll(() => playback.saves.map((payload) => parseQueueSession(payload, library)?.position))
-    .toEqual([0, 19]);
-  const saved = parseQueueSession(playback.saves.at(-1) ?? null, library);
+    .poll(() => describeWrites(playback.writes, library))
+    .toEqual(["queue 2 at 0", "queue 2 at 19"]);
+  const saved = parseQueueSession(playback.stored(), library);
   expect(saved?.state).toMatchObject({ shuffleEnabled: true, current: { item: { trackId: 2 } } });
   expect(saved?.state.manualQueue.map((item) => item.trackId)).toEqual([3]);
   expect(saved?.state.sourceQueue.map((item) => item.trackId)).toEqual([3, 1]);
@@ -593,9 +601,7 @@ it("saves only the latest pending queue and flushes the final position before cl
   const flushed = parseQueueSession(playback.flushes.at(-1) ?? null, library);
   expect(flushed?.position).toBe(23);
   expect(flushed?.state).toEqual(saved?.state);
-  expect(playback.saves.map((payload) => parseQueueSession(payload, library)?.position)).toEqual([
-    0, 19,
-  ]);
+  expect(describeWrites(playback.writes, library)).toEqual(["queue 2 at 0", "queue 2 at 19"]);
   expect(playback.audioState.request).toMatchObject({
     url: "lume://track/2",
     position: 0,
@@ -603,6 +609,60 @@ it("saves only the latest pending queue and flushes the final position before cl
   });
   expect(playback.audioState.position).toBe(23);
   expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(2);
+});
+
+it("saves only the position until the queue changes, and the queue again after a failed save", async () => {
+  let failSave = false;
+
+  const playback = createTestPlayback({
+    storage: {
+      load: () => Promise.resolve(null),
+      save: () => (failSave ? Promise.reject(new Error("Disk full")) : Promise.resolve()),
+      savePosition: () => Promise.resolve(),
+      flush: () => {},
+    },
+  });
+
+  const library = {
+    kind: "library",
+    playlists: [],
+    sources: [],
+    tracks: [1, 2, 3, 4].map(track),
+  } satisfies MusicLibrary;
+
+  playback.controller.syncLibrary(library);
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  await playback.controller.playSourceEntry({ source: { kind: "all-tracks" }, sourceEntryId: 1 });
+  await settle();
+  playback.controller.onPosition(1);
+  await settle();
+  playback.controller.onPosition(2);
+  await settle();
+  playback.controller.next();
+  await settle();
+  failSave = true;
+  playback.controller.next();
+  await settle();
+  failSave = false;
+  playback.controller.onPosition(4);
+  await settle();
+  playback.controller.onPosition(5);
+  await settle();
+
+  expect(describeWrites(playback.writes, library)).toEqual([
+    "queue 1 at 0",
+    "position 1",
+    "position 2",
+    "queue 2 at 0",
+    "queue 3 at 0",
+    "queue 3 at 4",
+    "position 5",
+  ]);
+  expect(playback.controller.getSnapshot().errorMessage).toBe("Disk full");
+  expect(parseQueueSession(playback.stored(), library)).toMatchObject({
+    position: 5,
+    state: { current: { item: { trackId: 3 } } },
+  });
 });
 
 it("rebuilds a shuffled queue from another source and keeps the manual queue", async () => {
@@ -657,6 +717,19 @@ function settle() {
 
 type TestAudioState = { request: PlaybackRequest | null; position: number; playing: boolean };
 
+type TestWrite =
+  | { kind: "session"; session: SavedPlaybackSession }
+  | { kind: "position"; position: number };
+
+/** Describe each write as the saved current track and position, or the saved position only. */
+function describeWrites(writes: readonly TestWrite[], library: MusicLibrary) {
+  return writes.map((write) =>
+    write.kind === "position"
+      ? `position ${write.position}`
+      : `queue ${parseQueueSession(write.session, library)?.state.current?.item.trackId} at ${write.session.position}`,
+  );
+}
+
 function createTestPlayback(
   options: {
     loadPlaylist?: LumeApi["loadPlaylist"];
@@ -666,8 +739,10 @@ function createTestPlayback(
 ) {
   const requests: (PlaybackRequest | null)[] = [];
   const seeks: number[] = [];
-  const saves: string[] = [];
-  const flushes: string[] = [];
+  const writes: TestWrite[] = [];
+  const flushes: SavedPlaybackSession[] = [];
+  // Stored like the database: a session save replaces both values, a position save updates one
+  let stored: SavedPlaybackSession | null = null;
 
   const audioState: TestAudioState = {
     request: null,
@@ -700,14 +775,21 @@ function createTestPlayback(
     audio: media,
     storage: {
       load: () => options.storage?.load() ?? Promise.resolve(null),
-      save: (payload) => {
-        saves.push(payload);
+      save: (session) => {
+        writes.push({ kind: "session", session });
+        stored = session;
 
-        return options.storage?.save(payload) ?? Promise.resolve();
+        return options.storage?.save(session) ?? Promise.resolve();
       },
-      flush: (payload) => {
-        flushes.push(payload);
-        options.storage?.flush(payload);
+      savePosition: (position) => {
+        writes.push({ kind: "position", position });
+        stored = stored && { ...stored, position };
+
+        return options.storage?.savePosition(position) ?? Promise.resolve();
+      },
+      flush: (session) => {
+        flushes.push(session);
+        options.storage?.flush(session);
       },
     },
     sourceReader: {
@@ -729,7 +811,16 @@ function createTestPlayback(
     random: options.random ?? (() => 0.37),
   });
 
-  return { controller, media, requests, seeks, audioState, saves, flushes };
+  return {
+    controller,
+    media,
+    requests,
+    seeks,
+    audioState,
+    writes,
+    flushes,
+    stored: () => stored,
+  };
 }
 
 function track(id: number): Track {

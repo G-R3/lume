@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const databaseId = z.number().int().positive().safe();
+export const databaseId = z.number().int().positive().safe();
 
 const queueItemId = z.string().min(1);
 
@@ -24,7 +24,7 @@ const sourcePositionSchema = z
   ])
   .nullable();
 
-const queueItemSchema = z.object({
+export const queueItemSchema = z.object({
   queueItemId,
   trackId: databaseId,
   origin: z.discriminatedUnion("kind", [

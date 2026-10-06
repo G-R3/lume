@@ -256,8 +256,9 @@ describe("playlist behavior", () => {
       createTestApi(() => ({
         loadLibrary: () => Promise.resolve(state.library),
         playbackSession: {
-          load: () => Promise.resolve(serializeQueueSession(queue, 7.25)),
+          load: () => Promise.resolve({ payload: serializeQueueSession(queue), position: 7.25 }),
           save: () => Promise.resolve(),
+          savePosition: () => Promise.resolve(),
           flush: () => {},
         },
         enableSource: () => {

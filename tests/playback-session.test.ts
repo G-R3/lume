@@ -4,7 +4,11 @@ import { parseQueueSession, serializeQueueSession, transition } from "../src/lib
 import { openTestDatabase } from "./helpers/database";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import { closeDatabase } from "../electron/database";
-import { loadPlaybackSession, savePlaybackSession } from "../electron/playback-session";
+import {
+  loadPlaybackSession,
+  savePlaybackPosition,
+  savePlaybackSession,
+} from "../electron/playback-session";
 
 it("restores a saved queue paused at its position after its playlist is deleted", async () => {
   const folder = await createTemporaryFolder("lume-queue-session-");
@@ -34,7 +38,7 @@ it("restores a saved queue paused at its position after its playlist is deleted"
 
   if (!withManual) throw new Error("Expected a queue session");
 
-  savePlaybackSession(serializeQueueSession(withManual, 7.25));
+  savePlaybackSession({ payload: serializeQueueSession(withManual), position: 7.25 });
   closeDatabase();
 
   await openTestDatabase(databasePath);
@@ -52,4 +56,23 @@ it("restores a saved queue paused at its position after its playlist is deleted"
   expect(restored?.state.current?.item.trackId).toBe(1);
   expect(restored?.state.manualQueue.map((item) => item.trackId)).toEqual([3]);
   expect(restored?.state.sourceQueue.map((item) => item.trackId)).toEqual([2, 3]);
+});
+
+it("updates only the saved position and keeps it across a restart", async () => {
+  const folder = await createTemporaryFolder("lume-queue-position-");
+  const databasePath = join(folder, "library.sqlite");
+
+  await openTestDatabase(databasePath);
+  savePlaybackPosition(3);
+  expect(loadPlaybackSession()).toBe(null);
+
+  savePlaybackSession({ payload: "queue", position: 7.25 });
+  savePlaybackPosition(19.5);
+  closeDatabase();
+
+  await openTestDatabase(databasePath);
+  expect(loadPlaybackSession()).toEqual({ payload: "queue", position: 19.5 });
+
+  savePlaybackSession({ payload: "changed queue", position: 0 });
+  expect(loadPlaybackSession()).toEqual({ payload: "changed queue", position: 0 });
 });

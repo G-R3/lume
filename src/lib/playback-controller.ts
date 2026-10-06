@@ -29,6 +29,10 @@ type SourceChange = Extract<
   { type: "sourceEntryAdded" | "sourceEntryRemoved" | "sourceEntryMoved" | "sourceDeleted" }
 >;
 
+function savedPosition(position: number) {
+  return Number.isFinite(position) ? Math.max(0, position) : 0;
+}
+
 /**
  * Loads the track selected by the queue and moves to the next track when audio ends or fails.
  * Pressing Previous after more than two seconds restarts the current track.
@@ -57,6 +61,8 @@ export function createPlaybackController(dependencies: {
   let actionId = 0;
   let requestId: string | null = null;
   let pendingSave: { state: QueueState; position: number } | null = null;
+  // The queue state sent with the latest save. Unchanged queues save only their position.
+  let savedState: QueueState | null = null;
   let saving = false;
   let tracksById = new Map<number, MusicLibrary["tracks"][number]>();
   let availableTrackIds = new Set<number>();
@@ -78,12 +84,21 @@ export function createPlaybackController(dependencies: {
     while (pendingSave && !closing) {
       const next = pendingSave;
       pendingSave = null;
+      const saveQueue = next.state !== savedState;
+      savedState = next.state;
 
-      await dependencies.storage
-        .save(serializeQueueSession(next.state, next.position))
-        .catch((error: Error) => {
-          setError(error.message || "Could not save playback");
-        });
+      await (
+        saveQueue
+          ? dependencies.storage.save({
+              payload: serializeQueueSession(next.state),
+              position: next.position,
+            })
+          : dependencies.storage.savePosition(next.position)
+      ).catch((error: Error) => {
+        // The queue may not have been written, so send it with the next save
+        savedState = null;
+        setError(error.message || "Could not save playback");
+      });
     }
 
     saving = false;
@@ -91,7 +106,9 @@ export function createPlaybackController(dependencies: {
 
   const persist = (state: QueueState, position: number) => {
     if (closing) return;
-    pendingSave = { state, position };
+
+    pendingSave = { state, position: savedPosition(position) };
+
     // Wait until synchronous queue and audio changes are complete
     void Promise.resolve().then(savePending);
   };
@@ -99,7 +116,9 @@ export function createPlaybackController(dependencies: {
   const loadCurrent = (position: number, shouldPlay = snapshot.queue?.status === "playing") => {
     const queue = snapshot.queue;
     const track = queue?.current ? tracksById.get(queue.current.item.trackId) : undefined;
+
     requestId = queue?.current && track?.available ? crypto.randomUUID() : null;
+
     dependencies.audio.load(
       queue?.current && track?.available && requestId
         ? {
@@ -225,10 +244,13 @@ export function createPlaybackController(dependencies: {
   const advance = (reason: "skip" | "ended" | "error") => {
     if (closing || !snapshot.isInitialized) return;
     const initiatingAction = ++actionId;
+
     dispatch({ type: "next", reason });
+
     const queue = snapshot.queue;
 
     if (!queue || queue.current || queue.source.kind === "detached") return;
+
     void runSourceAction(
       queue.sourceIdentity,
       { shuffled: queue.shuffleEnabled, paused: true },
@@ -413,9 +435,10 @@ export function createPlaybackController(dependencies: {
 
       // Electron handles sent saves before the final synchronous flush from this renderer.
       if (snapshot.queue)
-        dependencies.storage.flush(
-          serializeQueueSession(snapshot.queue, dependencies.audio.getPosition()),
-        );
+        dependencies.storage.flush({
+          payload: serializeQueueSession(snapshot.queue),
+          position: savedPosition(dependencies.audio.getPosition()),
+        });
     },
     getSnapshot: () => snapshot,
     handleAudioEvent,

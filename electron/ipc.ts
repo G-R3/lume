@@ -11,6 +11,7 @@ import {
   lumeChannels,
   type PlaylistCreationInput,
   type PlaylistCreationResult,
+  type SavedPlaybackSession,
   type TrackLikeInput,
 } from "../shared/lib";
 import {
@@ -33,7 +34,7 @@ import {
   getPlaylist,
   removePlaylistTrack,
 } from "./playlists";
-import { loadPlaybackSession, savePlaybackSession } from "./playback-session";
+import { loadPlaybackSession, savePlaybackPosition, savePlaybackSession } from "./playback-session";
 import { isTrustedRendererEvent } from "./protocol";
 
 const rowIdSchema = z.number("Invalid database ID").int().positive().safe();
@@ -61,7 +62,12 @@ const trackLikeInputSchema = z.object({
   trackId: rowIdSchema,
 }) satisfies z.ZodType<TrackLikeInput>;
 
-const playbackPayloadSchema = z.string().max(16_000_000);
+const playbackPositionSchema = z.number().finite().nonnegative();
+
+const playbackSessionSchema = z.object({
+  payload: z.string().max(16_000_000),
+  position: playbackPositionSchema,
+}) satisfies z.ZodType<SavedPlaybackSession>;
 
 export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
   function handleTrusted<Result>(
@@ -101,14 +107,18 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
   handleTrusted(lumeChannels.loadPlaybackSession, () => loadPlaybackSession());
 
-  handleTrusted(lumeChannels.savePlaybackSession, (_window, payload) => {
-    savePlaybackSession(playbackPayloadSchema.parse(payload));
+  handleTrusted(lumeChannels.savePlaybackSession, (_window, session) => {
+    savePlaybackSession(playbackSessionSchema.parse(session));
   });
 
-  ipcMain.on(lumeChannels.flushPlaybackSession, (event, payload) => {
+  handleTrusted(lumeChannels.savePlaybackPosition, (_window, position) => {
+    savePlaybackPosition(playbackPositionSchema.parse(position));
+  });
+
+  ipcMain.on(lumeChannels.flushPlaybackSession, (event, session) => {
     try {
       requireTrustedWindow(event, options.rendererUrl);
-      savePlaybackSession(playbackPayloadSchema.parse(payload));
+      savePlaybackSession(playbackSessionSchema.parse(session));
       event.returnValue = true;
     } catch (error) {
       event.returnValue = error instanceof Error ? error.message : "Could not save playback";

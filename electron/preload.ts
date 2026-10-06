@@ -38,14 +38,16 @@ const lumeApi = {
   loadPlaylist: (playlistId): ReturnType<LumeApi["loadPlaylist"]> =>
     ipcRenderer.invoke(lumeChannels.loadPlaylist, playlistId),
   playbackSession: {
-    flush: (payload: string) => {
-      const result: unknown = ipcRenderer.sendSync(lumeChannels.flushPlaybackSession, payload);
+    flush: (session) => {
+      const result: unknown = ipcRenderer.sendSync(lumeChannels.flushPlaybackSession, session);
 
       if (result !== true) throw new Error("Could not save playback");
     },
-    load: (): Promise<string | null> => ipcRenderer.invoke(lumeChannels.loadPlaybackSession),
-    save: (payload: string): Promise<void> =>
-      ipcRenderer.invoke(lumeChannels.savePlaybackSession, payload),
+    load: (): ReturnType<LumeApi["playbackSession"]["load"]> =>
+      ipcRenderer.invoke(lumeChannels.loadPlaybackSession),
+    save: (session): Promise<void> => ipcRenderer.invoke(lumeChannels.savePlaybackSession, session),
+    savePosition: (position): Promise<void> =>
+      ipcRenderer.invoke(lumeChannels.savePlaybackPosition, position),
   },
   onLibraryUpdate: (listener) => {
     libraryUpdateListeners.add(listener);
