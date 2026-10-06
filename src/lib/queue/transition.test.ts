@@ -1,32 +1,41 @@
 import { expect, it } from "vite-plus/test";
-import { transition, type QueueState } from "./queue";
+import type { QueueState } from "./model";
+import { transition } from "./transition";
+import { queueContext } from "../../../tests/helpers/queue-context";
 
 it("plays each manual addition before returning to the source", () => {
-  const available = new Set([1, 2, 3]);
+  const context = queueContext([1, 2, 3]);
   const source = { kind: "all-tracks" as const };
   const entries = [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
-    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "session" },
-    available,
+    {
+      type: "startSession",
+      source,
+      entries,
+      start: { kind: "entry", sourceEntryId: 1 },
+      shuffled: false,
+      sessionId: "session",
+    },
+    context,
   );
 
   const withFirstAddition = transition(
     started,
     { type: "enqueueTrack", trackId: 3, queueItemId: "manual-1" },
-    available,
+    context,
   );
 
   const withBothAdditions = transition(
     withFirstAddition,
     { type: "enqueueTrack", trackId: 3, queueItemId: "manual-2" },
-    available,
+    context,
   );
 
-  const firstNext = transition(withBothAdditions, { type: "next", reason: "skip" }, available);
-  const secondNext = transition(firstNext, { type: "next", reason: "skip" }, available);
-  const backToSource = transition(secondNext, { type: "next", reason: "skip" }, available);
+  const firstNext = transition(withBothAdditions, { type: "next" }, context);
+  const secondNext = transition(firstNext, { type: "next" }, context);
+  const backToSource = transition(secondNext, { type: "next" }, context);
 
   expect([
     firstNext?.current?.item.queueItemId,
@@ -36,14 +45,21 @@ it("plays each manual addition before returning to the source", () => {
 });
 
 it("keeps a queue reorder when the playlist later moves one occurrence", () => {
-  const available = new Set([1, 2, 3, 4, 5]);
+  const context = queueContext([1, 2, 3, 4, 5]);
   const source = { kind: "playlist" as const, playlistId: 1, title: "A–E" };
   const entries = [1, 2, 3, 4, 5].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
-    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "session" },
-    available,
+    {
+      type: "startSession",
+      source,
+      entries,
+      start: { kind: "entry", sourceEntryId: 1 },
+      shuffled: false,
+      sessionId: "session",
+    },
+    context,
   );
 
   const reorderedQueue = transition(
@@ -54,7 +70,7 @@ it("keeps a queue reorder when the playlist later moves one occurrence", () => {
       to: "source",
       beforeQueueItemId: sourceQueueItemId(started, 4),
     },
-    available,
+    context,
   );
 
   expect(reorderedQueue?.sourceQueue.map((item) => item.trackId)).toEqual([3, 2, 4, 5]);
@@ -70,7 +86,7 @@ it("keeps a queue reorder when the playlist later moves one occurrence", () => {
         side: "before",
         orderedSourceEntryIds: order,
       },
-      available,
+      context,
     );
 
   const afterFirstMove = moveBefore(reorderedQueue, 4, [1, 2, 3, 5, 4]);
@@ -84,30 +100,31 @@ it("keeps a queue reorder when the playlist later moves one occurrence", () => {
 });
 
 it("lets Previous visit source items skipped by a jump", () => {
-  const available = new Set([1, 2, 3, 4]);
+  const context = queueContext([1, 2, 3, 4]);
   const entries = [1, 2, 3, 4].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
     {
-      type: "startFromSource",
+      type: "startSession",
       source: { kind: "all-tracks" },
       entries,
-      startEntryId: 1,
+      start: { kind: "entry", sourceEntryId: 1 },
+      shuffled: false,
       sessionId: "session",
     },
-    available,
+    context,
   );
 
   const jumped = transition(
     started,
     { type: "jumpTo", queueItemId: sourceQueueItemId(started, 4) },
-    available,
+    context,
   );
 
-  const previousC = transition(jumped, { type: "previous" }, available);
-  const previousB = transition(previousC, { type: "previous" }, available);
-  const previousA = transition(previousB, { type: "previous" }, available);
+  const previousC = transition(jumped, { type: "previous" }, context);
+  const previousB = transition(previousC, { type: "previous" }, context);
+  const previousA = transition(previousB, { type: "previous" }, context);
 
   expect([
     jumped?.current?.item.trackId,
@@ -119,59 +136,67 @@ it("lets Previous visit source items skipped by a jump", () => {
 });
 
 it("skips unavailable source items after a manual jump and Previous", () => {
-  const available = new Set([1, 3, 4]);
+  const context = queueContext([1, 3, 4]);
   const entries = [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
     {
-      type: "startFromSource",
+      type: "startSession",
       source: { kind: "all-tracks" },
       entries,
-      startEntryId: 1,
+      start: { kind: "entry", sourceEntryId: 1 },
+      shuffled: false,
       sessionId: "session",
     },
-    available,
+    context,
   );
 
   const firstManual = transition(
     started,
     { type: "enqueueTrack", trackId: 4, queueItemId: "manual-1" },
-    available,
+    context,
   );
 
   const secondManual = transition(
     firstManual,
     { type: "enqueueTrack", trackId: 4, queueItemId: "manual-2" },
-    available,
+    context,
   );
 
-  const jumped = transition(secondManual, { type: "jumpTo", queueItemId: "manual-2" }, available);
+  const jumped = transition(secondManual, { type: "jumpTo", queueItemId: "manual-2" }, context);
 
   expect(jumped?.current?.item.queueItemId).toBe("manual-2");
 
-  const previous = transition(jumped, { type: "previous" }, available);
-  const next = transition(previous, { type: "next", reason: "skip" }, available);
+  const previous = transition(jumped, { type: "previous" }, context);
+  const next = transition(previous, { type: "next" }, context);
 
   expect(previous?.current?.item.trackId).toBe(1);
   expect(next?.current?.item.trackId).toBe(3);
 });
 
 it("keeps a moved manual item when its source is rebuilt", () => {
-  const available = new Set([1, 2, 3]);
+  const context = queueContext([1, 2, 3]);
   const source = { kind: "playlist" as const, playlistId: 1, title: "Playlist" };
   const entries = [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId }));
 
   const started = transition(
     null,
-    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "first" },
-    available,
+    {
+      type: "startSession",
+      source,
+      entries,
+      start: { kind: "entry", sourceEntryId: 1 },
+      shuffled: false,
+      sessionId: "first",
+    },
+    context,
   );
 
   const moved = transition(
     started,
     { type: "moveQueueItem", queueItemId: sourceQueueItemId(started, 2), to: "manual" },
-    available,
+    context,
   );
 
   expect(moved?.manualQueue.map((item) => item.trackId)).toEqual([2]);
@@ -179,8 +204,15 @@ it("keeps a moved manual item when its source is rebuilt", () => {
 
   const rebuilt = transition(
     moved,
-    { type: "startFromSource", source, entries, startEntryId: 1, sessionId: "second" },
-    available,
+    {
+      type: "startSession",
+      source,
+      entries,
+      start: { kind: "entry", sourceEntryId: 1 },
+      shuffled: false,
+      sessionId: "second",
+    },
+    context,
   );
 
   expect(rebuilt?.manualQueue.map((item) => item.trackId)).toEqual([2]);

@@ -13,7 +13,7 @@ import {
 import { Sidebar } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import type { QueueItem, QueueLane } from "@/lib/queue";
+import type { QueueItem, QueueLane } from "@/lib/queue/model";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 100;

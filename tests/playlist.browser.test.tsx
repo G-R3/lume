@@ -14,9 +14,11 @@ import type {
 import { createTestApi } from "./helpers/lume-api";
 import { createWaveAudio } from "./helpers/wave-audio";
 import { PlaybackProvider } from "@/hooks/use-playback";
-import { serializeQueueSession, transition } from "@/lib/queue";
+import { serializeQueueSession } from "@/lib/queue/persistence";
+import { transition } from "@/lib/queue/transition";
 import { createAppRouter } from "@/router";
 import "@/index.css";
+import { queueContext } from "./helpers/queue-context";
 
 type EditingCalls = {
   additions: { playlistId: number; trackId: number }[];
@@ -239,16 +241,17 @@ describe("playlist behavior", () => {
     const queue = transition(
       null,
       {
-        type: "startFromSource",
+        type: "startSession",
         source: { kind: "all-tracks" },
         sessionId: "saved",
         entries: state.library.tracks.map((track) => ({
           sourceEntryId: track.id,
           trackId: track.id,
         })),
-        startEntryId: midnight.id,
+        start: { kind: "entry", sourceEntryId: midnight.id },
+        shuffled: false,
       },
-      new Set([1, 2]),
+      queueContext([1, 2]),
     );
 
     if (!queue) throw new Error("Expected a saved queue");

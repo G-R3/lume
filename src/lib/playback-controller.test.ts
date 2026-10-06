@@ -8,7 +8,7 @@ import type {
 } from "../../shared/lib";
 import { createPlaybackController } from "./playback-controller";
 import type { PlaybackRequest } from "./playback-media";
-import { parseQueueSession } from "./queue";
+import { parseQueueSession } from "./queue/persistence";
 
 it.each([
   { source: "all-tracks", shuffled: false, expectedTracks: [3, 4] },
@@ -792,10 +792,9 @@ function createTestPlayback(
         options.storage?.flush(session);
       },
     },
-    sourceReader: {
-      read: async (source) => {
-        if (source.kind === "all-tracks") return null;
-        const playlist = (await options.loadPlaylist?.(source.playlistId)) ?? null;
+    playlistReader: {
+      read: async (playlistId) => {
+        const playlist = (await options.loadPlaylist?.(playlistId)) ?? null;
 
         return (
           playlist && {

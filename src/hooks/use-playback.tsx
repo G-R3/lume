@@ -11,8 +11,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { MusicLibrary, Track } from "../../shared/lib";
 import { useMediaElement } from "@/hooks/use-media-element";
 import { createPlaybackController } from "@/lib/playback-controller";
-import { createPlaybackSourceReader } from "@/lib/playback-source";
-import { selectActiveSourceEntryId, selectCanGoNext, selectQueueView } from "@/lib/queue";
+import { createPlaylistReader } from "@/lib/playlist-query";
+import { selectActiveSourceEntryId, selectCanGoNext, selectQueueView } from "@/lib/queue/selectors";
 
 type PlaybackContextValue = Pick<
   ReturnType<typeof createPlaybackController>,
@@ -93,7 +93,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         seek: media.seek,
       },
       storage: window.lume.playbackSession,
-      sourceReader: createPlaybackSourceReader(queryClient),
+      playlistReader: createPlaylistReader(queryClient),
       random: Math.random,
     }),
   );

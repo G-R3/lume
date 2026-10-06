@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { usePlayback } from "@/hooks/use-playback";
 import { formatDuration } from "@/lib/format-duration";
-import type { SourceIdentity } from "@/lib/queue";
+import { collectionSource } from "@/lib/queue/source";
 import { cn } from "@/lib/utils";
 import type { TrackListItem } from "@/pages/tracks/track-list";
 
@@ -30,9 +30,7 @@ export function TrackCollectionHeader({
 }: TrackCollectionHeaderProps) {
   const playback = usePlayback();
 
-  const source = (
-    playlistId === undefined ? { kind: "all-tracks" } : { kind: "playlist", playlistId }
-  ) satisfies SourceIdentity;
+  const source = collectionSource(playlistId);
 
   const hasAvailableTracks = items.some((item) => item.track.available);
   const totalDuration = items.reduce((duration, item) => duration + (item.track.duration ?? 0), 0);

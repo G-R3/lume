@@ -50,14 +50,22 @@ export const queueStateSchema = z.object({
     .object({
       item: queueItemSchema,
       lane: z.enum(["manual", "source"]),
-      // This value controls whether Previous can return to the current queue item.
-      // Previous can include queue-only items without changing sourcePosition.
+      // When true, going forward adds the current track to `previousSourceItems`.
+      // Going back puts the current track back in `sourceQueue` so it can be played again.
+      // Removing the track from its playlist, or removing a queued copy of it, sets this to false
+      // and the audio keeps playing if its currently playing.
+      // Tracks played from the manual queue are always false.
       participatesInSourceNavigation: z.boolean(),
     })
     .nullable(),
   manualQueue: z.array(queueItemSchema),
   sourceQueue: z.array(queueItemSchema),
-  // Previous can return to these queue items, including items that did not start playback.
+
+  // Tracks that were played, skipped, or came before the first selected track.
+  // A shuffled session starts with this list empty.
+  // The `previous` command uses this list to go back to an earlier track.
+  // Unavailable tracks stay in the list but are skipped.
+  // Removing a track from its playlist or from the queue also removes it from this list.
   previousSourceItems: z.array(queueItemSchema),
   suppressedSourceEntryIds: z.array(databaseId),
   status: z.enum(["playing", "paused", "stopped"]),

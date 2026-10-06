@@ -6,11 +6,8 @@ import type {
   PlaylistTrackRemovalInput,
   TrackLikeInput,
 } from "../../shared/lib";
-import { playlistQueryOptions } from "@/lib/playback-source";
-
-export { playlistQueryOptions } from "@/lib/playback-source";
-
 import { usePlayback } from "@/hooks/use-playback";
+import { playlistQueryOptions } from "@/lib/playlist-query";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -43,9 +40,7 @@ export function useLibraryMutation() {
     scope: { id: "library" },
     onSuccess: (library, command) => {
       if (command.kind === "delete-playlist") {
-        const options = playlistQueryOptions(command.playlistId);
-        void queryClient.cancelQueries({ queryKey: options.queryKey });
-        queryClient.setQueryData(options.queryKey, null);
+        commitPlaylistDeletion(queryClient, command.playlistId);
         playback.applySourceChange({ type: "sourceDeleted", playlistId: command.playlistId });
       }
 
@@ -131,19 +126,7 @@ export function useRemovePlaylistTrackMutation() {
     ...playlistMutationOptions,
     mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
     onSuccess: (_result, input) => {
-      const options = playlistQueryOptions(input.playlistId);
-
-      void queryClient.cancelQueries({ queryKey: options.queryKey });
-
-      queryClient.setQueryData(
-        options.queryKey,
-        (playlist) =>
-          playlist && {
-            ...playlist,
-            tracks: playlist.tracks.filter((track) => track.id !== input.playlistTrackId),
-          },
-      );
-
+      commitPlaylistRemoval(queryClient, input.playlistId, input.playlistTrackId);
       playback.applySourceChange({
         type: "sourceEntryRemoved",
         playlistId: input.playlistId,
@@ -230,7 +213,10 @@ function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number)
   ]);
 }
 
-/** cancel old reads before adding the committed occurrence to cached canonical data. */
+// The commitPlaylist functions apply a committed change to the cached playlist that playback
+// reads. Each cancels older reads first, so they cannot replace the updated data.
+
+/** Returns the entry's index in the cached playlist, or undefined when nothing is cached. */
 function commitPlaylistAddition(
   queryClient: QueryClient,
   playlistId: number,
@@ -252,4 +238,29 @@ function commitPlaylistAddition(
   }));
 
   return canonicalIndex;
+}
+
+function commitPlaylistRemoval(
+  queryClient: QueryClient,
+  playlistId: number,
+  playlistTrackId: number,
+) {
+  const options = playlistQueryOptions(playlistId);
+  void queryClient.cancelQueries({ queryKey: options.queryKey });
+
+  queryClient.setQueryData(
+    options.queryKey,
+    (playlist) =>
+      playlist && {
+        ...playlist,
+        tracks: playlist.tracks.filter((track) => track.id !== playlistTrackId),
+      },
+  );
+}
+
+/** Caches null so playback does not read the deleted playlist. */
+function commitPlaylistDeletion(queryClient: QueryClient, playlistId: number) {
+  const options = playlistQueryOptions(playlistId);
+  void queryClient.cancelQueries({ queryKey: options.queryKey });
+  queryClient.setQueryData(options.queryKey, null);
 }

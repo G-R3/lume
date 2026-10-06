@@ -1,12 +1,14 @@
 import { z } from "zod";
-import type { MusicLibrary, SavedPlaybackSession } from "../../shared/lib";
+import type { MusicLibrary, SavedPlaybackSession } from "../../../shared/lib";
+import { sourceItemVisit, sourceQueueItemId } from "./items";
+import { sameSource } from "./source";
 import {
   databaseId,
   queueItemSchema,
   queueStateSchema,
   type QueueItem,
   type QueueState,
-} from "./queue-model";
+} from "./model";
 
 // A source item from the current session is saved as its source entry ID, or as
 // [source entry ID, visit] for a repeated visit. Restoring rebuilds its queue item ID, track ID,
@@ -103,7 +105,7 @@ export function parseQueueSession(saved: SavedPlaybackSession | null, library: M
       if (
         selected &&
         (selected.trackId !== state.lastSelectedItem.trackId ||
-          JSON.stringify(selected.origin) !== JSON.stringify(state.lastSelectedItem.origin))
+          !sameOrigin(selected.origin, state.lastSelectedItem.origin))
       )
         return null;
     }
@@ -129,12 +131,6 @@ export function parseQueueSession(saved: SavedPlaybackSession | null, library: M
   }
 }
 
-function sourceItemId(sessionId: string, sourceEntryId: number, visit: number) {
-  const base = sessionId + ":source:" + sourceEntryId;
-
-  return visit === 0 ? base : base + ":visit:" + visit;
-}
-
 /** Save the short form only when restoring it rebuilds exactly the same item. */
 function saveItem(
   state: QueueState,
@@ -147,26 +143,14 @@ function saveItem(
     item.anchor ||
     origin.kind !== "source" ||
     origin.sessionId !== state.sessionId ||
-    origin.source.kind !== state.sourceIdentity.kind ||
-    (origin.source.kind === "playlist" &&
-      state.sourceIdentity.kind === "playlist" &&
-      origin.source.playlistId !== state.sourceIdentity.playlistId) ||
+    !sameSource(origin.source, state.sourceIdentity) ||
     trackIdsByEntry.get(origin.sourceEntryId) !== item.trackId
   )
     return item;
 
-  const visitPrefix = sourceItemId(state.sessionId, origin.sourceEntryId, 0) + ":visit:";
+  const visit = sourceItemVisit(item.queueItemId, state.sessionId, origin.sourceEntryId);
 
-  const visit = item.queueItemId.startsWith(visitPrefix)
-    ? Number(item.queueItemId.slice(visitPrefix.length))
-    : 0;
-
-  if (
-    !Number.isSafeInteger(visit) ||
-    visit < 0 ||
-    item.queueItemId !== sourceItemId(state.sessionId, origin.sourceEntryId, visit)
-  )
-    return item;
+  if (visit === null) return item;
 
   return visit === 0 ? origin.sourceEntryId : [origin.sourceEntryId, visit];
 }
@@ -188,7 +172,7 @@ function restoreItems(saved: z.infer<typeof savedSessionSchema>["state"]): Queue
     if (!entry) return null;
 
     return {
-      queueItemId: sourceItemId(saved.sessionId, item.sourceEntryId, item.visit),
+      queueItemId: sourceQueueItemId(saved.sessionId, item.sourceEntryId, item.visit),
       trackId: entry.trackId,
       origin: {
         kind: "source",
@@ -232,15 +216,7 @@ function restoreItems(saved: z.infer<typeof savedSessionSchema>["state"]): Queue
 }
 
 function validQueueState(state: QueueState) {
-  if (
-    state.source.kind !== "detached" &&
-    !(
-      state.sourceIdentity.kind === state.source.kind &&
-      (state.source.kind === "all-tracks" ||
-        (state.sourceIdentity.kind === "playlist" &&
-          state.sourceIdentity.playlistId === state.source.playlistId))
-    )
-  )
+  if (state.source.kind !== "detached" && !sameSource(state.sourceIdentity, state.source))
     return false;
 
   const entryIds = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
@@ -269,16 +245,19 @@ function validQueueItem(
 
   if (item.origin.kind !== "source" || item.origin.sessionId !== state.sessionId) return true;
 
-  if (item.origin.source.kind !== state.sourceIdentity.kind) return false;
-
-  if (
-    item.origin.source.kind === "playlist" &&
-    (state.sourceIdentity.kind !== "playlist" ||
-      item.origin.source.playlistId !== state.sourceIdentity.playlistId)
-  )
-    return false;
+  if (!sameSource(item.origin.source, state.sourceIdentity)) return false;
 
   const entry = entriesById.get(item.origin.sourceEntryId);
 
   return !entry || entry.trackId === item.trackId;
+}
+
+function sameOrigin(left: QueueItem["origin"], right: QueueItem["origin"]) {
+  if (left.kind === "manual" || right.kind === "manual") return left.kind === right.kind;
+
+  return (
+    left.sourceEntryId === right.sourceEntryId &&
+    left.sessionId === right.sessionId &&
+    sameSource(left.source, right.source)
+  );
 }

@@ -1,21 +1,12 @@
 import type { LumeApi, MusicLibrary } from "../../shared/lib";
-import {
-  parseQueueSession,
-  prepareShuffle,
-  prepareShufflePlay,
-  prepareSourceEntryAddition,
-  sameSource,
-  serializeQueueSession,
-  setShuffleEnabled,
-  shufflePlay,
-  transition,
-  type QueueCommand,
-  type QueueState,
-  type SourceIdentity,
-} from "@/lib/queue";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
-import type { PlaybackSource } from "@/lib/playback-source";
-import { shuffleEntries } from "@/lib/shuffle";
+import { shuffleEntries } from "@/lib/fisher-yates";
+import type { QueueCommand, QueueRandom, SessionSource } from "@/lib/queue/commands";
+import type { QueueState, SourceIdentity } from "@/lib/queue/model";
+import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistence";
+import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
+import { libraryEntries } from "@/lib/queue/source";
+import { transition } from "@/lib/queue/transition";
 
 type Snapshot = {
   queue: QueueState | null;
@@ -28,6 +19,19 @@ type SourceChange = Extract<
   QueueCommand,
   { type: "sourceEntryAdded" | "sourceEntryRemoved" | "sourceEntryMoved" | "sourceDeleted" }
 >;
+
+/** How a source action starts its session. The source and its entries come from a read. */
+type SessionRequest = Pick<
+  Extract<QueueCommand, { type: "startSession" }>,
+  "start" | "shuffled" | "paused"
+>;
+
+function createQueueRandom(random: () => number): QueueRandom {
+  return {
+    shuffle: (entries) => shuffleEntries(entries, random),
+    index: (count) => Math.floor(random() * count),
+  };
+}
 
 function savedPosition(position: number) {
   return Number.isFinite(position) ? Math.max(0, position) : 0;
@@ -48,13 +52,15 @@ export function createPlaybackController(dependencies: {
     seek: (time: number) => void;
   };
   storage: LumeApi["playbackSession"];
-  sourceReader: {
-    read: (source: SourceIdentity, refresh?: boolean) => Promise<PlaybackSource | null>;
+  playlistReader: {
+    read: (playlistId: number, refresh: boolean) => Promise<SessionSource | null>;
   };
   random: () => number;
 }) {
   const listeners = new Set<() => void>();
-  const sourceRevisions = new Map<number, number>();
+  const random = createQueueRandom(dependencies.random);
+  // Each committed edit to a playlist increases its revision, so earlier reads become stale.
+  const playlistRevisions = new Map<number, number>();
   let snapshot: Snapshot = { queue: null, library: null, isInitialized: false, errorMessage: null };
   let sessionRestoreStarted = false;
   let closing = false;
@@ -75,6 +81,8 @@ export function createPlaybackController(dependencies: {
   const setError = (errorMessage: string | null) => {
     if (!closing && snapshot.errorMessage !== errorMessage) publish({ ...snapshot, errorMessage });
   };
+
+  const revisionOf = (playlistId: number) => playlistRevisions.get(playlistId) ?? 0;
 
   const savePending = async () => {
     if (saving || closing) return;
@@ -134,13 +142,16 @@ export function createPlaybackController(dependencies: {
     );
   };
 
-  const commit = (queue: QueueState | null, restart = false) => {
+  /** Publishes and saves a changed queue. Loads audio when the current item changes, or to restart it. */
+  const commit = (queue: QueueState | null, { restartAudio = false } = {}) => {
     const previous = snapshot.queue;
 
-    if (!queue || (queue === previous && !restart) || closing) return;
-    const load = restart || queue.current?.item.queueItemId !== previous?.current?.item.queueItemId;
+    if (!queue || queue === previous || closing) return;
 
-    if (queue !== previous) publish({ ...snapshot, queue });
+    const load =
+      restartAudio || queue.current?.item.queueItemId !== previous?.current?.item.queueItemId;
+
+    publish({ ...snapshot, queue });
     persist(queue, load ? 0 : dependencies.audio.getPosition());
 
     if (!load) return;
@@ -148,104 +159,73 @@ export function createPlaybackController(dependencies: {
     setError(null);
   };
 
-  const dispatch = (command: QueueCommand, restart = false) => {
-    commit(transition(snapshot.queue, command, availableTrackIds), restart);
+  const dispatch = (command: QueueCommand, options?: { restartAudio?: boolean }) => {
+    commit(transition(snapshot.queue, command, { availableTrackIds, random }), options);
   };
 
-  const startSource = async (
+  const dispatchSessionStart = (data: SessionSource, request: SessionRequest) => {
+    dispatch({
+      type: "startSession",
+      source: data.source,
+      entries: data.entries,
+      sessionId: crypto.randomUUID(),
+      ...request,
+    });
+  };
+
+  /** Reads the source, then starts a session unless a newer action replaced this one. */
+  const startSession = async (
     source: SourceIdentity,
-    options: { shuffled: boolean; sourceEntryId?: number; paused?: boolean },
+    request: SessionRequest,
     initiatingAction: number,
     refresh = false,
   ): Promise<void> => {
-    const revision = source.kind === "playlist" ? (sourceRevisions.get(source.playlistId) ?? 0) : 0;
-
-    const data =
-      source.kind === "all-tracks"
-        ? snapshot.library && {
-            source,
-            entries: snapshot.library.tracks.map((track) => ({
-              sourceEntryId: track.id,
-              trackId: track.id,
-            })),
-          }
-        : await dependencies.sourceReader.read(source, refresh).catch((error: Error) => {
-            if (
-              closing ||
-              initiatingAction !== actionId ||
-              revision !== (sourceRevisions.get(source.playlistId) ?? 0)
-            )
-              return null;
-            throw error;
-          });
-
-    if (closing || initiatingAction !== actionId) return;
-
-    // Refresh a changed source before selecting entries for the latest queue state.
-    if (source.kind === "playlist" && revision !== (sourceRevisions.get(source.playlistId) ?? 0))
-      return startSource(source, options, initiatingAction, true);
-
-    if (!data) return;
-
-    const prepared = prepareShufflePlay(
-      snapshot.queue,
-      data.source,
-      data.entries,
-      crypto.randomUUID(),
-      availableTrackIds,
-      options.sourceEntryId,
-    );
-
-    if (!prepared) return;
-
-    if (options.shuffled) {
-      const startEntryId = options.paused
-        ? prepared.availableStartEntryIds[0]
-        : options.sourceEntryId;
-
-      const selected =
-        startEntryId === prepared.startEntryId ? prepared : { ...prepared, startEntryId };
-
-      commit(
-        shufflePlay(
-          snapshot.queue,
-          selected,
-          shuffleEntries(selected.entries, dependencies.random).map((entry) => entry.sourceEntryId),
-          options.paused,
-        ),
-      );
+    // All Tracks needs no read, so its session starts within this call.
+    if (source.kind === "all-tracks") {
+      if (snapshot.library)
+        dispatchSessionStart({ source, entries: libraryEntries(snapshot.library) }, request);
 
       return;
     }
 
-    dispatch({
-      type: "startFromSource",
-      source: data.source,
-      entries: prepared.entries,
-      startEntryId: options.sourceEntryId ?? prepared.availableStartEntryIds[0],
-      sessionId: prepared.sessionId,
-      startPaused: options.paused,
-    });
+    const revision = revisionOf(source.playlistId);
+
+    const data = await dependencies.playlistReader
+      .read(source.playlistId, refresh)
+      .catch((error: Error) => {
+        if (closing || initiatingAction !== actionId || revision !== revisionOf(source.playlistId))
+          return null;
+        throw error;
+      });
+
+    if (closing || initiatingAction !== actionId) return;
+
+    // Refresh a changed source before selecting entries for the latest queue state.
+    if (revision !== revisionOf(source.playlistId))
+      return startSession(source, request, initiatingAction, true);
+
+    if (data) dispatchSessionStart(data, request);
   };
 
   const runSourceAction = (
     source: SourceIdentity,
-    options: { shuffled: boolean; sourceEntryId?: number; paused?: boolean },
+    request: SessionRequest,
     initiatingAction = ++actionId,
   ) => {
     if (!snapshot.isInitialized || closing) return Promise.resolve();
 
-    return startSource(source, options, initiatingAction).catch((error: Error) => {
+    return startSession(source, request, initiatingAction).catch((error: Error) => {
       if (initiatingAction === actionId)
         setError(error.message || "Could not load playback source");
     });
   };
 
-  const advance = (reason: "skip" | "ended" | "error") => {
+  /** Plays the next item. After the last item, loads the source's first available entry paused. */
+  const advance = () => {
     if (closing || !snapshot.isInitialized) return;
     const initiatingAction = ++actionId;
 
-    dispatch({ type: "next", reason });
+    dispatch({ type: "next" });
 
     const queue = snapshot.queue;
 
@@ -253,7 +233,7 @@ export function createPlaybackController(dependencies: {
 
     void runSourceAction(
       queue.sourceIdentity,
-      { shuffled: queue.shuffleEnabled, paused: true },
+      { start: { kind: "first-available" }, shuffled: queue.shuffleEnabled, paused: true },
       initiatingAction,
     );
   };
@@ -284,14 +264,14 @@ export function createPlaybackController(dependencies: {
         return;
       }
 
-      advance("error");
+      advance();
       setError("This track is unavailable");
 
       return;
     }
 
     if (snapshot.queue && !snapshot.queue.current) {
-      advance("skip");
+      advance();
 
       return;
     }
@@ -316,10 +296,7 @@ export function createPlaybackController(dependencies: {
     publish({ ...snapshot, library });
 
     if (sessionRestoreStarted) {
-      dispatch({
-        type: "libraryRescanned",
-        entries: library.tracks.map((track) => ({ sourceEntryId: track.id, trackId: track.id })),
-      });
+      dispatch({ type: "libraryRescanned", entries: libraryEntries(library) });
 
       if (
         snapshot.queue?.current &&
@@ -336,19 +313,15 @@ export function createPlaybackController(dependencies: {
       .load()
       .then((raw) => {
         if (closing) return;
-        const restored = parseQueueSession(raw, snapshot.library ?? library);
+        const latestLibrary = snapshot.library ?? library;
+        const restored = parseQueueSession(raw, latestLibrary);
 
         if (restored) {
+          // Add tracks found since the session was saved.
           const queue = transition(
             restored.state,
-            {
-              type: "libraryRescanned",
-              entries: (snapshot.library ?? library).tracks.map((track) => ({
-                sourceEntryId: track.id,
-                trackId: track.id,
-              })),
-            },
-            availableTrackIds,
+            { type: "libraryRescanned", entries: libraryEntries(latestLibrary) },
+            { availableTrackIds, random },
           );
 
           publish({ ...snapshot, queue });
@@ -390,38 +363,22 @@ export function createPlaybackController(dependencies: {
     }
 
     if (event.type === "ended") {
-      if (queue.status === "playing") advance("ended");
+      if (queue.status === "playing") advance();
 
       return;
     }
 
     if (event.source === "play") dispatch({ type: "playbackPaused" });
 
-    if (event.source === "media" && queue.status === "playing") advance("error");
+    if (event.source === "media" && queue.status === "playing") advance();
     setError(event.message);
   };
 
   return {
     applySourceChange: (change: SourceChange) => {
       if (closing) return;
-      sourceRevisions.set(change.playlistId, (sourceRevisions.get(change.playlistId) ?? 0) + 1);
-
-      if (change.type !== "sourceEntryAdded") {
-        dispatch(change);
-
-        return;
-      }
-
-      const prepared = prepareSourceEntryAddition(snapshot.queue, change);
-
-      if (!prepared) return;
-      dispatch({
-        ...prepared.command,
-        insertionIndex:
-          prepared.insertionPositions === null
-            ? undefined
-            : Math.floor(dependencies.random() * prepared.insertionPositions),
-      });
+      playlistRevisions.set(change.playlistId, revisionOf(change.playlistId) + 1);
+      dispatch(change);
     },
     enqueueTrack: (trackId: number) => {
       if (closing || !snapshot.isInitialized) return;
@@ -452,32 +409,28 @@ export function createPlaybackController(dependencies: {
       ++actionId;
       dispatch({ type: "moveQueueItem", ...input });
     },
-    next: () => advance("skip"),
+    next: advance,
     onPosition: (position: number) => {
       if (snapshot.queue) persist(snapshot.queue, position);
     },
     pause,
-    playSource: (source: SourceIdentity) => runSourceAction(source, { shuffled: false }),
+    playSource: (source: SourceIdentity) =>
+      runSourceAction(source, { start: { kind: "first-available" }, shuffled: false }),
     playSourceEntry: (input: { source: SourceIdentity; sourceEntryId: number }) => {
       if (!snapshot.isInitialized || closing) return Promise.resolve();
       const queue = snapshot.queue;
 
-      if (
-        queue?.shuffleEnabled &&
-        sameSource(queue.sourceIdentity, input.source) &&
-        queue.source.kind !== "detached"
-      ) {
+      if (selectsWithinShuffledSession(queue, input.source)) {
         ++actionId;
-        const next = transition(queue, { type: "selectSourceEntry", ...input }, availableTrackIds);
-
-        if (next !== queue) commit(next, true);
+        // Selecting the current row keeps its queue item, so restart its audio explicitly.
+        dispatch({ type: "selectSourceEntry", ...input }, { restartAudio: true });
 
         return Promise.resolve();
       }
 
       return runSourceAction(input.source, {
+        start: { kind: "entry", sourceEntryId: input.sourceEntryId },
         shuffled: queue?.shuffleEnabled ?? false,
-        sourceEntryId: input.sourceEntryId,
       });
     },
     previous,
@@ -496,27 +449,13 @@ export function createPlaybackController(dependencies: {
     },
     setError,
     setShuffleEnabled: (enabled: boolean) => {
-      const queue = snapshot.queue;
-
-      if (!queue || queue.shuffleEnabled === enabled || closing) return;
+      // An unchanged setting must not cancel a pending source action.
+      if (closing || !snapshot.queue || snapshot.queue.shuffleEnabled === enabled) return;
       ++actionId;
-      const prepared = prepareShuffle(queue, enabled);
-
-      if (!prepared) return;
-      commit(
-        setShuffleEnabled(
-          queue,
-          enabled,
-          prepared,
-          enabled
-            ? shuffleEntries(prepared.entries, dependencies.random).map(
-                (entry) => entry.sourceEntryId,
-              )
-            : [],
-        ),
-      );
+      dispatch({ type: "setShuffleEnabled", enabled });
     },
-    shufflePlay: (source: SourceIdentity) => runSourceAction(source, { shuffled: true }),
+    shufflePlay: (source: SourceIdentity) =>
+      runSourceAction(source, { start: { kind: "random" }, shuffled: true }),
     subscribe: (listener: () => void) => {
       listeners.add(listener);
 

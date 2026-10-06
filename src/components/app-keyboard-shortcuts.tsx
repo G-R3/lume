@@ -11,6 +11,7 @@ export function AppKeyboardShortcuts({ toggleQueue }: { toggleQueue: () => void 
       {
         name: "Toggle playback",
         key: " ",
+        yieldToButtons: true,
         action: playback.togglePlayback,
       },
       {

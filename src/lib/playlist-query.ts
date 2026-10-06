@@ -1,10 +1,5 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { SourceEntry, SourceIdentity, SourceRef } from "./queue";
-
-export type PlaybackSource = {
-  source: Exclude<SourceRef, { kind: "detached" }>;
-  entries: SourceEntry[];
-};
+import type { SessionSource } from "@/lib/queue/commands";
 
 export function playlistQueryOptions(playlistId: number) {
   return queryOptions({
@@ -15,13 +10,11 @@ export function playlistQueryOptions(playlistId: number) {
   });
 }
 
-/** Use the saved playlist order. Load it only when the cache is missing or stale. */
-export function createPlaybackSourceReader(queryClient: QueryClient) {
+/** Reads a playlist's saved order. Loads it only when the cache is missing or invalidated, or for a refresh. */
+export function createPlaylistReader(queryClient: QueryClient) {
   return {
-    read: async (source: SourceIdentity, refresh = false): Promise<PlaybackSource | null> => {
-      if (source.kind === "all-tracks") return null;
-
-      const options = playlistQueryOptions(source.playlistId);
+    read: async (playlistId: number, refresh: boolean): Promise<SessionSource | null> => {
+      const options = playlistQueryOptions(playlistId);
 
       if (refresh) await queryClient.cancelQueries({ queryKey: options.queryKey });
 

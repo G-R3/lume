@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect, it } from "vite-plus/test";
-import { parseQueueSession, serializeQueueSession, transition } from "../src/lib/queue";
+import { parseQueueSession, serializeQueueSession } from "../src/lib/queue/persistence";
+import { transition } from "../src/lib/queue/transition";
 import { openTestDatabase } from "./helpers/database";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import { closeDatabase } from "../electron/database";
@@ -9,6 +10,7 @@ import {
   savePlaybackPosition,
   savePlaybackSession,
 } from "../electron/playback-session";
+import { queueContext } from "./helpers/queue-context";
 
 it("restores a saved queue paused at its position after its playlist is deleted", async () => {
   const folder = await createTemporaryFolder("lume-queue-session-");
@@ -16,24 +18,25 @@ it("restores a saved queue paused at its position after its playlist is deleted"
 
   await openTestDatabase(databasePath);
 
-  const available = new Set([1, 2, 3]);
+  const context = queueContext([1, 2, 3]);
 
   const started = transition(
     null,
     {
-      type: "startFromSource",
+      type: "startSession",
       source: { kind: "playlist", playlistId: 1, title: "Deleted playlist" },
       entries: [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId })),
-      startEntryId: 1,
+      start: { kind: "entry", sourceEntryId: 1 },
+      shuffled: false,
       sessionId: "session",
     },
-    available,
+    context,
   );
 
   const withManual = transition(
     started,
     { type: "enqueueTrack", trackId: 3, queueItemId: "manual" },
-    available,
+    context,
   );
 
   if (!withManual) throw new Error("Expected a queue session");
