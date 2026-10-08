@@ -1,8 +1,17 @@
-import { DotsThreeIcon, ShuffleAngularIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import {
+  DotsThreeIcon,
+  FunnelSimpleIcon,
+  ShuffleAngularIcon,
+  SidebarSimpleIcon,
+} from "@phosphor-icons/react";
 import type { ComponentProps, ReactNode } from "react";
 import type { Track } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
+import { Label } from "@/components/ui/label";
 import {
   SidebarMenu,
   SidebarMenuBadge,
@@ -11,6 +20,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { PlaybackContext } from "@/hooks/use-playback";
 import { TrackList } from "@/pages/tracks/track-list";
 import {
@@ -36,7 +46,9 @@ const paper = {
   neutral750: "#333333",
   neutral800: "#262626",
   neutral850: "#1E1E1E",
+  neutral900: "#171717",
   neutral950: "#0A0A0A",
+  red300: "#FFA2A2",
   red350: "#FF7778",
   red400: "#FF6467",
   transparent: "transparent",
@@ -607,7 +619,7 @@ export function ButtonSection() {
   );
 }
 
-type FieldState = "disabled" | "empty" | "focus" | "hover" | "invalid";
+type FieldState = "disabled" | "empty" | "focus" | "hover" | "invalid" | "invalid-focus";
 
 function fieldParts(state: FieldState): PartSpec[] {
   const edge = {
@@ -616,6 +628,7 @@ function fieldParts(state: FieldState): PartSpec[] {
     focus: paper.neutral700,
     hover: paper.neutral700,
     invalid: paper.red400,
+    "invalid-focus": paper.red400,
   }[state];
 
   return [
@@ -624,14 +637,14 @@ function fieldParts(state: FieldState): PartSpec[] {
       paper: {
         backgroundColor: paper.neutral950,
         borderRadius: 6,
-        color: paper.neutral100,
+        color: state === "disabled" ? paper.neutral400 : paper.neutral100,
         edge: `1px ${edge}`,
         fontSize: 13,
         height: 32,
         lineHeight: 16,
         paddingLeft: 10,
         paddingRight: 10,
-        focusRing: state === "focus" ? focusRing : undefined,
+        focusRing: state === "focus" || state === "invalid-focus" ? focusRing : undefined,
         opacity: state === "disabled" ? 0.4 : undefined,
         // Only the empty fields show their placeholder.
         placeholderColor: state === "empty" || state === "hover" ? paper.neutral400 : undefined,
@@ -641,10 +654,110 @@ function fieldParts(state: FieldState): PartSpec[] {
   ];
 }
 
+// Frame 15, "B · No title": label, invalid field and its error, then the description field.
+const formFieldParts: PartSpec[] = [
+  {
+    name: "label",
+    paper: { color: paper.neutral400, fontSize: 12, fontWeight: 500, lineHeight: 16 },
+    selector: "label[for=states-title]",
+  },
+  {
+    name: "error",
+    paper: { color: paper.red300, fontSize: 12, fontWeight: 400, lineHeight: 16 },
+    selector: "#states-title-error",
+  },
+  {
+    name: "optional",
+    paper: { color: paper.neutral400, fontSize: 12, fontWeight: 400, lineHeight: 16 },
+    selector: "label[for=states-description] span",
+  },
+  {
+    name: "textarea",
+    paper: {
+      backgroundColor: paper.neutral950,
+      borderRadius: 6,
+      edge: `1px ${paper.neutral800}`,
+      fontSize: 13,
+      height: 72,
+      lineHeight: 20,
+      paddingLeft: 10,
+      paddingRight: 10,
+      placeholderColor: paper.neutral400,
+    },
+    selector: "textarea",
+  },
+];
+
+type FilterState = "default" | "focus" | "hover";
+
+function filterParts(state: FilterState): PartSpec[] {
+  return [
+    {
+      name: "field",
+      paper: {
+        backgroundColor: paper.neutral900,
+        borderRadius: 6,
+        edge: `1px ${state === "default" ? paper.neutral800 : paper.neutral700}`,
+        height: 32,
+        width: 296,
+        focusRing: state === "focus" ? focusRing : "none",
+      },
+      selector: "[data-slot=input-group]",
+    },
+    {
+      name: "icon",
+      // 10px from the field's left edge
+      paper: { color: paper.neutral500, height: 14, left: 10, width: 14 },
+      selector: "svg",
+    },
+    {
+      name: "input",
+      paper: {
+        color: paper.neutral100,
+        fontSize: 13,
+        lineHeight: 16,
+        placeholderColor: state === "focus" ? undefined : paper.neutral400,
+      },
+      selector: "input",
+    },
+    {
+      name: "hint",
+      paper: {
+        borderRadius: 4,
+        color: paper.neutral400,
+        edge: `1px ${paper.neutral700}`,
+        fontFamily: "mono",
+        fontSize: 12,
+        height: 16,
+        // 4px from the field's right edge: 296 − 4 − 16
+        left: 276,
+        lineHeight: 16,
+        width: 16,
+      },
+      selector: "kbd",
+    },
+  ];
+}
+
+// How the Library screens will compose the filter: shadcn's InputGroup on the page's raised fill.
+function FilterField(props: ComponentProps<typeof InputGroupInput>) {
+  return (
+    <InputGroup className="bg-raised">
+      <InputGroupInput aria-label="Filter tracks" {...props} />
+      <InputGroupAddon>
+        <FunnelSimpleIcon aria-hidden="true" />
+      </InputGroupAddon>
+      <InputGroupAddon align="inline-end">
+        <Kbd aria-hidden="true">/</Kbd>
+      </InputGroupAddon>
+    </InputGroup>
+  );
+}
+
 export function FieldSection() {
   return (
     <Section
-      description="Frame 17. The app's Input, as the create-playlist dialog uses it."
+      description="Frame 17, and frame 15 for the label, error and description field."
       title="Text field"
     >
       <Specimen id="field.empty" label="Empty" parts={fieldParts("empty")}>
@@ -677,17 +790,63 @@ export function FieldSection() {
           <Input aria-invalid aria-label="Title" />
         </div>
       </Specimen>
+      <Specimen
+        force={{ selector: "input", states: ["focus-visible", "hover"] }}
+        id="field.invalid-focus"
+        label="Invalid, focus"
+        parts={fieldParts("invalid-focus")}
+      >
+        <div className="w-74">
+          <Input aria-invalid aria-label="Title" />
+        </div>
+      </Specimen>
       <Specimen id="field.disabled" label="Disabled" parts={fieldParts("disabled")}>
         <div className="w-74">
           <Input aria-label="Title" defaultValue="Rainy Sunday" disabled />
         </div>
       </Specimen>
+      <Specimen id="field.form" label="Label and error" parts={formFieldParts}>
+        <FieldGroup className="w-87.5">
+          <Field>
+            <Label htmlFor="states-title">Title</Label>
+            <Input aria-describedby="states-title-error" aria-invalid id="states-title" />
+            <p className="text-meta text-danger" id="states-title-error">
+              Give the playlist a title.
+            </p>
+          </Field>
+          <Field>
+            <Label htmlFor="states-description">
+              Description <span className="font-normal">Optional</span>
+            </Label>
+            <Textarea id="states-description" placeholder="What’s it for?" />
+          </Field>
+        </FieldGroup>
+      </Specimen>
+      <Specimen id="field.filter" label="Filter" parts={filterParts("default")}>
+        <div className="w-74">
+          <FilterField placeholder="Filter tracks" />
+        </div>
+      </Specimen>
       <Specimen
-        id="field.filter"
-        label="Filter"
-        note="Not built: the app has no filter field yet."
-        parts={[]}
-      />
+        force={{ selector: "[data-slot=input-group]", states: ["hover"] }}
+        id="field.filter.hover"
+        label="Filter, hover"
+        parts={filterParts("hover")}
+      >
+        <div className="w-74">
+          <FilterField placeholder="Filter tracks" />
+        </div>
+      </Specimen>
+      <Specimen
+        force={{ selector: "input", states: ["focus-visible"] }}
+        id="field.filter.focus"
+        label="Filter, focus"
+        parts={filterParts("focus")}
+      >
+        <div className="w-74">
+          <FilterField defaultValue="night" />
+        </div>
+      </Specimen>
     </Section>
   );
 }

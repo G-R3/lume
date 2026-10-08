@@ -1,6 +1,6 @@
 import { PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { type KeyboardEvent, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,8 +27,9 @@ type CreateForm = {
 export function CreatePlaylistDialog() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const createPlaylist = useCreatePlaylistMutation();
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -36,7 +37,7 @@ export function CreatePlaylistDialog() {
 
     if (!nextOpen) {
       formRef.current?.reset();
-      setErrorMessage(null);
+      setTitleError(null);
       createPlaylist.reset();
     }
 
@@ -54,12 +55,13 @@ export function CreatePlaylistDialog() {
     const description = values.description.trim();
 
     if (title.length === 0) {
-      setErrorMessage("Enter a playlist title");
+      setTitleError("Give the playlist a title.");
+      titleRef.current?.focus();
 
       return;
     }
 
-    setErrorMessage(null);
+    setTitleError(null);
 
     createPlaylist.mutate(
       { description: description.length > 0 ? description : null, title },
@@ -74,6 +76,13 @@ export function CreatePlaylistDialog() {
         },
       },
     );
+  };
+
+  const handleDescriptionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      formRef.current?.requestSubmit();
+    }
   };
 
   return (
@@ -97,31 +106,42 @@ export function CreatePlaylistDialog() {
           <DialogTitle>Create playlist</DialogTitle>
           <DialogDescription>Start with a name. You can add tracks next.</DialogDescription>
         </DialogHeader>
-        <form id="create-playlist" onSubmit={handleSubmit} ref={formRef}>
+        <form id="create-playlist" noValidate onSubmit={handleSubmit} ref={formRef}>
           <FieldGroup>
             <Field>
               <Label htmlFor="title">Title</Label>
               <Input
+                aria-describedby={titleError ? "title-error" : undefined}
+                aria-invalid={titleError ? true : undefined}
                 autoFocus
                 id="title"
                 maxLength={100}
                 name="title"
-                placeholder="Playlist title"
+                onChange={() => setTitleError(null)}
+                ref={titleRef}
                 required
               />
+              {titleError && (
+                <p className="text-meta text-danger" id="title-error">
+                  {titleError}
+                </p>
+              )}
             </Field>
             <Field>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">
+                Description <span className="font-normal">Optional</span>
+              </Label>
               <Textarea
                 id="description"
                 maxLength={300}
                 name="description"
-                placeholder="Optional"
+                onKeyDown={handleDescriptionKeyDown}
+                placeholder="What’s it for?"
               />
             </Field>
           </FieldGroup>
         </form>
-        <FieldError>{errorMessage ?? createPlaylist.error?.message}</FieldError>
+        <FieldError>{createPlaylist.error?.message}</FieldError>
         <DialogFooter className="flex flex-col">
           <DialogClose disabled={createPlaylist.isPending} render={<Button>Cancel</Button>} />
           <Button

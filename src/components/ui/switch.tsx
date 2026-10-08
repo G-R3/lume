@@ -1,29 +1,25 @@
-import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
-import { cn } from "cn"
+import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 
-function Switch({
-  className,
-  size = "default",
-  ...props
-}: SwitchPrimitive.Root.Props & {
-  size?: "sm" | "default"
-}) {
+import { cn } from "@/lib/utils";
+
+function Switch({ className, ...props }: SwitchPrimitive.Root.Props) {
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
-      data-size={size}
       className={cn(
-        "peer group/switch relative inline-flex shrink-0 items-center rounded-full border border-transparent transition-all outline-none group-has-[:focus-visible]/field-label:border-transparent group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus/30 aria-invalid:ring-2 data-[size=default]:h-[16.6px] data-[size=default]:w-[28px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px] aria-invalid:border-danger/50 aria-invalid:ring-danger/40 data-checked:bg-inverse data-unchecked:bg-track/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
-        className
+        // The ::after pads the 28×16 track to a 40×40 hit area
+        "group/switch relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full p-0.5 after:absolute after:-inset-x-1.5 after:-inset-y-3 data-checked:bg-inverse data-unchecked:bg-track data-disabled:cursor-not-allowed data-disabled:opacity-disabled",
+        className,
       )}
       {...props}
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className="pointer-events-none block rounded-full bg-page ring-0 transition-transform group-data-[size=default]/switch:size-3.5 group-data-[size=sm]/switch:size-3 group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%-2px)] data-checked:bg-page group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0 data-unchecked:bg-inverse"
+        // Slides when clicked; instant from the keyboard and under reduced motion
+        className="pointer-events-none block size-3 rounded-full bg-current motion-safe:group-not-focus-visible/switch:transition-transform motion-safe:group-not-focus-visible/switch:duration-150 motion-safe:group-not-focus-visible/switch:ease-in-out data-checked:translate-x-3 data-checked:text-inverse data-unchecked:text-secondary"
       />
     </SwitchPrimitive.Root>
-  )
+  );
 }
 
-export { Switch }
+export { Switch };

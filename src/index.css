@@ -112,6 +112,7 @@
 
   /* see src/lib/motion.ts for JS springs */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
   --ease-crossfade: cubic-bezier(0.2, 0, 0, 1);
 }
 

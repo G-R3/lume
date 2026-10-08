@@ -98,8 +98,7 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
 
                 <Switch
                   checked={source.enabled}
-                  aria-checked={source.enabled}
-                  aria-label={`${source.enabled ? "Disable" : "Enable"} ${name}`}
+                  aria-label={`Enable ${name}`}
                   disabled={libraryMutation.isPending}
                   onCheckedChange={() => {
                     libraryMutation.mutate({
