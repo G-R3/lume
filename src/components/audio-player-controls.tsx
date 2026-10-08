@@ -25,18 +25,18 @@ export function AudioPlayerControls() {
   if (!activeTrack) return null;
 
   return (
-    <footer className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-t border-neutral-800 bg-black/95 px-5 py-3 text-neutral-50 shadow-2xl backdrop-blur-sm">
+    <footer className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-t border-default bg-page/95 px-5 py-3 text-primary shadow-2xl backdrop-blur-sm">
       <div className="flex min-w-0 items-center gap-3">
         <TrackArtwork
           artworkUrl={activeTrack.artworkUrl}
-          className="size-12 rounded-sm text-xs"
+          className="size-12 rounded-md text-xs"
           fallback={<ArtworkFallback track={activeTrack} />}
         />
 
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="min-w-0 max-w-48 flex-1">
             <p className="truncate text-sm font-medium">{activeTrack.title}</p>
-            <p className="mt-0.5 truncate text-xs text-neutral-400">
+            <p className="mt-0.5 truncate text-xs text-secondary">
               {activeTrack.artists.join(", ") || "Unknown artist"}
             </p>
           </div>
@@ -49,8 +49,8 @@ export function AudioPlayerControls() {
             aria-pressed={activeTrack.likedAt !== null}
             className={
               activeTrack.likedAt === null
-                ? "text-neutral-400 hover:text-neutral-100"
-                : "text-lime-300 hover:text-lime-200"
+                ? "text-secondary hover:text-primary"
+                : "text-primary"
             }
             onClick={() =>
               setTrackLiked.mutate({
@@ -76,10 +76,10 @@ export function AudioPlayerControls() {
             aria-label="Shuffle"
             aria-pressed={playback.shuffleEnabled}
             className={cn(
-              "absolute right-full mr-4 grid size-8 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-lime-300",
+              "absolute right-full mr-4 grid size-8 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus",
               playback.shuffleEnabled
-                ? "text-lime-300 hover:text-lime-200"
-                : "text-neutral-400 hover:text-neutral-100",
+                ? "text-accent"
+                : "text-secondary hover:text-primary",
             )}
             disabled={!playback.isInitialized || playback.queue === null}
             onClick={() => playback.setShuffleEnabled(!playback.shuffleEnabled)}
@@ -105,7 +105,7 @@ export function AudioPlayerControls() {
           </button>
           <button
             aria-label={playback.isPlaying ? "Pause" : "Play"}
-            className="cursor-pointer grid size-9 place-items-center rounded-full bg-neutral-50 text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300"
+            className="cursor-pointer grid size-9 place-items-center rounded-full bg-inverse text-inverse focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             type="button"
             onClick={playback.togglePlayback}
           >
@@ -117,7 +117,7 @@ export function AudioPlayerControls() {
           </button>
           <button
             aria-label="Next track"
-            className="cursor-pointer grid size-8 place-items-center disabled:text-neutral-600 disabled:cursor-not-allowed"
+            className="cursor-pointer grid size-8 place-items-center disabled:text-disabled disabled:cursor-not-allowed"
             disabled={!playback.canGoNext}
             onClick={playback.next}
             type="button"
@@ -129,12 +129,12 @@ export function AudioPlayerControls() {
         <AudioPlayerProgress key={playback.activeQueueItemId} />
       </div>
 
-      <div className="flex items-center justify-end gap-3 text-neutral-400">
+      <div className="flex items-center justify-end gap-3 text-secondary">
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label={playback.isMuted ? "Unmute audio" : "Mute audio"}
-          className="cursor-pointer grid size-8 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-lime-300"
+          className="cursor-pointer grid size-8 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-focus"
           type="button"
           onClick={playback.toggleMute}
         >
@@ -148,7 +148,7 @@ export function AudioPlayerControls() {
         <Slider
           aria-label="Volume"
           format={{ style: "percent" }}
-          className="audio-player-slider hidden w-20! cursor-pointer sm:block **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-range]:bg-neutral-300 **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-800"
+          className="audio-player-slider hidden w-20! cursor-pointer sm:block **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-range]:bg-inverse **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-(--color-bg-page) **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-selected"
           min={0}
           max={1}
           step={0.01}
@@ -175,7 +175,7 @@ function AudioPlayerProgress() {
 
   return (
     <div className="mt-2 grid grid-cols-[2.25rem_minmax(8rem,1fr)_2.25rem] items-center gap-2">
-      <span className="text-[11px] text-neutral-400 tabular-nums">
+      <span className="text-[11px] text-secondary tabular-nums">
         {formatDuration(displayedTime)}
       </span>
       <span className="sr-only" id={labelId}>
@@ -192,7 +192,7 @@ function AudioPlayerProgress() {
         />
         <Slider
           aria-labelledby={labelId}
-          className="audio-player-slider cursor-pointer **:data-[slot=slider-range]:bg-neutral-100 **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-neutral-950 **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-neutral-700"
+          className="audio-player-slider cursor-pointer **:data-[slot=slider-range]:bg-inverse **:data-[slot=slider-thumb]:pointer-events-none **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-thumb]:border-(--color-bg-page) **:data-[slot=slider-track]:h-0.5 **:data-[slot=slider-track]:bg-track"
           disabled={playback.duration <= 0}
           max={playback.duration > 0 ? playback.duration : 1}
           min={0}
@@ -206,7 +206,7 @@ function AudioPlayerProgress() {
           value={displayedTime}
         />
       </div>
-      <span className="text-right text-[11px] text-neutral-400 tabular-nums">
+      <span className="text-right text-[11px] text-secondary tabular-nums">
         {formatDuration(playback.duration)}
       </span>
     </div>

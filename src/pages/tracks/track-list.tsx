@@ -91,7 +91,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     <div id="tracks">
       <table className="w-full table-fixed text-xs">
         <caption className="sr-only">{caption}</caption>
-        <thead className="font-berkeley border-b border-neutral-800 text-left tracking-[0.08em] text-neutral-400 uppercase">
+        <thead className="font-mono border-b border-default text-left tracking-[0.08em] text-secondary uppercase">
           <tr>
             <th className="hidden w-14 py-2.5 pr-3 pl-5 font-normal sm:table-cell" scope="col">
               #
@@ -121,20 +121,20 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
               playback.activeSourceEntryId === item.sourceEntryId &&
               playback.activeSourcePlaylistId === (playlistId ?? null);
 
-            const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
+            const metadataColor = track.available ? "text-secondary" : "text-disabled";
             const artists = track.artists.join(", ") || "Unknown artist";
             const album = track.album || "Unknown album";
 
             return (
               <tr
                 className={cn(
-                  "group/track-row border-b border-l-2 border-neutral-900",
+                  "group/track-row border-b border-l-2 border-separator",
                   isActive
-                    ? "border-l-lime-300 bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
+                    ? "border-l-accent bg-raised focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-focus"
                     : "border-l-transparent",
                   track.available
-                    ? "cursor-pointer hover:bg-sidebar-accent focus-within:bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
-                    : "bg-neutral-950/40",
+                    ? "cursor-pointer hover:bg-raised focus-within:bg-raised focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-focus"
+                    : "bg-page/40",
                 )}
                 key={item.sourceEntryId}
                 onClick={
@@ -149,15 +149,15 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
               >
                 <td
                   className={cn(
-                    "font-berkeley hidden h-12 pr-3 pl-5 tabular-nums sm:table-cell",
+                    "font-mono hidden h-12 pr-3 pl-5 tabular-nums sm:table-cell",
                     metadataColor,
                   )}
                 >
                   {isActive && playback.isPlaying ? (
                     <span aria-label="Playing" className="flex h-3 items-end gap-0.5">
-                      <i className="h-1 w-0.5 bg-lime-300" />
-                      <i className="h-2.5 w-0.5 bg-lime-300" />
-                      <i className="h-1.5 w-0.5 bg-lime-300" />
+                      <i className="h-1 w-0.5 bg-accent" />
+                      <i className="h-2.5 w-0.5 bg-accent" />
+                      <i className="h-1.5 w-0.5 bg-accent" />
                     </span>
                   ) : (
                     String(index + 1).padStart(2, "0")
@@ -186,7 +186,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                       <span
                         className={cn(
                           "block truncate",
-                          track.available ? "text-neutral-100" : "text-neutral-500",
+                          track.available ? "text-primary" : "text-tertiary",
                         )}
                       >
                         {track.title}
@@ -197,7 +197,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                       </span>
                     </span>
                     {!track.available && (
-                      <span className="ml-auto flex shrink-0 items-center gap-1 text-neutral-600">
+                      <span className="ml-auto flex shrink-0 items-center gap-1 text-disabled">
                         <LockSimpleIcon aria-hidden="true" />
                         <span className="hidden sm:inline">Unavailable</span>
                       </span>
@@ -209,7 +209,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                 </td>
                 <td
                   className={cn(
-                    "font-berkeley h-12 px-2 text-right tabular-nums sm:px-3",
+                    "font-mono h-12 px-2 text-right tabular-nums sm:px-3",
                     metadataColor,
                   )}
                 >
@@ -224,8 +224,8 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     className={cn(
                       "focus-visible:opacity-100",
                       track.likedAt === null
-                        ? "text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 hover:text-neutral-100"
-                        : "text-lime-300 hover:text-lime-200",
+                        ? "text-tertiary opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 hover:text-primary"
+                        : "text-primary",
                     )}
                     onClick={() => handleSetTrackLiked(track)}
                     onPointerDown={(event) => event.preventDefault()}
@@ -296,7 +296,7 @@ function TrackRowMenu({
         render={
           <Button
             aria-label={`More options for ${track.title}`}
-            className="text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100 hover:text-neutral-100"
+            className="text-tertiary opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100 hover:text-primary"
             // this should prevent the rows focus styles from flashing during certaint instances
             // of the menu opening
             onMouseDown={(event) => event.preventDefault()}

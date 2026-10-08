@@ -40,7 +40,7 @@ export function TrackCollectionHeader({
       <div
         aria-hidden="true"
         className={cn(
-          "grid size-40 shrink-0 place-items-center rounded-md bg-neutral-900 outline-1 -outline-offset-1 outline-neutral-900/10 dark:outline-neutral-400/10 max-sm:aspect-video max-sm:h-auto max-sm:w-full sm:size-52 lg:size-64",
+          "grid size-40 shrink-0 place-items-center rounded-lg bg-raised outline-1 -outline-offset-1 outline-image max-sm:aspect-video max-sm:h-auto max-sm:w-full sm:size-52 lg:size-64",
           artworkClassName,
         )}
       >
@@ -49,20 +49,20 @@ export function TrackCollectionHeader({
 
       <div className="min-w-0 pb-0.5 sm:flex-1 sm:basis-56">
         {eyebrow && (
-          <p className="font-berkeley mb-2 text-[10px] tracking-[0.12em] text-lime-300 uppercase">
+          <p className="font-mono mb-2 text-[10px] tracking-[0.12em] text-secondary uppercase">
             {eyebrow}
           </p>
         )}
         <div className="space-y-2">
-          <h1 className="truncate text-4xl font-semibold tracking-[-0.04em] text-neutral-50">
+          <h1 className="truncate text-4xl font-semibold tracking-[-0.04em] text-primary">
             {title}
           </h1>
-          {description && <p className="truncate text-xs text-neutral-400">{description}</p>}
-          <p className="flex items-center gap-2 text-xs text-neutral-400">
+          {description && <p className="truncate text-xs text-secondary">{description}</p>}
+          <p className="flex items-center gap-2 text-xs text-secondary">
             <span>
               {trackCount} {trackCount === 1 ? "track" : "tracks"}
             </span>
-            <span aria-hidden="true" className="text-neutral-600">
+            <span aria-hidden="true" className="text-disabled">
               &bull;
             </span>
             <span>{formatDuration(totalDuration)}</span>

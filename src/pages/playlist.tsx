@@ -76,7 +76,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
     <main>
       <TrackCollectionHeader
         artwork={getPlaylistInitials(playlist.title)}
-        artworkClassName="font-berkeley bg-linear-to-br from-lime-950 to-lime-500 text-4xl font-semibold tracking-[-0.04em] text-neutral-100"
+        artworkClassName="font-mono bg-linear-to-br from-[oklch(27.4%_0.072_132.109)] to-[oklch(76.8%_0.233_130.85)] text-4xl font-semibold tracking-[-0.04em] text-primary"
         description={playlist.description}
         eyebrow="Playlist"
         items={items}
@@ -88,8 +88,8 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
       {playlist.tracks.length === 0 ? (
         <div className="grid min-h-64 place-items-center px-6 text-center">
           <div>
-            <MusicNotesIcon aria-hidden="true" className="mx-auto mb-3 size-5 text-neutral-600" />
-            <p className="text-sm font-medium text-neutral-300">No tracks in this playlist yet.</p>
+            <MusicNotesIcon aria-hidden="true" className="mx-auto mb-3 size-5 text-disabled" />
+            <p className="text-sm font-medium text-primary">No tracks in this playlist yet.</p>
           </div>
         </div>
       ) : (
@@ -117,15 +117,15 @@ function PlaylistPageSkeleton() {
   return (
     <main aria-label="Loading playlist" aria-busy="true">
       <header className="flex items-end gap-6 p-6 max-sm:flex-col max-sm:items-start">
-        <Skeleton className="size-40 shrink-0 rounded-md bg-neutral-900 max-sm:aspect-video max-sm:h-auto max-sm:w-full sm:size-52 lg:size-64" />
+        <Skeleton className="size-40 shrink-0 rounded-lg bg-raised max-sm:aspect-video max-sm:h-auto max-sm:w-full sm:size-52 lg:size-64" />
         <div className="w-full max-w-sm space-y-3 pb-0.5">
-          <Skeleton className="h-2 w-16 bg-neutral-900" />
-          <Skeleton className="h-10 w-64 max-w-full bg-neutral-900" />
-          <Skeleton className="h-3 w-full bg-neutral-900" />
-          <Skeleton className="h-3 w-36 bg-neutral-900" />
+          <Skeleton className="h-2 w-16 bg-raised" />
+          <Skeleton className="h-10 w-64 max-w-full bg-raised" />
+          <Skeleton className="h-3 w-full bg-raised" />
+          <Skeleton className="h-3 w-36 bg-raised" />
           <div className="flex gap-2 pt-2">
-            <Skeleton className="h-10 w-20 bg-neutral-900" />
-            <Skeleton className="h-10 w-24 bg-neutral-900" />
+            <Skeleton className="h-10 w-20 bg-raised" />
+            <Skeleton className="h-10 w-24 bg-raised" />
           </div>
         </div>
       </header>

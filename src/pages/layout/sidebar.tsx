@@ -34,7 +34,7 @@ export function AppSidebar() {
   const isSettings = Boolean(matchRoute({ to: "/settings" }));
 
   return (
-    <Sidebar className="border-neutral-800 md:absolute! md:h-auto!">
+    <Sidebar className="border-default md:absolute! md:h-auto!">
       <SidebarHeader className={cn("px-4 pb-3", window.lume.isMac ? "pt-15" : "pt-18.5")}>
         <div className="flex items-center gap-2.5 px-1 text-sm font-semibold tracking-wide">
           <span aria-hidden="true" className="flex h-4 items-end gap-0.5">
@@ -52,20 +52,20 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  className="text-neutral-400"
+                  className="text-secondary"
                   isActive={isAllTracks}
                   render={<Link to="/" />}
                 >
                   <MusicNotesIcon aria-hidden="true" />
                   <span>All tracks</span>
                 </SidebarMenuButton>
-                <SidebarMenuBadge className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+                <SidebarMenuBadge className="font-mono rounded bg-selected px-1.5 py-1 text-[10px] text-tertiary tabular-nums">
                   {library.tracks.length.toLocaleString()}
                 </SidebarMenuBadge>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  className="text-neutral-400"
+                  className="text-secondary"
                   isActive={isSettings}
                   render={<Link to="/settings" />}
                 >
@@ -77,7 +77,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-neutral-500">Playlists</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-tertiary">Playlists</SidebarGroupLabel>
           <CreatePlaylistDialog />
           <SidebarGroupContent>
             <SidebarMenu>
@@ -104,13 +104,13 @@ function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        className="text-neutral-400"
+        className="text-secondary"
         isActive={isActive}
         render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
       >
         <span>{playlist.title}</span>
       </SidebarMenuButton>
-      <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
+      <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-mono rounded bg-selected px-1.5 py-1 text-[10px] text-tertiary tabular-nums">
         {playlist.trackCount.toLocaleString()}
       </SidebarMenuBadge>
       <DropdownMenu>

@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
-    "@fontsource-variable/inter": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tanstack/react-query": "^5.102.6",
     "@tanstack/react-router": "^1.170.32",
@@ -26,6 +25,7 @@
     "clsx": "^2.1.1",
     "cn": "^0.3.0",
     "drizzle-orm": "1.0.0-rc.4",
+    "motion": "^13.4.6",
     "music-metadata": "^11.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

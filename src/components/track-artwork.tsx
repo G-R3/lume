@@ -32,12 +32,12 @@ export function TrackArtwork({
 }
 
 const coverClasses = [
-  "from-orange-950 to-orange-500",
-  "from-cyan-950 to-cyan-500",
-  "from-purple-950 to-purple-500",
-  "from-emerald-950 to-emerald-500",
-  "from-stone-800 to-stone-500",
-  "from-indigo-950 to-indigo-500",
+  "from-[oklch(26.6%_0.079_36.259)] to-[oklch(70.5%_0.213_47.604)]",
+  "from-[oklch(30.2%_0.056_229.695)] to-[oklch(71.5%_0.143_215.221)]",
+  "from-[oklch(29.1%_0.149_302.717)] to-[oklch(62.7%_0.265_303.9)]",
+  "from-[oklch(26.2%_0.051_172.552)] to-[oklch(69.6%_0.17_162.48)]",
+  "from-[oklch(26.8%_0.007_34.298)] to-[oklch(55.3%_0.013_58.071)]",
+  "from-[oklch(25.7%_0.09_281.288)] to-[oklch(58.5%_0.233_277.117)]",
 ];
 
 export function ArtworkFallback({
@@ -48,7 +48,7 @@ export function ArtworkFallback({
   return (
     <span
       className={cn(
-        "font-berkeley absolute inset-0 grid place-items-center bg-linear-to-br font-semibold tracking-[-0.04em] text-neutral-100",
+        "font-mono absolute inset-0 grid place-items-center bg-linear-to-br font-semibold tracking-[-0.04em] text-primary",
         getCoverClass(track),
       )}
     >

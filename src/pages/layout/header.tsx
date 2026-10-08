@@ -49,18 +49,18 @@ export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queu
             {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
           </h1>
           {!isSettings && playlist && (
-            <span className="font-berkeley shrink-0 rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
+            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-[10px] text-secondary tabular-nums">
               {playlist.trackCount.toLocaleString()}{" "}
               {playlist.trackCount === 1 ? "track" : "tracks"}
             </span>
           )}
           {!isSettings && !playlist && (
-            <span className="font-berkeley shrink-0 rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-400 tabular-nums">
+            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-[10px] text-secondary tabular-nums">
               {library.tracks.length.toLocaleString()}
             </span>
           )}
           {!isSettings && !playlist && unavailableTrackCount > 0 && (
-            <span className="font-berkeley shrink-0 rounded bg-amber-950 px-1.5 py-1 text-[10px] text-amber-400 tabular-nums">
+            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-[10px] text-secondary tabular-nums">
               {unavailableTrackCount.toLocaleString()} unavailable
             </span>
           )}
@@ -77,7 +77,7 @@ export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queu
       </header>
 
       {libraryMutation.error && (
-        <p className="m-4 text-sm text-red-300" role="alert">
+        <p className="m-4 text-sm text-danger" role="alert">
           {libraryMutation.error.message}
         </p>
       )}
@@ -96,7 +96,7 @@ function PlaylistHeaderMenu({ playlist }: { playlist: PlaylistSummary }) {
           render={
             <Button
               aria-label={`More options for ${playlist.title}`}
-              className="text-neutral-400 hover:bg-neutral-900 hover:text-neutral-100"
+              className="text-secondary hover:bg-raised hover:text-primary"
               ref={menuTriggerRef}
               size="icon"
               variant="ghost"

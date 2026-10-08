@@ -20,18 +20,18 @@ export function AppRoot() {
   );
 
   if (library.data === undefined) {
-    if (!library.error) return <div className="min-h-screen bg-black" />;
+    if (!library.error) return <div className="min-h-screen bg-page" />;
 
     return (
-      <main className="grid min-h-screen place-items-center bg-black px-6 text-neutral-50">
+      <main className="grid min-h-screen place-items-center bg-page px-6 text-primary">
         <div className="max-w-md text-center">
           <h1 className="text-xl font-semibold tracking-tight">Lume could not load your library</h1>
-          <p className="mt-3 text-sm leading-6 text-red-300" role="alert">
+          <p className="mt-3 text-sm leading-6 text-danger" role="alert">
             {recoveryError ?? library.error.message}
           </p>
           <div className="mt-7 flex justify-center gap-2">
             <Button
-              className="bg-lime-300 text-neutral-950 hover:bg-lime-200"
+              className="bg-inverse text-inverse hover:bg-inverse-hover"
               onClick={() => {
                 setRecoveryError(null);
                 void library.refetch();
@@ -41,7 +41,7 @@ export function AppRoot() {
               Try again
             </Button>
             <Button
-              className="border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+              className="border-strong bg-raised text-primary hover:bg-selected"
               onClick={() =>
                 void window.lume
                   .openDataFolder()

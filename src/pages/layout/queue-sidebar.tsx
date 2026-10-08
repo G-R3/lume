@@ -74,7 +74,7 @@ export function QueueSidebar({
     <Sidebar
       aria-label="Playback queue"
       aria-hidden={!open}
-      className="border-neutral-800 md:absolute! md:h-auto!"
+      className="border-default md:absolute! md:h-auto!"
       id="queue-sidebar"
       inert={!open}
       onOpenChange={onOpenChange}
@@ -95,7 +95,7 @@ export function QueueSidebar({
           <h2 className="pl-2 text-sm font-semibold tracking-wide">Queue</h2>
           <Button
             aria-label="Close queue sidebar"
-            className="text-neutral-400 md:hidden"
+            className="text-secondary md:hidden"
             onClick={() => onOpenChange(false)}
             size="icon-sm"
             type="button"
@@ -105,10 +105,10 @@ export function QueueSidebar({
           </Button>
         </div>
         {playback.errorMessage && (
-          <p className="mt-3 pl-2 text-xs text-red-300">{playback.errorMessage}</p>
+          <p className="mt-3 pl-2 text-xs text-danger">{playback.errorMessage}</p>
         )}
         {!queue ? (
-          <p className="mt-6 pl-2 text-xs text-neutral-500">Play a track to start a queue.</p>
+          <p className="mt-6 pl-2 text-xs text-tertiary">Play a track to start a queue.</p>
         ) : (
           <>
             <section aria-labelledby="queue-current" className="mt-5">
@@ -129,7 +129,7 @@ export function QueueSidebar({
                   track={tracksById.get(queue.current.item.trackId)}
                 />
               ) : (
-                <p className="mt-2 pl-2 text-xs text-neutral-500">
+                <p className="mt-2 pl-2 text-xs text-tertiary">
                   {queue.status === "stopped" ? "Playback finished." : "Nothing playing."}
                 </p>
               )}
@@ -148,18 +148,18 @@ export function QueueSidebar({
                   {lane.title}
                 </h3>
                 {lane.name === "source" && queue.source.kind === "detached" && (
-                  <p className="mt-1 pl-2 text-[11px] text-neutral-500">
+                  <p className="mt-1 pl-2 text-[11px] text-tertiary">
                     Playlist deleted; queue continues.
                   </p>
                 )}
                 {lane.items.length === 0 ? (
-                  <p className="mt-2 pl-2 text-xs text-neutral-500">Nothing up next.</p>
+                  <p className="mt-2 pl-2 text-xs text-tertiary">Nothing up next.</p>
                 ) : (
                   <>
                     <div className="mt-1">
                       {lane.items.slice(0, visibleCounts[lane.name]).map((item, index) => (
                         <div
-                          className="group/queue-row relative rounded-[calc(var(--radius-sm)+2px)] hover:bg-sidebar-accent focus-within:bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
+                          className="group/queue-row relative rounded-lg hover:bg-raised focus-within:bg-raised focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-focus"
                           key={item.queueItemId}
                         >
                           <QueueTrack
@@ -184,7 +184,7 @@ export function QueueSidebar({
                     </div>
                     {lane.items.length > visibleCounts[lane.name] && (
                       <button
-                        className="mt-2 ml-2 rounded-sm py-1 text-xs text-neutral-400 hover:text-neutral-100 focus-visible:outline-2 focus-visible:outline-lime-300"
+                        className="mt-2 ml-2 rounded-md py-1 text-xs text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-focus"
                         onClick={() =>
                           setVisibleCounts((counts) => ({
                             ...counts,
@@ -234,31 +234,31 @@ function QueueTrack({
         <TrackArtwork
           artworkUrl={track.artworkUrl}
           className={cn(
-            "size-8 shrink-0 rounded-sm text-[8px]",
+            "size-8 shrink-0 rounded-md text-[8px]",
             unavailable && "grayscale opacity-40",
           )}
           fallback={<ArtworkFallback track={track} />}
         />
       ) : (
-        <span className="size-8 shrink-0 rounded-sm bg-neutral-800" />
+        <span className="size-8 shrink-0 rounded-md bg-selected" />
       )}
       <span className="min-w-0 flex-1 text-left">
         <span
           className={cn(
             "block truncate text-xs font-medium",
-            playing && "text-lime-300",
-            unavailable && "text-neutral-500",
+            playing && "text-accent",
+            unavailable && "text-tertiary",
           )}
         >
           {title}
         </span>
-        <span className="block truncate text-[11px] leading-4 text-neutral-400">
+        <span className="block truncate text-[11px] leading-4 text-secondary">
           {paused && "Paused · "}
           {unavailable ? "Unavailable" : track.artists.join(", ") || "Unknown artist"}
         </span>
       </span>
       {unavailable && (
-        <LockSimpleIcon aria-hidden="true" className="shrink-0 text-neutral-600" size={13} />
+        <LockSimpleIcon aria-hidden="true" className="shrink-0 text-disabled" size={13} />
       )}
     </>
   );
@@ -294,7 +294,7 @@ function QueueRowMenu({
         render={
           <Button
             aria-label={`Queue options for ${track?.title ?? `track ${item.trackId}`}`}
-            className="absolute top-3 right-2 text-neutral-500 opacity-0 group-focus-within/queue-row:opacity-100 group-hover/queue-row:opacity-100 data-popup-open:opacity-100 focus-visible:opacity-100"
+            className="absolute top-3 right-2 text-tertiary opacity-0 group-focus-within/queue-row:opacity-100 group-hover/queue-row:opacity-100 data-popup-open:opacity-100 focus-visible:opacity-100"
             onMouseDown={(event) => event.preventDefault()}
             size="icon-sm"
             variant="ghost"

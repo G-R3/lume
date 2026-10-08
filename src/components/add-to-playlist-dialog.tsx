@@ -143,14 +143,14 @@ export function AddToPlaylistDialog({
                       variant="ghost"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-neutral-100">{playlist.title}</span>
+                        <span className="block truncate text-primary">{playlist.title}</span>
                         {playlist.description && (
-                          <span className="block truncate font-normal text-neutral-500">
+                          <span className="block truncate font-normal text-tertiary">
                             {playlist.description}
                           </span>
                         )}
                       </span>
-                      <span className="font-berkeley shrink-0 text-[10px] text-neutral-500 tabular-nums">
+                      <span className="font-mono shrink-0 text-[10px] text-tertiary tabular-nums">
                         {playlist.trackCount.toLocaleString()}
                       </span>
                     </Button>
@@ -158,7 +158,7 @@ export function AddToPlaylistDialog({
                 ))}
               </ul>
             ) : (
-              <p className="py-6 text-center text-xs text-neutral-500">
+              <p className="py-6 text-center text-xs text-tertiary">
                 {library.playlists.length === 0 ? "No playlists yet." : "No playlists found."}
               </p>
             )}

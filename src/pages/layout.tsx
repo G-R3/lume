@@ -28,10 +28,10 @@ export function AppLayout() {
     syncLibrary(library);
   }, [library, syncLibrary]);
 
-  if (!playback.isInitialized) return <div className="min-h-screen bg-black" />;
+  if (!playback.isInitialized) return <div className="min-h-screen bg-page" />;
 
   return (
-    <SidebarProvider className="h-svh flex-col bg-neutral-950 text-neutral-50">
+    <SidebarProvider className="h-svh flex-col bg-page text-primary">
       <AppKeyboardShortcuts toggleQueue={toggleQueue} />
       <div className="relative flex min-h-0 flex-1 overflow-x-clip">
         <AppSidebar />
@@ -40,7 +40,7 @@ export function AppLayout() {
         {window.lume.isMac && (
           <div
             aria-hidden="true"
-            className="pointer-events-none fixed top-0 left-0 z-50 h-9 w-(--sidebar-width) border-r border-neutral-800 bg-sidebar transition-[width] duration-200 ease-linear peer-data-[state=collapsed]:w-0 peer-data-[state=collapsed]:border-r-0 motion-reduce:transition-none [-webkit-app-region:drag]"
+            className="pointer-events-none fixed top-0 left-0 z-50 h-9 w-(--sidebar-width) border-r border-default bg-page transition-[width] duration-200 ease-linear peer-data-[state=collapsed]:w-0 peer-data-[state=collapsed]:border-r-0 motion-reduce:transition-none [-webkit-app-region:drag]"
           />
         )}
         {/* right-sidebar drag region */}
@@ -52,7 +52,7 @@ export function AppLayout() {
           />
         )}
 
-        <SidebarInset className="min-h-0 overflow-auto bg-background">
+        <SidebarInset className="min-h-0 overflow-auto bg-page">
           <AppHeader isSettings={isSettings} queueOpen={queueOpen} />
           <div
             className={cn(
@@ -67,7 +67,7 @@ export function AppLayout() {
               aria-label={queueOpen ? "Close queue sidebar" : "Open queue sidebar"}
               className={cn(
                 "pointer-events-auto [-webkit-app-region:no-drag]",
-                queueOpen && "bg-transparent! hover:bg-muted! dark:hover:bg-muted/50!",
+                queueOpen && "bg-transparent! hover:bg-hover!",
               )}
               onClick={toggleQueue}
               size="icon"
@@ -79,7 +79,7 @@ export function AppLayout() {
           </div>
           <div className="flex-1">
             {playback.errorMessage && (
-              <p className="m-4 text-sm text-red-300" role="alert">
+              <p className="m-4 text-sm text-danger" role="alert">
                 {playback.errorMessage}
               </p>
             )}
