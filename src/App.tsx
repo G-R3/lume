@@ -31,24 +31,22 @@ export function AppRoot() {
           </p>
           <div className="mt-7 flex justify-center gap-2">
             <Button
-              className="bg-inverse text-inverse hover:bg-inverse-hover"
               onClick={() => {
                 setRecoveryError(null);
                 void library.refetch();
               }}
               type="button"
+              variant="primary"
             >
               Try again
             </Button>
             <Button
-              className="border-strong bg-raised text-primary hover:bg-selected"
               onClick={() =>
                 void window.lume
                   .openDataFolder()
                   .catch((error: Error) => setRecoveryError(error.message))
               }
               type="button"
-              variant="outline"
             >
               Open data folder
             </Button>

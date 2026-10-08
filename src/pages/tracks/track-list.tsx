@@ -229,7 +229,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     )}
                     onClick={() => handleSetTrackLiked(track)}
                     onPointerDown={(event) => event.preventDefault()}
-                    size="icon"
+                    size="icon-sm"
                     type="button"
                     variant="ghost"
                   >
@@ -296,12 +296,12 @@ function TrackRowMenu({
         render={
           <Button
             aria-label={`More options for ${track.title}`}
-            className="text-tertiary opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100 hover:text-primary"
+            className="opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100"
             // this should prevent the rows focus styles from flashing during certaint instances
             // of the menu opening
             onMouseDown={(event) => event.preventDefault()}
             ref={triggerRef}
-            size="icon"
+            size="icon-sm"
             variant="ghost"
           />
         }

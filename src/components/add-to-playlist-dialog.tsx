@@ -107,11 +107,11 @@ export function AddToPlaylistDialog({
             </DialogHeader>
             <FieldError>{confirmAddTrack.error?.message}</FieldError>
             <DialogFooter>
-              <DialogClose disabled={isPending} render={<Button variant="outline" />}>
+              <DialogClose disabled={isPending} render={<Button />}>
                 Cancel
               </DialogClose>
-              <Button disabled={isPending} onClick={handleConfirm} type="button">
-                {isPending ? "Adding..." : "Add anyway"}
+              <Button busy={isPending} onClick={handleConfirm} type="button" variant="primary">
+                Add anyway
               </Button>
             </DialogFooter>
           </>
@@ -139,6 +139,7 @@ export function AddToPlaylistDialog({
                       className="h-auto w-full justify-start px-2 py-2 text-left"
                       disabled={isPending}
                       onClick={() => handleAdd(playlist)}
+                      static
                       type="button"
                       variant="ghost"
                     >

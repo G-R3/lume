@@ -69,11 +69,11 @@ export function DeletePlaylistDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={libraryMutation.isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={libraryMutation.isPending}
+            busy={libraryMutation.isPending}
             onClick={handleDelete}
-            variant="destructive"
+            variant="danger"
           >
-            {libraryMutation.isPending ? "Deleting..." : "Delete playlist"}
+            Delete playlist
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

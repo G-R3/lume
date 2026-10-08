@@ -36,22 +36,17 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
         </div>
         {failedSource.enabled && (
           <Button
-            className="border-strong bg-selected text-primary hover:bg-hover"
             disabled={libraryMutation.isPending}
             onClick={() =>
               libraryMutation.mutate({ kind: "rescan-source", sourceId: failedSource.id })
             }
+            size="sm"
             type="button"
-            variant="outline"
           >
             Try again
           </Button>
         )}
-        <Button
-          className="text-secondary hover:bg-selected hover:text-primary"
-          render={<Link to="/settings" />}
-          variant="ghost"
-        >
+        <Button nativeButton={false} render={<Link to="/settings" />} size="sm" variant="ghost">
           Manage sources
         </Button>
       </div>
@@ -64,11 +59,7 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
         <p className="flex-1">
           All sources are disabled. Their tracks remain saved but cannot play.
         </p>
-        <Button
-          className="border-strong bg-raised text-primary hover:bg-selected hover:text-primary"
-          render={<Link to="/settings" />}
-          variant="outline"
-        >
+        <Button nativeButton={false} render={<Link to="/settings" />} size="sm">
           Manage sources
         </Button>
       </div>
@@ -94,29 +85,23 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
       </p>
       <div className="mt-6 flex items-center gap-2">
         <Button
-          className="bg-inverse text-inverse hover:bg-inverse-hover"
           disabled={libraryMutation.isPending}
           onClick={() =>
             libraryMutation.mutate({ kind: "rescan-source", sourceId: emptySource.id })
           }
           type="button"
+          variant="primary"
         >
           Rescan
         </Button>
         <Button
-          className="border-strong bg-raised text-primary hover:bg-selected hover:text-primary"
           disabled={libraryMutation.isPending}
           onClick={() => libraryMutation.mutate({ kind: "add-source" })}
           type="button"
-          variant="outline"
         >
           Add another source
         </Button>
-        <Button
-          className="text-secondary hover:bg-raised hover:text-primary"
-          render={<Link to="/settings" />}
-          variant="ghost"
-        >
+        <Button nativeButton={false} render={<Link to="/settings" />} variant="ghost">
           Manage sources
         </Button>
       </div>

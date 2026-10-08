@@ -71,24 +71,20 @@ export function TrackCollectionHeader({
 
         <div aria-label="Playback actions" className="mt-5 flex flex-wrap gap-2" role="group">
           <Button
-            className="h-10 gap-2 px-4"
             disabled={!playback.isInitialized || !hasAvailableTracks}
             onClick={() => void playback.playSource(source)}
-            size="lg"
             type="button"
+            variant="primary"
           >
-            <PlayIcon aria-hidden="true" className="size-4" weight="fill" />
+            <PlayIcon aria-hidden="true" data-icon="inline-start" weight="fill" />
             Play
           </Button>
           <Button
-            className="h-10 gap-2 px-4"
             disabled={!playback.isInitialized || !hasAvailableTracks}
             onClick={() => void playback.shufflePlay(source)}
-            size="lg"
             type="button"
-            variant="outline"
           >
-            <ShuffleAngularIcon aria-hidden="true" className="size-4" />
+            <ShuffleAngularIcon aria-hidden="true" data-icon="inline-start" />
             Shuffle play
           </Button>
         </div>

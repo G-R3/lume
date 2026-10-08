@@ -42,13 +42,13 @@ export function LibraryEmptyState({
           or modifies them.
         </p>
         <Button
-          className="mt-7 bg-inverse px-4 text-inverse hover:bg-inverse-hover"
-          disabled={isLoading}
+          busy={isLoading}
+          className="mt-7"
           onClick={onAddSource}
-          size="lg"
           type="button"
+          variant="primary"
         >
-          {isLoading ? "Adding source..." : "Add source"}
+          Add source
         </Button>
         <p className="mt-3 text-xs text-disabled">You can add more folders later.</p>
         {errorMessage && (

@@ -24,10 +24,10 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
           </p>
         </div>
         <Button
-          className="bg-inverse text-inverse hover:bg-inverse-hover"
           disabled={libraryMutation.isPending}
           onClick={() => libraryMutation.mutate({ kind: "add-source" })}
           type="button"
+          variant="primary"
         >
           Add source
         </Button>
@@ -73,23 +73,23 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
               <div className="flex shrink-0 items-center gap-2">
                 {source.enabled && (
                   <Button
-                    className="border-strong bg-raised text-primary hover:bg-selected hover:text-primary"
                     disabled={libraryMutation.isPending}
                     onClick={() =>
                       libraryMutation.mutate({ kind: "rescan-source", sourceId: source.id })
                     }
+                    size="sm"
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                   >
                     {source.lastScanError ? "Try again" : "Rescan"}
                   </Button>
                 )}
                 <Button
-                  className="text-secondary hover:bg-raised hover:text-primary"
                   disabled={libraryMutation.isPending}
                   onClick={() =>
                     libraryMutation.mutate({ kind: "forget-source", sourceId: source.id })
                   }
+                  size="sm"
                   type="button"
                   variant="ghost"
                 >
@@ -118,9 +118,7 @@ export function SourceSettings({ library }: { library: MusicLibrary }) {
       {library.sources.length === 0 && !libraryMutation.isPending && (
         <div className="border-b border-default py-12 text-center">
           <h3 className="text-sm font-medium">No library sources</h3>
-          <p className="mt-2 text-xs text-tertiary">
-            Add a folder to start building your library.
-          </p>
+          <p className="mt-2 text-xs text-tertiary">Add a folder to start building your library.</p>
         </div>
       )}
 

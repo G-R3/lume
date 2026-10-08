@@ -167,10 +167,7 @@ function Sidebar({
         id={id}
         data-slot="sidebar"
         style={style}
-        className={cn(
-          "flex h-full w-(--sidebar-width) flex-col bg-page text-primary",
-          className,
-        )}
+        className={cn("flex h-full w-(--sidebar-width) flex-col bg-page text-primary", className)}
         {...props}
       >
         {children}
@@ -266,7 +263,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
     <Button
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
-      variant="ghost"
+      variant="toolbar"
       size="icon"
       className={cn(className)}
       onClick={(event) => {

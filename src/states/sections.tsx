@@ -1,4 +1,4 @@
-import { DotsThreeIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, ShuffleAngularIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import type { ComponentProps, ReactNode } from "react";
 import type { Track } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { Section, Specimen } from "@/states/specimen";
 // written out instead of read from the app's tokens so a wrong token shows up as drift.
 const paper = {
   accent10: "#EEBF5A1A",
+  amber: "#EEBF5A",
   neutral50: "#FAFAFA",
   neutral100: "#F5F5F5",
   neutral400: "#A3A3A3",
@@ -311,23 +312,41 @@ type ButtonPaper = {
   color: Record<ButtonState, string>;
 };
 
-function buttonParts(state: ButtonState, values: ButtonPaper, size: "icon" | "text"): PartSpec[] {
+type ButtonSize = "icon" | "small" | "text";
+
+// Frame 17 for the 32px sizes; the 24px buttons from 09 ("Scan again", "Manage folders").
+const buttonBoxes = {
+  icon: { borderRadius: 6, height: 32, width: 32 },
+  small: {
+    borderRadius: 4,
+    fontSize: 12,
+    fontWeight: 500,
+    height: 24,
+    lineHeight: 16,
+    paddingLeft: 8,
+    paddingRight: 8,
+  },
+  text: {
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    height: 32,
+    lineHeight: 16,
+    paddingLeft: 12,
+    paddingRight: 12,
+  },
+} as const;
+
+function buttonParts(state: ButtonState, values: ButtonPaper, size: ButtonSize): PartSpec[] {
   return [
     {
       name: "button",
       paper: {
+        ...buttonBoxes[size],
         backgroundColor: values.background[state],
-        borderRadius: 6,
         color: values.color[state],
-        height: 32,
         focusRing: state === "focus" ? focusRing : undefined,
-        fontSize: size === "text" ? 13 : undefined,
-        fontWeight: size === "text" ? 500 : undefined,
-        lineHeight: size === "text" ? 16 : undefined,
         opacity: state === "disabled" ? 0.4 : undefined,
-        paddingLeft: size === "text" ? 12 : undefined,
-        paddingRight: size === "text" ? 12 : undefined,
-        width: size === "icon" ? 32 : undefined,
       },
       selector: "button",
     },
@@ -337,70 +356,48 @@ function buttonParts(state: ButtonState, values: ButtonPaper, size: "icon" | "te
   ];
 }
 
+function sameInEveryState(value: string): Record<ButtonState, string> {
+  return { default: value, disabled: value, focus: value, hover: value };
+}
+
 const buttonKinds: readonly {
   id: string;
   label: string;
   paper: ButtonPaper;
   render: (state: ButtonState) => ReactNode;
-  size: "icon" | "text";
+  size: ButtonSize;
 }[] = [
   {
     id: "primary",
     label: "Primary",
     paper: {
-      background: {
-        default: paper.neutral100,
-        disabled: paper.neutral100,
-        focus: paper.neutral100,
-        hover: paper.neutral50,
-      },
-      color: {
-        default: paper.neutral950,
-        disabled: paper.neutral950,
-        focus: paper.neutral950,
-        hover: paper.neutral950,
-      },
+      background: { ...sameInEveryState(paper.neutral100), hover: paper.neutral50 },
+      color: sameInEveryState(paper.neutral950),
     },
-    render: (state) => <Button disabled={state === "disabled"}>Add folder…</Button>,
+    render: (state) => (
+      <Button disabled={state === "disabled"} variant="primary">
+        Add folder…
+      </Button>
+    ),
     size: "text",
   },
   {
     id: "secondary",
     label: "Secondary",
     paper: {
-      background: {
-        default: paper.neutral800,
-        disabled: paper.neutral800,
-        focus: paper.neutral800,
-        hover: paper.neutral750,
-      },
-      color: {
-        default: paper.neutral100,
-        disabled: paper.neutral100,
-        focus: paper.neutral100,
-        hover: paper.neutral100,
-      },
+      background: { ...sameInEveryState(paper.neutral800), hover: paper.neutral750 },
+      color: sameInEveryState(paper.neutral100),
     },
-    render: (state) => (
-      <Button disabled={state === "disabled"} variant="secondary">
-        Shuffle
-      </Button>
-    ),
+    render: (state) => <Button disabled={state === "disabled"}>Shuffle</Button>,
     size: "text",
   },
   {
     id: "ghost",
     label: "Ghost",
     paper: {
-      background: {
-        default: paper.transparent,
-        disabled: paper.transparent,
-        focus: paper.transparent,
-        hover: paper.neutral850,
-      },
+      background: { ...sameInEveryState(paper.transparent), hover: paper.neutral850 },
       color: {
-        default: paper.neutral400,
-        disabled: paper.neutral400,
+        ...sameInEveryState(paper.neutral400),
         focus: paper.neutral100,
         hover: paper.neutral100,
       },
@@ -416,22 +413,12 @@ const buttonKinds: readonly {
     id: "danger",
     label: "Danger",
     paper: {
-      background: {
-        default: paper.red400,
-        disabled: paper.red400,
-        focus: paper.red400,
-        hover: paper.red350,
-      },
-      color: {
-        default: paper.neutral950,
-        disabled: paper.neutral950,
-        focus: paper.neutral950,
-        hover: paper.neutral950,
-      },
+      background: { ...sameInEveryState(paper.red400), hover: paper.red350 },
+      color: sameInEveryState(paper.neutral950),
     },
     render: (state) => (
-      <Button disabled={state === "disabled"} variant="destructive">
-        {state === "disabled" ? "Deleting…" : "Delete"}
+      <Button disabled={state === "disabled"} variant="danger">
+        Delete
       </Button>
     ),
     size: "text",
@@ -440,39 +427,63 @@ const buttonKinds: readonly {
     id: "icon",
     label: "Icon (toolbar)",
     paper: {
-      background: {
-        default: paper.transparent,
-        disabled: paper.transparent,
-        focus: paper.transparent,
-        hover: paper.neutral850,
-      },
+      background: { ...sameInEveryState(paper.transparent), hover: paper.neutral850 },
       color: {
-        default: paper.neutral400,
-        disabled: paper.neutral400,
+        ...sameInEveryState(paper.neutral400),
         focus: paper.neutral100,
         hover: paper.neutral100,
       },
     },
-    // The playlist header's menu button, the app's only toolbar icon button with its own classes.
     render: (state) => (
       <Button
         aria-label="More options"
-        className="text-secondary hover:bg-raised hover:text-primary"
         disabled={state === "disabled"}
         size="icon"
-        variant="ghost"
+        variant="toolbar"
       >
         <DotsThreeIcon aria-hidden="true" />
       </Button>
     ),
     size: "icon",
   },
+  {
+    id: "small-secondary",
+    label: "Small secondary",
+    paper: {
+      background: { ...sameInEveryState(paper.neutral800), hover: paper.neutral750 },
+      color: sameInEveryState(paper.neutral100),
+    },
+    render: (state) => (
+      <Button disabled={state === "disabled"} size="sm">
+        Scan again
+      </Button>
+    ),
+    size: "small",
+  },
+  {
+    id: "small-ghost",
+    label: "Small ghost",
+    paper: {
+      background: { ...sameInEveryState(paper.transparent), hover: paper.neutral850 },
+      color: {
+        ...sameInEveryState(paper.neutral400),
+        focus: paper.neutral100,
+        hover: paper.neutral100,
+      },
+    },
+    render: (state) => (
+      <Button disabled={state === "disabled"} size="sm" variant="ghost">
+        Manage folders
+      </Button>
+    ),
+    size: "small",
+  },
 ];
 
 export function ButtonSection() {
   return (
     <Section
-      description="Frame 17. Default size, the variant each Paper role maps to today: primary → default, danger → destructive."
+      description="Frame 17 (32px) and the 24px buttons in 09. The 24px hover, focus and disabled values follow the 32px rows; Paper only draws them at rest."
       title="Buttons"
     >
       {buttonKinds.flatMap((kind) =>
@@ -488,6 +499,110 @@ export function ButtonSection() {
           </Specimen>
         )),
       )}
+      <Specimen
+        id="button.icon.toggled"
+        label="Icon (toolbar), toggled"
+        parts={[
+          {
+            name: "button",
+            paper: {
+              ...buttonBoxes.icon,
+              backgroundColor: paper.neutral800,
+              color: paper.neutral400,
+            },
+            selector: "button",
+          },
+        ]}
+      >
+        {/* The queue toggle in 12: neutral-800 fill. Frame 17's note adds the filled icon. */}
+        <div className="flex">
+          <Button aria-expanded aria-label="Close queue" size="icon" variant="toolbar">
+            <SidebarSimpleIcon aria-hidden="true" className="-scale-x-100" weight="fill" />
+          </Button>
+        </div>
+      </Specimen>
+      <Specimen
+        force={{ selector: "button", states: ["hover"] }}
+        id="button.icon.toggled-hover"
+        label="Icon (toolbar), toggled, hover"
+        parts={[
+          {
+            name: "button",
+            paper: {
+              ...buttonBoxes.icon,
+              backgroundColor: paper.neutral800,
+              color: paper.neutral100,
+            },
+            selector: "button",
+          },
+        ]}
+      >
+        {/* Not drawn in Paper: the fill stays, so hovering never reads as switching it off. */}
+        <div className="flex">
+          <Button aria-expanded aria-label="Close queue" size="icon" variant="toolbar">
+            <SidebarSimpleIcon aria-hidden="true" className="-scale-x-100" weight="fill" />
+          </Button>
+        </div>
+      </Specimen>
+      <Specimen
+        id="button.shuffle.on"
+        label="Shuffle, on"
+        parts={[
+          {
+            name: "button",
+            paper: { ...buttonBoxes.icon, backgroundColor: paper.neutral800, color: paper.amber },
+            selector: "button",
+          },
+          {
+            name: "dot",
+            paper: { height: 4, width: 4, backgroundColor: paper.amber },
+            selector: "button span",
+          },
+        ]}
+      >
+        {/* Frame 17's note: toggled fill, filled icon and the amber 4px dot. 12 draws it without the fill. */}
+        <div className="flex">
+          <Button
+            aria-label="Shuffle"
+            aria-pressed
+            className="relative text-accent hover:not-data-disabled:text-accent focus-visible:text-accent"
+            size="icon"
+            variant="toolbar"
+          >
+            <ShuffleAngularIcon aria-hidden="true" weight="fill" />
+            <span
+              aria-hidden="true"
+              className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-current"
+            />
+          </Button>
+        </div>
+      </Specimen>
+      <Specimen
+        id="button.primary.busy"
+        label="Primary, busy"
+        parts={[
+          {
+            name: "button",
+            // Paper's pending button in 07b: the label at 0.4, no spinner. Left padding follows the
+            // spinner (icon side), so it is not compared. The spinner's box isn't either: a rotating
+            // square measures larger than its 16px size.
+            paper: {
+              ...buttonBoxes.text,
+              backgroundColor: paper.neutral100,
+              color: paper.neutral950,
+              opacity: 0.4,
+              paddingLeft: undefined,
+            },
+            selector: "button",
+          },
+        ]}
+      >
+        <div className="flex">
+          <Button busy variant="primary">
+            Add folder…
+          </Button>
+        </div>
+      </Specimen>
     </Section>
   );
 }

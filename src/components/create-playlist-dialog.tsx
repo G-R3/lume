@@ -84,7 +84,7 @@ export function CreatePlaylistDialog() {
             aria-label="Create playlist"
             className={buttonVariants({
               className: "top-1.5 right-2",
-              size: "icon",
+              size: "icon-sm",
               variant: "ghost",
             })}
           />
@@ -123,12 +123,14 @@ export function CreatePlaylistDialog() {
         </form>
         <FieldError>{errorMessage ?? createPlaylist.error?.message}</FieldError>
         <DialogFooter className="flex flex-col">
-          <DialogClose
-            disabled={createPlaylist.isPending}
-            render={<Button variant="outline">Cancel</Button>}
-          />
-          <Button disabled={createPlaylist.isPending} form="create-playlist" type="submit">
-            {createPlaylist.isPending ? "Creating..." : "Create playlist"}
+          <DialogClose disabled={createPlaylist.isPending} render={<Button>Cancel</Button>} />
+          <Button
+            busy={createPlaylist.isPending}
+            form="create-playlist"
+            type="submit"
+            variant="primary"
+          >
+            Create playlist
           </Button>
         </DialogFooter>
       </DialogContent>

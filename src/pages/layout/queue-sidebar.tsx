@@ -95,11 +95,11 @@ export function QueueSidebar({
           <h2 className="pl-2 text-sm font-semibold tracking-wide">Queue</h2>
           <Button
             aria-label="Close queue sidebar"
-            className="text-secondary md:hidden"
+            className="md:hidden"
             onClick={() => onOpenChange(false)}
-            size="icon-sm"
+            size="icon"
             type="button"
-            variant="ghost"
+            variant="toolbar"
           >
             <XIcon aria-hidden="true" />
           </Button>

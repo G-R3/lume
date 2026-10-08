@@ -65,16 +65,17 @@ export function AppLayout() {
               aria-controls="queue-sidebar"
               aria-expanded={queueOpen}
               aria-label={queueOpen ? "Close queue sidebar" : "Open queue sidebar"}
-              className={cn(
-                "pointer-events-auto [-webkit-app-region:no-drag]",
-                queueOpen && "bg-transparent! hover:bg-hover!",
-              )}
+              className="pointer-events-auto [-webkit-app-region:no-drag]"
               onClick={toggleQueue}
               size="icon"
               type="button"
-              variant="ghost"
+              variant="toolbar"
             >
-              <SidebarSimpleIcon aria-hidden="true" className="-scale-x-100" />
+              <SidebarSimpleIcon
+                aria-hidden="true"
+                className="-scale-x-100"
+                weight={queueOpen ? "fill" : "regular"}
+              />
             </Button>
           </div>
           <div className="flex-1">

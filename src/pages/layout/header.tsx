@@ -96,10 +96,9 @@ function PlaylistHeaderMenu({ playlist }: { playlist: PlaylistSummary }) {
           render={
             <Button
               aria-label={`More options for ${playlist.title}`}
-              className="text-secondary hover:bg-raised hover:text-primary"
               ref={menuTriggerRef}
               size="icon"
-              variant="ghost"
+              variant="toolbar"
             />
           }
         >

@@ -48,9 +48,7 @@ export function AudioPlayerControls() {
             }
             aria-pressed={activeTrack.likedAt !== null}
             className={
-              activeTrack.likedAt === null
-                ? "text-secondary hover:text-primary"
-                : "text-primary"
+              activeTrack.likedAt === null ? "text-secondary hover:text-primary" : "text-primary"
             }
             onClick={() =>
               setTrackLiked.mutate({
@@ -76,18 +74,21 @@ export function AudioPlayerControls() {
             aria-label="Shuffle"
             aria-pressed={playback.shuffleEnabled}
             className={cn(
-              "absolute right-full mr-4 grid size-8 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus",
-              playback.shuffleEnabled
-                ? "text-accent"
-                : "text-secondary hover:text-primary",
+              "absolute right-full mr-4",
+              // Shuffle-on keeps its amber icon through hover and focus
+              playback.shuffleEnabled &&
+                "text-accent hover:not-data-disabled:text-accent focus-visible:text-accent",
             )}
             disabled={!playback.isInitialized || playback.queue === null}
             onClick={() => playback.setShuffleEnabled(!playback.shuffleEnabled)}
-            size="icon-sm"
+            size="icon"
             type="button"
-            variant="ghost"
+            variant="toolbar"
           >
-            <ShuffleAngularIcon aria-hidden="true" className="size-4.5" />
+            <ShuffleAngularIcon
+              aria-hidden="true"
+              weight={playback.shuffleEnabled ? "fill" : "regular"}
+            />
             {playback.shuffleEnabled && (
               <span
                 aria-hidden="true"
@@ -131,17 +132,16 @@ export function AudioPlayerControls() {
 
       <div className="flex items-center justify-end gap-3 text-secondary">
         <Button
-          variant="ghost"
-          size="icon-sm"
+          variant="toolbar"
+          size="icon"
           aria-label={playback.isMuted ? "Unmute audio" : "Mute audio"}
-          className="cursor-pointer grid size-8 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-focus"
           type="button"
           onClick={playback.toggleMute}
         >
           {playback.isMuted ? (
-            <SpeakerSlashIcon aria-hidden="true" className="size-4.5" />
+            <SpeakerSlashIcon aria-hidden="true" />
           ) : (
-            <SpeakerHighIcon aria-hidden="true" className="size-4.5" />
+            <SpeakerHighIcon aria-hidden="true" />
           )}
           <span className="sr-only">Toggle mute</span>
         </Button>
