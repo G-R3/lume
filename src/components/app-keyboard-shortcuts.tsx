@@ -1,10 +1,11 @@
 import { useSidebar } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
-import { useKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
+import { getSidebarShortcut, useKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
 
 export function AppKeyboardShortcuts({ toggleQueue }: { toggleQueue: () => void }) {
   const playback = usePlayback();
   const sidebar = useSidebar();
+  const sidebarShortcut = getSidebarShortcut(window.lume.isMac);
 
   useKeyboardShortcuts(
     [
@@ -28,7 +29,7 @@ export function AppKeyboardShortcuts({ toggleQueue }: { toggleQueue: () => void 
       },
       {
         name: "Toggle sidebar",
-        key: "b",
+        key: sidebarShortcut.key,
         commandOrControl: true,
         action: sidebar.toggleSidebar,
       },

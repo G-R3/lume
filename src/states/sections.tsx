@@ -13,7 +13,6 @@ import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import {
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -848,8 +847,9 @@ function navParts(state: NavState): PartSpec[] {
         fontSize: 12,
         fontWeight: 400,
         lineHeight: 16,
+        width: 24,
       },
-      selector: "[data-sidebar=menu-badge]",
+      selector: "[data-sidebar=menu-button] > span:last-child",
     },
   ];
 }
@@ -858,22 +858,27 @@ function navParts(state: NavState): PartSpec[] {
 function NavRowSpecimen({
   count,
   isActive,
+  isPlayingFrom,
   title,
 }: {
   count: number;
   isActive?: boolean;
+  isPlayingFrom?: boolean;
   title: string;
 }) {
   return (
-    <SidebarProvider className="min-h-0 w-52">
+    <SidebarProvider className="min-h-0 w-[207px]">
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton className="text-secondary" isActive={isActive}>
-            <span>{title}</span>
+          <SidebarMenuButton isActive={isActive}>
+            <span className="min-w-0 flex-1 truncate">{title}</span>
+            {isPlayingFrom && (
+              <span className="size-1.5 shrink-0 rounded-full bg-accent" data-part="dot" />
+            )}
+            <span className="min-w-6 shrink-0 text-right font-mono text-meta font-normal text-secondary tabular-nums">
+              {count.toLocaleString()}
+            </span>
           </SidebarMenuButton>
-          <SidebarMenuBadge className="font-mono rounded bg-selected px-1.5 py-1 text-[10px] text-tertiary tabular-nums">
-            {count.toLocaleString()}
-          </SidebarMenuBadge>
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarProvider>
@@ -883,7 +888,7 @@ function NavRowSpecimen({
 export function NavRowSection() {
   return (
     <Section
-      description="Frame 17. SidebarMenuButton and SidebarMenuBadge with AppSidebar's playlist-row classes."
+      description="Frame 17. SidebarMenuButton with AppSidebar's playlist-row content."
       title="Sidebar row"
     >
       <Specimen id="nav.default" label="Default" parts={navParts("default")}>
@@ -911,9 +916,17 @@ export function NavRowSection() {
       <Specimen
         id="nav.playing-from"
         label="Playing from"
-        note="Not built: the sidebar has no playing-from dot yet."
-        parts={[]}
-      />
+        parts={[
+          ...navParts("default"),
+          {
+            name: "dot",
+            paper: { backgroundColor: paper.amber, borderRadius: 3, height: 6, width: 6 },
+            selector: "[data-part=dot]",
+          },
+        ]}
+      >
+        <NavRowSpecimen count={48} isPlayingFrom title="Playing from" />
+      </Specimen>
     </Section>
   );
 }

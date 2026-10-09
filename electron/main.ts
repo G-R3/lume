@@ -35,6 +35,8 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: "#000000",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    // Centered in the renderer's 48px title bar, 16px from the edge.
+    trafficLightPosition: { x: 16, y: 18 },
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

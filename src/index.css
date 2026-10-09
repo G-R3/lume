@@ -115,6 +115,7 @@
   --shadow-menu: 0 12px 32px oklch(0 0 0 / 60%), 0 2px 6px oklch(0 0 0 / 35%);
   --shadow-dialog: 0 24px 64px oklch(0 0 0 / 60%), 0 4px 12px oklch(0 0 0 / 35%);
   --shadow-toast: 0 8px 24px oklch(0 0 0 / 50%), 0 2px 4px oklch(0 0 0 / 30%);
+  --shadow-tooltip: 0 4px 12px oklch(0 0 0 / 40%);
 
   /* see src/lib/motion.ts for JS springs */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);

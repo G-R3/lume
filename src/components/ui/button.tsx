@@ -16,7 +16,7 @@ const buttonVariants = cva(
         ghost:
           "text-secondary hover:not-data-disabled:bg-hover hover:not-data-disabled:text-primary focus-visible:text-primary data-popup-open:bg-selected data-popup-open:text-primary",
         toolbar:
-          "text-secondary hover:not-data-disabled:bg-hover hover:not-data-disabled:text-primary focus-visible:text-primary aria-expanded:bg-selected aria-expanded:hover:not-data-disabled:bg-selected aria-pressed:bg-selected aria-pressed:hover:not-data-disabled:bg-selected data-popup-open:bg-selected data-popup-open:text-primary",
+          "text-secondary hover:not-data-disabled:bg-hover hover:not-data-disabled:text-primary focus-visible:text-primary aria-expanded:bg-selected aria-expanded:hover:not-data-disabled:bg-selected aria-pressed:bg-selected aria-pressed:hover:not-data-disabled:bg-selected aria-[current=page]:bg-selected aria-[current=page]:text-primary aria-[current=page]:hover:not-data-disabled:bg-selected data-popup-open:bg-selected data-popup-open:text-primary",
         danger: "bg-danger text-inverse hover:not-data-disabled:bg-danger-hover",
       },
       size: {

@@ -31,20 +31,15 @@ export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queu
     <>
       <header
         className={cn(
-          "flex shrink-0 items-center gap-2 px-5",
-          window.lume.isMac
-            ? "h-9 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
-            : "h-12.5",
+          "flex h-12 shrink-0 items-center gap-4 px-4",
+          window.lume.isMac && "[-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
         )}
       >
-        <div
-          className={cn(
-            "flex min-w-0 items-center gap-2 pl-7.5 md:ml-1 md:pl-0 md:transition-transform md:duration-200 md:ease-linear motion-reduce:transition-none",
-            window.lume.isMac && "pl-24 md:pl-0",
-            sidebar.state === "collapsed" &&
-              (window.lume.isMac ? "md:translate-x-23" : "md:translate-x-8"),
-          )}
-        >
+        {/* keeps the content clear of the traffic lights and the toggle, so nothing moves */}
+        {(sidebar.isMobile || sidebar.state === "collapsed") && (
+          <div aria-hidden="true" className="w-52 shrink-0" />
+        )}
+        <div className="flex min-w-0 items-center gap-2">
           <h1 className="truncate text-sm font-semibold tracking-tight">
             {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
           </h1>
@@ -68,7 +63,7 @@ export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queu
 
         <div
           className={cn(
-            "ml-auto mr-6 flex shrink-0 items-center gap-1 transition-[margin-right] duration-200 ease-linear sm:mr-7 motion-reduce:transition-none",
+            "ml-auto mr-6 flex shrink-0 items-center gap-1 sm:mr-7",
             queueOpen && "md:-mr-2",
           )}
         >

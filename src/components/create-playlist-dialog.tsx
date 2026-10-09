@@ -1,7 +1,7 @@
 import { PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type KeyboardEvent, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogBody,
@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { SidebarGroupAction } from "@/components/ui/sidebar";
 import { useCreatePlaylistMutation } from "@/lib/library-query";
 
 type CreateForm = {
@@ -88,16 +87,7 @@ export function CreatePlaylistDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
-        render={
-          <SidebarGroupAction
-            aria-label="Create playlist"
-            className={buttonVariants({
-              className: "top-1.5 right-2",
-              size: "icon-sm",
-              variant: "ghost",
-            })}
-          />
-        }
+        render={<Button aria-label="Create playlist" size="icon-sm" variant="ghost" />}
       >
         <PlusIcon aria-hidden="true" />
       </DialogTrigger>

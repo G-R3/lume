@@ -10,6 +10,7 @@ import { QUEUE_SIDEBAR_WIDTH, QueueSidebar } from "@/pages/layout/queue-sidebar"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { getSidebarShortcut } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
@@ -36,31 +37,29 @@ export function AppLayout() {
       <div className="relative flex min-h-0 flex-1 overflow-x-clip">
         <AppSidebar />
 
-        {/* left-sidebar drag region */}
-        {window.lume.isMac && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none fixed top-0 left-0 z-50 h-9 w-(--sidebar-width) border-r border-default bg-page transition-[width] duration-200 ease-linear peer-data-[state=collapsed]:w-0 peer-data-[state=collapsed]:border-r-0 motion-reduce:transition-none [-webkit-app-region:drag]"
-          />
-        )}
         {/* right-sidebar drag region */}
         {window.lume.isMac && queueOpen && (
           <div
             aria-hidden="true"
-            className="pointer-events-none fixed top-0 right-0 z-50 h-9 [-webkit-app-region:drag]"
+            className="pointer-events-none fixed top-0 right-0 z-50 h-12 [-webkit-app-region:drag]"
             style={{ width: QUEUE_SIDEBAR_WIDTH }}
           />
         )}
 
         <SidebarInset className="min-h-0 overflow-auto bg-page">
           <AppHeader isSettings={isSettings} queueOpen={queueOpen} />
+          {/* after every drag region in the DOM: Electron applies app regions in document order, so a
+              later drag region would swallow clicks on these buttons */}
           <div
             className={cn(
-              "pointer-events-none fixed inset-x-0 top-0 z-50 flex h-12.5 items-center justify-between pr-2 pl-3.5 sm:pr-3",
-              window.lume.isMac ? "h-9 pl-20" : "md:pl-5",
+              "pointer-events-none fixed inset-x-0 top-0 z-50 flex h-12 items-center justify-between pr-2 sm:pr-3",
+              window.lume.isMac ? "pl-20" : "pl-4",
             )}
           >
-            <SidebarTrigger className="pointer-events-auto [-webkit-app-region:no-drag]" />
+            <SidebarTrigger
+              className="pointer-events-auto [-webkit-app-region:no-drag]"
+              shortcut={getSidebarShortcut(window.lume.isMac)}
+            />
             <Button
               aria-controls="queue-sidebar"
               aria-expanded={queueOpen}
