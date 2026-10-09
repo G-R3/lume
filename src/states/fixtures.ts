@@ -298,6 +298,7 @@ export function toTrack(fixture: FixtureTrack, id: number): Track {
   const artists = fixture.artists.length > 0 ? [...fixture.artists] : ["Unknown artist"];
 
   return {
+    addedAt: Date.parse(fixture.added),
     album: fixture.album ?? "Unknown album",
     albumArtists: artists,
     artists,

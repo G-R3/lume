@@ -1,18 +1,17 @@
 import {
   DotsThreeIcon,
   HeartIcon,
-  LockSimpleIcon,
   ListPlusIcon,
   PlaylistIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useRef, useState } from "react";
+import { type KeyboardEvent, type PointerEvent, type ReactNode, useRef, useState } from "react";
 import { usePlayback } from "@/hooks/use-playback";
 import { collectionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
-import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
+import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
+import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
 import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
@@ -45,11 +45,14 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
   const setTrackLiked = useSetTrackLiked();
   const addDialogTriggerRef = useRef<HTMLElement | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+  const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
+  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const isPlaylist = playlistId !== undefined;
 
   const handleAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
     addDialogTriggerRef.current = trigger;
-    setSelectedTrack(track);
+    setTrackToAdd(track);
     setAddDialogOpen(true);
   };
 
@@ -88,33 +91,106 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     );
   };
 
+  const playItem = (item: TrackListItem) => {
+    if (!item.track.available) return;
+
+    void playback.playSourceEntry({
+      source: collectionSource(playlistId),
+      sourceEntryId: item.sourceEntryId,
+    });
+  };
+
+  const focusRow = (index: number) => {
+    const item = items[Math.max(0, Math.min(items.length - 1, index))];
+
+    if (!item) return;
+
+    setSelectedEntryId(item.sourceEntryId);
+    tableRef.current
+      ?.querySelector<HTMLElement>(`tr[data-entry-id="${item.sourceEntryId}"]`)
+      ?.focus();
+  };
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
+    if (event.target !== event.currentTarget) return;
+
+    const pageSize = Math.max(
+      1,
+      Math.floor(
+        (tableRef.current?.closest('[data-slot="sidebar-inset"]')?.clientHeight ??
+          window.innerHeight) / 40,
+      ) - 1,
+    );
+
+    const target = {
+      ArrowDown: index + 1,
+      ArrowUp: index - 1,
+      End: items.length - 1,
+      Home: 0,
+      PageDown: index + pageSize,
+      PageUp: index - pageSize,
+    }[event.key];
+
+    if (target !== undefined) {
+      event.preventDefault();
+      focusRow(target);
+
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      playItem(items[index]);
+    }
+  };
+
+  const tabStopEntryId = items.some((item) => item.sourceEntryId === selectedEntryId)
+    ? selectedEntryId
+    : items[0]?.sourceEntryId;
+
   return (
-    <div id="tracks">
-      <table className="w-full table-fixed text-xs">
+    <div className="@container" id="tracks">
+      <table
+        className="w-full table-fixed border-separate border-spacing-0 px-2"
+        onPointerOver={showTruncatedText}
+        ref={tableRef}
+        role="grid"
+      >
         <caption className="sr-only">{caption}</caption>
-        <thead className="font-mono border-b border-default text-left tracking-[0.08em] text-secondary uppercase">
+        <thead className="text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
           <tr>
-            <th className="hidden w-14 py-2.5 pr-3 pl-5 font-normal sm:table-cell" scope="col">
-              #
-            </th>
-            <th className="pl-1 pr-2 py-2.5 font-normal" scope="col">
+            {isPlaylist && (
+              <th className="h-8 w-10 border-b border-separator pl-4 font-normal" scope="col">
+                #
+              </th>
+            )}
+            <th className="h-8 border-b border-separator pl-14 font-normal" scope="col">
               Title
             </th>
-            <th className="hidden w-[30%] px-3 py-2.5 font-normal lg:table-cell" scope="col">
+            <th
+              className="hidden h-8 w-[30%] border-b border-separator pl-4 font-normal @3xl:table-cell @6xl:w-100"
+              scope="col"
+            >
               Album
             </th>
-            <th className="w-18 px-2 py-2.5 text-right font-normal sm:w-24 sm:px-3" scope="col">
-              Duration
+            <th
+              className="hidden h-8 w-28 border-b border-separator pl-4 font-normal @3xl:table-cell"
+              scope="col"
+            >
+              Added
             </th>
-            <th className="w-8 py-2.5 text-center font-normal" scope="col">
+            <th className="h-8 w-8 border-b border-separator font-normal" scope="col">
               <span className="sr-only">Like</span>
             </th>
-            <th className="w-10 py-2.5 pr-3 pl-1 font-normal sm:w-12 sm:pr-5 sm:pl-2" scope="col">
-              <span className="sr-only">Actions</span>
+            <th
+              className="h-8 w-22 border-b border-separator pr-4 pl-4 text-right font-normal"
+              scope="col"
+            >
+              Time
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="before:table-row before:h-1">
           {items.map((item, index) => {
             const track = item.track;
 
@@ -122,115 +198,118 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
               playback.activeSourceEntryId === item.sourceEntryId &&
               playback.activeSourcePlaylistId === (playlistId ?? null);
 
+            const isSelected = item.sourceEntryId === selectedEntryId;
+            const isTabStop = item.sourceEntryId === tabStopEntryId;
             const metadataColor = track.available ? "text-secondary" : "text-disabled";
-            const artists = track.artists.join(", ") || "Unknown artist";
-            const album = track.album || "Unknown album";
 
             return (
               <tr
+                aria-current={isActive ? "true" : undefined}
+                aria-selected={isSelected}
                 className={cn(
-                  "group/track-row border-b border-l-2 border-separator",
-                  isActive
-                    ? "border-l-accent bg-raised focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-focus"
-                    : "border-l-transparent",
-                  track.available
-                    ? "cursor-pointer hover:bg-raised focus-within:bg-raised focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-focus"
-                    : "bg-page/40",
+                  "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
+                  isSelected
+                    ? "*:bg-selected"
+                    : isActive
+                      ? "*:bg-accent-subtle"
+                      : "hover:*:bg-hover",
                 )}
+                data-entry-id={item.sourceEntryId}
                 key={item.sourceEntryId}
-                onClick={
-                  track.available
-                    ? () =>
-                        playback.playSourceEntry({
-                          source: collectionSource(playlistId),
-                          sourceEntryId: item.sourceEntryId,
-                        })
-                    : undefined
-                }
+                onClick={() => setSelectedEntryId(item.sourceEntryId)}
+                onDoubleClick={() => playItem(item)}
+                onKeyDown={(event) => handleRowKeyDown(event, index)}
+                tabIndex={isTabStop ? 0 : -1}
               >
-                <td
-                  className={cn(
-                    "font-mono hidden h-12 pr-3 pl-5 tabular-nums sm:table-cell",
-                    metadataColor,
-                  )}
-                >
-                  {isActive && playback.isPlaying ? (
-                    <span aria-label="Playing" className="flex h-3 items-end gap-0.5">
-                      <i className="h-1 w-0.5 bg-accent" />
-                      <i className="h-2.5 w-0.5 bg-accent" />
-                      <i className="h-1.5 w-0.5 bg-accent" />
-                    </span>
-                  ) : (
-                    String(index + 1).padStart(2, "0")
-                  )}
-                </td>
-                <td className="h-12 min-w-0 pl-1 pr-2">
-                  <button
-                    aria-current={isActive ? "true" : undefined}
-                    aria-label={track.title}
-                    className={cn(
-                      "flex w-full min-w-0 items-center gap-2.5 text-left outline-none",
-                      track.available ? "cursor-pointer" : "cursor-not-allowed",
-                    )}
-                    disabled={!track.available}
-                    type="button"
-                  >
+                {isPlaylist && (
+                  <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">
+                    {String(index + 1).padStart(2, "0")}
+                  </td>
+                )}
+                <td className="pl-4">
+                  <div className="flex min-w-0 items-center gap-2">
                     <TrackArtwork
                       artworkUrl={track.artworkUrl}
-                      className={cn(
-                        "size-8 text-[8px]",
-                        !track.available && "grayscale opacity-40",
-                      )}
-                      fallback={<ArtworkFallback track={track} />}
+                      className={cn("size-8", !track.available && "opacity-disabled")}
+                      state={
+                        isActive
+                          ? playback.isPlaying
+                            ? "playing"
+                            : "paused"
+                          : isSelected
+                            ? "selected"
+                            : undefined
+                      }
                     />
-                    <span className="min-w-0 flex-1">
-                      <span
+                    <div className="min-w-0 flex-1">
+                      <p
                         className={cn(
-                          "block truncate",
-                          track.available ? "text-primary" : "text-tertiary",
+                          "truncate text-left text-body font-medium",
+                          track.available ? "text-primary" : "text-disabled",
                         )}
+                        data-truncate
+                        dir="auto"
                       >
                         {track.title}
-                      </span>
-                      <span className={cn("block truncate leading-4", metadataColor)}>
-                        <span>{artists}</span>
-                        <span className="lg:hidden"> · {album}</span>
-                      </span>
-                    </span>
+                      </p>
+                      <p
+                        className={cn("truncate text-left text-meta", metadataColor)}
+                        data-truncate
+                        dir="auto"
+                      >
+                        {track.artists.join(", ") || "Unknown artist"}
+                      </p>
+                    </div>
                     {!track.available && (
-                      <span className="ml-auto flex shrink-0 items-center gap-1 text-disabled">
-                        <LockSimpleIcon aria-hidden="true" />
-                        <span className="hidden sm:inline">Unavailable</span>
-                      </span>
+                      <span className="shrink-0 text-meta text-secondary">Unavailable</span>
                     )}
-                  </button>
+                    <div
+                      className="contents"
+                      onClick={(event) => event.stopPropagation()}
+                      onDoubleClick={(event) => event.stopPropagation()}
+                    >
+                      <TrackRowMenu
+                        canAddToQueue={playback.queue !== null}
+                        isCreatingPlaylist={createPlaylistFromTrack.isPending}
+                        onAddToQueue={() => playback.enqueueTrack(track.id)}
+                        onAddToPlaylist={handleAddToPlaylist}
+                        onCreatePlaylist={handleCreatePlaylist}
+                        tabIndex={isTabStop ? 0 : -1}
+                        track={track}
+                      >
+                        {renderMenuItems?.(item)}
+                      </TrackRowMenu>
+                    </div>
+                  </div>
                 </td>
-                <td className={cn("hidden h-12 px-3 lg:table-cell", metadataColor)}>
-                  <div className="truncate">{album}</div>
+                <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
+                  <p className="truncate text-left text-body" data-truncate dir="auto">
+                    {track.album || "Unknown album"}
+                  </p>
+                </td>
+                <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
+                  {formatAddedDate(track.addedAt)}
                 </td>
                 <td
-                  className={cn(
-                    "font-mono h-12 px-2 text-right tabular-nums sm:px-3",
-                    metadataColor,
-                  )}
+                  className="pl-4"
+                  onClick={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => event.stopPropagation()}
                 >
-                  {formatDuration(track.duration)}
-                </td>
-                <td className="h-12 p-0 text-center" onClick={(event) => event.stopPropagation()}>
                   <Button
                     aria-label={
                       track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`
                     }
                     aria-pressed={track.likedAt !== null}
                     className={cn(
-                      "focus-visible:opacity-100",
-                      track.likedAt === null
-                        ? "text-tertiary opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 hover:text-primary"
-                        : "text-primary",
+                      "-m-1",
+                      track.likedAt === null &&
+                        "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
                     )}
                     onClick={() => handleSetTrackLiked(track)}
                     onPointerDown={(event) => event.preventDefault()}
                     size="icon-sm"
+                    static
+                    tabIndex={isTabStop ? 0 : -1}
                     type="button"
                     variant="ghost"
                   >
@@ -241,36 +320,41 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                   </Button>
                 </td>
                 <td
-                  className="h-12 py-1 pr-3 pl-1 text-right sm:pr-5 sm:pl-2"
-                  onClick={(event) => event.stopPropagation()}
+                  className={cn(
+                    "pr-4 pl-4 text-right font-mono text-meta tabular-nums",
+                    metadataColor,
+                  )}
                 >
-                  <TrackRowMenu
-                    canAddToQueue={playback.queue !== null}
-                    isCreatingPlaylist={createPlaylistFromTrack.isPending}
-                    onAddToQueue={() => playback.enqueueTrack(track.id)}
-                    onAddToPlaylist={handleAddToPlaylist}
-                    onCreatePlaylist={handleCreatePlaylist}
-                    track={track}
-                  >
-                    {renderMenuItems?.(item)}
-                  </TrackRowMenu>
+                  {formatDuration(track.duration)}
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      {selectedTrack && (
+      {trackToAdd && (
         <AddToPlaylistDialog
           finalFocus={addDialogTriggerRef}
           onCreatePlaylist={handleCreatePlaylist}
           onOpenChange={setAddDialogOpen}
           open={addDialogOpen}
-          track={selectedTrack}
+          track={trackToAdd}
         />
       )}
     </div>
   );
+}
+
+// Long cells truncate; hovering one shows its full text, measured only when the pointer arrives.
+function showTruncatedText(event: PointerEvent<HTMLTableElement>) {
+  if (!(event.target instanceof Element)) return;
+
+  const cell = event.target.closest<HTMLElement>("[data-truncate]");
+
+  if (!cell) return;
+
+  if (cell.scrollWidth > cell.clientWidth) cell.title = cell.textContent ?? "";
+  else cell.removeAttribute("title");
 }
 
 function TrackRowMenu({
@@ -280,6 +364,7 @@ function TrackRowMenu({
   onAddToQueue,
   onAddToPlaylist,
   onCreatePlaylist,
+  tabIndex,
   track,
 }: {
   canAddToQueue: boolean;
@@ -288,6 +373,7 @@ function TrackRowMenu({
   onAddToQueue: () => void;
   onAddToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   onCreatePlaylist: (track: Track) => void;
+  tabIndex: number;
   track: Track;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -298,12 +384,12 @@ function TrackRowMenu({
         render={
           <Button
             aria-label={`More options for ${track.title}`}
-            className="opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100"
-            // this should prevent the rows focus styles from flashing during certaint instances
-            // of the menu opening
+            className="opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100 data-popup-open:opacity-100"
             onMouseDown={(event) => event.preventDefault()}
             ref={triggerRef}
             size="icon-sm"
+            static
+            tabIndex={tabIndex}
             variant="ghost"
           />
         }

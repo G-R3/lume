@@ -96,6 +96,7 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
         <TrackList
           caption={`${playlist.title} tracks`}
           items={items}
+          key={playlist.id}
           playlistId={playlist.id}
           renderMenuItems={(item) => (
             <DropdownMenuItem

@@ -824,6 +824,7 @@ function createTestPlayback(
 
 function track(id: number): Track {
   return {
+    addedAt: 0,
     album: "Album",
     albumArtists: [],
     artists: [],

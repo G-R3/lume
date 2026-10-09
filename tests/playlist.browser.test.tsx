@@ -793,6 +793,7 @@ function summarize(playlist: PlaylistDetails): PlaylistSummary {
 
 function createTrack(id: number, title: string, available = true): Track {
   return {
+    addedAt: 0,
     album: "Unknown album",
     albumArtists: ["Unknown artist"],
     artists: ["Unknown artist"],

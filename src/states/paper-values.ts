@@ -17,7 +17,9 @@ export const paper = {
   red300: "#FFA2A2",
   red350: "#FF7778",
   red400: "#FF6467",
+  scrim: "#0A0A0A99",
   transparent: "transparent",
+  white20: "#FFFFFF33",
 } as const;
 
 export const focusRing = `2px ${paper.neutral500} 2px`;

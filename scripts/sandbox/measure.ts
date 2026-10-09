@@ -165,7 +165,12 @@ type ScreenAudit = {
 async function auditApp(page: Page, appUrl: string) {
   const base = appUrl.split("#")[0] ?? appUrl;
 
-  const screens: readonly { hash: string; name: string; open?: (page: Page) => Locator }[] = [
+  const screens: readonly {
+    double?: boolean;
+    hash: string;
+    name: string;
+    open?: (page: Page) => Locator;
+  }[] = [
     { hash: "#/", name: "tracks" },
     { hash: "#/playlists/1", name: "playlist" },
     { hash: "#/settings", name: "settings" },
@@ -180,10 +185,11 @@ async function auditApp(page: Page, appUrl: string) {
       open: (page) => page.locator('tbody button[aria-label^="More options for"]').first(),
     },
     {
-      // Clicking a row plays it, which shows the player bar and the playing row.
+      // Double-clicking a row selects and plays it, which shows the player bar and the playing row.
+      double: true,
       hash: "#/",
       name: "playing",
-      open: (page) => page.locator("tbody tr:first-child td:nth-child(2) button").first(),
+      open: (page) => page.locator("tbody tr:first-child").first(),
     },
     {
       hash: "#/",
@@ -207,9 +213,9 @@ async function auditApp(page: Page, appUrl: string) {
     await page.waitForTimeout(300);
 
     if (screen.open) {
-      const button = screen.open(page);
-      await button.hover();
-      await button.click();
+      const target = screen.open(page);
+      await target.hover();
+      await (screen.double ? target.dblclick() : target.click());
       await page.waitForTimeout(300);
     }
 

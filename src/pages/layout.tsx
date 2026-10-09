@@ -53,7 +53,7 @@ export function AppLayout() {
           <div
             className={cn(
               "pointer-events-none fixed inset-x-0 top-0 z-50 flex h-12 items-center justify-between pr-2 sm:pr-3",
-              window.lume.isMac ? "pl-20" : "pl-4",
+              window.lume.isMac ? "pl-22" : "pl-4",
             )}
           >
             <SidebarTrigger

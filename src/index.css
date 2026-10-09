@@ -83,6 +83,7 @@
   --color-text-danger-kbd: oklch(0.145 0 0 / 85%);
 
   --color-outline-image: oklch(1 0 0 / 10%);
+  --color-bg-meter-off: oklch(1 0 0 / 20%);
 }
 
 @theme {
@@ -124,6 +125,25 @@
   /* spring.ui (300ms) and spring.exit (200ms) sampled by motion's spring().toString() */
   --ease-spring-ui: linear(0, 0.2738, 0.6079, 0.8122, 0.9157, 0.9637, 0.9848, 0.9938, 0.9975, 1);
   --ease-spring-exit: linear(0, 0.4551, 0.8122, 0.9445, 0.9848, 0.996, 1);
+
+  /* Playing meter: a column's lit dots step through levels 2, 4, 3, 1 (4px per dot) */
+  --animate-meter-column: meter-column 1s step-end infinite;
+
+  @keyframes meter-column {
+    0% {
+      transform: translateY(8px);
+    }
+    25% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(4px);
+    }
+    75%,
+    100% {
+      transform: translateY(12px);
+    }
+  }
 }
 
 @theme inline {
@@ -148,6 +168,7 @@
   --background-color-danger-subtle: var(--color-danger-subtle);
   --background-color-inverse-kbd: var(--color-bg-inverse-kbd);
   --background-color-danger-kbd: var(--color-bg-danger-kbd);
+  --background-color-meter-off: var(--color-bg-meter-off);
 
   --text-color-primary: var(--color-text-primary);
   --text-color-secondary: var(--color-text-secondary);

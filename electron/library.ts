@@ -27,7 +27,6 @@ type SourceWriter = Pick<LibraryDatabase, "update">;
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
 
 const {
-  createdAt: _createdAt,
   fileSize: _fileSize,
   metadataVersion: _metadataVersion,
   modifiedAt: _modifiedAt,
@@ -52,6 +51,7 @@ export function getLibrarySnapshot() {
       const artists = track.artists.length > 0 ? track.artists : ["Unknown artist"];
 
       return {
+        addedAt: track.createdAt,
         album: track.album ?? "Unknown album",
         albumArtists: track.albumArtists.length > 0 ? track.albumArtists : artists,
         artists,

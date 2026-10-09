@@ -2,7 +2,7 @@ import { DotsThreeIcon, LockSimpleIcon, MinusCircleIcon, XIcon } from "@phosphor
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Track } from "../../../shared/lib";
-import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
+import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -233,11 +233,7 @@ function QueueTrack({
       {track ? (
         <TrackArtwork
           artworkUrl={track.artworkUrl}
-          className={cn(
-            "size-8 shrink-0 rounded-md text-[8px]",
-            unavailable && "grayscale opacity-40",
-          )}
-          fallback={<ArtworkFallback track={track} />}
+          className={cn("size-8 shrink-0 rounded-md", unavailable && "grayscale opacity-40")}
         />
       ) : (
         <span className="size-8 shrink-0 rounded-md bg-selected" />

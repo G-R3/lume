@@ -4,7 +4,7 @@ import {
   ShuffleAngularIcon,
   SidebarSimpleIcon,
 } from "@phosphor-icons/react";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -35,34 +35,57 @@ import { Section, Specimen } from "@/states/specimen";
 /** The app's track list with one row, under fixture playback state. */
 function TrackRowSpecimen({
   playback = "idle",
+  playlistId,
+  selected = false,
   track,
 }: {
   playback?: "idle" | "paused" | "playing";
+  playlistId?: number;
+  selected?: boolean;
   track: FixtureTrack;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+
   const value =
     playback === "idle"
       ? idlePlayback
-      : { ...idlePlayback, activeSourceEntryId: 1, isPlaying: playback === "playing" };
+      : {
+          ...idlePlayback,
+          activeSourceEntryId: 1,
+          activeSourcePlaylistId: playlistId ?? null,
+          isPlaying: playback === "playing",
+        };
+
+  // Selection is the list's own state; a click is how it gets there.
+  useEffect(() => {
+    if (selected) ref.current?.querySelector<HTMLElement>("tbody tr")?.click();
+  }, [selected]);
 
   return (
-    <div className="w-[1184px]">
+    <div className="-mx-2 w-[1200px]" ref={ref}>
       <PlaybackContext.Provider value={value}>
-        <TrackList caption="Specimen" items={[{ sourceEntryId: 1, track: toTrack(track, 1) }]} />
+        <TrackList
+          caption="Specimen"
+          items={[{ sourceEntryId: 1, track: toTrack(track, 1) }]}
+          playlistId={playlistId}
+        />
       </PlaybackContext.Provider>
     </div>
   );
 }
 
 const rowSelectors = {
-  album: "tbody tr td:nth-child(3) > div",
-  artist: "tbody tr td:nth-child(2) button > span:nth-child(2) > span:nth-child(2)",
-  artwork: "tbody tr td:nth-child(2) button > span:first-child",
-  duration: "tbody tr td:nth-child(4)",
-  heart: "tbody tr td:nth-child(5) svg",
+  added: "tbody tr td:nth-child(3)",
+  album: "tbody tr td:nth-child(2) p",
+  artist: "tbody tr [data-slot=track-artwork] + div > p:nth-child(2)",
+  artwork: "tbody tr [data-slot=track-artwork]",
+  artworkState: "tbody tr [data-slot=artwork-state]",
+  cell: "tbody tr > td:first-child",
+  duration: "tbody tr td:last-child",
+  heart: "tbody tr td:nth-child(4) svg",
   row: "tbody tr",
-  title: "tbody tr td:nth-child(2) button > span:nth-child(2) > span:first-child",
-  unavailable: "tbody tr td:nth-child(2) button > span:nth-child(3) > span:last-child",
+  title: "tbody tr [data-slot=track-artwork] + div > p:first-child",
+  unavailable: "tbody tr [data-slot=track-artwork] + div + span",
 };
 
 type TrackRowState = {
@@ -79,12 +102,16 @@ function trackRowParts(state: TrackRowState): PartSpec[] {
     {
       name: "row",
       paper: {
-        backgroundColor: state.background,
         borderRadius: 6,
         height: 40,
         focusRing: state.focused ? insetFocusRing : undefined,
       },
       selector: rowSelectors.row,
+    },
+    {
+      name: "row fill",
+      paper: { backgroundColor: state.background, borderRadius: 6, paddingLeft: 16 },
+      selector: rowSelectors.cell,
     },
     {
       name: "artwork",
@@ -104,6 +131,7 @@ function trackRowParts(state: TrackRowState): PartSpec[] {
         fontFamily: "sans",
         fontSize: 13,
         fontWeight: 500,
+        left: 56,
         lineHeight: 16,
       },
       selector: rowSelectors.title,
@@ -115,17 +143,24 @@ function trackRowParts(state: TrackRowState): PartSpec[] {
     },
     {
       name: "album",
-      paper: { color: metadataColor, fontSize: 13, fontWeight: 400, lineHeight: 16 },
+      paper: { color: metadataColor, fontSize: 13, fontWeight: 400, lineHeight: 16, width: 384 },
       selector: rowSelectors.album,
     },
     {
-      name: "duration",
+      name: "added",
+      paper: { color: metadataColor, fontFamily: "sans", fontSize: 12, lineHeight: 16 },
+      selector: rowSelectors.added,
+    },
+    {
+      name: "time",
       paper: {
         color: metadataColor,
         fontFamily: "mono",
         fontSize: 12,
         lineHeight: 16,
-        width: 48,
+        paddingRight: 16,
+        // The 56px time slot (08c's rule, now on frame 17 too), its 16px gap and the row's padding
+        width: 88,
       },
       selector: rowSelectors.duration,
     },
@@ -150,10 +185,50 @@ function trackRowParts(state: TrackRowState): PartSpec[] {
   ];
 }
 
+function artworkStateParts(state: "paused" | "playing" | "selected"): PartSpec[] {
+  return [
+    {
+      name: "scrim",
+      paper: { backgroundColor: paper.scrim, height: 32, width: 32 },
+      selector: rowSelectors.artworkState,
+    },
+    state === "selected"
+      ? {
+          name: "check",
+          paper: { color: paper.neutral100, height: 14, width: 14 },
+          selector: `${rowSelectors.artworkState} svg`,
+        }
+      : {
+          name: "meter",
+          paper: { height: 14, width: 14 },
+          selector: `${rowSelectors.artworkState} > span`,
+        },
+    ...(state === "selected"
+      ? []
+      : [
+          {
+            name: "unlit dot",
+            paper: { backgroundColor: paper.white20, borderRadius: 0.5, height: 2, width: 2 },
+            selector: `${rowSelectors.artworkState} > span > span:first-child`,
+          },
+          {
+            name: "bottom dot",
+            paper: { backgroundColor: paper.amber, height: 2, width: 2 },
+            selector: `${rowSelectors.artworkState} > span > span:last-child > span`,
+          },
+          {
+            name: "upper dots",
+            paper: { opacity: state === "playing" ? 1 : 0 },
+            selector: `${rowSelectors.artworkState} > span > span:nth-last-child(2)`,
+          },
+        ]),
+  ];
+}
+
 export function TrackRowSection() {
   return (
     <Section
-      description="Frame 17. The app's TrackList, one row per state, with fixture playback."
+      description="Frame 17 and 17b. The app's TrackList, one row per state, with fixture playback."
       title="Track row"
     >
       <Specimen
@@ -167,12 +242,19 @@ export function TrackRowSection() {
         force={{ selector: rowSelectors.row, states: ["hover"] }}
         id="track-row.hover"
         label="Hover"
-        parts={trackRowParts({ background: paper.neutral850, liked: true })}
+        parts={[
+          ...trackRowParts({ background: paper.neutral850, liked: true }),
+          {
+            name: "more",
+            paper: { color: paper.neutral400, height: 24, opacity: 1, width: 24 },
+            selector: "tbody tr td:first-child button",
+          },
+        ]}
       >
         <TrackRowSpecimen track={componentStateTracks.hover} />
       </Specimen>
       <Specimen
-        force={{ selector: rowSelectors.row, states: ["focus-within"] }}
+        force={{ selector: rowSelectors.row, states: ["focus-visible"] }}
         id="track-row.focus"
         label="Focus (keyboard)"
         parts={trackRowParts({ background: paper.transparent, focused: true, liked: true })}
@@ -182,35 +264,93 @@ export function TrackRowSection() {
       <Specimen
         id="track-row.selected"
         label="Selected"
-        note="Not built: the app has no row selection yet (click plays)."
-        parts={trackRowParts({ background: paper.neutral800, liked: true })}
-      />
+        parts={[
+          ...trackRowParts({ background: paper.neutral800, liked: true }),
+          ...artworkStateParts("selected"),
+        ]}
+      >
+        <TrackRowSpecimen selected track={componentStateTracks.selected} />
+      </Specimen>
       <Specimen
         id="track-row.playing"
         label="Playing"
-        parts={trackRowParts({ background: paper.accent10, liked: true })}
+        parts={[
+          ...trackRowParts({ background: paper.accent10, liked: true }),
+          ...artworkStateParts("playing"),
+        ]}
       >
         <TrackRowSpecimen playback="playing" track={componentStateTracks.playing} />
       </Specimen>
       <Specimen
         id="track-row.paused"
         label="Current, paused"
-        parts={trackRowParts({ background: paper.accent10, liked: true })}
+        parts={[
+          ...trackRowParts({ background: paper.accent10, liked: true }),
+          ...artworkStateParts("paused"),
+        ]}
       >
         <TrackRowSpecimen playback="paused" track={componentStateTracks.playing} />
       </Specimen>
       <Specimen
         id="track-row.playing-selected"
         label="Playing + selected"
-        note="Not built: the app has no row selection yet."
-        parts={trackRowParts({ background: paper.neutral800, liked: true })}
-      />
+        parts={[
+          ...trackRowParts({ background: paper.neutral800, liked: true }),
+          ...artworkStateParts("playing"),
+        ]}
+      >
+        <TrackRowSpecimen playback="playing" selected track={componentStateTracks.playing} />
+      </Specimen>
       <Specimen
         id="track-row.unavailable"
         label="Unavailable"
         parts={trackRowParts({ background: paper.transparent, liked: false, unavailable: true })}
       >
         <TrackRowSpecimen track={componentStateTracks.unavailable} />
+      </Specimen>
+      <Specimen
+        id="track-row.missing-artwork"
+        label="No artwork"
+        parts={[
+          {
+            name: "tile",
+            paper: { backgroundColor: paper.neutral900, borderRadius: 4, height: 32, width: 32 },
+            selector: rowSelectors.artwork,
+          },
+          {
+            name: "note icon",
+            paper: { color: paper.neutral600, height: 14, width: 14 },
+            selector: `${rowSelectors.artwork} > svg`,
+          },
+        ]}
+      >
+        <TrackRowSpecimen track={roughDataTracks[2]} />
+      </Specimen>
+      <Specimen
+        id="track-row.playlist"
+        label="Playlist, playing"
+        parts={[
+          {
+            name: "number",
+            paper: {
+              color: paper.neutral500,
+              fontFamily: "mono",
+              fontSize: 12,
+              lineHeight: 16,
+              paddingLeft: 16,
+              width: 40,
+            },
+            selector: rowSelectors.cell,
+          },
+          { name: "artwork", paper: { left: 56 }, selector: rowSelectors.artwork },
+          {
+            name: "row fill",
+            paper: { backgroundColor: paper.accent10 },
+            selector: rowSelectors.cell,
+          },
+        ]}
+      >
+        <TrackRowSpecimen playback="playing" playlistId={1} track={componentStateTracks.playing} />
       </Specimen>
     </Section>
   );
@@ -955,7 +1095,7 @@ export function RoughDataSection() {
               letterSpacing: 0.96,
               lineHeight: 16,
             },
-            selector: "thead th:nth-child(2)",
+            selector: "thead th:first-child",
           },
           { name: "header row", paper: { height: 32 }, selector: "thead tr" },
           ...items.flatMap((_item, index) => [
@@ -967,12 +1107,12 @@ export function RoughDataSection() {
             {
               name: `row ${index + 1} title`,
               paper: { height: 16 },
-              selector: `tbody tr:nth-child(${index + 1}) td:nth-child(2) button > span:nth-child(2) > span:first-child`,
+              selector: `tbody tr:nth-child(${index + 1}) [data-slot=track-artwork] + div > p:first-child`,
             },
             {
               name: `row ${index + 1} time`,
-              paper: { width: 56 },
-              selector: `tbody tr:nth-child(${index + 1}) td:nth-child(4)`,
+              paper: { width: 88 },
+              selector: `tbody tr:nth-child(${index + 1}) td:last-child`,
             },
           ]),
         ]}

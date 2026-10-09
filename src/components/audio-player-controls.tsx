@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
+import { TrackArtwork } from "@/components/track-artwork";
 import { Slider } from "@/components/ui/slider";
 import { usePlayback, usePlaybackTime } from "@/hooks/use-playback";
 import { cn } from "@/lib/utils";
@@ -27,11 +27,7 @@ export function AudioPlayerControls() {
   return (
     <footer className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-t border-default bg-page/95 px-5 py-3 text-primary shadow-2xl backdrop-blur-sm">
       <div className="flex min-w-0 items-center gap-3">
-        <TrackArtwork
-          artworkUrl={activeTrack.artworkUrl}
-          className="size-12 rounded-md text-xs"
-          fallback={<ArtworkFallback track={activeTrack} />}
-        />
+        <TrackArtwork artworkUrl={activeTrack.artworkUrl} className="size-12 rounded-md" />
 
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="min-w-0 max-w-48 flex-1">

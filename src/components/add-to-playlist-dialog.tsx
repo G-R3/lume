@@ -156,11 +156,7 @@ export function AddToPlaylistDialog({
           >
             <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator px-4">
               <span className="flex h-6 max-w-48 shrink-0 items-center gap-1.5 rounded-md bg-overlay pr-2 pl-1">
-                <TrackArtwork
-                  artworkUrl={track.artworkUrl}
-                  className="h-4 w-3 rounded-xs"
-                  fallback={<span className="bg-raised" />}
-                />
+                <TrackArtwork artworkUrl={track.artworkUrl} className="h-4 w-3 rounded-xs" />
                 <span className="truncate text-meta text-primary">{track.title}</span>
               </span>
               <Autocomplete.Input
