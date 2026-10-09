@@ -101,10 +101,10 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
             <DropdownMenuItem
               disabled={removePlaylistTrack.isPending}
               onClick={() => handleRemove(item.sourceEntryId)}
-              variant="destructive"
+              variant="danger"
             >
               <MinusCircleIcon aria-hidden="true" />
-              Remove from playlist
+              <span className="truncate">Remove from {playlist.title}</span>
             </DropdownMenuItem>
           )}
         />

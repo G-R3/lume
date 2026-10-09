@@ -1,4 +1,4 @@
-import { DotsThreeIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, TrashIcon } from "@phosphor-icons/react";
 import { useParams } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
@@ -104,9 +104,10 @@ function PlaylistHeaderMenu({ playlist }: { playlist: PlaylistSummary }) {
         >
           <DotsThreeIcon aria-hidden="true" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-32 rounded-lg" finalFocus={false}>
-          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="destructive">
-            Delete playlist
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
+            <TrashIcon aria-hidden="true" />
+            Delete playlist…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -18,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
@@ -262,6 +263,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
       {selectedTrack && (
         <AddToPlaylistDialog
           finalFocus={addDialogTriggerRef}
+          onCreatePlaylist={handleCreatePlaylist}
           onOpenChange={setAddDialogOpen}
           open={addDialogOpen}
           track={selectedTrack}
@@ -308,26 +310,34 @@ function TrackRowMenu({
       >
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
+      <DropdownMenuContent align="end">
         {canAddToQueue && (
-          <DropdownMenuItem onClick={onAddToQueue}>
-            <ListPlusIcon aria-hidden="true" />
-            Add to queue
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem onClick={onAddToQueue}>
+              <ListPlusIcon aria-hidden="true" />
+              Add to queue
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
         )}
-        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
-          <PlusIcon aria-hidden="true" />
-          New playlist
-        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             if (triggerRef.current) onAddToPlaylist(track, triggerRef.current);
           }}
         >
           <PlaylistIcon aria-hidden="true" />
-          Add to playlist
+          Add to playlist…
         </DropdownMenuItem>
-        {children}
+        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
+          <PlusIcon aria-hidden="true" />
+          New playlist from track
+        </DropdownMenuItem>
+        {children && (
+          <>
+            <DropdownMenuSeparator />
+            {children}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

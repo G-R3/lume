@@ -1,4 +1,4 @@
-import { DotsThreeIcon, LockSimpleIcon, XIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, LockSimpleIcon, MinusCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Track } from "../../../shared/lib";
@@ -303,8 +303,9 @@ function QueueRowMenu({
       >
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
-        <DropdownMenuItem onClick={onRemove} variant="destructive">
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onRemove} variant="danger">
+          <MinusCircleIcon aria-hidden="true" />
           Remove from queue
         </DropdownMenuItem>
       </DropdownMenuContent>

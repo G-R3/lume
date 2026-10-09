@@ -9,6 +9,12 @@ import {
   SwitchSection,
   TrackRowSection,
 } from "@/states/sections";
+import {
+  DialogSection,
+  MenuSection,
+  PaletteSection,
+  ToastSection,
+} from "@/states/overlay-sections";
 
 declare global {
   interface Window {
@@ -76,6 +82,10 @@ export function StatesPage() {
         <ButtonSection />
         <FieldSection />
         <SwitchSection />
+        <MenuSection />
+        <DialogSection />
+        <PaletteSection />
+        <ToastSection />
         <NavRowSection />
         <RoughDataSection />
       </main>

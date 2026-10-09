@@ -2,6 +2,8 @@
 // the Paper file "Lume V2", page "Screens & states": frame 17 (component states) and frame 08c
 // (rough data). Nothing in the production app imports this file.
 
+import type { Track } from "../../shared/lib";
+
 /** One gradient stop in OKLab, as Paper writes it: lightness in percent, then a and b. */
 export type OklabStop = readonly [lightness: number, a: number, b: number];
 
@@ -290,4 +292,34 @@ export function createArtworkSvg(stops: readonly OklabStop[]) {
 
 export function createArtworkDataUrl(stops: readonly OklabStop[]) {
   return `data:image/svg+xml,${encodeURIComponent(createArtworkSvg(stops))}`;
+}
+
+export function toTrack(fixture: FixtureTrack, id: number): Track {
+  const artists = fixture.artists.length > 0 ? [...fixture.artists] : ["Unknown artist"];
+
+  return {
+    album: fixture.album ?? "Unknown album",
+    albumArtists: artists,
+    artists,
+    artworkUrl: fixture.artwork ? createArtworkDataUrl(fixture.artwork) : null,
+    available: fixture.available,
+    bitrate: null,
+    bitsPerSample: null,
+    channelCount: null,
+    codec: null,
+    discNumber: null,
+    discTotal: null,
+    duration: fixture.duration,
+    format: "FLAC",
+    genres: [],
+    id,
+    likedAt: fixture.liked ? 1 : null,
+    lossless: true,
+    sampleRate: null,
+    title: fixture.title ?? fixture.fileName,
+    trackNumber: null,
+    trackTotal: null,
+    url: "",
+    year: null,
+  };
 }

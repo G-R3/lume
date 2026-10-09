@@ -5,7 +5,6 @@ import {
   SidebarSimpleIcon,
 } from "@phosphor-icons/react";
 import type { ComponentProps, ReactNode } from "react";
-import type { Track } from "../../shared/lib";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -25,104 +24,14 @@ import { PlaybackContext } from "@/hooks/use-playback";
 import { TrackList } from "@/pages/tracks/track-list";
 import {
   componentStateTracks,
-  createArtworkDataUrl,
   type FixtureTrack,
   roughDataTracks,
+  toTrack,
 } from "@/states/fixtures";
 import type { PartSpec } from "@/states/measure";
+import { focusRing, insetFocusRing, paper } from "@/states/paper-values";
+import { idlePlayback } from "@/states/playback-fixture";
 import { Section, Specimen } from "@/states/specimen";
-
-// Paper's literal values (frame 17 and 08c, read with get_jsx on October 8, 2026). They are
-// written out instead of read from the app's tokens so a wrong token shows up as drift.
-const paper = {
-  accent10: "#EEBF5A1A",
-  amber: "#EEBF5A",
-  neutral50: "#FAFAFA",
-  neutral100: "#F5F5F5",
-  neutral400: "#A3A3A3",
-  neutral500: "#737373",
-  neutral600: "#525252",
-  neutral700: "#404040",
-  neutral750: "#333333",
-  neutral800: "#262626",
-  neutral850: "#1E1E1E",
-  neutral900: "#171717",
-  neutral950: "#0A0A0A",
-  red300: "#FFA2A2",
-  red350: "#FF7778",
-  red400: "#FF6467",
-  transparent: "transparent",
-} as const;
-
-const focusRing = `2px ${paper.neutral500} 2px`;
-
-const insetFocusRing = `2px ${paper.neutral500} -2px`;
-
-type PlaybackValue = NonNullable<ComponentProps<typeof PlaybackContext.Provider>["value"]>;
-
-const noop = () => {};
-
-const idlePlayback: PlaybackValue = {
-  activeQueueItemId: null,
-  activeSourceEntryId: null,
-  activeSourcePlaylistId: null,
-  activeTrack: null,
-  applySourceChange: noop,
-  canGoNext: false,
-  duration: 0,
-  enqueueTrack: noop,
-  errorMessage: null,
-  isInitialized: true,
-  isMuted: false,
-  isPlaying: false,
-  jumpToQueueItem: noop,
-  moveQueueItem: noop,
-  next: noop,
-  playSource: async () => {},
-  playSourceEntry: async () => {},
-  previous: noop,
-  queue: null,
-  removeQueueItem: noop,
-  seek: noop,
-  setShuffleEnabled: noop,
-  setVolume: noop,
-  shuffleEnabled: false,
-  shufflePlay: async () => {},
-  syncLibrary: noop,
-  toggleMute: noop,
-  togglePlayback: noop,
-  volume: 1,
-};
-
-function toTrack(fixture: FixtureTrack, id: number): Track {
-  const artists = fixture.artists.length > 0 ? [...fixture.artists] : ["Unknown artist"];
-
-  return {
-    album: fixture.album ?? "Unknown album",
-    albumArtists: artists,
-    artists,
-    artworkUrl: fixture.artwork ? createArtworkDataUrl(fixture.artwork) : null,
-    available: fixture.available,
-    bitrate: null,
-    bitsPerSample: null,
-    channelCount: null,
-    codec: null,
-    discNumber: null,
-    discTotal: null,
-    duration: fixture.duration,
-    format: "FLAC",
-    genres: [],
-    id,
-    likedAt: fixture.liked ? 1 : null,
-    lossless: true,
-    sampleRate: null,
-    title: fixture.title ?? fixture.fileName,
-    trackNumber: null,
-    trackTotal: null,
-    url: "",
-    year: null,
-  };
-}
 
 /** The app's track list with one row, under fixture playback state. */
 function TrackRowSpecimen({

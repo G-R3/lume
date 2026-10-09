@@ -4,16 +4,16 @@ import { type KeyboardEvent, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SidebarGroupAction } from "@/components/ui/sidebar";
@@ -101,56 +101,61 @@ export function CreatePlaylistDialog() {
       >
         <PlusIcon aria-hidden="true" />
       </DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Create playlist</DialogTitle>
-          <DialogDescription>Start with a name. You can add tracks next.</DialogDescription>
-        </DialogHeader>
-        <form id="create-playlist" noValidate onSubmit={handleSubmit} ref={formRef}>
-          <FieldGroup>
-            <Field>
-              <Label htmlFor="title">Title</Label>
-              <Input
-                aria-describedby={titleError ? "title-error" : undefined}
-                aria-invalid={titleError ? true : undefined}
-                autoFocus
-                id="title"
-                maxLength={100}
-                name="title"
-                onChange={() => setTitleError(null)}
-                ref={titleRef}
-                required
-              />
-              {titleError && (
-                <p className="text-meta text-danger" id="title-error">
-                  {titleError}
-                </p>
-              )}
-            </Field>
-            <Field>
-              <Label htmlFor="description">
-                Description <span className="font-normal">Optional</span>
-              </Label>
-              <Textarea
-                id="description"
-                maxLength={300}
-                name="description"
-                onKeyDown={handleDescriptionKeyDown}
-                placeholder="What’s it for?"
-              />
-            </Field>
-          </FieldGroup>
-        </form>
-        <FieldError>{createPlaylist.error?.message}</FieldError>
-        <DialogFooter className="flex flex-col">
-          <DialogClose disabled={createPlaylist.isPending} render={<Button>Cancel</Button>} />
+      <DialogContent>
+        <DialogBody>
+          <DialogTitle>New playlist</DialogTitle>
+          <form id="create-playlist" noValidate onSubmit={handleSubmit} ref={formRef}>
+            <FieldGroup>
+              <Field>
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  aria-describedby={titleError ? "title-error" : undefined}
+                  aria-invalid={titleError ? true : undefined}
+                  autoFocus
+                  id="title"
+                  maxLength={100}
+                  name="title"
+                  onChange={() => setTitleError(null)}
+                  ref={titleRef}
+                  required
+                />
+                {titleError && (
+                  <p className="text-meta text-danger" id="title-error">
+                    {titleError}
+                  </p>
+                )}
+              </Field>
+              <Field>
+                <Label htmlFor="description">
+                  Description <span className="font-normal">Optional</span>
+                </Label>
+                <Textarea
+                  id="description"
+                  maxLength={300}
+                  name="description"
+                  onKeyDown={handleDescriptionKeyDown}
+                  placeholder="What’s it for?"
+                />
+              </Field>
+            </FieldGroup>
+          </form>
+          <FieldError>{createPlaylist.error?.message}</FieldError>
+        </DialogBody>
+        <DialogFooter>
+          <DialogClose
+            disabled={createPlaylist.isPending}
+            render={<Button variant="ghost">Cancel</Button>}
+          />
           <Button
             busy={createPlaylist.isPending}
             form="create-playlist"
             type="submit"
             variant="primary"
           >
-            Create playlist
+            Create
+            <Kbd aria-hidden="true" variant="inverse">
+              ↵
+            </Kbd>
           </Button>
         </DialogFooter>
       </DialogContent>

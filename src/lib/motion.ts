@@ -1,7 +1,8 @@
-// Motion tokens. Components import these instead of writing their own springs,
-// curves or durations, so the app's feel changes in one place.
-// The CSS side (--ease-out, --ease-in-out, --ease-crossfade) lives in src/index.css.
-
+/**
+ * motion tokens will live here.
+ * for --ease-out, --ease-in-out, --ease-crossfade, see src/index.css
+ * --ease-spring-ui and --ease-spring-exit are sampled by motion's spring().toString()
+ */
 export const spring = {
   ui: { type: "spring", duration: 0.3, bounce: 0 },
   exit: { type: "spring", duration: 0.2, bounce: 0 },

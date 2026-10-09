@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
-import type { RefObject } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import type { PlaylistSummary } from "../../shared/lib";
 import {
   AlertDialog,
@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FieldError } from "@/components/ui/field";
+import { Kbd } from "@/components/ui/kbd";
 import { useLibraryMutation } from "@/lib/library-query";
 
 type DeletePlaylistDialogProps = {
@@ -53,30 +54,46 @@ export function DeletePlaylistDialog({
     );
   };
 
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Backspace" || !(window.lume.isMac ? event.metaKey : event.ctrlKey)) return;
+
+    event.preventDefault();
+
+    if (!libraryMutation.isPending) handleDelete();
+  };
+
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent finalFocus={finalFocus}>
+      <AlertDialogContent finalFocus={finalFocus} onKeyDown={handleKeyDown}>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {playlist.title}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This permanently deletes the playlist and its {playlist.trackCount.toLocaleString()}{" "}
-            {playlist.trackCount === 1 ? "track" : "tracks"}. Your music files will not be deleted.
-          </AlertDialogDescription>
+          <AlertDialogDescription>{describeTracks(playlist.trackCount)}</AlertDialogDescription>
+          <FieldError>{libraryMutation.error?.message}</FieldError>
         </AlertDialogHeader>
-
-        <FieldError>{libraryMutation.error?.message}</FieldError>
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={libraryMutation.isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
+            aria-keyshortcuts={window.lume.isMac ? "Meta+Backspace" : "Control+Backspace"}
             busy={libraryMutation.isPending}
             onClick={handleDelete}
             variant="danger"
           >
             Delete playlist
+            <Kbd aria-hidden="true" variant="danger">
+              {window.lume.isMac ? "⌘⌫" : "Ctrl ⌫"}
+            </Kbd>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   );
+}
+
+function describeTracks(trackCount: number) {
+  if (trackCount === 0) return "It has no tracks.";
+
+  if (trackCount === 1) return "Its one track stays in your library.";
+
+  return `Its ${trackCount.toLocaleString()} tracks stay in your library.`;
 }

@@ -1,4 +1,4 @@
-import { DotsThreeIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, GearIcon, MusicNotesIcon, TrashIcon } from "@phosphor-icons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { PlaylistSummary } from "../../../shared/lib";
@@ -122,9 +122,10 @@ function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
             </SidebarMenuAction>
           }
         />
-        <DropdownMenuContent className="w-32 rounded-lg" finalFocus={false}>
-          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="destructive">
-            Delete playlist
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
+            <TrashIcon aria-hidden="true" />
+            Delete playlist…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

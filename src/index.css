@@ -76,6 +76,12 @@
   --color-danger-subtle: color-mix(in oklab, var(--color-red-400) 14%, transparent);
   --color-danger-text: var(--color-red-300);
 
+  /* shortcut chips set into the primary and danger buttons */
+  --color-bg-inverse-kbd: oklch(0.145 0 0 / 8%);
+  --color-text-inverse-kbd: var(--color-neutral-600);
+  --color-bg-danger-kbd: oklch(0.145 0 0 / 12%);
+  --color-text-danger-kbd: oklch(0.145 0 0 / 85%);
+
   --color-outline-image: oklch(1 0 0 / 10%);
 }
 
@@ -114,6 +120,9 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
   --ease-crossfade: cubic-bezier(0.2, 0, 0, 1);
+  /* spring.ui (300ms) and spring.exit (200ms) sampled by motion's spring().toString() */
+  --ease-spring-ui: linear(0, 0.2738, 0.6079, 0.8122, 0.9157, 0.9637, 0.9848, 0.9938, 0.9975, 1);
+  --ease-spring-exit: linear(0, 0.4551, 0.8122, 0.9445, 0.9848, 0.996, 1);
 }
 
 @theme inline {
@@ -136,6 +145,8 @@
   --background-color-danger: var(--color-danger-solid);
   --background-color-danger-hover: var(--color-danger-solid-hover);
   --background-color-danger-subtle: var(--color-danger-subtle);
+  --background-color-inverse-kbd: var(--color-bg-inverse-kbd);
+  --background-color-danger-kbd: var(--color-bg-danger-kbd);
 
   --text-color-primary: var(--color-text-primary);
   --text-color-secondary: var(--color-text-secondary);
@@ -145,6 +156,8 @@
   --text-color-inverse: var(--color-text-inverse);
   --text-color-accent: var(--color-accent-text);
   --text-color-danger: var(--color-danger-text);
+  --text-color-inverse-kbd: var(--color-text-inverse-kbd);
+  --text-color-danger-kbd: var(--color-text-danger-kbd);
 
   --border-color-default: var(--color-border-default);
   --border-color-strong: var(--color-border-strong);
@@ -168,6 +181,7 @@
   --fill-primary: var(--color-text-primary);
   --fill-secondary: var(--color-text-secondary);
   --fill-accent: var(--color-accent-solid);
+  --fill-danger: var(--color-danger-solid);
   --stroke-accent: var(--color-accent-solid);
   --caret-color-accent: var(--color-accent-solid);
 }

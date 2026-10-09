@@ -20,9 +20,9 @@ const buttonVariants = cva(
         danger: "bg-danger text-inverse hover:not-data-disabled:bg-danger-hover",
       },
       size: {
-        // Icon-side padding is the text-side padding minus 2px
+        // Icon-side padding is the text-side padding minus 2px; a shortcut chip sits 8px from the edge
         default:
-          "h-8 gap-1.5 rounded-md px-3 text-body has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+          "h-8 gap-1.5 rounded-md px-3 text-body has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 has-data-[slot=kbd]:gap-2 has-data-[slot=kbd]:pr-2",
         sm: "h-6 gap-1.5 rounded-sm px-2 text-meta has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5",
         icon: "size-8 rounded-md",
         "icon-sm": "size-6 rounded-sm",
