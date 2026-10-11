@@ -1,8 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
-// Each column runs the same steps on its own cycle, so they drift apart. `still` is the column's
-// level (1–4) in the frame shown under reduced motion: Paper's 17b frame 1.
 const columns = [
   { cycle: "0.9s", delay: "0s", still: 2 },
   { cycle: "1.1s", delay: "-0.45s", still: 4 },
@@ -12,7 +10,6 @@ const columns = [
 
 const upperRows = [4, 3, 2];
 
-/** Paper 17b option A: a 4×4 dot meter. Paused keeps only the bottom row lit. */
 export function PlayingMeter({ playing }: { playing: boolean }) {
   const hidden = useSyncExternalStore(
     subscribeToVisibility,
