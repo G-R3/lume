@@ -6,7 +6,7 @@ import {
   PlusIcon,
 } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, type PointerEvent, type ReactNode, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
 import { usePlayback } from "@/hooks/use-playback";
 import { collectionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
@@ -23,6 +23,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
+import { showTruncatedText } from "@/lib/show-truncated-text";
 import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
@@ -212,7 +213,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
                     ? "*:bg-selected"
                     : isActive
                       ? "*:bg-accent-subtle"
-                      : "hover:*:bg-hover",
+                      : "hover:*:bg-page-hover",
                 )}
                 data-entry-id={item.sourceEntryId}
                 key={item.sourceEntryId}
@@ -345,18 +346,6 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
   );
 }
 
-// Long cells truncate; hovering one shows its full text, measured only when the pointer arrives.
-function showTruncatedText(event: PointerEvent<HTMLTableElement>) {
-  if (!(event.target instanceof Element)) return;
-
-  const cell = event.target.closest<HTMLElement>("[data-truncate]");
-
-  if (!cell) return;
-
-  if (cell.scrollWidth > cell.clientWidth) cell.title = cell.textContent ?? "";
-  else cell.removeAttribute("title");
-}
-
 function TrackRowMenu({
   canAddToQueue,
   children,
@@ -390,7 +379,7 @@ function TrackRowMenu({
             size="icon-sm"
             static
             tabIndex={tabIndex}
-            variant="ghost"
+            variant="row-action"
           />
         }
       >

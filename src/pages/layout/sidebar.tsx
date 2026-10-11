@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LibrarySource, PlaylistSummary } from "../../../shared/lib";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -14,7 +14,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -138,12 +137,19 @@ function PlaylistSidebarItem({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <SidebarMenuAction ref={menuTriggerRef} showOnHover>
-              <DotsThreeIcon aria-hidden="true" />
-              <span className="sr-only">More options for {playlist.title}</span>
-            </SidebarMenuAction>
+            <Button
+              aria-label={`More options for ${playlist.title}`}
+              className="absolute top-1 right-1 opacity-0 group-hover/menu-item:opacity-100 group-has-focus-visible/menu-item:opacity-100 data-popup-open:opacity-100"
+              onMouseDown={(event) => event.preventDefault()}
+              ref={menuTriggerRef}
+              size="icon-sm"
+              static
+              variant="row-action"
+            />
           }
-        />
+        >
+          <DotsThreeIcon aria-hidden="true" />
+        </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
             <TrashIcon aria-hidden="true" />

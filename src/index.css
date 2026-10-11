@@ -46,7 +46,8 @@
   --color-bg-overlay: var(--color-neutral-800);
   --color-bg-sunken: var(--color-neutral-950);
   --color-bg-scrim: oklch(0.145 0 0 / 60%);
-  --color-bg-hover: var(--color-neutral-850);
+  --color-bg-page-hover: var(--color-neutral-850);
+  --color-bg-raised-hover: var(--color-neutral-850);
   --color-bg-selected: var(--color-neutral-800);
   --color-bg-control: var(--color-neutral-800);
   --color-bg-control-hover: var(--color-neutral-750);
@@ -153,7 +154,8 @@
   --background-color-overlay: var(--color-bg-overlay);
   --background-color-sunken: var(--color-bg-sunken);
   --background-color-scrim: var(--color-bg-scrim);
-  --background-color-hover: var(--color-bg-hover);
+  --background-color-page-hover: var(--color-bg-page-hover);
+  --background-color-raised-hover: var(--color-bg-raised-hover);
   --background-color-selected: var(--color-bg-selected);
   --background-color-control: var(--color-bg-control);
   --background-color-control-hover: var(--color-bg-control-hover);

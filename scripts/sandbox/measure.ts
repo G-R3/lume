@@ -194,7 +194,10 @@ async function auditApp(page: Page, appUrl: string) {
     {
       hash: "#/",
       name: "playlist-menu",
-      open: (page) => page.locator('[data-sidebar="menu-action"]').first(),
+      open: (page) =>
+        page
+          .locator('[data-slot=sidebar-container] button[aria-label^="More options for"]')
+          .first(),
     },
   ];
 

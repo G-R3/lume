@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { installForcedStates } from "@/states/forced-states";
 import { measureSpecimens, type SpecimenResult } from "@/states/measure";
 import { PlayerSection } from "@/states/player-section";
+import { QueueSection } from "@/states/queue-section";
 import { MeasurementsContext } from "@/states/measurements-context";
 import {
   ButtonSection,
@@ -95,6 +96,7 @@ export function StatesPage() {
         <PaletteSection />
         <ToastSection />
         <NavRowSection />
+        <QueueSection />
         <RoughDataSection />
       </main>
     </MeasurementsContext.Provider>

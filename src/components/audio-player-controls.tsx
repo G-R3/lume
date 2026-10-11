@@ -57,7 +57,7 @@ export function AudioPlayerControls({
           className={cn(
             "relative",
             playback.shuffleEnabled &&
-              "text-accent aria-pressed:bg-transparent aria-pressed:hover:not-data-disabled:bg-hover hover:not-data-disabled:text-accent focus-visible:text-accent",
+              "text-accent aria-pressed:bg-transparent aria-pressed:hover:not-data-disabled:bg-page-hover hover:not-data-disabled:text-accent focus-visible:text-accent",
           )}
           disabled={!playback.isInitialized || playback.queue === null}
           onClick={() => playback.setShuffleEnabled(!playback.shuffleEnabled)}
