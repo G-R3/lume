@@ -202,6 +202,7 @@
 
   --fill-primary: var(--color-text-primary);
   --fill-secondary: var(--color-text-secondary);
+  --fill-track: var(--color-bg-track);
   --fill-accent: var(--color-accent-solid);
   --fill-danger: var(--color-danger-solid);
   --stroke-accent: var(--color-accent-solid);
@@ -225,23 +226,4 @@
     outline: 2px solid var(--color-border-focus);
     outline-offset: 2px;
   }
-}
-
-.audio-player-progress [data-slot="slider-texture"] {
-  background-image: url("data:image/svg+xml,%3Csvg width='4' height='4' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='.55' fill='%23fff' opacity='.38'/%3E%3C/svg%3E");
-  background-position: 0 1px;
-  background-repeat: repeat;
-  background-size: 4px 4px;
-}
-
-/* Keep the control clickable where the thumb's padded hit area extends beyond it. */
-.audio-player-slider [data-base-ui-slider-control]::before {
-  content: "";
-  position: absolute;
-  inset: 2px -4px;
-}
-
-/* The dot field stays fixed while the thumb moves its reveal mask. */
-.audio-player-progress:has([data-slot="slider"][data-dragging]) [data-slot="slider-texture"] {
-  opacity: 1;
 }

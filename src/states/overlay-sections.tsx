@@ -577,6 +577,8 @@ export function PaletteSection() {
                 <AddToPlaylistDialog
                   container={container}
                   finalFocus={paletteFinalFocus}
+                  initialFocus={false}
+                  modal={false}
                   onCreatePlaylist={() => {}}
                   onOpenChange={() => {}}
                   open

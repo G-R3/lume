@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { installForcedStates } from "@/states/forced-states";
 import { measureSpecimens, type SpecimenResult } from "@/states/measure";
+import { PlayerSection } from "@/states/player-section";
 import { MeasurementsContext } from "@/states/measurements-context";
 import {
   ButtonSection,
@@ -26,7 +28,12 @@ declare global {
 const measureEvent = "lume-states:measure";
 
 export function StatesPage() {
+  const root = useRef<HTMLElement>(null);
   const [results, setResults] = useState<ReadonlyMap<string, SpecimenResult>>(new Map());
+
+  useLayoutEffect(() => {
+    if (root.current) return installForcedStates(root.current);
+  }, []);
 
   const measure = useCallback(() => {
     const measured = measureSpecimens();
@@ -63,12 +70,12 @@ export function StatesPage() {
 
   return (
     <MeasurementsContext.Provider value={results}>
-      <main className="flex min-h-screen flex-col gap-16 bg-page p-12 text-primary">
+      <main className="flex min-h-screen flex-col gap-16 bg-page p-12 text-primary" ref={root}>
         <header className="flex items-baseline gap-4">
           <h1 className="text-display font-semibold">States</h1>
           <p className="text-meta text-secondary">
-            Development only. {drift} values differ from Paper. Hover and focus specimens show their
-            forced state only while scripts/sandbox/measure.ts runs.
+            Development only. {drift} values differ from Paper. Labeled hover and focus states stay
+            visible without moving the pointer or keyboard focus.
           </p>
           <button
             className="ml-auto h-8 rounded-md bg-control px-3 text-body font-medium text-primary hover:bg-control-hover"
@@ -78,6 +85,7 @@ export function StatesPage() {
             Measure again
           </button>
         </header>
+        <PlayerSection />
         <TrackRowSection />
         <ButtonSection />
         <FieldSection />

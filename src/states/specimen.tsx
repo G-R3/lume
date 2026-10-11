@@ -3,8 +3,7 @@ import { cn } from "@/lib/utils";
 import { type PartSpec, type SpecimenResult, specimenParts } from "@/states/measure";
 import { MeasurementsContext } from "@/states/measurements-context";
 
-/** Pseudo-classes the measure script forces through the DevTools protocol before measuring. */
-export type ForcedState = "focus-visible" | "focus-within" | "hover";
+export type ForcedState = "focus-visible" | "focus-within" | "hover" | "active" | "dragging";
 
 export function Section({
   children,
@@ -35,7 +34,6 @@ export function Specimen({
   parts,
 }: {
   children?: ReactNode;
-  /** Forces pseudo-classes on the element the selector matches, inside the specimen. */
   force?: { selector: string; states: readonly ForcedState[] };
   id: string;
   label: string;

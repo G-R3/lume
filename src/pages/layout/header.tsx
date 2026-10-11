@@ -10,16 +10,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSidebar } from "@/components/ui/sidebar";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation } from "@/lib/library-query";
-import { cn } from "@/lib/utils";
 
-export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queueOpen: boolean }) {
+export function AppHeader({ isSettings }: { isSettings: boolean }) {
   const library = useMusicLibrary();
   const libraryMutation = useLibraryMutation();
   const params = useParams({ strict: false });
-  const sidebar = useSidebar();
 
   const playlist = params.playlistId
     ? library.playlists.find((playlist) => playlist.id === params.playlistId)
@@ -29,44 +26,30 @@ export function AppHeader({ isSettings, queueOpen }: { isSettings: boolean; queu
 
   return (
     <>
-      <header
-        className={cn(
-          "flex h-12 shrink-0 items-center gap-4 px-4",
-          window.lume.isMac && "[-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
-        )}
-      >
-        {/* keeps the content clear of the traffic lights and the toggle, so nothing moves */}
-        {(sidebar.isMobile || sidebar.state === "collapsed") && (
-          <div aria-hidden="true" className="w-52 shrink-0" />
-        )}
+      <header className="flex h-14 shrink-0 items-center gap-4 px-6">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="truncate text-sm font-semibold tracking-tight">
             {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
           </h1>
           {!isSettings && playlist && (
-            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-[10px] text-secondary tabular-nums">
+            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-meta text-secondary tabular-nums">
               {playlist.trackCount.toLocaleString()}{" "}
               {playlist.trackCount === 1 ? "track" : "tracks"}
             </span>
           )}
           {!isSettings && !playlist && (
-            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-[10px] text-secondary tabular-nums">
+            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-meta text-secondary tabular-nums">
               {library.tracks.length.toLocaleString()}
             </span>
           )}
           {!isSettings && !playlist && unavailableTrackCount > 0 && (
-            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-[10px] text-secondary tabular-nums">
+            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-meta text-secondary tabular-nums">
               {unavailableTrackCount.toLocaleString()} unavailable
             </span>
           )}
         </div>
 
-        <div
-          className={cn(
-            "ml-auto mr-6 flex shrink-0 items-center gap-1 sm:mr-7",
-            queueOpen && "md:-mr-2",
-          )}
-        >
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {playlist && <PlaylistHeaderMenu playlist={playlist} />}
         </div>
       </header>

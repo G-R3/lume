@@ -20,17 +20,21 @@ type PaletteGroup = { items: PaletteItem[]; value: "actions" | "playlists" };
 
 const createItem: PaletteItem = { kind: "create" };
 
-type AddToPlaylistDialogProps = Pick<DialogPrimitive.Portal.Props, "container"> & {
-  finalFocus: RefObject<HTMLElement | null>;
-  onCreatePlaylist: (track: Track) => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-  track: Track;
-};
+type AddToPlaylistDialogProps = Pick<DialogPrimitive.Portal.Props, "container"> &
+  Pick<DialogPrimitive.Root.Props, "modal"> &
+  Pick<DialogPrimitive.Popup.Props, "initialFocus"> & {
+    finalFocus: RefObject<HTMLElement | null>;
+    onCreatePlaylist: (track: Track) => void;
+    onOpenChange: (open: boolean) => void;
+    open: boolean;
+    track: Track;
+  };
 
 export function AddToPlaylistDialog({
   container,
   finalFocus,
+  initialFocus,
+  modal = true,
   onCreatePlaylist,
   onOpenChange,
   open,
@@ -118,6 +122,7 @@ export function AddToPlaylistDialog({
 
   return (
     <Dialog
+      modal={modal}
       open={open}
       onOpenChange={handleOpenChange}
       onOpenChangeComplete={handleOpenChangeComplete}
@@ -128,6 +133,7 @@ export function AddToPlaylistDialog({
           className="fixed top-24 left-1/2 z-50 flex w-140 max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-clip rounded-xl bg-raised p-px text-primary shadow-dialog inset-ring inset-ring-default outline-none"
           data-slot="palette"
           finalFocus={finalFocus}
+          initialFocus={initialFocus}
         >
           <DialogTitle className="sr-only">Add to playlist</DialogTitle>
           <DialogDescription className="sr-only">

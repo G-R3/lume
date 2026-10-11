@@ -50,10 +50,9 @@ type PlaybackContextValue = Pick<
 
 type PlaybackTimeStore = ReturnType<typeof useMediaElement>["timeStore"];
 
-// Exported for the development states page (src/states), which renders rows with fixture playback.
 export const PlaybackContext = React.createContext<PlaybackContextValue | null>(null);
 
-const PlaybackTimeContext = React.createContext<PlaybackTimeStore | null>(null);
+export const PlaybackTimeContext = React.createContext<PlaybackTimeStore | null>(null);
 
 /** Lets components read the queue and control playback. */
 export function usePlayback() {
