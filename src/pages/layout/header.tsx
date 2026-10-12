@@ -22,29 +22,20 @@ export function AppHeader({ isSettings }: { isSettings: boolean }) {
     ? library.playlists.find((playlist) => playlist.id === params.playlistId)
     : undefined;
 
-  const unavailableTrackCount = library.tracks.filter((track) => !track.available).length;
+  // tracks page header is different from playlist and settings
+  if (!isSettings && !playlist) return null;
 
   return (
     <>
       <header className="flex h-14 shrink-0 items-center gap-4 px-6">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="truncate text-sm font-semibold tracking-tight">
-            {isSettings ? "Settings" : (playlist?.title ?? "All tracks")}
+            {isSettings ? "Settings" : playlist?.title}
           </h1>
           {!isSettings && playlist && (
             <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-meta text-secondary tabular-nums">
               {playlist.trackCount.toLocaleString()}{" "}
               {playlist.trackCount === 1 ? "track" : "tracks"}
-            </span>
-          )}
-          {!isSettings && !playlist && (
-            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-meta text-secondary tabular-nums">
-              {library.tracks.length.toLocaleString()}
-            </span>
-          )}
-          {!isSettings && !playlist && unavailableTrackCount > 0 && (
-            <span className="font-mono shrink-0 rounded bg-selected px-1.5 py-1 text-meta text-secondary tabular-nums">
-              {unavailableTrackCount.toLocaleString()} unavailable
             </span>
           )}
         </div>

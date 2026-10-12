@@ -18,7 +18,8 @@ const buttonVariants = cva(
         toolbar:
           "text-secondary hover:not-data-disabled:bg-page-hover hover:not-data-disabled:text-primary focus-visible:text-primary aria-expanded:bg-selected aria-expanded:hover:not-data-disabled:bg-selected aria-pressed:bg-selected aria-pressed:hover:not-data-disabled:bg-selected aria-[current=page]:bg-selected aria-[current=page]:text-primary aria-[current=page]:hover:not-data-disabled:bg-selected data-popup-open:bg-selected data-popup-open:text-primary",
         danger: "bg-danger text-inverse hover:not-data-disabled:bg-danger-hover",
-        // The ⋯ on list rows: one step above the hovered row, the same fill hovered or open
+        // the action triggers on the sidebar items or table rows. it's one step above the hovered row
+        // and it stays the same on hover or open.
         "row-action":
           "text-secondary hover:not-data-disabled:bg-selected hover:not-data-disabled:text-primary focus-visible:text-primary data-popup-open:bg-selected data-popup-open:text-primary",
       },
@@ -26,8 +27,11 @@ const buttonVariants = cva(
         // Icon-side padding is the text-side padding minus 2px; a shortcut chip sits 8px from the edge
         default:
           "h-8 gap-1.5 rounded-md px-3 text-body has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 has-data-[slot=kbd]:gap-2 has-data-[slot=kbd]:pr-2",
+        compact:
+          "h-7 gap-1.5 rounded-md px-2 text-meta has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         sm: "h-6 gap-1.5 rounded-sm px-2 text-meta has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5",
         icon: "size-8 rounded-md",
+        "icon-compact": "size-7 rounded-md [&_svg:not([class*='size-'])]:size-3.5",
         "icon-sm": "size-6 rounded-sm",
       },
     },

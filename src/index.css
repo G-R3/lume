@@ -148,6 +148,25 @@
 }
 
 @theme inline {
+  /*
+   * Scan glyph: each dot of the amber copy twinkles on its own clock. Inline, because
+   * the twinkle reads per-dot variables that don't exist where the theme's variables are defined.
+   */
+  --animate-glyph-twinkle: glyph-twinkle var(--twinkle-duration) var(--ease-in-out)
+    var(--twinkle-delay) infinite;
+
+  @keyframes glyph-twinkle {
+    0%,
+    100% {
+      opacity: var(--twinkle-low);
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
+@theme inline {
   --background-color-page: var(--color-bg-page);
   --background-color-raised: var(--color-bg-raised);
   --background-color-inset: var(--color-bg-inset);

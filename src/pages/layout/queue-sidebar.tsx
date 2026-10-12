@@ -31,7 +31,7 @@ import type { QueueItem, QueueLane } from "@/lib/queue/model";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import { cn } from "@/lib/utils";
 
-// Like Spotify, each lane shows a window of upcoming tracks that moves as playback advances.
+// queue shows a window of upcoming tracks that moves as playback advances
 const VISIBLE_ROWS = 50;
 
 const QUEUE_SIDEBAR_WIDTH = "20rem";

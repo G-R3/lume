@@ -6,7 +6,8 @@ import {
   PlusIcon,
 } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
+import { type KeyboardEvent, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { usePlayback } from "@/hooks/use-playback";
 import { collectionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
@@ -39,7 +40,16 @@ type TrackListProps = {
   renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
 
+const rowHeight = 40;
+
+const headerHeight = 32;
+
+// The 4px gap between the column header and the first row
+const listInset = 4;
+
+// TanStack Virtual's virtualizer is a mutable object, which the React Compiler can't memoize.
 export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
+  "use no memo";
   const playback = usePlayback();
   const navigate = useNavigate();
   const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
@@ -49,7 +59,33 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
+  const pendingFocusIndex = useRef<number | null>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
   const isPlaylist = playlistId !== undefined;
+
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    const scroller = table?.parentElement?.closest<HTMLElement>("[data-scroll-container]");
+
+    if (!table || !scroller) return;
+
+    setScrollElement(scroller);
+
+    const measure = () =>
+      setScrollMargin(
+        table.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top +
+          scroller.scrollTop,
+      );
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(table);
+
+    return () => observer.disconnect();
+  }, []);
 
   const handleAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
     addDialogTriggerRef.current = trigger;
@@ -101,26 +137,68 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     });
   };
 
+  const tabStopEntryId = items.some((item) => item.sourceEntryId === selectedEntryId)
+    ? selectedEntryId
+    : items[0]?.sourceEntryId;
+
+  const tabStopIndex = items.findIndex((item) => item.sourceEntryId === tabStopEntryId);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    enabled: scrollElement !== null,
+    estimateSize: () => rowHeight,
+    getScrollElement: () => scrollElement,
+    overscan: 8,
+    paddingStart: headerHeight + listInset,
+    // The tab stop always renders, so the list keeps its Tab stop and focus while scrolled away.
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+
+      return tabStopIndex < 0 || indexes.includes(tabStopIndex)
+        ? indexes
+        : [...indexes, tabStopIndex].sort((left, right) => left - right);
+    },
+    scrollMargin,
+    scrollPaddingStart: headerHeight + listInset,
+  });
+
+  const renderedIndexes = scrollElement
+    ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
+    : items.map((_item, index) => index);
+
   const focusRow = (index: number) => {
-    const item = items[Math.max(0, Math.min(items.length - 1, index))];
+    const target = Math.max(0, Math.min(items.length - 1, index));
+    const item = items[target];
 
     if (!item) return;
 
     setSelectedEntryId(item.sourceEntryId);
-    tableRef.current
-      ?.querySelector<HTMLElement>(`tr[data-entry-id="${item.sourceEntryId}"]`)
-      ?.focus();
+    pendingFocusIndex.current = target;
+
+    if (scrollElement) virtualizer.scrollToIndex(target);
   };
+
+  useLayoutEffect(() => {
+    const index = pendingFocusIndex.current;
+
+    if (index === null) return;
+
+    const row = tableRef.current?.querySelector<HTMLElement>(
+      `tr[data-entry-id="${items[index]?.sourceEntryId}"]`,
+    );
+
+    if (!row) return;
+
+    pendingFocusIndex.current = null;
+    row.focus({ preventScroll: scrollElement !== null });
+  });
 
   const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
 
     const pageSize = Math.max(
       1,
-      Math.floor(
-        (tableRef.current?.closest('[data-slot="sidebar-inset"]')?.clientHeight ??
-          window.innerHeight) / 40,
-      ) - 1,
+      Math.floor((scrollElement?.clientHeight ?? window.innerHeight) / rowHeight) - 1,
     );
 
     const target = {
@@ -145,21 +223,171 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     }
   };
 
-  const tabStopEntryId = items.some((item) => item.sourceEntryId === selectedEntryId)
-    ? selectedEntryId
-    : items[0]?.sourceEntryId;
+  function renderRow(index: number) {
+    const item = items[index];
+    const track = item.track;
+
+    const isActive =
+      playback.activeSourceEntryId === item.sourceEntryId &&
+      playback.activeSourcePlaylistId === (playlistId ?? null);
+
+    const isSelected = item.sourceEntryId === selectedEntryId;
+    const isTabStop = item.sourceEntryId === tabStopEntryId;
+    const metadataColor = track.available ? "text-secondary" : "text-disabled";
+
+    return (
+      <tr
+        aria-current={isActive ? "true" : undefined}
+        aria-rowindex={index + 2}
+        aria-selected={isSelected}
+        className={cn(
+          "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
+          isSelected ? "*:bg-selected" : isActive ? "*:bg-accent-subtle" : "hover:*:bg-page-hover",
+        )}
+        data-entry-id={item.sourceEntryId}
+        key={item.sourceEntryId}
+        onClick={() => setSelectedEntryId(item.sourceEntryId)}
+        onDoubleClick={() => playItem(item)}
+        onKeyDown={(event) => handleRowKeyDown(event, index)}
+        tabIndex={isTabStop ? 0 : -1}
+      >
+        {isPlaylist && (
+          <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">
+            {String(index + 1).padStart(2, "0")}
+          </td>
+        )}
+        <td className="pl-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <TrackArtwork
+              artworkUrl={track.artworkUrl}
+              className={cn("size-8", !track.available && "opacity-disabled")}
+              state={
+                isActive
+                  ? playback.isPlaying
+                    ? "playing"
+                    : "paused"
+                  : isSelected
+                    ? "selected"
+                    : undefined
+              }
+            />
+            <div className="min-w-0 flex-1">
+              <p
+                className={cn(
+                  "truncate text-left text-body font-medium",
+                  track.available ? "text-primary" : "text-disabled",
+                )}
+                data-truncate
+                dir="auto"
+              >
+                {track.title}
+              </p>
+              <p
+                className={cn("truncate text-left text-meta", metadataColor)}
+                data-truncate
+                dir="auto"
+              >
+                {track.artists.join(", ") || "Unknown artist"}
+              </p>
+            </div>
+            {!track.available && (
+              <span className="shrink-0 text-meta text-secondary">Unavailable</span>
+            )}
+            <div
+              className="contents"
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              <TrackRowMenu
+                canAddToQueue={playback.queue !== null}
+                isCreatingPlaylist={createPlaylistFromTrack.isPending}
+                onAddToQueue={() => playback.enqueueTrack(track.id)}
+                onAddToPlaylist={handleAddToPlaylist}
+                onCreatePlaylist={handleCreatePlaylist}
+                tabIndex={isTabStop ? 0 : -1}
+                track={track}
+              >
+                {renderMenuItems?.(item)}
+              </TrackRowMenu>
+            </div>
+          </div>
+        </td>
+        <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
+          <p className="truncate text-left text-body" data-truncate dir="auto">
+            {track.album || "Unknown album"}
+          </p>
+        </td>
+        <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
+          {formatAddedDate(track.addedAt)}
+        </td>
+        <td
+          className="pl-4"
+          onClick={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          <Button
+            aria-label={track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`}
+            aria-pressed={track.likedAt !== null}
+            className={cn(
+              "-m-1",
+              track.likedAt === null &&
+                "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
+            )}
+            onClick={() => handleSetTrackLiked(track)}
+            onPointerDown={(event) => event.preventDefault()}
+            size="icon-sm"
+            static
+            tabIndex={isTabStop ? 0 : -1}
+            type="button"
+            variant="ghost"
+          >
+            <HeartIcon aria-hidden="true" weight={track.likedAt === null ? "regular" : "fill"} />
+          </Button>
+        </td>
+        <td className={cn("pr-4 pl-4 text-right font-mono text-meta tabular-nums", metadataColor)}>
+          {formatDuration(track.duration)}
+        </td>
+      </tr>
+    );
+  }
+
+  const columnCount = isPlaylist ? 6 : 5;
+  const rows: ReactNode[] = [];
+  let nextIndex = 0;
+
+  const addGap = (end: number) => {
+    if (end <= nextIndex) return;
+
+    rows.push(
+      <tr aria-hidden="true" key={`gap-${nextIndex}`}>
+        <td colSpan={columnCount} style={{ height: (end - nextIndex) * rowHeight }} />
+      </tr>,
+    );
+  };
+
+  for (const index of renderedIndexes) {
+    addGap(index);
+    rows.push(renderRow(index));
+    nextIndex = index + 1;
+  }
+
+  if (scrollElement) addGap(items.length);
 
   return (
     <div className="@container" id="tracks">
       <table
         className="w-full table-fixed border-separate border-spacing-0 px-2"
         onPointerOver={showTruncatedText}
+        aria-rowcount={items.length + 1}
         ref={tableRef}
         role="grid"
       >
         <caption className="sr-only">{caption}</caption>
-        <thead className="text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
-          <tr>
+        <thead className="sticky top-0 z-10 text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
+          <tr
+            aria-rowindex={1}
+            className="*:bg-page *:first:relative *:first:before:absolute *:first:before:top-0 *:first:before:right-full *:first:before:-bottom-px *:first:before:w-2 *:first:before:border-b *:first:before:border-separator *:first:before:bg-page *:last:relative *:last:after:absolute *:last:after:top-0 *:last:after:-bottom-px *:last:after:left-full *:last:after:w-2 *:last:after:border-b *:last:after:border-separator *:last:after:bg-page"
+          >
             {isPlaylist && (
               <th className="h-8 w-10 border-b border-separator pl-4 font-normal" scope="col">
                 #
@@ -191,147 +419,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
             </th>
           </tr>
         </thead>
-        <tbody className="before:table-row before:h-1">
-          {items.map((item, index) => {
-            const track = item.track;
-
-            const isActive =
-              playback.activeSourceEntryId === item.sourceEntryId &&
-              playback.activeSourcePlaylistId === (playlistId ?? null);
-
-            const isSelected = item.sourceEntryId === selectedEntryId;
-            const isTabStop = item.sourceEntryId === tabStopEntryId;
-            const metadataColor = track.available ? "text-secondary" : "text-disabled";
-
-            return (
-              <tr
-                aria-current={isActive ? "true" : undefined}
-                aria-selected={isSelected}
-                className={cn(
-                  "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
-                  isSelected
-                    ? "*:bg-selected"
-                    : isActive
-                      ? "*:bg-accent-subtle"
-                      : "hover:*:bg-page-hover",
-                )}
-                data-entry-id={item.sourceEntryId}
-                key={item.sourceEntryId}
-                onClick={() => setSelectedEntryId(item.sourceEntryId)}
-                onDoubleClick={() => playItem(item)}
-                onKeyDown={(event) => handleRowKeyDown(event, index)}
-                tabIndex={isTabStop ? 0 : -1}
-              >
-                {isPlaylist && (
-                  <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">
-                    {String(index + 1).padStart(2, "0")}
-                  </td>
-                )}
-                <td className="pl-4">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <TrackArtwork
-                      artworkUrl={track.artworkUrl}
-                      className={cn("size-8", !track.available && "opacity-disabled")}
-                      state={
-                        isActive
-                          ? playback.isPlaying
-                            ? "playing"
-                            : "paused"
-                          : isSelected
-                            ? "selected"
-                            : undefined
-                      }
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={cn(
-                          "truncate text-left text-body font-medium",
-                          track.available ? "text-primary" : "text-disabled",
-                        )}
-                        data-truncate
-                        dir="auto"
-                      >
-                        {track.title}
-                      </p>
-                      <p
-                        className={cn("truncate text-left text-meta", metadataColor)}
-                        data-truncate
-                        dir="auto"
-                      >
-                        {track.artists.join(", ") || "Unknown artist"}
-                      </p>
-                    </div>
-                    {!track.available && (
-                      <span className="shrink-0 text-meta text-secondary">Unavailable</span>
-                    )}
-                    <div
-                      className="contents"
-                      onClick={(event) => event.stopPropagation()}
-                      onDoubleClick={(event) => event.stopPropagation()}
-                    >
-                      <TrackRowMenu
-                        canAddToQueue={playback.queue !== null}
-                        isCreatingPlaylist={createPlaylistFromTrack.isPending}
-                        onAddToQueue={() => playback.enqueueTrack(track.id)}
-                        onAddToPlaylist={handleAddToPlaylist}
-                        onCreatePlaylist={handleCreatePlaylist}
-                        tabIndex={isTabStop ? 0 : -1}
-                        track={track}
-                      >
-                        {renderMenuItems?.(item)}
-                      </TrackRowMenu>
-                    </div>
-                  </div>
-                </td>
-                <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
-                  <p className="truncate text-left text-body" data-truncate dir="auto">
-                    {track.album || "Unknown album"}
-                  </p>
-                </td>
-                <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
-                  {formatAddedDate(track.addedAt)}
-                </td>
-                <td
-                  className="pl-4"
-                  onClick={(event) => event.stopPropagation()}
-                  onDoubleClick={(event) => event.stopPropagation()}
-                >
-                  <Button
-                    aria-label={
-                      track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`
-                    }
-                    aria-pressed={track.likedAt !== null}
-                    className={cn(
-                      "-m-1",
-                      track.likedAt === null &&
-                        "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
-                    )}
-                    onClick={() => handleSetTrackLiked(track)}
-                    onPointerDown={(event) => event.preventDefault()}
-                    size="icon-sm"
-                    static
-                    tabIndex={isTabStop ? 0 : -1}
-                    type="button"
-                    variant="ghost"
-                  >
-                    <HeartIcon
-                      aria-hidden="true"
-                      weight={track.likedAt === null ? "regular" : "fill"}
-                    />
-                  </Button>
-                </td>
-                <td
-                  className={cn(
-                    "pr-4 pl-4 text-right font-mono text-meta tabular-nums",
-                    metadataColor,
-                  )}
-                >
-                  {formatDuration(track.duration)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
+        <tbody className="before:table-row before:h-1">{rows}</tbody>
       </table>
       {trackToAdd && (
         <AddToPlaylistDialog

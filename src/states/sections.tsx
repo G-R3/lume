@@ -1,15 +1,13 @@
 import {
   DotsThreeIcon,
-  FunnelSimpleIcon,
   ShuffleAngularIcon,
   SidebarSimpleIcon,
 } from "@phosphor-icons/react";
-import { type ComponentProps, type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
+import { FilterField } from "@/components/filter-field";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import {
   SidebarMenu,
@@ -372,11 +370,22 @@ type ButtonPaper = {
   color: Record<ButtonState, string>;
 };
 
-type ButtonSize = "icon" | "small" | "text";
+type ButtonSize = "compact" | "icon" | "icon-compact" | "small" | "text";
 
-// Frame 17 for the 32px sizes; the 24px buttons from 09 ("Scan again", "Manage folders").
+// Frame 17 for the 32px sizes; the 24px buttons from 09 ("Scan again", "Manage folders"). The 28px
+// compact sizes aren't in Paper: they keep the pre-redesign density (Phase 12, user).
 const buttonBoxes = {
+  compact: {
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500,
+    height: 28,
+    lineHeight: 16,
+    paddingLeft: 8,
+    paddingRight: 8,
+  },
   icon: { borderRadius: 6, height: 32, width: 32 },
+  "icon-compact": { borderRadius: 6, height: 28, width: 28 },
   small: {
     borderRadius: 4,
     fontSize: 12,
@@ -412,6 +421,9 @@ function buttonParts(state: ButtonState, values: ButtonPaper, size: ButtonSize):
     },
     ...(size === "icon"
       ? [{ name: "icon", paper: { height: 16, width: 16 }, selector: "button svg" }]
+      : []),
+    ...(size === "icon-compact"
+      ? [{ name: "icon", paper: { height: 14, width: 14 }, selector: "button svg" }]
       : []),
   ];
 }
@@ -538,12 +550,49 @@ const buttonKinds: readonly {
     ),
     size: "small",
   },
+  {
+    id: "compact-secondary",
+    label: "Compact secondary",
+    paper: {
+      background: { ...sameInEveryState(paper.neutral800), hover: paper.neutral750 },
+      color: sameInEveryState(paper.neutral100),
+    },
+    render: (state) => (
+      <Button disabled={state === "disabled"} size="compact">
+        Shuffle
+      </Button>
+    ),
+    size: "compact",
+  },
+  {
+    id: "icon-compact",
+    label: "Compact icon (toolbar)",
+    paper: {
+      background: { ...sameInEveryState(paper.transparent), hover: paper.neutral850 },
+      color: {
+        ...sameInEveryState(paper.neutral400),
+        focus: paper.neutral100,
+        hover: paper.neutral100,
+      },
+    },
+    render: (state) => (
+      <Button
+        aria-label="More options"
+        disabled={state === "disabled"}
+        size="icon-compact"
+        variant="toolbar"
+      >
+        <DotsThreeIcon aria-hidden="true" />
+      </Button>
+    ),
+    size: "icon-compact",
+  },
 ];
 
 export function ButtonSection() {
   return (
     <Section
-      description="Frame 17 (32px) and the 24px buttons in 09. The 24px hover, focus and disabled values follow the 32px rows; Paper only draws them at rest."
+      description="Frame 17 (32px) and the 24px buttons in 09. The 24px hover, focus and disabled values follow the 32px rows; Paper only draws them at rest. The 28px compact sizes aren't in Paper; their values are the pre-redesign buttons'."
       title="Buttons"
     >
       {buttonKinds.flatMap((kind) =>
@@ -787,21 +836,6 @@ function filterParts(state: FilterState): PartSpec[] {
   ];
 }
 
-// How the Library screens will compose the filter: shadcn's InputGroup on the page's raised fill.
-function FilterField(props: ComponentProps<typeof InputGroupInput>) {
-  return (
-    <InputGroup className="bg-raised">
-      <InputGroupInput aria-label="Filter tracks" {...props} />
-      <InputGroupAddon>
-        <FunnelSimpleIcon aria-hidden="true" />
-      </InputGroupAddon>
-      <InputGroupAddon align="inline-end">
-        <Kbd aria-hidden="true">/</Kbd>
-      </InputGroupAddon>
-    </InputGroup>
-  );
-}
-
 export function FieldSection() {
   return (
     <Section
@@ -872,7 +906,7 @@ export function FieldSection() {
       </Specimen>
       <Specimen id="field.filter" label="Filter" parts={filterParts("default")}>
         <div className="w-74">
-          <FilterField placeholder="Filter tracks" />
+          <FilterField aria-label="Filter tracks" placeholder="Filter tracks" />
         </div>
       </Specimen>
       <Specimen
@@ -882,7 +916,7 @@ export function FieldSection() {
         parts={filterParts("hover")}
       >
         <div className="w-74">
-          <FilterField placeholder="Filter tracks" />
+          <FilterField aria-label="Filter tracks" placeholder="Filter tracks" />
         </div>
       </Specimen>
       <Specimen
@@ -892,7 +926,7 @@ export function FieldSection() {
         parts={filterParts("focus")}
       >
         <div className="w-74">
-          <FilterField defaultValue="night" />
+          <FilterField aria-label="Filter tracks" defaultValue="night" />
         </div>
       </Specimen>
     </Section>
