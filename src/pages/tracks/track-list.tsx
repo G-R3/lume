@@ -383,42 +383,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
         role="grid"
       >
         <caption className="sr-only">{caption}</caption>
-        <thead className="sticky top-0 z-10 text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
-          <tr
-            aria-rowindex={1}
-            className="*:bg-page *:first:relative *:first:before:absolute *:first:before:top-0 *:first:before:right-full *:first:before:-bottom-px *:first:before:w-2 *:first:before:border-b *:first:before:border-separator *:first:before:bg-page *:last:relative *:last:after:absolute *:last:after:top-0 *:last:after:-bottom-px *:last:after:left-full *:last:after:w-2 *:last:after:border-b *:last:after:border-separator *:last:after:bg-page"
-          >
-            {isPlaylist && (
-              <th className="h-8 w-10 border-b border-separator pl-4 font-normal" scope="col">
-                #
-              </th>
-            )}
-            <th className="h-8 border-b border-separator pl-14 font-normal" scope="col">
-              Title
-            </th>
-            <th
-              className="hidden h-8 w-[30%] border-b border-separator pl-4 font-normal @3xl:table-cell @6xl:w-100"
-              scope="col"
-            >
-              Album
-            </th>
-            <th
-              className="hidden h-8 w-28 border-b border-separator pl-4 font-normal @3xl:table-cell"
-              scope="col"
-            >
-              Added
-            </th>
-            <th className="h-8 w-8 border-b border-separator font-normal" scope="col">
-              <span className="sr-only">Like</span>
-            </th>
-            <th
-              className="h-8 w-22 border-b border-separator pr-4 pl-4 text-right font-normal"
-              scope="col"
-            >
-              Time
-            </th>
-          </tr>
-        </thead>
+        <TrackListHead isPlaylist={isPlaylist} />
         <tbody className="before:table-row before:h-1">{rows}</tbody>
       </table>
       {trackToAdd && (
@@ -430,6 +395,91 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
           track={trackToAdd}
         />
       )}
+    </div>
+  );
+}
+
+function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
+  return (
+    <thead className="sticky top-0 z-10 text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
+      <tr
+        aria-rowindex={1}
+        className="*:bg-page *:first:relative *:first:before:absolute *:first:before:top-0 *:first:before:right-full *:first:before:-bottom-px *:first:before:w-2 *:first:before:border-b *:first:before:border-separator *:first:before:bg-page *:last:relative *:last:after:absolute *:last:after:top-0 *:last:after:-bottom-px *:last:after:left-full *:last:after:w-2 *:last:after:border-b *:last:after:border-separator *:last:after:bg-page"
+      >
+        {isPlaylist && (
+          <th className="h-8 w-10 border-b border-separator pl-4 font-normal" scope="col">
+            #
+          </th>
+        )}
+        <th className="h-8 border-b border-separator pl-14 font-normal" scope="col">
+          Title
+        </th>
+        <th
+          className="hidden h-8 w-[30%] border-b border-separator pl-4 font-normal @3xl:table-cell @6xl:w-100"
+          scope="col"
+        >
+          Album
+        </th>
+        <th
+          className="hidden h-8 w-28 border-b border-separator pl-4 font-normal @3xl:table-cell"
+          scope="col"
+        >
+          Added
+        </th>
+        <th className="h-8 w-8 border-b border-separator font-normal" scope="col">
+          <span className="sr-only">Like</span>
+        </th>
+        <th
+          className="h-8 w-22 border-b border-separator pr-4 pl-4 text-right font-normal"
+          scope="col"
+        >
+          Time
+        </th>
+      </tr>
+    </thead>
+  );
+}
+
+// Paper's placeholder rows (frame 11 B): title, artist and album widths, and opacity
+const skeletonRows = [
+  [144, 88, 120, 1],
+  [112, 64, 160, 0.8],
+  [176, 104, 88, 0.6],
+  [96, 72, 136, 0.45],
+  [152, 88, 104, 0.3],
+  [128, 96, 120, 0.15],
+];
+
+export function TrackListSkeleton({ isPlaylist }: { isPlaylist: boolean }) {
+  return (
+    <div aria-hidden="true" className="@container">
+      <table className="w-full table-fixed border-separate border-spacing-0 px-2">
+        <TrackListHead isPlaylist={isPlaylist} />
+        <tbody className="before:table-row before:h-1">
+          {skeletonRows.map(([title, artist, album, opacity], index) => (
+            <tr className="*:h-10" key={index} style={{ opacity }}>
+              {isPlaylist && <td />}
+              <td className="pl-4">
+                <div className="flex items-center gap-2">
+                  <span className="size-8 shrink-0 rounded-sm bg-raised" />
+                  <span className="flex flex-col gap-1.5">
+                    <span className="h-2 rounded-xs bg-raised" style={{ width: title }} />
+                    <span className="h-2 rounded-xs bg-raised" style={{ width: artist }} />
+                  </span>
+                </div>
+              </td>
+              <td className="hidden pl-4 @3xl:table-cell">
+                <span className="block h-2 rounded-xs bg-raised" style={{ width: album }} />
+              </td>
+              <td className="hidden @3xl:table-cell" />
+              <td />
+              <td className="pr-4">
+                <span className="ml-auto block h-2 w-7 rounded-xs bg-raised" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

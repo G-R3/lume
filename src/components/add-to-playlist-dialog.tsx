@@ -1,8 +1,9 @@
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { type RefObject, useState } from "react";
 import type { PlaylistSummary, Track } from "../../shared/lib";
+import { PlaylistCover } from "@/components/playlist-cover";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
@@ -231,9 +232,7 @@ function PaletteRow({
           <PlusIcon aria-hidden="true" className="size-3 text-secondary" />
         </span>
       ) : (
-        <span className="grid size-6 shrink-0 place-items-center rounded-sm bg-overlay outline outline-offset-[-1px] outline-image">
-          <PlaylistIcon aria-hidden="true" className="size-3 text-secondary" />
-        </span>
+        <PlaylistCover className="size-6" playlist={item.playlist} />
       )}
       <span className="min-w-0 flex-1 truncate">
         {item.kind === "create" ? "New playlist with this track" : item.playlist.title}

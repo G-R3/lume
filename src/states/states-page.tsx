@@ -4,6 +4,7 @@ import { LibrarySection } from "@/states/library-section";
 import { measureSpecimens, type SpecimenResult } from "@/states/measure";
 import { PlayerSection } from "@/states/player-section";
 import { QueueSection } from "@/states/queue-section";
+import { ScreensSection } from "@/states/screens-section";
 import { MeasurementsContext } from "@/states/measurements-context";
 import {
   ButtonSection,
@@ -99,6 +100,7 @@ export function StatesPage() {
         <NavRowSection />
         <QueueSection />
         <LibrarySection />
+        <ScreensSection />
         <RoughDataSection />
       </main>
     </MeasurementsContext.Provider>

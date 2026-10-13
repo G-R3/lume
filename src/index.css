@@ -10,6 +10,14 @@
   src: url("/BerkeleyMono-Regular.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Berkeley Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/BerkeleyMono-Bold.woff2") format("woff2");
+}
+
 :root {
   --color-neutral-50: oklch(0.985 0 0);
   --color-neutral-100: oklch(0.97 0 0);

@@ -17,6 +17,8 @@ export const ease = {
 export const duration = {
   fast: 0.15,
   exit: 0.1,
+  enter: 0.25,
+  move: 0.2,
 } as const;
 
 export const pressScale = 0.96;

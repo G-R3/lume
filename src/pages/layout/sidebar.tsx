@@ -1,6 +1,7 @@
 import { DotsThreeIcon, GearIcon, MusicNotesIcon, TrashIcon } from "@phosphor-icons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { type Ref, useRef, useState } from "react";
 import type { LibrarySource, PlaylistSummary } from "../../../shared/lib";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
@@ -17,8 +18,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { usePlayback } from "@/hooks/use-playback";
+import { duration, ease } from "@/lib/motion";
 import { getSourceName } from "@/lib/source-name";
 import { cn } from "@/lib/utils";
 import {
@@ -60,14 +63,17 @@ export function AppSidebar() {
             <CreatePlaylistDialog />
           </div>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {library.playlists.map((playlist) => (
-                <PlaylistSidebarItem
-                  isPlayingFrom={playback.activeSourcePlaylistId === playlist.id}
-                  key={playlist.id}
-                  playlist={playlist}
-                />
-              ))}
+            <SidebarMenu className="relative">
+              {/* playlists that are created or deleted later slide in and out */}
+              <AnimatePresence initial={false} mode="popLayout">
+                {library.playlists.map((playlist) => (
+                  <PlaylistSidebarItem
+                    isPlayingFrom={playback.activeSourcePlaylistId === playlist.id}
+                    key={playlist.id}
+                    playlist={playlist}
+                  />
+                ))}
+              </AnimatePresence>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -108,12 +114,16 @@ function PlayingFromDot() {
   );
 }
 
+const MotionSidebarMenuItem = motion.create(SidebarMenuItem);
+
 function PlaylistSidebarItem({
   isPlayingFrom,
   playlist,
+  ref,
 }: {
   isPlayingFrom: boolean;
   playlist: PlaylistSummary;
+  ref?: Ref<HTMLLIElement>;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -122,7 +132,18 @@ function PlaylistSidebarItem({
   const isActive = params.playlistId === playlist.id;
 
   return (
-    <SidebarMenuItem>
+    <MotionSidebarMenuItem
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, transition: { duration: duration.fast, ease: ease.out }, y: -4 }}
+      initial={{ opacity: 0, y: -4 }}
+      layout="position"
+      ref={ref}
+      transition={{
+        duration: duration.enter,
+        ease: ease.out,
+        layout: { duration: duration.move, ease: ease.inOut },
+      }}
+    >
       <SidebarMenuButton
         isActive={isActive}
         render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
@@ -163,7 +184,7 @@ function PlaylistSidebarItem({
         open={deleteOpen}
         playlist={playlist}
       />
-    </SidebarMenuItem>
+    </MotionSidebarMenuItem>
   );
 }
 
@@ -218,16 +239,4 @@ function formatScanAge(scannedAt: number, now: number) {
   if (minutes < 24 * 60) return `scanned ${Math.floor(minutes / 60)}h`;
 
   return `scanned ${scanDateFormatter.format(scannedAt)}`;
-}
-
-function useMinuteClock() {
-  const [now, setNow] = useState(Date.now);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
-
-    return () => window.clearInterval(interval);
-  }, []);
-
-  return now;
 }

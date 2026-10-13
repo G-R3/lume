@@ -1,8 +1,7 @@
-import { Outlet, useLocation } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { AudioPlayerControls } from "@/components/audio-player-controls";
-import { AppHeader } from "@/pages/layout/header";
 import { AppSidebar } from "@/pages/layout/sidebar";
 import { QueueSidebar } from "@/pages/layout/queue-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -17,11 +16,6 @@ export function AppLayout() {
   const syncLibrary = playback.syncLibrary;
   const [queueOpen, setQueueOpen] = useState(false);
   const toggleQueue = () => setQueueOpen((open) => !open);
-
-  const isSettings = useLocation({
-    select: (location) =>
-      location.pathname === "/settings" || location.pathname.startsWith("/settings/"),
-  });
 
   useEffect(() => {
     syncLibrary(library);
@@ -38,8 +32,7 @@ export function AppLayout() {
         <div className="flex min-w-0 flex-1 flex-col">
           <AudioPlayerControls queueOpen={queueOpen} toggleQueue={toggleQueue} />
           <div className="relative flex min-h-0 flex-1">
-            <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page" data-scroll-container>
-              <AppHeader isSettings={isSettings} />
+            <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page">
               <div className="flex min-h-0 flex-1 flex-col">
                 {playback.errorMessage && (
                   <p className="m-4 text-sm text-danger" role="alert">
