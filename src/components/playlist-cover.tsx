@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 
-// Playlists have no artwork yet. Each gets one of Paper's playlist gradients, picked by its ID.
 const gradients = [
   "linear-gradient(in oklab 140deg, oklab(26% 0.03 -0.09) 0%, oklab(42% 0.06 -0.12) 55%, oklab(70% 0.05 0.1) 100%)",
   "linear-gradient(in oklab 140deg, oklab(30% -0.02 -0.04) 0%, oklab(52% -0.04 -0.03) 55%, oklab(76% -0.02 0.02) 100%)",

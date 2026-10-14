@@ -20,7 +20,8 @@ function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
 }
 
 // Opens with a 150ms scale and fade from the trigger, closes with a 100ms fade (the menu trial in
-// the motion brief). Reduced motion keeps only the fade.
+// the motion brief). Reduced motion keeps only the fade. Opening from the keyboard and closing with
+// Escape are instant (Base UI's `data-instant`).
 function DropdownMenuContent({
   align = "start",
   alignOffset = 0,
@@ -45,7 +46,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "max-h-(--available-height) w-60 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-raised p-1 text-primary shadow-menu inset-ring inset-ring-default outline-none transition-[opacity,scale] duration-150 ease-out data-starting-style:opacity-0 motion-safe:data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:duration-100",
+            "max-h-(--available-height) w-60 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-raised p-1 text-primary shadow-menu inset-ring inset-ring-default outline-none transition-[opacity,scale] duration-150 ease-out data-starting-style:opacity-0 motion-safe:data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:duration-100 data-instant:duration-0",
             className,
           )}
           finalFocus={finalFocus}

@@ -54,9 +54,16 @@ function TrackRowSpecimen({
           isPlaying: playback === "playing",
         };
 
-  // Selection is the list's own state; a click is how it gets there.
+  // Selection is the list's own state; a click is how it gets there. The list renders its rows
+  // after its first commit, so the click waits a frame.
   useEffect(() => {
-    if (selected) ref.current?.querySelector<HTMLElement>("tbody tr")?.click();
+    if (!selected) return;
+
+    const frame = requestAnimationFrame(() =>
+      ref.current?.querySelector<HTMLElement>("tbody tr")?.click(),
+    );
+
+    return () => cancelAnimationFrame(frame);
   }, [selected]);
 
   return (

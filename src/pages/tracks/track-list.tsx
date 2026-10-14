@@ -1,17 +1,20 @@
-import {
-  DotsThreeIcon,
-  HeartIcon,
-  ListPlusIcon,
-  PlaylistIcon,
-  PlusIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeIcon, ListPlusIcon, PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
-import { type KeyboardEvent, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  memo,
+  type ReactNode,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePlayback } from "@/hooks/use-playback";
 import { collectionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
+import { LikeButton } from "@/components/like-button";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,53 +50,54 @@ const headerHeight = 32;
 // The 4px gap between the column header and the first row
 const listInset = 4;
 
-// TanStack Virtual's virtualizer is a mutable object, which the React Compiler can't memoize.
+// The React Compiler skips this component: it lists `useVirtualizer` as incompatible with
+// memoization. That's why the row callbacks go through `useStableActions` instead.
 export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
-  "use no memo";
   const playback = usePlayback();
   const navigate = useNavigate();
   const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
   const setTrackLiked = useSetTrackLiked();
-  const addDialogTriggerRef = useRef<HTMLElement | null>(null);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const addToPlaylistTriggerRef = useRef<HTMLElement | null>(null);
+  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const pendingFocusIndex = useRef<number | null>(null);
-  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
+  // `undefined` until the first layout effect has looked for the list's scroll container
+  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null | undefined>(undefined);
   const [scrollMargin, setScrollMargin] = useState(0);
   const isPlaylist = playlistId !== undefined;
 
   useLayoutEffect(() => {
     const table = tableRef.current;
-    const scroller = table?.parentElement?.closest<HTMLElement>("[data-scroll-container]");
+    const container = table?.parentElement?.closest<HTMLElement>("[data-scroll-container]") ?? null;
 
-    if (!table || !scroller) return;
+    setScrollContainer(container);
 
-    setScrollElement(scroller);
+    if (!table || !container) return;
 
-    const measure = () =>
+    const measureScrollMargin = () =>
       setScrollMargin(
         table.getBoundingClientRect().top -
-          scroller.getBoundingClientRect().top +
-          scroller.scrollTop,
+          container.getBoundingClientRect().top +
+          container.scrollTop,
       );
 
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(scroller);
+    measureScrollMargin();
+    const observer = new ResizeObserver(measureScrollMargin);
+    observer.observe(container);
     observer.observe(table);
 
     return () => observer.disconnect();
   }, []);
 
-  const handleAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
-    addDialogTriggerRef.current = trigger;
+  const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
+    addToPlaylistTriggerRef.current = trigger;
     setTrackToAdd(track);
-    setAddDialogOpen(true);
+    setIsAddToPlaylistOpen(true);
   };
 
-  const handleCreatePlaylist = (track: Track) => {
+  const createPlaylistWithTrack = (track: Track) => {
     createPlaylistFromTrack.mutate(track.id, {
       onError: (error) => {
         toast.add({
@@ -112,7 +116,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     });
   };
 
-  const handleSetTrackLiked = (track: Track) => {
+  const toggleTrackLiked = (track: Track) => {
     setTrackLiked.mutate(
       { liked: track.likedAt === null, trackId: track.id },
       {
@@ -137,17 +141,20 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     });
   };
 
-  const tabStopEntryId = items.some((item) => item.sourceEntryId === selectedEntryId)
-    ? selectedEntryId
-    : items[0]?.sourceEntryId;
+  // The selected row, else the first. It scans every item, so it reruns only when the items or the
+  // selection change, not on every scroll frame.
+  const { tabStopEntryId, tabStopIndex } = useMemo(() => {
+    const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
+    const index = selectedIndex < 0 ? 0 : selectedIndex;
 
-  const tabStopIndex = items.findIndex((item) => item.sourceEntryId === tabStopEntryId);
+    return { tabStopEntryId: items[index]?.sourceEntryId, tabStopIndex: items.length ? index : -1 };
+  }, [items, selectedEntryId]);
 
   const virtualizer = useVirtualizer({
     count: items.length,
-    enabled: scrollElement !== null,
+    enabled: Boolean(scrollContainer),
     estimateSize: () => rowHeight,
-    getScrollElement: () => scrollElement,
+    getScrollElement: () => scrollContainer ?? null,
     overscan: 8,
     paddingStart: headerHeight + listInset,
     // The tab stop always renders, so the list keeps its Tab stop and focus while scrolled away.
@@ -162,9 +169,14 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     scrollPaddingStart: headerHeight + listInset,
   });
 
-  const renderedIndexes = scrollElement
-    ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
-    : items.map((_item, index) => index);
+  // Nothing renders before the container is known; rendering every item would mount the whole
+  // library for one commit. Lists without a scroll container render every item.
+  const mountedIndexes =
+    scrollContainer === undefined
+      ? []
+      : scrollContainer
+        ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
+        : items.map((_item, index) => index);
 
   const focusRow = (index: number) => {
     const target = Math.max(0, Math.min(items.length - 1, index));
@@ -175,7 +187,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     setSelectedEntryId(item.sourceEntryId);
     pendingFocusIndex.current = target;
 
-    if (scrollElement) virtualizer.scrollToIndex(target);
+    if (scrollContainer) virtualizer.scrollToIndex(target);
   };
 
   useLayoutEffect(() => {
@@ -190,7 +202,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     if (!row) return;
 
     pendingFocusIndex.current = null;
-    row.focus({ preventScroll: scrollElement !== null });
+    row.focus({ preventScroll: Boolean(scrollContainer) });
   });
 
   const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
@@ -198,7 +210,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
 
     const pageSize = Math.max(
       1,
-      Math.floor((scrollElement?.clientHeight ?? window.innerHeight) / rowHeight) - 1,
+      Math.floor((scrollContainer?.clientHeight ?? window.innerHeight) / rowHeight) - 1,
     );
 
     const target = {
@@ -223,155 +235,76 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     }
   };
 
-  function renderRow(index: number) {
+  const rowActions = useStableActions<TrackRowActions>({
+    addToPlaylist: openAddToPlaylist,
+    addToQueue: (trackId) => playback.enqueueTrack(trackId),
+    createPlaylist: createPlaylistWithTrack,
+    keyDown: handleRowKeyDown,
+    play: playItem,
+    select: setSelectedEntryId,
+    toggleLike: toggleTrackLiked,
+  });
+
+  function renderTrackRow(index: number) {
     const item = items[index];
-    const track = item.track;
 
     const isActive =
       playback.activeSourceEntryId === item.sourceEntryId &&
       playback.activeSourcePlaylistId === (playlistId ?? null);
 
     const isSelected = item.sourceEntryId === selectedEntryId;
-    const isTabStop = item.sourceEntryId === tabStopEntryId;
-    const metadataColor = track.available ? "text-secondary" : "text-disabled";
 
     return (
-      <tr
-        aria-current={isActive ? "true" : undefined}
-        aria-rowindex={index + 2}
-        aria-selected={isSelected}
-        className={cn(
-          "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
-          isSelected ? "*:bg-selected" : isActive ? "*:bg-accent-subtle" : "hover:*:bg-page-hover",
-        )}
-        data-entry-id={item.sourceEntryId}
+      <TrackRow
+        actions={rowActions}
+        artworkState={
+          isActive
+            ? playback.isPlaying
+              ? "playing"
+              : "paused"
+            : isSelected
+              ? "selected"
+              : undefined
+        }
+        canAddToQueue={playback.queue !== null}
+        index={index}
+        isActive={isActive}
+        isCreatingPlaylist={createPlaylistFromTrack.isPending}
+        isPlaylist={isPlaylist}
+        isSelected={isSelected}
+        isTabStop={item.sourceEntryId === tabStopEntryId}
+        item={item}
         key={item.sourceEntryId}
-        onClick={() => setSelectedEntryId(item.sourceEntryId)}
-        onDoubleClick={() => playItem(item)}
-        onKeyDown={(event) => handleRowKeyDown(event, index)}
-        tabIndex={isTabStop ? 0 : -1}
-      >
-        {isPlaylist && (
-          <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">
-            {String(index + 1).padStart(2, "0")}
-          </td>
-        )}
-        <td className="pl-4">
-          <div className="flex min-w-0 items-center gap-2">
-            <TrackArtwork
-              artworkUrl={track.artworkUrl}
-              className={cn("size-8", !track.available && "opacity-disabled")}
-              state={
-                isActive
-                  ? playback.isPlaying
-                    ? "playing"
-                    : "paused"
-                  : isSelected
-                    ? "selected"
-                    : undefined
-              }
-            />
-            <div className="min-w-0 flex-1">
-              <p
-                className={cn(
-                  "truncate text-left text-body font-medium",
-                  track.available ? "text-primary" : "text-disabled",
-                )}
-                data-truncate
-                dir="auto"
-              >
-                {track.title}
-              </p>
-              <p
-                className={cn("truncate text-left text-meta", metadataColor)}
-                data-truncate
-                dir="auto"
-              >
-                {track.artists.join(", ") || "Unknown artist"}
-              </p>
-            </div>
-            {!track.available && (
-              <span className="shrink-0 text-meta text-secondary">Unavailable</span>
-            )}
-            <div
-              className="contents"
-              onClick={(event) => event.stopPropagation()}
-              onDoubleClick={(event) => event.stopPropagation()}
-            >
-              <TrackRowMenu
-                canAddToQueue={playback.queue !== null}
-                isCreatingPlaylist={createPlaylistFromTrack.isPending}
-                onAddToQueue={() => playback.enqueueTrack(track.id)}
-                onAddToPlaylist={handleAddToPlaylist}
-                onCreatePlaylist={handleCreatePlaylist}
-                tabIndex={isTabStop ? 0 : -1}
-                track={track}
-              >
-                {renderMenuItems?.(item)}
-              </TrackRowMenu>
-            </div>
-          </div>
-        </td>
-        <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
-          <p className="truncate text-left text-body" data-truncate dir="auto">
-            {track.album || "Unknown album"}
-          </p>
-        </td>
-        <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
-          {formatAddedDate(track.addedAt)}
-        </td>
-        <td
-          className="pl-4"
-          onClick={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-        >
-          <Button
-            aria-label={track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`}
-            aria-pressed={track.likedAt !== null}
-            className={cn(
-              "-m-1",
-              track.likedAt === null &&
-                "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
-            )}
-            onClick={() => handleSetTrackLiked(track)}
-            onPointerDown={(event) => event.preventDefault()}
-            size="icon-sm"
-            static
-            tabIndex={isTabStop ? 0 : -1}
-            type="button"
-            variant="ghost"
-          >
-            <HeartIcon aria-hidden="true" weight={track.likedAt === null ? "regular" : "fill"} />
-          </Button>
-        </td>
-        <td className={cn("pr-4 pl-4 text-right font-mono text-meta tabular-nums", metadataColor)}>
-          {formatDuration(track.duration)}
-        </td>
-      </tr>
+        renderMenuItems={renderMenuItems}
+      />
     );
   }
 
   const columnCount = isPlaylist ? 6 : 5;
-  const rows: ReactNode[] = [];
-  let nextIndex = 0;
+  const bodyRows: ReactNode[] = [];
+  let nextUnmountedIndex = 0;
 
-  const addGap = (end: number) => {
-    if (end <= nextIndex) return;
+  // One empty row stands in for the unmounted rows before `untilIndex`, keeping the scroll height
+  const addSpacerRow = (untilIndex: number) => {
+    if (untilIndex <= nextUnmountedIndex) return;
 
-    rows.push(
-      <tr aria-hidden="true" key={`gap-${nextIndex}`}>
-        <td colSpan={columnCount} style={{ height: (end - nextIndex) * rowHeight }} />
+    bodyRows.push(
+      <tr aria-hidden="true" key={`spacer-${nextUnmountedIndex}`}>
+        <td
+          colSpan={columnCount}
+          style={{ height: (untilIndex - nextUnmountedIndex) * rowHeight }}
+        />
       </tr>,
     );
   };
 
-  for (const index of renderedIndexes) {
-    addGap(index);
-    rows.push(renderRow(index));
-    nextIndex = index + 1;
+  for (const index of mountedIndexes) {
+    addSpacerRow(index);
+    bodyRows.push(renderTrackRow(index));
+    nextUnmountedIndex = index + 1;
   }
 
-  if (scrollElement) addGap(items.length);
+  if (scrollContainer) addSpacerRow(items.length);
 
   return (
     <div className="@container" id="tracks">
@@ -384,19 +317,183 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
       >
         <caption className="sr-only">{caption}</caption>
         <TrackListHead isPlaylist={isPlaylist} />
-        <tbody className="before:table-row before:h-1">{rows}</tbody>
+        <tbody className="before:table-row before:h-1">{bodyRows}</tbody>
       </table>
       {trackToAdd && (
         <AddToPlaylistDialog
-          finalFocus={addDialogTriggerRef}
-          onCreatePlaylist={handleCreatePlaylist}
-          onOpenChange={setAddDialogOpen}
-          open={addDialogOpen}
+          finalFocus={addToPlaylistTriggerRef}
+          onCreatePlaylist={createPlaylistWithTrack}
+          onOpenChange={setIsAddToPlaylistOpen}
+          open={isAddToPlaylistOpen}
           track={trackToAdd}
         />
       )}
     </div>
   );
+}
+
+type TrackRowActions = {
+  addToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
+  addToQueue: (trackId: number) => void;
+  createPlaylist: (track: Track) => void;
+  keyDown: (event: KeyboardEvent<HTMLTableRowElement>, index: number) => void;
+  play: (item: TrackListItem) => void;
+  select: (sourceEntryId: number) => void;
+  toggleLike: (track: Track) => void;
+};
+
+type TrackRowProps = {
+  actions: TrackRowActions;
+  artworkState: "playing" | "paused" | "selected" | undefined;
+  canAddToQueue: boolean;
+  index: number;
+  isActive: boolean;
+  isCreatingPlaylist: boolean;
+  isPlaylist: boolean;
+  isSelected: boolean;
+  isTabStop: boolean;
+  item: TrackListItem;
+  renderMenuItems?: (item: TrackListItem) => ReactNode;
+};
+
+const TrackRow = memo(function TrackRow({
+  actions,
+  artworkState,
+  canAddToQueue,
+  index,
+  isActive,
+  isCreatingPlaylist,
+  isPlaylist,
+  isSelected,
+  isTabStop,
+  item,
+  renderMenuItems,
+}: TrackRowProps) {
+  const track = item.track;
+  const metadataColor = track.available ? "text-secondary" : "text-disabled";
+
+  return (
+    <tr
+      aria-current={isActive ? "true" : undefined}
+      aria-rowindex={index + 2}
+      aria-selected={isSelected}
+      className={cn(
+        "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
+        isSelected ? "*:bg-selected" : isActive ? "*:bg-accent-subtle" : "hover:*:bg-page-hover",
+      )}
+      data-entry-id={item.sourceEntryId}
+      onClick={() => actions.select(item.sourceEntryId)}
+      onDoubleClick={() => actions.play(item)}
+      onKeyDown={(event) => actions.keyDown(event, index)}
+      tabIndex={isTabStop ? 0 : -1}
+    >
+      {isPlaylist && (
+        <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">
+          {String(index + 1).padStart(2, "0")}
+        </td>
+      )}
+      <td className="pl-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <TrackArtwork
+            artworkUrl={track.artworkUrl}
+            className={cn("size-8", !track.available && "opacity-disabled")}
+            state={artworkState}
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className={cn(
+                "truncate text-left text-body font-medium",
+                track.available ? "text-primary" : "text-disabled",
+              )}
+              data-truncate
+              dir="auto"
+            >
+              {track.title}
+            </p>
+            <p
+              className={cn("truncate text-left text-meta", metadataColor)}
+              data-truncate
+              dir="auto"
+            >
+              {track.artists.join(", ") || "Unknown artist"}
+            </p>
+          </div>
+          {!track.available && (
+            <span className="shrink-0 text-meta text-secondary">Unavailable</span>
+          )}
+          <div
+            className="contents"
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+          >
+            <TrackRowMenu
+              canAddToQueue={canAddToQueue}
+              isCreatingPlaylist={isCreatingPlaylist}
+              onAddToQueue={() => actions.addToQueue(track.id)}
+              onAddToPlaylist={actions.addToPlaylist}
+              onCreatePlaylist={actions.createPlaylist}
+              tabIndex={isTabStop ? 0 : -1}
+              track={track}
+            >
+              {renderMenuItems?.(item)}
+            </TrackRowMenu>
+          </div>
+        </div>
+      </td>
+      <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
+        <p className="truncate text-left text-body" data-truncate dir="auto">
+          {track.album || "Unknown album"}
+        </p>
+      </td>
+      <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
+        {formatAddedDate(track.addedAt)}
+      </td>
+      <td
+        className="pl-4"
+        onClick={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
+        <LikeButton
+          className={cn(
+            "-m-1",
+            track.likedAt === null &&
+              "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
+          )}
+          label={track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`}
+          liked={track.likedAt !== null}
+          onToggle={() => actions.toggleLike(track)}
+          tabIndex={isTabStop ? 0 : -1}
+        />
+      </td>
+      <td className={cn("pr-4 pl-4 text-right font-mono text-meta tabular-nums", metadataColor)}>
+        {formatDuration(track.duration)}
+      </td>
+    </tr>
+  );
+});
+
+// Functions that keep their identity across renders but always call the latest ones passed in
+function useStableActions<Actions extends Record<string, (...args: never[]) => void>>(
+  actions: Actions,
+) {
+  const latest = useRef(actions);
+
+  useLayoutEffect(() => {
+    latest.current = actions;
+  });
+
+  const [stable] = useState(
+    () =>
+      // SAFETY: one wrapper per key of `actions`, each with the same signature as the original.
+      Object.fromEntries(
+        Object.keys(actions).map((name) => [
+          name,
+          (...args: never[]) => latest.current[name](...args),
+        ]),
+      ) as Actions,
+  );
+
+  return stable;
 }
 
 function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
@@ -440,7 +537,6 @@ function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
   );
 }
 
-// Paper's placeholder rows (frame 11 B): title, artist and album widths, and opacity
 const skeletonRows = [
   [144, 88, 120, 1],
   [112, 64, 160, 0.8],
