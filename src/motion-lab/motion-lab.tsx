@@ -20,6 +20,7 @@ import { LabSound } from "@/motion-lab/sound";
 import { Group, Range, Segmented, Toggle } from "@/motion-lab/controls";
 import { ScanLab } from "@/motion-lab/scan/scan-lab";
 import { ScrollFadeLab } from "@/motion-lab/scroll-fade-lab";
+import { HeartLab } from "@/motion-lab/heart-lab";
 
 const storageKey = "lume-motion-lab";
 
@@ -35,13 +36,13 @@ function loadConfig(): LabConfig {
 
 const viewKey = "lume-motion-lab-view";
 
-type View = "fade" | "player" | "scan";
+type View = "fade" | "heart" | "player" | "scan";
 
 export function MotionLab() {
   const [view, setView] = useState<View>(() => {
     const stored = localStorage.getItem(viewKey);
 
-    return stored === "scan" || stored === "fade" ? stored : "player";
+    return stored === "scan" || stored === "fade" || stored === "heart" ? stored : "player";
   });
 
   useEffect(() => localStorage.setItem(viewKey, view), [view]);
@@ -53,12 +54,15 @@ export function MotionLab() {
         ["player", "Header player"],
         ["scan", "First scan"],
         ["fade", "Scroll fade"],
+        ["heart", "Heart"],
       ]}
       value={view}
     />
   );
 
   if (view === "fade") return <ScrollFadeLab viewSwitch={viewSwitch} />;
+
+  if (view === "heart") return <HeartLab viewSwitch={viewSwitch} />;
 
   return view === "player" ? (
     <PlayerLab viewSwitch={viewSwitch} />
