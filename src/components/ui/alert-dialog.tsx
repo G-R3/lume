@@ -36,7 +36,7 @@ function AlertDialogContent({ className, ...props }: AlertDialogPrimitive.Popup.
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 flex w-100 max-w-[calc(100%-2rem)] -translate-1/2 flex-col overflow-clip rounded-xl bg-raised p-px text-primary shadow-dialog inset-ring inset-ring-default outline-none transition-[opacity,scale] duration-300 ease-spring-ui data-starting-style:opacity-0 motion-safe:data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:duration-200 data-ending-style:ease-spring-exit motion-safe:data-ending-style:scale-95",
+          "fixed top-1/2 left-1/2 z-50 flex w-100 max-w-[calc(100%-2rem)] -translate-1/2 flex-col overflow-clip rounded-xl bg-raised p-px surface-raised text-primary shadow-dialog inset-ring inset-ring-default outline-none transition-[opacity,scale] duration-300 ease-spring-ui data-starting-style:opacity-0 motion-safe:data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:duration-200 data-ending-style:ease-spring-exit motion-safe:data-ending-style:scale-95",
           className,
         )}
         {...props}

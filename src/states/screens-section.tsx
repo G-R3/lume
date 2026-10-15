@@ -397,7 +397,7 @@ const settingsParts: PartSpec[] = [
   },
   {
     name: "off path",
-    paper: { color: paper.neutral600 },
+    paper: { color: paper.neutral450 },
     selector: `${row(4)} td:first-child p:last-child`,
   },
   { name: "off icon", paper: { opacity: 0.4 }, selector: `${row(4)} td:first-child svg` },

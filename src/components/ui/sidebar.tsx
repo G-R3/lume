@@ -286,7 +286,7 @@ function SidebarTrigger({
           />
         }
       >
-        <SidebarSimpleIcon aria-hidden="true" />
+        <SidebarSimpleIcon aria-hidden="true" weight={open ? "fill" : "regular"} />
       </TooltipTrigger>
       <TooltipContent side="right">
         {label}
@@ -502,7 +502,7 @@ function SidebarMenuButton({
     props: mergeProps<"button">(
       {
         className: cn(
-          "peer/menu-button group/menu-button flex h-8 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 text-left text-body text-secondary select-none group-hover/menu-item:bg-raised-hover group-hover/menu-item:text-primary focus-visible:text-primary focus-visible:-outline-offset-2 disabled:pointer-events-none disabled:opacity-disabled aria-disabled:pointer-events-none aria-disabled:opacity-disabled data-active:bg-selected data-active:font-medium data-active:text-primary data-active:group-hover/menu-item:bg-selected [&_svg]:size-4 [&_svg]:shrink-0",
+          "peer/menu-button group/menu-button flex h-8 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 text-left text-body text-secondary select-none group-hover/menu-item:bg-hover group-hover/menu-item:text-primary focus-visible:text-primary focus-visible:-outline-offset-2 disabled:pointer-events-none disabled:opacity-disabled aria-disabled:pointer-events-none aria-disabled:opacity-disabled data-active:bg-selected data-active:font-medium data-active:text-primary data-active:group-hover/menu-item:bg-selected [&_svg]:size-4 [&_svg]:shrink-0",
           className,
         ),
       },

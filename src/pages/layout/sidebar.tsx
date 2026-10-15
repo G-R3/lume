@@ -39,7 +39,7 @@ export function AppSidebar() {
   const createTriggerRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <Sidebar className="border-separator bg-raised md:absolute! md:h-auto!">
+    <Sidebar className="border-separator bg-raised surface-raised md:absolute! md:h-auto!">
       {/* the traffic lights and the sidebar toggle sit over this bar */}
       <SidebarHeader className="h-12 shrink-0 p-0 [-webkit-app-region:drag]" />
 
@@ -229,7 +229,7 @@ function SourceStatus({ sources }: { sources: readonly LibrarySource[] }) {
           "size-1.5 shrink-0 rounded-full",
           tone === "issue" && "bg-danger",
           tone === "off" && "bg-current text-tertiary",
-          tone === "idle" && "bg-current text-disabled",
+          tone === "idle" && "bg-current text-faint",
         )}
       />
       <p

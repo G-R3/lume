@@ -24,7 +24,7 @@ export function TrackArtwork({
       )}
       data-slot="track-artwork"
     >
-      <MusicNoteIcon aria-hidden="true" className="size-[43.75%] text-disabled" />
+      <MusicNoteIcon aria-hidden="true" className="size-[43.75%] text-faint" />
       {artworkUrl && artworkUrl !== failedArtworkUrl && (
         <img
           alt=""

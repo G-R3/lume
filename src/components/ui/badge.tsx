@@ -11,11 +11,10 @@ const badgeVariants = cva(
       variant: {
         default: "bg-inverse text-inverse [a]:hover:bg-inverse-hover",
         secondary: "bg-control text-primary [a]:hover:bg-control-hover",
-        destructive:
-          "text-danger bg-danger/20 focus-visible:ring-danger/40 [a]:hover:bg-danger/20",
+        destructive: "text-danger bg-danger/20 focus-visible:ring-danger/40 [a]:hover:bg-danger/20",
         outline:
           "border-default text-primary bg-raised [a]:hover:bg-selected [a]:hover:text-secondary",
-        ghost: "hover:text-secondary hover:bg-page-hover",
+        ghost: "hover:text-secondary hover:bg-hover",
         link: "text-primary underline-offset-4 hover:underline",
       },
     },

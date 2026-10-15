@@ -159,7 +159,7 @@ function FolderRow({
     "opacity-0 group-hover/folder:opacity-100 group-has-focus-visible/folder:opacity-100";
 
   return (
-    <tr className="group/folder *:h-10 *:first:rounded-l-md *:last:rounded-r-md hover:*:bg-page-hover">
+    <tr className="group/folder *:h-10 *:first:rounded-l-md *:last:rounded-r-md hover:*:bg-hover">
       <td className="pl-4">
         <div className="flex min-w-0 items-center gap-2">
           <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-raised inset-ring inset-ring-default">
@@ -195,7 +195,7 @@ function FolderRow({
             aria-hidden="true"
             className={cn(
               "size-1.5 shrink-0 rounded-full",
-              isScanning ? "bg-accent" : hasError ? "bg-danger" : "bg-current text-disabled",
+              isScanning ? "bg-accent" : hasError ? "bg-danger" : "bg-current text-faint",
             )}
           />
           <span

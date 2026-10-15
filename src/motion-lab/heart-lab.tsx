@@ -121,7 +121,7 @@ export function HeartLab({ viewSwitch }: { viewSwitch: ReactNode }) {
         <MotionConfig reducedMotion={config.reducedMotion}>
           <section className="flex flex-col gap-3">
             <h2 className="text-meta text-secondary">Actual size, in a track row</h2>
-            <div className="flex h-10 w-120 items-center gap-2 rounded-md bg-page-hover pr-4 pl-4">
+            <div className="flex h-10 w-120 items-center gap-2 rounded-md bg-hover pr-4 pl-4">
               <span className="size-8 shrink-0 rounded-sm bg-raised" />
               <span className="min-w-0 flex-1 truncate text-body font-medium">Night swim</span>
               <LabHeart feel={feel} />

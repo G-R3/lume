@@ -50,7 +50,7 @@ function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
     <ToastPrimitive.Root
       data-slot="toast"
       className={cn(
-        "absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full rounded-xl bg-overlay text-primary shadow-toast inset-ring inset-ring-strong select-none [--gap:16px]",
+        "absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full rounded-xl bg-overlay text-primary surface-overlay shadow-toast inset-ring inset-ring-strong select-none [--gap:16px]",
         "[--y:calc(var(--toast-swipe-movement-y)-var(--toast-offset-y)-var(--toast-index)*var(--gap))] [transform:translateX(var(--toast-swipe-movement-x))_translateY(var(--y))]",
         "transition-[transform,opacity] duration-300 ease-spring-ui data-limited:opacity-0 data-starting-style:opacity-0 motion-safe:data-starting-style:[transform:translateY(8px)]",
         "data-ending-style:opacity-0 data-ending-style:duration-200 data-ending-style:ease-spring-exit",

@@ -303,7 +303,7 @@ function playerParts(state: PlayerState): PartSpec[] {
         lineHeight: 16,
         width: state === "rough" ? 50.4 : state === "ten-minutes" || idle ? 36 : 28.8,
         color: idle
-          ? paper.neutral600
+          ? paper.neutral450
           : state === "seek-dragging"
             ? paper.neutral100
             : paper.neutral400,
@@ -317,7 +317,7 @@ function playerParts(state: PlayerState): PartSpec[] {
         fontSize: 12,
         lineHeight: 16,
         width: state === "rough" ? 43.2 : 36,
-        color: idle ? paper.neutral600 : paper.neutral400,
+        color: idle ? paper.neutral450 : paper.neutral400,
       },
     },
     {

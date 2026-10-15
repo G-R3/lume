@@ -61,7 +61,7 @@ function QueueSpecimen({
   visibleRows?: number;
 }) {
   return (
-    <div className="flex w-80 flex-col border-l border-separator bg-raised">
+    <div className="flex w-80 flex-col border-l border-separator bg-raised surface-raised">
       <MusicLibraryContext.Provider value={library}>
         <PlaybackContext.Provider value={{ ...idlePlayback, isPlaying, queue }}>
           <QueuePanel visibleRows={visibleRows} />
@@ -157,7 +157,7 @@ const openParts: PartSpec[] = [
     paper: { ...meta, fontFamily: "mono", width: 40 },
     selector: `${selectors.manualRow(1)} [data-slot=queue-time]`,
   },
-  ...rowParts("hover row", selectors.manualRow(2), paper.neutral850),
+  ...rowParts("hover row", selectors.manualRow(2), paper.neutral800),
   {
     name: "hover more",
     paper: { color: paper.neutral400, height: 24, opacity: 1, width: 24 },
@@ -170,7 +170,7 @@ const openParts: PartSpec[] = [
   },
   {
     name: "unavailable title",
-    paper: { ...title, color: paper.neutral600 },
+    paper: { ...title, color: paper.neutral450 },
     selector: `${selectors.sourceRow(2)} [data-slot=track-artwork] + span > span:first-child`,
   },
   {
@@ -180,7 +180,7 @@ const openParts: PartSpec[] = [
   },
   {
     name: "unavailable time",
-    paper: { color: paper.neutral600, fontFamily: "mono" },
+    paper: { color: paper.neutral450, fontFamily: "mono" },
     selector: `${selectors.sourceRow(2)} [data-slot=queue-time]`,
   },
 ];

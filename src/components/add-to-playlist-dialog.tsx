@@ -131,7 +131,7 @@ export function AddToPlaylistDialog({
       <DialogPrimitive.Portal container={container}>
         <DialogOverlay className="transition-none" />
         <DialogPrimitive.Popup
-          className="fixed top-24 left-1/2 z-50 flex w-140 max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-clip rounded-xl bg-raised p-px text-primary shadow-dialog inset-ring inset-ring-default outline-none"
+          className="fixed top-24 left-1/2 z-50 flex w-140 max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-clip rounded-xl bg-raised p-px surface-raised text-primary shadow-dialog inset-ring inset-ring-default outline-none"
           data-slot="palette"
           finalFocus={finalFocus}
           initialFocus={initialFocus}
@@ -223,7 +223,7 @@ function PaletteRow({
 }) {
   return (
     <Autocomplete.Item
-      className="group/palette-row flex h-10 shrink-0 cursor-default items-center gap-3 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-selected data-highlighted:font-medium"
+      className="group/palette-row flex h-10 shrink-0 cursor-default items-center gap-3 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-highlighted:font-medium"
       onClick={() => onSelect(item)}
       value={item}
     >

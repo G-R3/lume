@@ -6,10 +6,12 @@ export const paper = {
   neutral50: "#FAFAFA",
   neutral100: "#F5F5F5",
   neutral400: "#A3A3A3",
+  neutral450: "#8A8A8A",
   neutral500: "#737373",
   neutral600: "#525252",
   neutral700: "#404040",
   neutral750: "#333333",
+  neutral775: "#2C2C2C",
   neutral800: "#262626",
   neutral850: "#1E1E1E",
   neutral900: "#171717",
@@ -22,6 +24,6 @@ export const paper = {
   white20: "#FFFFFF33",
 } as const;
 
-export const focusRing = `2px ${paper.neutral500} 2px`;
+export const focusRing = `2px ${paper.neutral450} 2px`;
 
-export const insetFocusRing = `2px ${paper.neutral500} -2px`;
+export const insetFocusRing = `2px ${paper.neutral450} -2px`;

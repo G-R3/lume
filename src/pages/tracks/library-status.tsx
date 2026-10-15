@@ -87,7 +87,7 @@ function Notice({
   return (
     <div className="px-2 pb-2" data-slot="library-notice">
       <div
-        className="flex h-12 items-center gap-3 rounded-lg bg-raised px-4 inset-ring inset-ring-default"
+        className="flex h-12 items-center gap-3 rounded-lg bg-raised px-4 surface-raised inset-ring inset-ring-default"
         role={role}
       >
         <span

@@ -22,10 +22,12 @@
   --color-neutral-50: oklch(0.985 0 0);
   --color-neutral-100: oklch(0.97 0 0);
   --color-neutral-400: oklch(0.708 0 0);
+  --color-neutral-450: oklch(0.632 0 0); /* #8A8A8A */
   --color-neutral-500: oklch(0.556 0 0);
   --color-neutral-600: oklch(0.439 0 0);
   --color-neutral-700: oklch(0.371 0 0);
   --color-neutral-750: oklch(0.3211 0 0); /* #333333 */
+  --color-neutral-775: oklch(0.2951 0 0); /* #2C2C2C, a quarter step */
   --color-neutral-800: oklch(0.269 0 0);
   --color-neutral-850: oklch(0.235 0 0); /* #1E1E1E */
   --color-neutral-900: oklch(0.205 0 0);
@@ -54,8 +56,11 @@
   --color-bg-overlay: var(--color-neutral-800);
   --color-bg-sunken: var(--color-neutral-950);
   --color-bg-scrim: oklch(0.145 0 0 / 60%);
-  --color-bg-page-hover: var(--color-neutral-850);
-  --color-bg-raised-hover: var(--color-neutral-850);
+  /*
+   * States lift from the surface they sit on (Paper frame 24): hover one step above it, selected
+   * two. These are the page's; surface-raised and surface-overlay repoint them for their subtree.
+   */
+  --color-bg-hover: var(--color-neutral-850);
   --color-bg-selected: var(--color-neutral-800);
   --color-bg-control: var(--color-neutral-800);
   --color-bg-control-hover: var(--color-neutral-750);
@@ -66,17 +71,23 @@
   --color-text-primary: var(--color-neutral-100);
   --color-text-secondary: var(--color-neutral-400);
   --color-text-tertiary: var(--color-neutral-500);
-  --color-text-disabled: var(--color-neutral-600);
+  /* APCA Lc 36+ on every fill: better-colors puts disabled text at Lc 30 or more */
+  --color-text-disabled: var(--color-neutral-450);
+  /* marks that only repeat nearby text: the missing-artwork note, the idle status dot */
+  --color-text-faint: var(--color-neutral-600);
   --color-text-placeholder: var(--color-neutral-400);
   --color-text-inverse: var(--color-neutral-950);
 
   --color-border-default: var(--color-neutral-800);
   --color-border-strong: var(--color-neutral-700);
   --color-border-separator: var(--color-neutral-800);
-  --color-border-focus: var(--color-neutral-500);
+  /* 3:1 or more on every fill it crosses, including the raised selected step */
+  --color-border-focus: var(--color-neutral-450);
 
   --color-accent-solid: var(--accent-root);
   --color-accent-subtle: color-mix(in oklab, var(--accent-root) 10%, transparent);
+  /* the waveform columns between the playhead and the pointer while seeking */
+  --color-accent-preview: color-mix(in oklab, var(--accent-root) 60%, transparent);
   --color-accent-border: var(--accent-root);
   --color-accent-text: var(--accent-root);
 
@@ -86,8 +97,6 @@
   --color-danger-text: var(--color-red-300);
 
   /* shortcut chips set into the primary and danger buttons */
-  /* the waveform columns between the playhead and the pointer while seeking */
-  --color-accent-preview: color-mix(in oklab, var(--accent-root) 60%, transparent);
   --color-bg-inverse-kbd: oklch(0.145 0 0 / 8%);
   --color-text-inverse-kbd: var(--color-neutral-600);
   --color-bg-danger-kbd: oklch(0.145 0 0 / 12%);
@@ -183,8 +192,7 @@
   --background-color-overlay: var(--color-bg-overlay);
   --background-color-sunken: var(--color-bg-sunken);
   --background-color-scrim: var(--color-bg-scrim);
-  --background-color-page-hover: var(--color-bg-page-hover);
-  --background-color-raised-hover: var(--color-bg-raised-hover);
+  --background-color-hover: var(--color-bg-hover);
   --background-color-selected: var(--color-bg-selected);
   --background-color-control: var(--color-bg-control);
   --background-color-control-hover: var(--color-bg-control-hover);
@@ -205,6 +213,7 @@
   --text-color-secondary: var(--color-text-secondary);
   --text-color-tertiary: var(--color-text-tertiary);
   --text-color-disabled: var(--color-text-disabled);
+  --text-color-faint: var(--color-text-faint);
   --text-color-placeholder: var(--color-text-placeholder);
   --text-color-inverse: var(--color-text-inverse);
   --text-color-accent: var(--color-accent-text);
@@ -235,6 +244,7 @@
   --fill-secondary: var(--color-text-secondary);
   --fill-track: var(--color-bg-track);
   --fill-accent: var(--color-accent-solid);
+  --fill-accent-preview: var(--color-accent-preview);
   --fill-danger: var(--color-danger-solid);
   --stroke-accent: var(--color-accent-solid);
   --caret-color-accent: var(--color-accent-solid);
@@ -244,7 +254,6 @@
   * {
     border-color: var(--color-border-default);
   }
-  --fill-accent-preview: var(--color-accent-preview);
   html {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -258,4 +267,18 @@
     outline: 2px solid var(--color-border-focus);
     outline-offset: 2px;
   }
+}
+
+/* Panels, dialogs and the palette: hover and selected lift from bg-raised */
+@utility surface-raised {
+  --color-bg-hover: var(--color-neutral-800);
+  --color-bg-selected: var(--color-neutral-775);
+}
+
+/* Menus, toasts: a step above the raised panels they open over */
+@utility surface-overlay {
+  --color-bg-hover: var(--color-neutral-750);
+  --color-bg-selected: var(--color-neutral-700);
+  /* the page's separator is the overlay's own color, so it steps up with the surface */
+  --color-border-separator: var(--color-neutral-750);
 }

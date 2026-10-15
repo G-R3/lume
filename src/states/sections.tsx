@@ -101,7 +101,7 @@ type TrackRowState = {
 };
 
 function trackRowParts(state: TrackRowState): PartSpec[] {
-  const metadataColor = state.unavailable ? paper.neutral600 : paper.neutral400;
+  const metadataColor = state.unavailable ? paper.neutral450 : paper.neutral400;
 
   return [
     {
@@ -1002,10 +1002,10 @@ function navParts(state: NavState): PartSpec[] {
       name: "row",
       paper: {
         backgroundColor: {
-          active: paper.neutral800,
+          active: paper.neutral775,
           default: paper.transparent,
           focus: paper.transparent,
-          hover: paper.neutral850,
+          hover: paper.neutral800,
         }[state],
         borderRadius: 6,
         color: state === "default" ? paper.neutral400 : paper.neutral100,
@@ -1048,7 +1048,7 @@ function NavRowSpecimen({
   title: string;
 }) {
   return (
-    <SidebarProvider className="min-h-0 w-[207px]">
+    <SidebarProvider className="min-h-0 w-[207px] surface-raised">
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton isActive={isActive}>

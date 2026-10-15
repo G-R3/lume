@@ -43,7 +43,7 @@ export function QueueSidebar({
     <Sidebar
       aria-label="Playback queue"
       aria-hidden={!open}
-      className="border-separator bg-raised md:absolute! md:h-auto!"
+      className="border-separator bg-raised surface-raised md:absolute! md:h-auto!"
       id="queue-sidebar"
       inert={!open}
       onOpenChange={onOpenChange}
@@ -152,7 +152,7 @@ export function QueuePanel({
                 </div>
               ) : finished ? (
                 <div className="flex h-10 items-center gap-2 px-1" data-slot="queue-finished">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-selected">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-overlay">
                     <ArrowCounterClockwiseIcon
                       aria-hidden="true"
                       className="size-4 text-secondary"
@@ -271,7 +271,7 @@ function QueueRow({
   const unavailable = !track?.available;
 
   return (
-    <SidebarMenuItem className="rounded-lg hover:bg-raised-hover">
+    <SidebarMenuItem className="rounded-lg hover:bg-hover">
       <button
         aria-disabled={unavailable}
         aria-label={unavailable ? `${title} unavailable` : `Play ${title} now`}

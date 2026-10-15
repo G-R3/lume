@@ -246,7 +246,7 @@ function TrackList({
       </p>
       {tracks.map((track, index) => (
         <div
-          className="flex h-10 cursor-default items-center gap-3 rounded-md px-4 outline-none select-none hover:bg-page-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+          className="flex h-10 cursor-default items-center gap-3 rounded-md px-4 outline-none select-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
           key={track.id}
           onDoubleClick={(event) =>
             onPlay(index, "pointer", event.currentTarget.querySelector("[data-slot=track-artwork]"))
