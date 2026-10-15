@@ -15,7 +15,7 @@ import { collectionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
 import { LikeButton } from "@/components/like-button";
-import { TrackArtwork } from "@/components/track-artwork";
+import { type ArtworkState, TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -257,15 +257,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     return (
       <TrackRow
         actions={rowActions}
-        artworkState={
-          isActive
-            ? playback.isPlaying
-              ? "playing"
-              : "paused"
-            : isSelected
-              ? "selected"
-              : undefined
-        }
+        artworkState={isActive ? (playback.isPlaying ? "playing" : "paused") : undefined}
         canAddToQueue={playback.queue !== null}
         index={index}
         isActive={isActive}
@@ -342,7 +334,7 @@ type TrackRowActions = {
 
 type TrackRowProps = {
   actions: TrackRowActions;
-  artworkState: "playing" | "paused" | "selected" | undefined;
+  artworkState: ArtworkState | undefined;
   canAddToQueue: boolean;
   index: number;
   isActive: boolean;
@@ -375,18 +367,18 @@ const TrackRow = memo(function TrackRow({
       aria-current={isActive ? "true" : undefined}
       aria-rowindex={index + 2}
       aria-selected={isSelected}
-      // a double-click plays, so it shouldn't also select a word; dragging still selects text
-      onMouseDown={(event) => {
-        if (event.detail > 1) event.preventDefault();
-      }}
       className={cn(
         "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
-        isSelected ? "*:bg-selected" : isActive ? "*:bg-accent-subtle" : "hover:*:bg-page-hover",
+        isSelected ? "*:bg-selected" : "hover:*:bg-hover",
       )}
       data-entry-id={item.sourceEntryId}
       onClick={() => actions.select(item.sourceEntryId)}
       onDoubleClick={() => actions.play(item)}
       onKeyDown={(event) => actions.keyDown(event, index)}
+      // a double-click plays, so it shouldn't also select a word; dragging still selects text
+      onMouseDown={(event) => {
+        if (event.detail > 1) event.preventDefault();
+      }}
       tabIndex={isTabStop ? 0 : -1}
     >
       {isPlaylist && (
@@ -405,7 +397,7 @@ const TrackRow = memo(function TrackRow({
             <p
               className={cn(
                 "truncate text-left text-body font-medium",
-                track.available ? "text-primary" : "text-disabled",
+                !track.available ? "text-disabled" : isActive ? "text-accent" : "text-primary",
               )}
               data-truncate
               dir="auto"

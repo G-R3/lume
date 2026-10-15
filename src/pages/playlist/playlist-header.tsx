@@ -110,7 +110,7 @@ function PlaylistMenu({ playlist }: { playlist: PlaylistDetails }) {
         >
           <DotsThreeVerticalIcon aria-hidden="true" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-auto">
+        <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
             <TrashIcon aria-hidden="true" />
             Delete playlist…

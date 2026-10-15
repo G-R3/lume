@@ -1,9 +1,9 @@
-import { CheckIcon, MusicNoteIcon } from "@phosphor-icons/react";
+import { MusicNoteIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { PlayingMeter } from "@/components/playing-meter";
 import { cn } from "@/lib/utils";
 
-export type ArtworkState = "paused" | "playing" | "selected";
+export type ArtworkState = "paused" | "playing";
 
 export function TrackArtwork({
   artworkUrl,
@@ -35,17 +35,12 @@ export function TrackArtwork({
       )}
       {state && (
         <span
-          aria-hidden={state === "selected" || undefined}
-          aria-label={state === "selected" ? undefined : state === "playing" ? "Playing" : "Paused"}
+          aria-label={state === "playing" ? "Playing" : "Paused"}
           className="absolute inset-0 grid place-items-center bg-scrim"
           data-slot="artwork-state"
-          role={state === "selected" ? undefined : "img"}
+          role="img"
         >
-          {state === "selected" ? (
-            <CheckIcon className="size-3.5 text-primary" weight="bold" />
-          ) : (
-            <PlayingMeter playing={state === "playing"} />
-          )}
+          <PlayingMeter playing={state === "playing"} />
         </span>
       )}
     </span>

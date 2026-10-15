@@ -1,8 +1,4 @@
-import {
-  DotsThreeIcon,
-  ShuffleAngularIcon,
-  SidebarSimpleIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeIcon, ShuffleAngularIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { FilterField } from "@/components/filter-field";
 import { Button } from "@/components/ui/button";
@@ -95,6 +91,8 @@ const rowSelectors = {
 
 type TrackRowState = {
   background: string;
+  /** the current track: amber title */
+  current?: boolean;
   focused?: boolean;
   liked: boolean;
   unavailable?: boolean;
@@ -132,7 +130,11 @@ function trackRowParts(state: TrackRowState): PartSpec[] {
     {
       name: "title",
       paper: {
-        color: state.unavailable ? paper.neutral600 : paper.neutral100,
+        color: state.unavailable
+          ? paper.neutral450
+          : state.current
+            ? paper.amber
+            : paper.neutral100,
         fontFamily: "sans",
         fontSize: 13,
         fontWeight: 500,
@@ -173,7 +175,7 @@ function trackRowParts(state: TrackRowState): PartSpec[] {
       ? [
           {
             name: "heart",
-            paper: { color: paper.neutral100, height: 16, width: 16 },
+            paper: { color: paper.neutral400, height: 16, width: 16 },
             selector: rowSelectors.heart,
           },
         ]
@@ -190,43 +192,33 @@ function trackRowParts(state: TrackRowState): PartSpec[] {
   ];
 }
 
-function artworkStateParts(state: "paused" | "playing" | "selected"): PartSpec[] {
+function artworkStateParts(state: "paused" | "playing"): PartSpec[] {
   return [
     {
       name: "scrim",
       paper: { backgroundColor: paper.scrim, height: 32, width: 32 },
       selector: rowSelectors.artworkState,
     },
-    state === "selected"
-      ? {
-          name: "check",
-          paper: { color: paper.neutral100, height: 14, width: 14 },
-          selector: `${rowSelectors.artworkState} svg`,
-        }
-      : {
-          name: "meter",
-          paper: { height: 14, width: 14 },
-          selector: `${rowSelectors.artworkState} > span`,
-        },
-    ...(state === "selected"
-      ? []
-      : [
-          {
-            name: "unlit dot",
-            paper: { backgroundColor: paper.white20, borderRadius: 0.5, height: 2, width: 2 },
-            selector: `${rowSelectors.artworkState} > span > span:first-child`,
-          },
-          {
-            name: "bottom dot",
-            paper: { backgroundColor: paper.amber, height: 2, width: 2 },
-            selector: `${rowSelectors.artworkState} > span > span:last-child > span`,
-          },
-          {
-            name: "upper dots",
-            paper: { opacity: state === "playing" ? 1 : 0 },
-            selector: `${rowSelectors.artworkState} > span > span:nth-last-child(2)`,
-          },
-        ]),
+    {
+      name: "meter",
+      paper: { height: 14, width: 14 },
+      selector: `${rowSelectors.artworkState} > span`,
+    },
+    {
+      name: "unlit dot",
+      paper: { backgroundColor: paper.white20, borderRadius: 0.5, height: 2, width: 2 },
+      selector: `${rowSelectors.artworkState} > span > span:first-child`,
+    },
+    {
+      name: "bottom dot",
+      paper: { backgroundColor: paper.amber, height: 2, width: 2 },
+      selector: `${rowSelectors.artworkState} > span > span:last-child > span`,
+    },
+    {
+      name: "upper dots",
+      paper: { opacity: state === "playing" ? 1 : 0 },
+      selector: `${rowSelectors.artworkState} > span > span:nth-last-child(2)`,
+    },
   ];
 }
 
@@ -269,10 +261,7 @@ export function TrackRowSection() {
       <Specimen
         id="track-row.selected"
         label="Selected"
-        parts={[
-          ...trackRowParts({ background: paper.neutral800, liked: true }),
-          ...artworkStateParts("selected"),
-        ]}
+        parts={[...trackRowParts({ background: paper.neutral800, liked: true })]}
       >
         <TrackRowSpecimen selected track={componentStateTracks.selected} />
       </Specimen>
@@ -280,7 +269,7 @@ export function TrackRowSection() {
         id="track-row.playing"
         label="Playing"
         parts={[
-          ...trackRowParts({ background: paper.accent10, liked: true }),
+          ...trackRowParts({ background: paper.transparent, current: true, liked: true }),
           ...artworkStateParts("playing"),
         ]}
       >
@@ -290,7 +279,7 @@ export function TrackRowSection() {
         id="track-row.paused"
         label="Current, paused"
         parts={[
-          ...trackRowParts({ background: paper.accent10, liked: true }),
+          ...trackRowParts({ background: paper.transparent, current: true, liked: true }),
           ...artworkStateParts("paused"),
         ]}
       >
@@ -300,7 +289,7 @@ export function TrackRowSection() {
         id="track-row.playing-selected"
         label="Playing + selected"
         parts={[
-          ...trackRowParts({ background: paper.neutral800, liked: true }),
+          ...trackRowParts({ background: paper.neutral800, current: true, liked: true }),
           ...artworkStateParts("playing"),
         ]}
       >
@@ -350,7 +339,7 @@ export function TrackRowSection() {
           { name: "artwork", paper: { left: 56 }, selector: rowSelectors.artwork },
           {
             name: "row fill",
-            paper: { backgroundColor: paper.accent10 },
+            paper: { backgroundColor: paper.transparent },
             selector: rowSelectors.cell,
           },
         ]}

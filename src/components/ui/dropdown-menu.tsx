@@ -19,9 +19,6 @@ function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
   return <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
 }
 
-// Opens with a 150ms scale and fade from the trigger, closes with a 100ms fade (the menu trial in
-// the motion brief). Reduced motion keeps only the fade. Opening from the keyboard and closing with
-// Escape are instant (Base UI's `data-instant`).
 function DropdownMenuContent({
   align = "start",
   alignOffset = 0,
@@ -46,7 +43,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "max-h-(--available-height) w-60 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-raised p-1 text-primary shadow-menu inset-ring inset-ring-default outline-none transition-[opacity,scale] duration-150 ease-out data-starting-style:opacity-0 motion-safe:data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:duration-100 data-instant:duration-0",
+            "max-h-(--available-height) w-auto max-w-60 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-overlay p-1 text-primary shadow-menu inset-ring inset-ring-strong surface-overlay outline-none transition-[opacity,scale] duration-150 ease-out data-starting-style:opacity-0 motion-safe:data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:duration-100 data-instant:duration-0",
             className,
           )}
           finalFocus={finalFocus}
@@ -96,7 +93,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-selected data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
+        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
         "data-[variant=danger]:text-danger data-[variant=danger]:data-highlighted:bg-danger-subtle data-[variant=danger]:[&_svg]:fill-danger",
         className,
       )}
@@ -122,8 +119,8 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-selected data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
-        "data-popup-open:bg-selected",
+        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
+        "data-popup-open:bg-hover",
         className,
       )}
       {...props}
@@ -167,7 +164,7 @@ function DropdownMenuCheckboxItem({
       data-slot="dropdown-menu-checkbox-item"
       data-inset={inset}
       className={cn(
-        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-selected data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
+        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
         "pr-8",
         className,
       )}
@@ -204,7 +201,7 @@ function DropdownMenuRadioItem({
       data-slot="dropdown-menu-radio-item"
       data-inset={inset}
       className={cn(
-        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-selected data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
+        "group/dropdown-menu-item relative flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-disabled:pointer-events-none data-disabled:opacity-disabled data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-secondary data-highlighted:[&_svg]:text-primary",
         "pr-8",
         className,
       )}

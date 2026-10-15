@@ -175,8 +175,13 @@ const playlistHeaderParts: PartSpec[] = [
   { name: "row", paper: { height: 40 }, selector: "tbody tr[data-entry-id]" },
   {
     name: "playing row",
-    paper: { backgroundColor: paper.accent10 },
+    paper: { backgroundColor: paper.transparent },
     selector: "tbody tr[aria-current] td:first-child",
+  },
+  {
+    name: "playing title",
+    paper: { color: paper.amber },
+    selector: "tbody tr[aria-current] [data-slot=track-artwork] + div > p:first-child",
   },
 ];
 

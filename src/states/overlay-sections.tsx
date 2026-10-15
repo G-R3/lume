@@ -107,7 +107,7 @@ function menuItemParts(
         backgroundColor: highlighted
           ? danger
             ? overlayPaper.dangerSubtle
-            : paper.neutral800
+            : paper.neutral750
           : paper.transparent,
         borderRadius: 4,
         color: danger ? paper.red300 : paper.neutral100,
@@ -137,11 +137,10 @@ function menuItemParts(
 const menuPopupPart: PartSpec = {
   name: "menu",
   paper: {
-    backgroundColor: paper.neutral900,
+    backgroundColor: paper.neutral800,
     borderRadius: 8,
-    edge: `1px ${paper.neutral800}`,
+    edge: `1px ${paper.neutral700}`,
     paddingLeft: 4,
-    width: 240,
   },
   selector: menuSelectors.popup,
 };
@@ -163,7 +162,7 @@ export function MenuSection() {
           ...menuItemParts("item", `${menuSelectors.popup} > :nth-child(3)`),
           {
             name: "separator",
-            paper: { backgroundColor: paper.neutral800, height: 1 },
+            paper: { backgroundColor: paper.neutral750, height: 1 },
             selector: "[data-slot=dropdown-menu-separator]",
           },
           {
@@ -222,7 +221,8 @@ export function MenuSection() {
         id="menu.playlist"
         label="Playlist menu"
         parts={[
-          menuPopupPart,
+          // menus fit their content; only this one has the same items as Paper (16 C)
+          { ...menuPopupPart, paper: { ...menuPopupPart.paper, width: 144 } },
           ...menuItemParts("item", `${menuSelectors.popup} > :nth-child(1)`, { danger: true }),
         ]}
       >
@@ -416,7 +416,7 @@ export function DialogSection() {
             paper: {
               backgroundColor: paper.neutral800,
               color: paper.neutral100,
-              focusRing: `2px ${paper.neutral500} 2px`,
+              focusRing: `2px ${paper.neutral450} 2px`,
             },
             selector: "[data-slot=dialog-footer] button:first-child",
           },

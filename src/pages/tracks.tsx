@@ -87,7 +87,7 @@ function SortMenu() {
         {label}
         <CaretDownIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-auto" finalFocus>
+      <DropdownMenuContent align="end" finalFocus>
         <DropdownMenuRadioGroup onValueChange={setTrackSort} value={sort}>
           {trackSorts.map((option) => (
             <DropdownMenuRadioItem

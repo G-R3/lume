@@ -250,7 +250,7 @@ function FolderRow({
             >
               <DotsThreeIcon aria-hidden="true" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-auto">
+            <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={onForget} variant="danger">
                 <FolderMinusIcon aria-hidden="true" />
                 Forget folder

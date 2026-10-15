@@ -88,7 +88,7 @@ const title = {
 
 const meta = { color: paper.neutral400, fontFamily: "sans", fontSize: 12, lineHeight: 16 } as const;
 
-function rowParts(name: string, row: string, background: string): PartSpec[] {
+function rowParts(name: string, row: string, background: string, current = false): PartSpec[] {
   return [
     {
       name,
@@ -102,7 +102,7 @@ function rowParts(name: string, row: string, background: string): PartSpec[] {
     },
     {
       name: `${name} title`,
-      paper: { ...title, left: 57 },
+      paper: { ...title, ...(current && { color: paper.amber }), left: 57 },
       selector: `${row} [data-slot=track-artwork] + span > span:first-child`,
     },
     {
@@ -145,7 +145,7 @@ const openParts: PartSpec[] = [
     paper: { ...meta, fontFamily: "mono" },
     selector: "[data-sidebar=group]:nth-child(2) h3 + span",
   },
-  ...rowParts("now playing", selectors.current, paper.accent10),
+  ...rowParts("now playing", selectors.current, paper.transparent, true),
   {
     name: "now playing meter",
     paper: { opacity: 1 },
@@ -208,7 +208,7 @@ export function QueueSection() {
           id="queue.focus"
           label="Paused, row focus"
           parts={[
-            ...rowParts("now playing", selectors.current, paper.accent10),
+            ...rowParts("now playing", selectors.current, paper.transparent, true),
             {
               name: "now playing meter",
               paper: { opacity: 0 },

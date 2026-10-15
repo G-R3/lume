@@ -3,6 +3,7 @@ import { motion, useReducedMotionConfig } from "motion/react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ease, likeFeels, type LikeFeel } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 export function LikeButton({
   className,
@@ -50,7 +51,7 @@ export function LikeButton({
     <Button
       aria-label={label}
       aria-pressed={liked}
-      className={className}
+      className={cn("hover:not-data-disabled:bg-transparent", className)}
       onClick={(event) => {
         // like via keyboard is instant with no animation
         if (!liked && event.detail > 0) {
@@ -68,7 +69,7 @@ export function LikeButton({
       static
       tabIndex={tabIndex}
       type="button"
-      variant="ghost"
+      variant="row-action"
     >
       <span className="relative size-4">
         {showsEffects && (

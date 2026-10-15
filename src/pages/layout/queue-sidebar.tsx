@@ -52,7 +52,7 @@ export function QueueSidebar({
       side="right"
       style={{ "--sidebar-width": QUEUE_SIDEBAR_WIDTH } as CSSProperties}
     >
-      {open && <QueuePanel onClose={() => onOpenChange(false)} />}
+      {open && <QueuePanel />}
     </Sidebar>
   );
 }
@@ -141,7 +141,7 @@ export function QueuePanel({
               </QueueSectionHeading>
               {queue.current ? (
                 <div
-                  className="flex h-10 items-center gap-2 rounded-lg bg-accent-subtle px-1"
+                  className="flex h-10 items-center gap-2 rounded-lg px-1"
                   data-slot="queue-current"
                 >
                   <QueueTrack
@@ -318,7 +318,8 @@ function QueueTrack({
         <span
           className={cn(
             "block truncate text-left text-body font-medium",
-            unavailable ? "text-disabled" : "text-primary",
+            // the current track: an amber title beside the meter, as in the track tables
+            unavailable ? "text-disabled" : state ? "text-accent" : "text-primary",
           )}
           data-truncate
           dir="auto"

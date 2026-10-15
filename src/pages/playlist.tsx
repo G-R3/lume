@@ -103,7 +103,9 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
                 variant="danger"
               >
                 <MinusCircleIcon aria-hidden="true" />
-                <span className="truncate">Remove from {playlist.title}</span>
+                <span className="truncate" title={`Remove from ${playlist.title}`}>
+                  Remove from {playlist.title}
+                </span>
               </DropdownMenuItem>
             )}
           />

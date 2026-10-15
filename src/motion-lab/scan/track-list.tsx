@@ -274,7 +274,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
         aria-selected={isSelected}
         className={cn(
           "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
-          isSelected ? "*:bg-selected" : isActive ? "*:bg-accent-subtle" : "hover:*:bg-page-hover",
+          isSelected ? "*:bg-selected" : "hover:*:bg-hover",
           isRevealed &&
             "motion-safe:animate-[lab-row-in_300ms_var(--ease-spring-ui)_both] motion-reduce:animate-[lab-row-fade_300ms_var(--ease-out)_both] motion-reduce:[animation-delay:0ms]!",
         )}
@@ -296,21 +296,13 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
             <TrackArtwork
               artworkUrl={track.artworkUrl}
               className={cn("size-8", !track.available && "opacity-disabled")}
-              state={
-                isActive
-                  ? playback.isPlaying
-                    ? "playing"
-                    : "paused"
-                  : isSelected
-                    ? "selected"
-                    : undefined
-              }
+              state={isActive ? (playback.isPlaying ? "playing" : "paused") : undefined}
             />
             <div className="min-w-0 flex-1">
               <p
                 className={cn(
                   "truncate text-left text-body font-medium",
-                  track.available ? "text-primary" : "text-disabled",
+                  !track.available ? "text-disabled" : isActive ? "text-accent" : "text-primary",
                 )}
                 data-truncate
                 dir="auto"
