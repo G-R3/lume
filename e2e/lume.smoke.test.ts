@@ -43,23 +43,34 @@ it("keeps a scanned track and playlist working after restart", async () => {
   const firstApplication = await launchLume(profile);
   launchedApplications.push(firstApplication);
   const firstWindow = await firstApplication.firstWindow();
-  await firstWindow.getByRole("heading", { exact: true, name: "All Tracks" }).waitFor();
-  expect(await firstWindow.getByText("1 track", { exact: true }).isVisible()).toBe(true);
+  await firstWindow.getByRole("heading", { exact: true, name: "Tracks" }).waitFor();
+  expect(
+    await firstWindow
+      .getByRole("grid", { name: "Tracks" })
+      .getByRole("row", { name: /smoke/ })
+      .isVisible(),
+  ).toBe(true);
 
   await firstWindow.getByRole("button", { name: "Create playlist" }).click();
   const creationDialog = firstWindow.getByRole("dialog");
   await creationDialog.getByLabel("Title").fill("Smoke playlist");
-  await creationDialog.getByRole("button", { name: "Create playlist" }).click();
+  await creationDialog.getByRole("button", { name: "Create" }).click();
   await firstWindow.getByRole("heading", { level: 1, name: "Smoke playlist" }).last().waitFor();
 
-  await firstWindow.getByRole("link", { name: /All tracks/ }).click();
+  await firstWindow.getByRole("link", { name: /^Tracks/ }).click();
   await firstWindow.getByRole("button", { exact: true, name: "More options for smoke" }).click();
   await firstWindow.getByRole("menuitem", { name: "Add to playlist" }).click();
-  await firstWindow.getByRole("dialog").getByRole("button", { name: "Smoke playlist" }).click();
+  await firstWindow
+    .getByRole("dialog")
+    .getByRole("option", { name: /Smoke playlist/ })
+    .click();
   await firstWindow.getByText("Added to Smoke playlist").waitFor();
 
   await firstWindow.getByRole("link", { name: "Smoke playlist" }).click();
-  await firstWindow.getByRole("button", { exact: true, name: "smoke" }).click();
+  await firstWindow
+    .getByRole("grid", { name: "Smoke playlist" })
+    .getByRole("row", { name: /smoke/ })
+    .dblclick();
   await firstWindow.getByRole("button", { name: "Pause" }).waitFor();
   expect(await firstWindow.locator("audio").getAttribute("src")).toMatch(
     /^lume:\/\/app\/media\/\d+$/,
@@ -108,11 +119,14 @@ it("keeps a scanned track and playlist working after restart", async () => {
   const restartedApplication = await launchLume(profile);
   launchedApplications.push(restartedApplication);
   const restartedWindow = await restartedApplication.firstWindow();
-  await restartedWindow.getByRole("heading", { exact: true, name: "All Tracks" }).waitFor();
+  await restartedWindow.getByRole("heading", { exact: true, name: "Tracks" }).waitFor();
   await restartedWindow.getByRole("link", { name: "Smoke playlist" }).click();
   await restartedWindow.getByRole("heading", { level: 1, name: "Smoke playlist" }).last().waitFor();
   expect(
-    await restartedWindow.getByRole("button", { exact: true, name: "smoke" }).isVisible(),
+    await restartedWindow
+      .getByRole("grid", { name: "Smoke playlist" })
+      .getByRole("row", { name: /smoke/ })
+      .isVisible(),
   ).toBe(true);
 });
 

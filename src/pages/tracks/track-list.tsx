@@ -1,27 +1,33 @@
-import {
-  DotsThreeIcon,
-  HeartIcon,
-  LockSimpleIcon,
-  ListPlusIcon,
-  PlaylistIcon,
-  PlusIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeIcon, ListPlusIcon, PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useRef, useState } from "react";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
+import {
+  type KeyboardEvent,
+  memo,
+  type ReactNode,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePlayback } from "@/hooks/use-playback";
 import { collectionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
-import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
+import { LikeButton } from "@/components/like-button";
+import { type ArtworkState, TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
+import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
+import { showTruncatedText } from "@/lib/show-truncated-text";
 import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/library-query";
 import { cn } from "@/lib/utils";
 
@@ -37,22 +43,61 @@ type TrackListProps = {
   renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
 
+const rowHeight = 40;
+
+const headerHeight = 32;
+
+// The 4px gap between the column header and the first row
+const listInset = 4;
+
+// The React Compiler skips this component: it lists `useVirtualizer` as incompatible with
+// memoization. That's why the row callbacks go through `useStableActions` instead.
 export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
   const playback = usePlayback();
   const navigate = useNavigate();
   const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
   const setTrackLiked = useSetTrackLiked();
-  const addDialogTriggerRef = useRef<HTMLElement | null>(null);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+  const addToPlaylistTriggerRef = useRef<HTMLElement | null>(null);
+  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
+  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const pendingFocusIndex = useRef<number | null>(null);
+  // `undefined` until the first layout effect has looked for the list's scroll container
+  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null | undefined>(undefined);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const isPlaylist = playlistId !== undefined;
 
-  const handleAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
-    addDialogTriggerRef.current = trigger;
-    setSelectedTrack(track);
-    setAddDialogOpen(true);
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    const container = table?.parentElement?.closest<HTMLElement>("[data-scroll-container]") ?? null;
+
+    setScrollContainer(container);
+
+    if (!table || !container) return;
+
+    const measureScrollMargin = () =>
+      setScrollMargin(
+        table.getBoundingClientRect().top -
+          container.getBoundingClientRect().top +
+          container.scrollTop,
+      );
+
+    measureScrollMargin();
+    const observer = new ResizeObserver(measureScrollMargin);
+    observer.observe(container);
+    observer.observe(table);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
+    addToPlaylistTriggerRef.current = trigger;
+    setTrackToAdd(track);
+    setIsAddToPlaylistOpen(true);
   };
 
-  const handleCreatePlaylist = (track: Track) => {
+  const createPlaylistWithTrack = (track: Track) => {
     createPlaylistFromTrack.mutate(track.id, {
       onError: (error) => {
         toast.add({
@@ -71,7 +116,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     });
   };
 
-  const handleSetTrackLiked = (track: Track) => {
+  const toggleTrackLiked = (track: Track) => {
     setTrackLiked.mutate(
       { liked: track.likedAt === null, trackId: track.id },
       {
@@ -87,186 +132,444 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     );
   };
 
+  const playItem = (item: TrackListItem) => {
+    if (!item.track.available) return;
+
+    void playback.playSourceEntry({
+      source: collectionSource(playlistId),
+      sourceEntryId: item.sourceEntryId,
+    });
+  };
+
+  // The selected row, else the first. It scans every item, so it reruns only when the items or the
+  // selection change, not on every scroll frame.
+  const { tabStopEntryId, tabStopIndex } = useMemo(() => {
+    const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
+    const index = selectedIndex < 0 ? 0 : selectedIndex;
+
+    return { tabStopEntryId: items[index]?.sourceEntryId, tabStopIndex: items.length ? index : -1 };
+  }, [items, selectedEntryId]);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    enabled: Boolean(scrollContainer),
+    estimateSize: () => rowHeight,
+    getScrollElement: () => scrollContainer ?? null,
+    overscan: 8,
+    paddingStart: headerHeight + listInset,
+    // The tab stop always renders, so the list keeps its Tab stop and focus while scrolled away.
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+
+      return tabStopIndex < 0 || indexes.includes(tabStopIndex)
+        ? indexes
+        : [...indexes, tabStopIndex].sort((left, right) => left - right);
+    },
+    scrollMargin,
+    scrollPaddingStart: headerHeight + listInset,
+  });
+
+  // Nothing renders before the container is known; rendering every item would mount the whole
+  // library for one commit. Lists without a scroll container render every item.
+  const mountedIndexes =
+    scrollContainer === undefined
+      ? []
+      : scrollContainer
+        ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
+        : items.map((_item, index) => index);
+
+  const focusRow = (index: number) => {
+    const target = Math.max(0, Math.min(items.length - 1, index));
+    const item = items[target];
+
+    if (!item) return;
+
+    setSelectedEntryId(item.sourceEntryId);
+    pendingFocusIndex.current = target;
+
+    if (scrollContainer) virtualizer.scrollToIndex(target);
+  };
+
+  useLayoutEffect(() => {
+    const index = pendingFocusIndex.current;
+
+    if (index === null) return;
+
+    const row = tableRef.current?.querySelector<HTMLElement>(
+      `tr[data-entry-id="${items[index]?.sourceEntryId}"]`,
+    );
+
+    if (!row) return;
+
+    pendingFocusIndex.current = null;
+    row.focus({ preventScroll: Boolean(scrollContainer) });
+  });
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
+    if (event.target !== event.currentTarget) return;
+
+    const pageSize = Math.max(
+      1,
+      Math.floor((scrollContainer?.clientHeight ?? window.innerHeight) / rowHeight) - 1,
+    );
+
+    const target = {
+      ArrowDown: index + 1,
+      ArrowUp: index - 1,
+      End: items.length - 1,
+      Home: 0,
+      PageDown: index + pageSize,
+      PageUp: index - pageSize,
+    }[event.key];
+
+    if (target !== undefined) {
+      event.preventDefault();
+      focusRow(target);
+
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      playItem(items[index]);
+    }
+  };
+
+  const rowActions = useStableActions<TrackRowActions>({
+    addToPlaylist: openAddToPlaylist,
+    addToQueue: (trackId) => playback.enqueueTrack(trackId),
+    createPlaylist: createPlaylistWithTrack,
+    keyDown: handleRowKeyDown,
+    play: playItem,
+    select: setSelectedEntryId,
+    toggleLike: toggleTrackLiked,
+  });
+
+  function renderTrackRow(index: number) {
+    const item = items[index];
+
+    const isActive =
+      playback.activeSourceEntryId === item.sourceEntryId &&
+      playback.activeSourcePlaylistId === (playlistId ?? null);
+
+    const isSelected = item.sourceEntryId === selectedEntryId;
+
+    return (
+      <TrackRow
+        actions={rowActions}
+        artworkState={isActive ? (playback.isPlaying ? "playing" : "paused") : undefined}
+        canAddToQueue={playback.queue !== null}
+        index={index}
+        isActive={isActive}
+        isCreatingPlaylist={createPlaylistFromTrack.isPending}
+        isPlaylist={isPlaylist}
+        isSelected={isSelected}
+        isTabStop={item.sourceEntryId === tabStopEntryId}
+        item={item}
+        key={item.sourceEntryId}
+        renderMenuItems={renderMenuItems}
+      />
+    );
+  }
+
+  const bodyRows: ReactNode[] = [];
+  let nextUnmountedIndex = 0;
+
+  // One empty row stands in for the unmounted rows before `untilIndex`, keeping the scroll height.
+  // Its one cell spans nothing: a colSpan would count the columns that narrow lists hide, and the
+  // fixed table layout would give those phantom columns part of the title's width.
+  const addSpacerRow = (untilIndex: number) => {
+    if (untilIndex <= nextUnmountedIndex) return;
+
+    bodyRows.push(
+      <tr aria-hidden="true" key={`spacer-${nextUnmountedIndex}`}>
+        <td style={{ height: (untilIndex - nextUnmountedIndex) * rowHeight }} />
+      </tr>,
+    );
+  };
+
+  for (const index of mountedIndexes) {
+    addSpacerRow(index);
+    bodyRows.push(renderTrackRow(index));
+    nextUnmountedIndex = index + 1;
+  }
+
+  if (scrollContainer) addSpacerRow(items.length);
+
   return (
-    <div id="tracks">
-      <table className="w-full table-fixed text-xs">
+    <div className="@container" id="tracks">
+      <table
+        className="w-full table-fixed border-separate border-spacing-0 px-2"
+        onPointerOver={showTruncatedText}
+        aria-rowcount={items.length + 1}
+        ref={tableRef}
+        role="grid"
+      >
         <caption className="sr-only">{caption}</caption>
-        <thead className="font-berkeley border-b border-neutral-800 text-left tracking-[0.08em] text-neutral-400 uppercase">
-          <tr>
-            <th className="hidden w-14 py-2.5 pr-3 pl-5 font-normal sm:table-cell" scope="col">
-              #
-            </th>
-            <th className="pl-1 pr-2 py-2.5 font-normal" scope="col">
-              Title
-            </th>
-            <th className="hidden w-[30%] px-3 py-2.5 font-normal lg:table-cell" scope="col">
-              Album
-            </th>
-            <th className="w-18 px-2 py-2.5 text-right font-normal sm:w-24 sm:px-3" scope="col">
-              Duration
-            </th>
-            <th className="w-8 py-2.5 text-center font-normal" scope="col">
-              <span className="sr-only">Like</span>
-            </th>
-            <th className="w-10 py-2.5 pr-3 pl-1 font-normal sm:w-12 sm:pr-5 sm:pl-2" scope="col">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, index) => {
-            const track = item.track;
-
-            const isActive =
-              playback.activeSourceEntryId === item.sourceEntryId &&
-              playback.activeSourcePlaylistId === (playlistId ?? null);
-
-            const metadataColor = track.available ? "text-neutral-400" : "text-neutral-700";
-            const artists = track.artists.join(", ") || "Unknown artist";
-            const album = track.album || "Unknown album";
-
-            return (
-              <tr
-                className={cn(
-                  "group/track-row border-b border-l-2 border-neutral-900",
-                  isActive
-                    ? "border-l-lime-300 bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
-                    : "border-l-transparent",
-                  track.available
-                    ? "cursor-pointer hover:bg-sidebar-accent focus-within:bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
-                    : "bg-neutral-950/40",
-                )}
-                key={item.sourceEntryId}
-                onClick={
-                  track.available
-                    ? () =>
-                        playback.playSourceEntry({
-                          source: collectionSource(playlistId),
-                          sourceEntryId: item.sourceEntryId,
-                        })
-                    : undefined
-                }
-              >
-                <td
-                  className={cn(
-                    "font-berkeley hidden h-12 pr-3 pl-5 tabular-nums sm:table-cell",
-                    metadataColor,
-                  )}
-                >
-                  {isActive && playback.isPlaying ? (
-                    <span aria-label="Playing" className="flex h-3 items-end gap-0.5">
-                      <i className="h-1 w-0.5 bg-lime-300" />
-                      <i className="h-2.5 w-0.5 bg-lime-300" />
-                      <i className="h-1.5 w-0.5 bg-lime-300" />
-                    </span>
-                  ) : (
-                    String(index + 1).padStart(2, "0")
-                  )}
-                </td>
-                <td className="h-12 min-w-0 pl-1 pr-2">
-                  <button
-                    aria-current={isActive ? "true" : undefined}
-                    aria-label={track.title}
-                    className={cn(
-                      "flex w-full min-w-0 items-center gap-2.5 text-left outline-none",
-                      track.available ? "cursor-pointer" : "cursor-not-allowed",
-                    )}
-                    disabled={!track.available}
-                    type="button"
-                  >
-                    <TrackArtwork
-                      artworkUrl={track.artworkUrl}
-                      className={cn(
-                        "size-8 text-[8px]",
-                        !track.available && "grayscale opacity-40",
-                      )}
-                      fallback={<ArtworkFallback track={track} />}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          "block truncate",
-                          track.available ? "text-neutral-100" : "text-neutral-500",
-                        )}
-                      >
-                        {track.title}
-                      </span>
-                      <span className={cn("block truncate leading-4", metadataColor)}>
-                        <span>{artists}</span>
-                        <span className="lg:hidden"> · {album}</span>
-                      </span>
-                    </span>
-                    {!track.available && (
-                      <span className="ml-auto flex shrink-0 items-center gap-1 text-neutral-600">
-                        <LockSimpleIcon aria-hidden="true" />
-                        <span className="hidden sm:inline">Unavailable</span>
-                      </span>
-                    )}
-                  </button>
-                </td>
-                <td className={cn("hidden h-12 px-3 lg:table-cell", metadataColor)}>
-                  <div className="truncate">{album}</div>
-                </td>
-                <td
-                  className={cn(
-                    "font-berkeley h-12 px-2 text-right tabular-nums sm:px-3",
-                    metadataColor,
-                  )}
-                >
-                  {formatDuration(track.duration)}
-                </td>
-                <td className="h-12 p-0 text-center" onClick={(event) => event.stopPropagation()}>
-                  <Button
-                    aria-label={
-                      track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`
-                    }
-                    aria-pressed={track.likedAt !== null}
-                    className={cn(
-                      "focus-visible:opacity-100",
-                      track.likedAt === null
-                        ? "text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 hover:text-neutral-100"
-                        : "text-lime-300 hover:text-lime-200",
-                    )}
-                    onClick={() => handleSetTrackLiked(track)}
-                    onPointerDown={(event) => event.preventDefault()}
-                    size="icon"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <HeartIcon
-                      aria-hidden="true"
-                      weight={track.likedAt === null ? "regular" : "fill"}
-                    />
-                  </Button>
-                </td>
-                <td
-                  className="h-12 py-1 pr-3 pl-1 text-right sm:pr-5 sm:pl-2"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <TrackRowMenu
-                    canAddToQueue={playback.queue !== null}
-                    isCreatingPlaylist={createPlaylistFromTrack.isPending}
-                    onAddToQueue={() => playback.enqueueTrack(track.id)}
-                    onAddToPlaylist={handleAddToPlaylist}
-                    onCreatePlaylist={handleCreatePlaylist}
-                    track={track}
-                  >
-                    {renderMenuItems?.(item)}
-                  </TrackRowMenu>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
+        <TrackListHead isPlaylist={isPlaylist} />
+        <tbody className="before:table-row before:h-1">{bodyRows}</tbody>
       </table>
-      {selectedTrack && (
+      {trackToAdd && (
         <AddToPlaylistDialog
-          finalFocus={addDialogTriggerRef}
-          onOpenChange={setAddDialogOpen}
-          open={addDialogOpen}
-          track={selectedTrack}
+          finalFocus={addToPlaylistTriggerRef}
+          onCreatePlaylist={createPlaylistWithTrack}
+          onOpenChange={setIsAddToPlaylistOpen}
+          open={isAddToPlaylistOpen}
+          track={trackToAdd}
         />
       )}
+    </div>
+  );
+}
+
+type TrackRowActions = {
+  addToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
+  addToQueue: (trackId: number) => void;
+  createPlaylist: (track: Track) => void;
+  keyDown: (event: KeyboardEvent<HTMLTableRowElement>, index: number) => void;
+  play: (item: TrackListItem) => void;
+  select: (sourceEntryId: number) => void;
+  toggleLike: (track: Track) => void;
+};
+
+type TrackRowProps = {
+  actions: TrackRowActions;
+  artworkState: ArtworkState | undefined;
+  canAddToQueue: boolean;
+  index: number;
+  isActive: boolean;
+  isCreatingPlaylist: boolean;
+  isPlaylist: boolean;
+  isSelected: boolean;
+  isTabStop: boolean;
+  item: TrackListItem;
+  renderMenuItems?: (item: TrackListItem) => ReactNode;
+};
+
+const TrackRow = memo(function TrackRow({
+  actions,
+  artworkState,
+  canAddToQueue,
+  index,
+  isActive,
+  isCreatingPlaylist,
+  isPlaylist,
+  isSelected,
+  isTabStop,
+  item,
+  renderMenuItems,
+}: TrackRowProps) {
+  const track = item.track;
+  const metadataColor = track.available ? "text-secondary" : "text-disabled";
+
+  return (
+    <tr
+      aria-current={isActive ? "true" : undefined}
+      aria-rowindex={index + 2}
+      aria-selected={isSelected}
+      className={cn(
+        "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
+        isSelected ? "*:bg-selected" : "hover:*:bg-hover",
+      )}
+      data-entry-id={item.sourceEntryId}
+      onClick={() => actions.select(item.sourceEntryId)}
+      onDoubleClick={() => actions.play(item)}
+      onKeyDown={(event) => actions.keyDown(event, index)}
+      // a double-click plays, so it shouldn't also select a word; dragging still selects text
+      onMouseDown={(event) => {
+        if (event.detail > 1) event.preventDefault();
+      }}
+      tabIndex={isTabStop ? 0 : -1}
+    >
+      {isPlaylist && (
+        <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">
+          {String(index + 1).padStart(2, "0")}
+        </td>
+      )}
+      <td className="pl-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <TrackArtwork
+            artworkUrl={track.artworkUrl}
+            className={cn("size-8", !track.available && "opacity-disabled")}
+            state={artworkState}
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className={cn(
+                "truncate text-left text-body font-medium",
+                !track.available ? "text-disabled" : isActive ? "text-accent" : "text-primary",
+              )}
+              data-truncate
+              dir="auto"
+            >
+              {track.title}
+            </p>
+            <p
+              className={cn("truncate text-left text-meta", metadataColor)}
+              data-truncate
+              dir="auto"
+            >
+              {track.artists.join(", ") || "Unknown artist"}
+            </p>
+          </div>
+          {!track.available && (
+            <span className="shrink-0 text-meta text-secondary">Unavailable</span>
+          )}
+          <div
+            className="contents"
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+          >
+            <TrackRowMenu
+              canAddToQueue={canAddToQueue}
+              isCreatingPlaylist={isCreatingPlaylist}
+              onAddToQueue={() => actions.addToQueue(track.id)}
+              onAddToPlaylist={actions.addToPlaylist}
+              onCreatePlaylist={actions.createPlaylist}
+              tabIndex={isTabStop ? 0 : -1}
+              track={track}
+            >
+              {renderMenuItems?.(item)}
+            </TrackRowMenu>
+          </div>
+        </div>
+      </td>
+      <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
+        <p className="truncate text-left text-body" data-truncate dir="auto">
+          {track.album || "Unknown album"}
+        </p>
+      </td>
+      <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
+        {formatAddedDate(track.addedAt)}
+      </td>
+      <td
+        className="pl-4"
+        onClick={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
+        <LikeButton
+          className={cn(
+            "-m-1",
+            track.likedAt === null &&
+              "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
+          )}
+          label={track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`}
+          liked={track.likedAt !== null}
+          onToggle={() => actions.toggleLike(track)}
+          tabIndex={isTabStop ? 0 : -1}
+        />
+      </td>
+      <td className={cn("pr-4 pl-4 text-right font-mono text-meta tabular-nums", metadataColor)}>
+        {formatDuration(track.duration)}
+      </td>
+    </tr>
+  );
+});
+
+// Functions that keep their identity across renders but always call the latest ones passed in
+function useStableActions<Actions extends Record<string, (...args: never[]) => void>>(
+  actions: Actions,
+) {
+  const latest = useRef(actions);
+
+  useLayoutEffect(() => {
+    latest.current = actions;
+  });
+
+  const [stable] = useState(
+    () =>
+      // SAFETY: one wrapper per key of `actions`, each with the same signature as the original.
+      Object.fromEntries(
+        Object.keys(actions).map((name) => [
+          name,
+          (...args: never[]) => latest.current[name](...args),
+        ]),
+      ) as Actions,
+  );
+
+  return stable;
+}
+
+function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
+  return (
+    <thead className="sticky top-0 z-10 text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
+      <tr
+        aria-rowindex={1}
+        className="*:bg-page *:first:relative *:first:before:absolute *:first:before:top-0 *:first:before:right-full *:first:before:-bottom-px *:first:before:w-2 *:first:before:border-b *:first:before:border-separator *:first:before:bg-page *:last:relative *:last:after:absolute *:last:after:top-0 *:last:after:-bottom-px *:last:after:left-full *:last:after:w-2 *:last:after:border-b *:last:after:border-separator *:last:after:bg-page"
+      >
+        {isPlaylist && (
+          <th className="h-8 w-10 border-b border-separator pl-4 font-normal" scope="col">
+            #
+          </th>
+        )}
+        <th className="h-8 border-b border-separator pl-14 font-normal" scope="col">
+          Title
+        </th>
+        <th
+          className="hidden h-8 w-[30%] border-b border-separator pl-4 font-normal @3xl:table-cell @6xl:w-100"
+          scope="col"
+        >
+          Album
+        </th>
+        <th
+          className="hidden h-8 w-28 border-b border-separator pl-4 font-normal @3xl:table-cell"
+          scope="col"
+        >
+          Added
+        </th>
+        <th className="h-8 w-8 border-b border-separator font-normal" scope="col">
+          <span className="sr-only">Like</span>
+        </th>
+        <th
+          className="h-8 w-22 border-b border-separator pr-4 pl-4 text-right font-normal"
+          scope="col"
+        >
+          Time
+        </th>
+      </tr>
+    </thead>
+  );
+}
+
+const skeletonRows = [
+  [144, 88, 120, 1],
+  [112, 64, 160, 0.8],
+  [176, 104, 88, 0.6],
+  [96, 72, 136, 0.45],
+  [152, 88, 104, 0.3],
+  [128, 96, 120, 0.15],
+];
+
+export function TrackListSkeleton({ isPlaylist }: { isPlaylist: boolean }) {
+  return (
+    <div aria-hidden="true" className="@container">
+      <table className="w-full table-fixed border-separate border-spacing-0 px-2">
+        <TrackListHead isPlaylist={isPlaylist} />
+        <tbody className="before:table-row before:h-1">
+          {skeletonRows.map(([title, artist, album, opacity], index) => (
+            <tr className="*:h-10" key={index} style={{ opacity }}>
+              {isPlaylist && <td />}
+              <td className="pl-4">
+                <div className="flex items-center gap-2">
+                  <span className="size-8 shrink-0 rounded-sm bg-raised" />
+                  <span className="flex flex-col gap-1.5">
+                    <span className="h-2 rounded-xs bg-raised" style={{ width: title }} />
+                    <span className="h-2 rounded-xs bg-raised" style={{ width: artist }} />
+                  </span>
+                </div>
+              </td>
+              <td className="hidden pl-4 @3xl:table-cell">
+                <span className="block h-2 rounded-xs bg-raised" style={{ width: album }} />
+              </td>
+              <td className="hidden @3xl:table-cell" />
+              <td />
+              <td className="pr-4">
+                <span className="ml-auto block h-2 w-7 rounded-xs bg-raised" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -278,6 +581,7 @@ function TrackRowMenu({
   onAddToQueue,
   onAddToPlaylist,
   onCreatePlaylist,
+  tabIndex,
   track,
 }: {
   canAddToQueue: boolean;
@@ -286,6 +590,7 @@ function TrackRowMenu({
   onAddToQueue: () => void;
   onAddToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   onCreatePlaylist: (track: Track) => void;
+  tabIndex: number;
   track: Track;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -296,38 +601,46 @@ function TrackRowMenu({
         render={
           <Button
             aria-label={`More options for ${track.title}`}
-            className="text-neutral-500 opacity-0 group-focus-within/track-row:opacity-100 group-hover/track-row:opacity-100 data-popup-open:opacity-100 hover:text-neutral-100"
-            // this should prevent the rows focus styles from flashing during certaint instances
-            // of the menu opening
+            className="opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100 data-popup-open:opacity-100"
             onMouseDown={(event) => event.preventDefault()}
             ref={triggerRef}
-            size="icon"
-            variant="ghost"
+            size="icon-sm"
+            static
+            tabIndex={tabIndex}
+            variant="row-action"
           />
         }
       >
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
+      <DropdownMenuContent align="end">
         {canAddToQueue && (
-          <DropdownMenuItem onClick={onAddToQueue}>
-            <ListPlusIcon aria-hidden="true" />
-            Add to queue
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem onClick={onAddToQueue}>
+              <ListPlusIcon aria-hidden="true" />
+              Add to queue
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
         )}
-        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
-          <PlusIcon aria-hidden="true" />
-          New playlist
-        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             if (triggerRef.current) onAddToPlaylist(track, triggerRef.current);
           }}
         >
           <PlaylistIcon aria-hidden="true" />
-          Add to playlist
+          Add to playlist…
         </DropdownMenuItem>
-        {children}
+        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
+          <PlusIcon aria-hidden="true" />
+          New playlist from track
+        </DropdownMenuItem>
+        {children && (
+          <>
+            <DropdownMenuSeparator />
+            {children}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

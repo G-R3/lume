@@ -1,8 +1,8 @@
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { SourceSettings } from "@/pages/settings/sources";
+import { FolderSettings } from "@/pages/settings/folders";
 
 export function SettingsPage() {
   const library = useMusicLibrary();
 
-  return <SourceSettings library={library} />;
+  return <FolderSettings library={library} />;
 }

@@ -1,24 +1,28 @@
-import { DotsThreeIcon, GearIcon, MusicNotesIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, GearIcon, MusicNotesIcon, TrashIcon } from "@phosphor-icons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import type { PlaylistSummary } from "../../../shared/lib";
+import { AnimatePresence, motion } from "motion/react";
+import { type Ref, type RefObject, useRef, useState } from "react";
+import type { LibrarySource, PlaylistSummary } from "../../../shared/lib";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
 } from "@/components/ui/sidebar";
+import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { usePlayback } from "@/hooks/use-playback";
+import { duration, ease } from "@/lib/motion";
+import { getSourceName } from "@/lib/source-name";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -29,72 +33,106 @@ import {
 
 export function AppSidebar() {
   const library = useMusicLibrary();
+  const playback = usePlayback();
   const matchRoute = useMatchRoute();
-  const isAllTracks = Boolean(matchRoute({ to: "/" }));
-  const isSettings = Boolean(matchRoute({ to: "/settings" }));
+  const isTracks = Boolean(matchRoute({ to: "/" }));
+  const createTriggerRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <Sidebar className="border-neutral-800 md:absolute! md:h-auto!">
-      <SidebarHeader className={cn("px-4 pb-3", window.lume.isMac ? "pt-15" : "pt-18.5")}>
-        <div className="flex items-center gap-2.5 px-1 text-sm font-semibold tracking-wide">
-          <span aria-hidden="true" className="flex h-4 items-end gap-0.5">
-            {[5, 12, 8, 14, 6].map((height) => (
-              <span className="w-0.5 rounded-full bg-current" key={height} style={{ height }} />
-            ))}
-          </span>
-          Lume
-        </div>
-      </SidebarHeader>
+    <Sidebar className="border-separator bg-raised surface-raised md:absolute! md:h-auto!">
+      {/* the traffic lights and the sidebar toggle sit over this bar */}
+      <SidebarHeader className="h-12 shrink-0 p-0 [-webkit-app-region:drag]" />
 
-      <SidebarContent>
-        <SidebarGroup>
+      <SidebarContent className="pb-2">
+        <SidebarGroup className="px-2 pt-2 pb-0">
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  className="text-neutral-400"
-                  isActive={isAllTracks}
-                  render={<Link to="/" />}
-                >
-                  <MusicNotesIcon aria-hidden="true" />
-                  <span>All tracks</span>
-                </SidebarMenuButton>
-                <SidebarMenuBadge className="font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-                  {library.tracks.length.toLocaleString()}
-                </SidebarMenuBadge>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  className="text-neutral-400"
-                  isActive={isSettings}
-                  render={<Link to="/settings" />}
-                >
-                  <GearIcon aria-hidden="true" />
-                  <span>Settings</span>
+                <SidebarMenuButton isActive={isTracks} render={<Link to="/" />}>
+                  <MusicNotesIcon aria-hidden="true" weight={isTracks ? "fill" : "regular"} />
+                  <span className="min-w-0 flex-1 truncate">Tracks</span>
+                  {playback.queue?.source.kind === "all-tracks" && <PlayingFromDot />}
+                  <NavCount count={library.tracks.length} />
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-neutral-500">Playlists</SidebarGroupLabel>
-          <CreatePlaylistDialog />
+        <SidebarGroup className="px-2 pt-6 pb-0">
+          <div className="flex items-center justify-between pr-1">
+            <SidebarGroupLabel render={<h2 />}>Playlists</SidebarGroupLabel>
+            <CreatePlaylistDialog triggerRef={createTriggerRef} />
+          </div>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {library.playlists.map((playlist) => (
-                <PlaylistSidebarItem key={playlist.id} playlist={playlist} />
-              ))}
+            <SidebarMenu className="relative">
+              {/* playlists that are created or deleted later slide in and out */}
+              <AnimatePresence initial={false} mode="popLayout">
+                {library.playlists.map((playlist, index) => (
+                  <PlaylistSidebarItem
+                    createTriggerRef={createTriggerRef}
+                    isPlayingFrom={playback.activeSourcePlaylistId === playlist.id}
+                    key={playlist.id}
+                    neighborId={(library.playlists[index + 1] ?? library.playlists[index - 1])?.id}
+                    playlist={playlist}
+                  />
+                ))}
+              </AnimatePresence>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarRail />
+      <SidebarFooter className="h-12 shrink-0 flex-row items-center gap-2 border-t border-separator py-0 pr-2 pl-4">
+        <SourceStatus sources={library.sources} />
+        <Link
+          aria-label="Settings"
+          className={buttonVariants({ size: "icon", variant: "toolbar" })}
+          to="/settings"
+        >
+          <GearIcon aria-hidden="true" />
+        </Link>
+      </SidebarFooter>
     </Sidebar>
   );
 }
 
-function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
+function NavCount({ count, className }: { count: number; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 font-mono text-meta font-normal text-secondary tabular-nums",
+        className,
+      )}
+    >
+      {count.toLocaleString()}
+    </span>
+  );
+}
+
+function PlayingFromDot() {
+  return (
+    <span className="size-1.5 shrink-0 rounded-full bg-accent">
+      <span className="sr-only">playing</span>
+    </span>
+  );
+}
+
+const MotionSidebarMenuItem = motion.create(SidebarMenuItem);
+
+function PlaylistSidebarItem({
+  createTriggerRef,
+  isPlayingFrom,
+  neighborId,
+  playlist,
+  ref,
+}: {
+  createTriggerRef: RefObject<HTMLButtonElement | null>;
+  isPlayingFrom: boolean;
+  /** the playlist that takes this row's focus if it's deleted: the next one, else the previous */
+  neighborId: number | undefined;
+  playlist: PlaylistSummary;
+  ref?: Ref<HTMLLIElement>;
+}) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const params = useParams({ strict: false });
@@ -102,38 +140,117 @@ function PlaylistSidebarItem({ playlist }: { playlist: PlaylistSummary }) {
   const isActive = params.playlistId === playlist.id;
 
   return (
-    <SidebarMenuItem>
+    <MotionSidebarMenuItem
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, transition: { duration: duration.fast, ease: ease.out }, y: -4 }}
+      initial={{ opacity: 0, y: -4 }}
+      layout="position"
+      ref={ref}
+      transition={{
+        duration: duration.enter,
+        ease: ease.out,
+        layout: { duration: duration.move, ease: ease.inOut },
+      }}
+    >
       <SidebarMenuButton
-        className="text-neutral-400"
+        data-playlist-id={playlist.id}
         isActive={isActive}
         render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
       >
-        <span>{playlist.title}</span>
+        <span className="min-w-0 flex-1 truncate">{playlist.title}</span>
+        {isPlayingFrom && <PlayingFromDot />}
+        <NavCount
+          className="min-w-6 text-right group-hover/menu-item:invisible group-has-focus-visible/menu-item:invisible group-has-data-popup-open/menu-item:invisible"
+          count={playlist.trackCount}
+        />
       </SidebarMenuButton>
-      <SidebarMenuBadge className="group-has-data-popup-open/menu-item:hidden group-focus-within/menu-item:hidden group-hover/menu-item:hidden font-berkeley rounded bg-neutral-800 px-1.5 py-1 text-[10px] text-neutral-500 tabular-nums">
-        {playlist.trackCount.toLocaleString()}
-      </SidebarMenuBadge>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <SidebarMenuAction ref={menuTriggerRef} showOnHover>
-              <DotsThreeIcon aria-hidden="true" />
-              <span className="sr-only">More options for {playlist.title}</span>
-            </SidebarMenuAction>
+            <Button
+              aria-label={`More options for ${playlist.title}`}
+              className="absolute top-1 right-1 opacity-0 group-hover/menu-item:opacity-100 group-has-focus-visible/menu-item:opacity-100 data-popup-open:opacity-100"
+              onMouseDown={(event) => event.preventDefault()}
+              ref={menuTriggerRef}
+              size="icon-sm"
+              static
+              variant="row-action"
+            />
           }
-        />
-        <DropdownMenuContent className="w-32 rounded-lg" finalFocus={false}>
-          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="destructive">
-            Delete playlist
+        >
+          <DotsThreeIcon aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
+            <TrashIcon aria-hidden="true" />
+            Delete playlist…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <DeletePlaylistDialog
         finalFocus={menuTriggerRef}
+        focusAfterDelete={() =>
+          neighborId !== undefined
+            ? document.querySelector<HTMLElement>(`[data-playlist-id="${neighborId}"]`)
+            : createTriggerRef.current
+        }
         onOpenChange={setDeleteOpen}
         open={deleteOpen}
         playlist={playlist}
       />
-    </SidebarMenuItem>
+    </MotionSidebarMenuItem>
   );
+}
+
+const scanDateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+
+function SourceStatus({ sources }: { sources: readonly LibrarySource[] }) {
+  const now = useMinuteClock();
+  const enabled = sources.filter((source) => source.enabled);
+  const issues = enabled.filter((source) => source.lastScanError).length;
+  const scannedAt = enabled.map((source) => source.lastScannedAt).filter((time) => time !== null);
+
+  const name = sources.length === 1 ? getSourceName(sources[0].path) : `${sources.length} folders`;
+
+  const [tone, detail] =
+    sources.length === 0
+      ? ["idle", null]
+      : enabled.length === 0
+        ? ["off", sources.length === 1 ? "off" : "all off"]
+        : issues > 0
+          ? ["issue", issues === 1 ? "1 issue" : `${issues} issues`]
+          : ["idle", scannedAt.length > 0 ? formatScanAge(Math.min(...scannedAt), now) : null];
+
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          tone === "issue" && "bg-danger",
+          tone === "off" && "bg-current text-tertiary",
+          tone === "idle" && "bg-current text-faint",
+        )}
+      />
+      <p
+        className="min-w-0 flex-1 truncate text-meta text-secondary"
+        title={sources.map((source) => source.path).join("\n") || undefined}
+      >
+        {sources.length === 0 ? "No folders" : name}
+        {detail && ` · ${detail}`}
+      </p>
+    </>
+  );
+}
+
+function formatScanAge(scannedAt: number, now: number) {
+  const minutes = Math.floor((now - scannedAt) / 60_000);
+
+  if (minutes < 1) return "scanned just now";
+
+  if (minutes < 60) return `scanned ${minutes}m`;
+
+  if (minutes < 24 * 60) return `scanned ${Math.floor(minutes / 60)}h`;
+
+  return `scanned ${scanDateFormatter.format(scannedAt)}`;
 }

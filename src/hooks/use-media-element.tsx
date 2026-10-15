@@ -274,7 +274,7 @@ function loadAudioPreferences() {
   return { volume: 1, muted: false };
 }
 
-function createAudioTimeStore() {
+export function createAudioTimeStore() {
   const listeners = new Set<() => void>();
   let currentTime = 0;
 

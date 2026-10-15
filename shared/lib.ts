@@ -20,6 +20,7 @@ export type TrackMetadata = {
 };
 
 export type Track = Omit<TrackMetadata, "album"> & {
+  addedAt: number;
   album: string;
   artworkUrl: string | null;
   available: boolean;

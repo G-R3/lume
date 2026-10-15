@@ -1,24 +1,30 @@
-import type { Track } from "../../shared/lib";
-import { type ReactNode, useState } from "react";
+import { MusicNoteIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { PlayingMeter } from "@/components/playing-meter";
 import { cn } from "@/lib/utils";
+
+export type ArtworkState = "paused" | "playing";
 
 export function TrackArtwork({
   artworkUrl,
   className,
-  fallback,
+  state,
 }: {
   artworkUrl: string | null;
   className?: string;
-  fallback: ReactNode;
+  state?: ArtworkState;
 }) {
   const [failedArtworkUrl, setFailedArtworkUrl] = useState<string | null>(null);
 
   return (
     <span
-      aria-hidden="true"
-      className={cn("relative grid shrink-0 overflow-hidden rounded-[3px]", className)}
+      className={cn(
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-sm bg-raised outline -outline-offset-1 outline-image",
+        className,
+      )}
+      data-slot="track-artwork"
     >
-      {fallback}
+      <MusicNoteIcon aria-hidden="true" className="size-[43.75%] text-faint" />
       {artworkUrl && artworkUrl !== failedArtworkUrl && (
         <img
           alt=""
@@ -27,49 +33,16 @@ export function TrackArtwork({
           src={artworkUrl}
         />
       )}
-    </span>
-  );
-}
-
-const coverClasses = [
-  "from-orange-950 to-orange-500",
-  "from-cyan-950 to-cyan-500",
-  "from-purple-950 to-purple-500",
-  "from-emerald-950 to-emerald-500",
-  "from-stone-800 to-stone-500",
-  "from-indigo-950 to-indigo-500",
-];
-
-export function ArtworkFallback({
-  track,
-}: {
-  track: Pick<Track, "album" | "albumArtists" | "id" | "title">;
-}) {
-  return (
-    <span
-      className={cn(
-        "font-berkeley absolute inset-0 grid place-items-center bg-linear-to-br font-semibold tracking-[-0.04em] text-neutral-100",
-        getCoverClass(track),
+      {state && (
+        <span
+          aria-label={state === "playing" ? "Playing" : "Paused"}
+          className="absolute inset-0 grid place-items-center bg-scrim"
+          data-slot="artwork-state"
+          role="img"
+        >
+          <PlayingMeter playing={state === "playing"} />
+        </span>
       )}
-    >
-      {track.title
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((word) => word[0])
-        .join("")
-        .toUpperCase()}
     </span>
   );
-}
-
-function getCoverClass(track: Pick<Track, "album" | "albumArtists" | "id">) {
-  const colorKey =
-    track.album === "Unknown album" ? track.id : `${track.albumArtists.join(",")}:${track.album}`;
-
-  const hash = Array.from(String(colorKey)).reduce(
-    (hash, character) => (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0,
-    0,
-  );
-
-  return coverClasses[hash % coverClasses.length];
 }

@@ -1,8 +1,8 @@
-import { DotsThreeIcon, LockSimpleIcon, XIcon } from "@phosphor-icons/react";
-import { useMemo, useRef, useState } from "react";
+import { ArrowCounterClockwiseIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
+import { type ReactNode, type Ref, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { Track } from "../../../shared/lib";
-import { ArtworkFallback, TrackArtwork } from "@/components/track-artwork";
+import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,15 +10,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sidebar } from "@/components/ui/sidebar";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { formatDuration, formatTotalDuration } from "@/lib/format-duration";
 import type { QueueItem, QueueLane } from "@/lib/queue/model";
+import { showTruncatedText } from "@/lib/show-truncated-text";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 100;
+// queue shows a window of upcoming tracks that moves as playback advances
+const VISIBLE_ROWS = 50;
 
-export const QUEUE_SIDEBAR_WIDTH = "20.25rem";
+const QUEUE_SIDEBAR_WIDTH = "20rem";
 
 export function QueueSidebar({
   open,
@@ -27,9 +38,28 @@ export function QueueSidebar({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  // SAFETY: React accepts CSS custom properties in the style object.
+  return (
+    <Sidebar
+      aria-label="Playback queue"
+      aria-hidden={!open}
+      className="border-separator bg-raised surface-raised md:absolute! md:h-auto!"
+      id="queue-sidebar"
+      inert={!open}
+      onOpenChange={onOpenChange}
+      open={open}
+      role="complementary"
+      side="right"
+      style={{ "--sidebar-width": QUEUE_SIDEBAR_WIDTH } as CSSProperties}
+    >
+      {open && <QueuePanel />}
+    </Sidebar>
+  );
+}
+
+function QueuePanel() {
   const playback = usePlayback();
   const library = useMusicLibrary();
-  const [visibleCounts, setVisibleCounts] = useState({ manual: PAGE_SIZE, source: PAGE_SIZE });
   const playButtons = useRef(new Map<string, HTMLButtonElement>());
 
   const laneHeadings = useRef<Record<QueueLane, HTMLHeadingElement | null>>({
@@ -49,10 +79,21 @@ export function QueueSidebar({
   const sourceName =
     queue?.source.kind === "all-tracks" ? "All tracks" : (queue?.source.title ?? "source");
 
+  const finished = queue?.status === "stopped" && !queue.current;
+
   const lanes = [
     { name: "manual" as const, title: "Next in queue", items: queue?.manualQueue ?? [] },
     { name: "source" as const, title: `Next from ${sourceName}`, items: queue?.sourceQueue ?? [] },
-  ].filter((lane) => lane.name === "source" || lane.items.length > 0);
+  ].filter((lane) => lane.items.length > 0 || (lane.name === "source" && !finished));
+
+  const queuedItems = queue
+    ? [...(queue.current ? [queue.current.item] : []), ...queue.manualQueue, ...queue.sourceQueue]
+    : [];
+
+  const queuedDuration = queuedItems.reduce(
+    (total, item) => total + (tracksById.get(item.trackId)?.duration ?? 0),
+    0,
+  );
 
   const remove = (
     queueItemId: string,
@@ -69,242 +110,253 @@ export function QueueSidebar({
     });
   };
 
-  // SAFETY: React accepts CSS custom properties in the style object.
   return (
-    <Sidebar
-      aria-label="Playback queue"
-      aria-hidden={!open}
-      className="border-neutral-800 md:absolute! md:h-auto!"
-      id="queue-sidebar"
-      inert={!open}
-      onOpenChange={onOpenChange}
-      open={open}
-      role="complementary"
-      side="right"
-      style={{ "--sidebar-width": QUEUE_SIDEBAR_WIDTH } as CSSProperties}
-    >
-      {window.lume.isMac && <div aria-hidden="true" className="h-9 shrink-0" />}
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-5 scrollbar-thin">
-        <div
-          className={cn(
-            "flex items-center justify-between",
-            window.lume.isMac ? "pt-6" : "pt-18.5",
-          )}
-        >
-          <h2 className="pl-2 text-sm font-semibold tracking-wide">Queue</h2>
-          <Button
-            aria-label="Close queue sidebar"
-            className="text-neutral-400 md:hidden"
-            onClick={() => onOpenChange(false)}
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            <XIcon aria-hidden="true" />
-          </Button>
-        </div>
+    <>
+      <SidebarHeader className="h-14 shrink-0 flex-row items-center gap-2 p-0 pr-2 pl-4">
+        <h2 className="text-title font-semibold text-primary">Queue</h2>
+        <p className="min-w-0 flex-1 truncate text-meta text-secondary">
+          {queuedItems.length > 0 &&
+            `${queuedItems.length.toLocaleString()} ${queuedItems.length === 1 ? "track" : "tracks"} · ${formatTotalDuration(queuedDuration)}`}
+        </p>
+      </SidebarHeader>
+      <SidebarContent className="gap-4 pb-2" onPointerOver={showTruncatedText}>
         {playback.errorMessage && (
-          <p className="mt-3 pl-2 text-xs text-red-300">{playback.errorMessage}</p>
+          <p className="px-4 text-meta text-danger">{playback.errorMessage}</p>
         )}
         {!queue ? (
-          <p className="mt-6 pl-2 text-xs text-neutral-500">Play a track to start a queue.</p>
+          <div className="flex flex-col gap-1 px-4 py-2">
+            <p className="text-body font-medium text-primary">Nothing queued</p>
+            <p className="text-meta text-secondary">Double-click a track to play it.</p>
+          </div>
         ) : (
           <>
-            <section aria-labelledby="queue-current" className="mt-5">
-              <h3
-                className="pl-2 text-xs font-semibold"
-                id="queue-current"
-                ref={currentHeading}
-                tabIndex={-1}
-              >
+            <SidebarGroup className="px-3 py-0">
+              <QueueSectionHeading headingRef={currentHeading} id="queue-current">
                 Now playing
-              </h3>
+              </QueueSectionHeading>
               {queue.current ? (
-                <QueueTrack
-                  current
-                  item={queue.current.item}
-                  paused={queue.status === "paused"}
-                  playing={playback.isPlaying}
-                  track={tracksById.get(queue.current.item.trackId)}
-                />
+                <div
+                  className="flex h-10 items-center gap-2 rounded-lg px-1"
+                  data-slot="queue-current"
+                >
+                  <QueueTrack
+                    item={queue.current.item}
+                    state={playback.isPlaying ? "playing" : "paused"}
+                    track={tracksById.get(queue.current.item.trackId)}
+                  />
+                </div>
+              ) : finished ? (
+                <div className="flex h-10 items-center gap-2 px-1" data-slot="queue-finished">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-overlay">
+                    <ArrowCounterClockwiseIcon
+                      aria-hidden="true"
+                      className="size-4 text-secondary"
+                    />
+                  </span>
+                  <p
+                    className="min-w-0 flex-1 truncate text-body font-medium text-primary"
+                    data-truncate
+                  >
+                    End of {sourceName}
+                  </p>
+                </div>
               ) : (
-                <p className="mt-2 pl-2 text-xs text-neutral-500">
-                  {queue.status === "stopped" ? "Playback finished." : "Nothing playing."}
-                </p>
+                <p className="px-1 text-meta text-secondary">Nothing playing</p>
               )}
-            </section>
+            </SidebarGroup>
 
             {lanes.map((lane) => (
-              <section aria-labelledby={`queue-${lane.name}`} className="mt-5" key={lane.name}>
-                <h3
-                  className="truncate pl-2 text-xs font-semibold"
-                  id={`queue-${lane.name}`}
-                  ref={(element) => {
+              <SidebarGroup className="px-3 py-0" key={lane.name}>
+                <QueueSectionHeading
+                  count={lane.items.length}
+                  headingRef={(element) => {
                     laneHeadings.current[lane.name] = element;
                   }}
-                  tabIndex={-1}
+                  id={`queue-${lane.name}`}
                 >
                   {lane.title}
-                </h3>
+                </QueueSectionHeading>
                 {lane.name === "source" && queue.source.kind === "detached" && (
-                  <p className="mt-1 pl-2 text-[11px] text-neutral-500">
-                    Playlist deleted; queue continues.
-                  </p>
+                  <p className="px-1 pb-2 text-meta text-secondary">Playlist deleted</p>
                 )}
                 {lane.items.length === 0 ? (
-                  <p className="mt-2 pl-2 text-xs text-neutral-500">Nothing up next.</p>
+                  <p className="px-1 text-meta text-secondary">Nothing up next</p>
                 ) : (
                   <>
-                    <div className="mt-1">
-                      {lane.items.slice(0, visibleCounts[lane.name]).map((item, index) => (
-                        <div
-                          className="group/queue-row relative rounded-[calc(var(--radius-sm)+2px)] hover:bg-sidebar-accent focus-within:bg-sidebar-accent focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-lime-300"
+                    <SidebarMenu>
+                      {lane.items.slice(0, VISIBLE_ROWS).map((item, index) => (
+                        <QueueRow
+                          item={item}
                           key={item.queueItemId}
-                        >
-                          <QueueTrack
-                            item={item}
-                            onJump={() => {
-                              playback.jumpToQueueItem(item.queueItemId);
-                              requestAnimationFrame(() => currentHeading.current?.focus());
-                            }}
-                            playRef={(element) => {
-                              if (element) playButtons.current.set(item.queueItemId, element);
-                              else playButtons.current.delete(item.queueItemId);
-                            }}
-                            track={tracksById.get(item.trackId)}
-                          />
-                          <QueueRowMenu
-                            item={item}
-                            onRemove={() => remove(item.queueItemId, lane.items, index, lane.name)}
-                            track={tracksById.get(item.trackId)}
-                          />
-                        </div>
+                          onJump={() => {
+                            playback.jumpToQueueItem(item.queueItemId);
+                            requestAnimationFrame(() => currentHeading.current?.focus());
+                          }}
+                          onRemove={() => remove(item.queueItemId, lane.items, index, lane.name)}
+                          playRef={(element) => {
+                            if (element) playButtons.current.set(item.queueItemId, element);
+                            else playButtons.current.delete(item.queueItemId);
+                          }}
+                          track={tracksById.get(item.trackId)}
+                        />
                       ))}
-                    </div>
-                    {lane.items.length > visibleCounts[lane.name] && (
-                      <button
-                        className="mt-2 ml-2 rounded-sm py-1 text-xs text-neutral-400 hover:text-neutral-100 focus-visible:outline-2 focus-visible:outline-lime-300"
-                        onClick={() =>
-                          setVisibleCounts((counts) => ({
-                            ...counts,
-                            [lane.name]: counts[lane.name] + PAGE_SIZE,
-                          }))
-                        }
-                        type="button"
-                      >
-                        Show more ({(lane.items.length - visibleCounts[lane.name]).toLocaleString()}{" "}
-                        left)
-                      </button>
+                    </SidebarMenu>
+                    {lane.items.length > VISIBLE_ROWS && (
+                      <p className="flex h-8 items-center px-1 text-meta text-secondary">
+                        {(lane.items.length - VISIBLE_ROWS).toLocaleString()} more
+                      </p>
                     )}
                   </>
                 )}
-              </section>
+              </SidebarGroup>
             ))}
           </>
         )}
-      </div>
-    </Sidebar>
+      </SidebarContent>
+    </>
   );
 }
 
-function QueueTrack({
-  current = false,
+function QueueSectionHeading({
+  children,
+  count,
+  headingRef,
+  id,
+}: {
+  children: ReactNode;
+  count?: number;
+  headingRef: Ref<HTMLHeadingElement>;
+  id: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 pr-1">
+      <SidebarGroupLabel
+        className="min-w-0 flex-1 px-1"
+        id={id}
+        render={<h3 ref={headingRef} />}
+        tabIndex={-1}
+      >
+        <span className="truncate" data-truncate>
+          {children}
+        </span>
+      </SidebarGroupLabel>
+      {count !== undefined && count > 0 && (
+        <span className="font-mono text-meta text-secondary tabular-nums">
+          {count.toLocaleString()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function QueueRow({
   item,
   onJump,
-  paused = false,
+  onRemove,
   playRef,
-  playing = false,
   track,
 }: {
-  current?: boolean;
   item: QueueItem;
-  onJump?: () => void;
-  paused?: boolean;
-  playRef?: (element: HTMLButtonElement | null) => void;
-  playing?: boolean;
+  onJump: () => void;
+  onRemove: () => void;
+  playRef: (element: HTMLButtonElement | null) => void;
   track?: Track;
 }) {
   const title = track?.title ?? `Track ${item.trackId}`;
   const unavailable = !track?.available;
 
-  const content = (
-    <>
-      {track ? (
-        <TrackArtwork
-          artworkUrl={track.artworkUrl}
-          className={cn(
-            "size-8 shrink-0 rounded-sm text-[8px]",
-            unavailable && "grayscale opacity-40",
-          )}
-          fallback={<ArtworkFallback track={track} />}
-        />
-      ) : (
-        <span className="size-8 shrink-0 rounded-sm bg-neutral-800" />
-      )}
-      <span className="min-w-0 flex-1 text-left">
+  return (
+    <SidebarMenuItem className="rounded-lg hover:bg-hover">
+      <button
+        aria-disabled={unavailable}
+        aria-label={unavailable ? `${title} unavailable` : `Play ${title} now`}
+        className="flex h-10 w-full items-center gap-2 rounded-lg px-1 text-left focus-visible:-outline-offset-2"
+        onClick={unavailable ? undefined : onJump}
+        ref={playRef}
+        type="button"
+      >
+        <QueueTrack item={item} track={track} />
         <span
           className={cn(
-            "block truncate text-xs font-medium",
-            playing && "text-lime-300",
-            unavailable && "text-neutral-500",
+            "min-w-10 shrink-0 text-right font-mono text-meta tabular-nums group-hover/menu-item:invisible group-has-focus-visible/menu-item:invisible group-has-data-popup-open/menu-item:invisible",
+            unavailable ? "text-disabled" : "text-secondary",
           )}
+          data-slot="queue-time"
         >
-          {title}
+          {track && formatDuration(track.duration)}
         </span>
-        <span className="block truncate text-[11px] leading-4 text-neutral-400">
-          {paused && "Paused · "}
-          {unavailable ? "Unavailable" : track.artists.join(", ") || "Unknown artist"}
-        </span>
-      </span>
-      {unavailable && (
-        <LockSimpleIcon aria-hidden="true" className="shrink-0 text-neutral-600" size={13} />
-      )}
-    </>
-  );
-
-  if (current) return <div className="mt-1 flex min-h-12 items-center gap-2.5 pl-2">{content}</div>;
-
-  return (
-    <button
-      aria-disabled={unavailable}
-      aria-label={unavailable ? `${title} unavailable` : `Play ${title} now`}
-      className="flex min-h-12 w-full items-center gap-2.5 pr-10 pl-2 text-left outline-none aria-disabled:cursor-not-allowed"
-      onClick={unavailable ? undefined : onJump}
-      ref={playRef}
-      type="button"
-    >
-      {content}
-    </button>
+      </button>
+      <QueueRowMenu onRemove={onRemove} title={title} />
+    </SidebarMenuItem>
   );
 }
 
-function QueueRowMenu({
+function QueueTrack({
   item,
-  onRemove,
+  state,
   track,
 }: {
   item: QueueItem;
-  onRemove: () => void;
+  state?: "paused" | "playing";
   track?: Track;
 }) {
+  const unavailable = !track?.available;
+
+  return (
+    <>
+      <TrackArtwork
+        artworkUrl={track?.artworkUrl ?? null}
+        className={cn("size-8", unavailable && "opacity-disabled")}
+        state={state}
+      />
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "block truncate text-left text-body font-medium",
+            // the current track: an amber title beside the meter, as in the track tables
+            unavailable ? "text-disabled" : state ? "text-accent" : "text-primary",
+          )}
+          data-truncate
+          dir="auto"
+        >
+          {track?.title ?? `Track ${item.trackId}`}
+        </span>
+        <span
+          className={cn(
+            "block truncate text-left text-meta",
+            unavailable ? "text-disabled" : "text-secondary",
+          )}
+          data-truncate
+          dir="auto"
+        >
+          {track?.artists.join(", ") || "Unknown artist"}
+        </span>
+      </span>
+      {unavailable && <span className="shrink-0 text-meta text-secondary">Unavailable</span>}
+    </>
+  );
+}
+
+function QueueRowMenu({ onRemove, title }: { onRemove: () => void; title: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button
-            aria-label={`Queue options for ${track?.title ?? `track ${item.trackId}`}`}
-            className="absolute top-3 right-2 text-neutral-500 opacity-0 group-focus-within/queue-row:opacity-100 group-hover/queue-row:opacity-100 data-popup-open:opacity-100 focus-visible:opacity-100"
+            aria-label={`More options for ${title}`}
+            className="absolute top-2 right-1 opacity-0 group-hover/menu-item:opacity-100 group-has-focus-visible/menu-item:opacity-100 data-popup-open:opacity-100"
             onMouseDown={(event) => event.preventDefault()}
             size="icon-sm"
-            variant="ghost"
+            static
+            variant="row-action"
           />
         }
       >
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44" finalFocus={false}>
-        <DropdownMenuItem onClick={onRemove} variant="destructive">
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onRemove} variant="danger">
+          <MinusCircleIcon aria-hidden="true" />
           Remove from queue
         </DropdownMenuItem>
       </DropdownMenuContent>

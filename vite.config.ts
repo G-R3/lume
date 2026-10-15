@@ -1,7 +1,6 @@
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { playwright } from "vite-plus/test/browser-playwright";
 import { defineConfig } from "vite-plus";
 
 // https://vite.dev/config/
@@ -20,23 +19,6 @@ export default defineConfig({
           exclude: ["**/*.browser.test.{ts,tsx}"],
           include: ["{electron,src,tests}/**/*.test.{ts,tsx}"],
           name: "unit",
-        },
-      },
-      {
-        extends: true,
-        optimizeDeps: {
-          include: ["vite-plus/test/browser"],
-        },
-        test: {
-          browser: {
-            enabled: true,
-            headless: true,
-            instances: [{ browser: "chromium" }],
-            provider: playwright(),
-            viewport: { height: 900, width: 1440 },
-          },
-          include: ["**/*.browser.test.{ts,tsx}"],
-          name: "browser",
         },
       },
     ],

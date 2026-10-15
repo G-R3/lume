@@ -112,3 +112,11 @@ function formatShortcut(shortcut: KeyboardShortcut) {
     .filter(Boolean)
     .join("+");
 }
+
+export function getSidebarShortcut(isMac: boolean) {
+  return {
+    ariaKeyShortcuts: isMac ? "Meta+B" : "Control+B",
+    key: "b",
+    label: isMac ? "⌘B" : "Ctrl+B",
+  };
+}

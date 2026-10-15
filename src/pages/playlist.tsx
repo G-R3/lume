@@ -1,16 +1,16 @@
-import { MinusCircleIcon, MusicNotesIcon } from "@phosphor-icons/react";
+import { MinusCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 import type { PlaylistDetails } from "../../shared/lib";
+import { buttonVariants } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useRemovePlaylistTrackMutation } from "@/lib/library-query";
 import { playlistQueryOptions } from "@/lib/playlist-query";
-import { TrackCollectionHeader } from "@/pages/tracks/track-collection-header";
-import { TrackList } from "@/pages/tracks/track-list";
+import { PlaylistHeader } from "@/pages/playlist/playlist-header";
+import { TrackList, TrackListSkeleton } from "@/pages/tracks/track-list";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ export function PlaylistPage() {
     if (!playlist.error) return;
 
     toast.add({
-      description: "Returning to All tracks.",
+      description: "Returning to Tracks.",
       priority: "high",
       title: "Could not open playlist",
       type: "error",
@@ -42,7 +42,7 @@ export function PlaylistPage() {
   return <PlaylistContent playlist={playlist.data} />;
 }
 
-function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
+export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
   const removePlaylistTrack = useRemovePlaylistTrackMutation();
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
@@ -73,71 +73,63 @@ function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   };
 
   return (
-    <main>
-      <TrackCollectionHeader
-        artwork={getPlaylistInitials(playlist.title)}
-        artworkClassName="font-berkeley bg-linear-to-br from-lime-950 to-lime-500 text-4xl font-semibold tracking-[-0.04em] text-neutral-100"
-        description={playlist.description}
-        eyebrow="Playlist"
-        items={items}
-        playlistId={playlist.id}
-        title={playlist.title}
-        trackCount={playlist.tracks.length}
-      />
-
+    <main className="flex min-h-0 flex-1 flex-col">
+      <PlaylistHeader items={items} playlist={playlist} />
       {playlist.tracks.length === 0 ? (
-        <div className="grid min-h-64 place-items-center px-6 text-center">
-          <div>
-            <MusicNotesIcon aria-hidden="true" className="mx-auto mb-3 size-5 text-neutral-600" />
-            <p className="text-sm font-medium text-neutral-300">No tracks in this playlist yet.</p>
+        <div className="flex flex-1 justify-center border-t border-separator px-6 pt-24">
+          <div className="flex w-100 flex-col gap-2" data-slot="playlist-empty">
+            <h2 className="text-title font-semibold text-primary">Nothing here yet</h2>
+            <p className="text-copy text-secondary">
+              Open a track’s menu and choose Add to playlist…
+            </p>
+            <div className="pt-4">
+              <Link className={buttonVariants({ variant: "secondary" })} to="/">
+                Browse tracks
+              </Link>
+            </div>
           </div>
         </div>
       ) : (
-        <TrackList
-          caption={`${playlist.title} tracks`}
-          items={items}
-          playlistId={playlist.id}
-          renderMenuItems={(item) => (
-            <DropdownMenuItem
-              disabled={removePlaylistTrack.isPending}
-              onClick={() => handleRemove(item.sourceEntryId)}
-              variant="destructive"
-            >
-              <MinusCircleIcon aria-hidden="true" />
-              Remove from playlist
-            </DropdownMenuItem>
-          )}
-        />
+        <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
+          <TrackList
+            caption={playlist.title}
+            items={items}
+            key={playlist.id}
+            playlistId={playlist.id}
+            renderMenuItems={(item) => (
+              <DropdownMenuItem
+                disabled={removePlaylistTrack.isPending}
+                onClick={() => handleRemove(item.sourceEntryId)}
+                variant="danger"
+              >
+                <MinusCircleIcon aria-hidden="true" />
+                <span className="truncate" title={`Remove from ${playlist.title}`}>
+                  Remove from {playlist.title}
+                </span>
+              </DropdownMenuItem>
+            )}
+          />
+        </div>
       )}
     </main>
   );
 }
 
-function PlaylistPageSkeleton() {
+export function PlaylistPageSkeleton() {
   return (
-    <main aria-label="Loading playlist" aria-busy="true">
-      <header className="flex items-end gap-6 p-6 max-sm:flex-col max-sm:items-start">
-        <Skeleton className="size-40 shrink-0 rounded-md bg-neutral-900 max-sm:aspect-video max-sm:h-auto max-sm:w-full sm:size-52 lg:size-64" />
-        <div className="w-full max-w-sm space-y-3 pb-0.5">
-          <Skeleton className="h-2 w-16 bg-neutral-900" />
-          <Skeleton className="h-10 w-64 max-w-full bg-neutral-900" />
-          <Skeleton className="h-3 w-full bg-neutral-900" />
-          <Skeleton className="h-3 w-36 bg-neutral-900" />
-          <div className="flex gap-2 pt-2">
-            <Skeleton className="h-10 w-20 bg-neutral-900" />
-            <Skeleton className="h-10 w-24 bg-neutral-900" />
-          </div>
-        </div>
+    <main aria-busy="true" aria-label="Loading playlist" className="flex min-h-0 flex-1 flex-col">
+      <header aria-hidden="true" className="flex h-22 shrink-0 items-center gap-4 pr-4 pl-6">
+        <span className="size-14 shrink-0 rounded-md bg-raised" />
+        <span className="grid flex-1 grid-cols-[minmax(0,1fr)_auto] items-center justify-items-start gap-x-4 gap-y-1">
+          <span className="h-4 w-50 rounded-sm bg-raised" />
+          <span className="flex translate-y-0.75 items-center gap-2 pr-10">
+            <span className="h-8 w-17 rounded-md bg-raised" />
+            <span className="h-8 w-22 rounded-md bg-raised" />
+          </span>
+          <span className="col-start-1 my-1 h-2 w-80 rounded-xs bg-raised" />
+        </span>
       </header>
+      <TrackListSkeleton isPlaylist />
     </main>
   );
-}
-
-function getPlaylistInitials(title: string) {
-  return title
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
 }
