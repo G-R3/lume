@@ -23,16 +23,14 @@ function DropdownMenuContent({
   align = "start",
   alignOffset = 0,
   className,
-  container,
   finalFocus = returnFocusOnKeyboardClose,
   side = "bottom",
   sideOffset = 4,
   ...props
 }: MenuPrimitive.Popup.Props &
-  Pick<MenuPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset"> &
-  Pick<MenuPrimitive.Portal.Props, "container">) {
+  Pick<MenuPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
   return (
-    <MenuPrimitive.Portal container={container}>
+    <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
         className="isolate z-50 outline-none"
         align={align}

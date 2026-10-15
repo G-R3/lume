@@ -32,13 +32,9 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   );
 }
 
-function DialogContent({
-  className,
-  container,
-  ...props
-}: DialogPrimitive.Popup.Props & Pick<DialogPrimitive.Portal.Props, "container">) {
+function DialogContent({ className, ...props }: DialogPrimitive.Popup.Props) {
   return (
-    <DialogPortal container={container}>
+    <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"

@@ -57,12 +57,7 @@ export function QueueSidebar({
   );
 }
 
-export function QueuePanel({
-  visibleRows = VISIBLE_ROWS,
-}: {
-  /** Upcoming rows shown per lane. */
-  visibleRows?: number;
-}) {
+function QueuePanel() {
   const playback = usePlayback();
   const library = useMusicLibrary();
   const playButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -189,7 +184,7 @@ export function QueuePanel({
                 ) : (
                   <>
                     <SidebarMenu>
-                      {lane.items.slice(0, visibleRows).map((item, index) => (
+                      {lane.items.slice(0, VISIBLE_ROWS).map((item, index) => (
                         <QueueRow
                           item={item}
                           key={item.queueItemId}
@@ -206,9 +201,9 @@ export function QueuePanel({
                         />
                       ))}
                     </SidebarMenu>
-                    {lane.items.length > visibleRows && (
+                    {lane.items.length > VISIBLE_ROWS && (
                       <p className="flex h-8 items-center px-1 text-meta text-secondary">
-                        {(lane.items.length - visibleRows).toLocaleString()} more
+                        {(lane.items.length - VISIBLE_ROWS).toLocaleString()} more
                       </p>
                     )}
                   </>
