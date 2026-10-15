@@ -96,7 +96,6 @@ export type MusicLibrary = {
 
 export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
 
-/** The serialized queue and the playback position, which is saved separately. */
 export type SavedPlaybackSession = {
   payload: string;
   position: number;

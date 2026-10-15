@@ -536,7 +536,6 @@ function startPlaylist(startEntryId: number) {
   return state;
 }
 
-/** Start the playlist, shuffle it, and skip to a queued manual song (track 6). */
 function playManualAfterShuffle(startEntryId: number, orderedSourceEntryIds: number[]) {
   const queued = transition(
     shuffle(startPlaylist(startEntryId), orderedSourceEntryIds),
@@ -567,7 +566,6 @@ function setShuffle(
   return next;
 }
 
-/** Shuffles the eligible entries into the given order of source entry IDs. */
 function inOrder(orderedSourceEntryIds: number[]): QueueRandom {
   return {
     ...noRandom,

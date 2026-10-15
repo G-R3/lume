@@ -1,3 +1,6 @@
+import { useLayoutEffect } from "react";
+import { TrackCount } from "@/pages/tracks/track-count";
+import { useFirstScan } from "@/hooks/use-first-scan";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import type { MusicLibrary } from "../../shared/lib";
 import { FilterField } from "@/components/filter-field";
@@ -21,6 +24,12 @@ import { TrackList } from "@/pages/tracks/track-list";
 export function TracksPage() {
   const library = useMusicLibrary();
   const sort = useTrackSort();
+  const firstScan = useFirstScan();
+  const onListReady = firstScan.onListReady;
+
+  useLayoutEffect(() => {
+    if (library.tracks.length === 0) onListReady(null);
+  }, [library.tracks.length, onListReady]);
 
   const isEmpty =
     library.tracks.length === 0 &&
@@ -48,12 +57,11 @@ export function TracksPage() {
             Tracks
           </h1>
           <p className="truncate text-meta text-secondary tabular-nums">
-            <span data-slot="track-count">{library.tracks.length.toLocaleString()}</span>
-            <span data-slot="track-stats-after-count">
+            <TrackCount total={library.tracks.length} isRevealing={firstScan.isRevealing}>
               {" · "}
               {formatTotalDuration(totalDuration)}
               {unavailableCount > 0 && ` · ${unavailableCount.toLocaleString()} unavailable`}
-            </span>
+            </TrackCount>
           </p>
         </div>
         <FilterField aria-label="Filter tracks" className="w-56" placeholder="Filter tracks" />
@@ -62,7 +70,7 @@ export function TracksPage() {
       <LibraryStatus library={library} />
       {items.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
-          <TrackList caption="Tracks" items={items} />
+          <TrackList caption="Tracks" items={items} onReady={onListReady} />
         </div>
       )}
     </div>

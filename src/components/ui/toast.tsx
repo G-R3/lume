@@ -8,8 +8,6 @@ const toastManager = ToastPrimitive.createToastManager();
 
 type ToastManager = typeof toastManager;
 
-// Confirmations toasts are closd after the provider's 5s (hover and focus will pause the timer)
-// errors and toasts with actions stay until they are closed
 const toast: ToastManager = {
   ...toastManager,
   add: (options) => {

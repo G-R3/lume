@@ -2,7 +2,6 @@ import type { PointerEvent } from "react";
 
 let pendingCell: HTMLElement | null = null;
 
-// Long text truncates; hovering it shows the full text, measured only when the pointer arrives.
 export function showTruncatedText(event: PointerEvent<HTMLElement>) {
   if (!(event.target instanceof Element)) return;
 

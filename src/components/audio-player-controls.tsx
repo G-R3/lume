@@ -18,7 +18,6 @@ import { usePlayback, usePlaybackTime } from "@/hooks/use-playback";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
 
-// waveform is just a fix texture. not decoded audio amplitudes
 const waveform = [
   1, 1, 2, 2, 3, 3, 2, 3, 2, 3, 2, 2, 2, 2, 1, 2, 2, 3, 2, 2, 3, 2, 3, 3, 2, 2, 2, 2, 1, 2, 2, 2, 2,
   1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 3, 2, 3, 1, 2, 2, 1, 1, 1, 2, 2, 2, 3, 2, 3, 3, 3, 3,
@@ -44,10 +43,8 @@ export function AudioPlayerControls({
       )}
       data-slot="player"
     >
-      {/* Keep the sidebar's lane when collapsed so the player doesn't move. */}
       {sidebar.state === "collapsed" && <div aria-hidden="true" className="w-52 shrink-0" />}
       <div aria-hidden="true" className="flex-1" />
-      {/* transport, display, volume and queue are one unit, centered on the window (Paper 26 E) */}
       <div className="flex min-w-0 items-center gap-4" data-slot="player-unit">
         <div
           className="flex shrink-0 items-center gap-1 [&_button]:[-webkit-app-region:no-drag]"
@@ -170,12 +167,6 @@ export function AudioPlayerControls({
       </div>
       <div aria-hidden="true" className="flex-1" />
       <span aria-hidden="true" className="hidden w-13 shrink-0 @min-[984px]/player:block" />
-      {/*
-       * Balances what sits left of the header (the open sidebar, or the toggle's lane) against the
-       * command lane on the right, so the unit centers on the window rather than on the header.
-       * It gives way first when space runs out, so the unit slides right instead of under the
-       * sidebar, and only then does the display shrink.
-       */}
       <div
         aria-hidden="true"
         className={cn(
@@ -242,8 +233,6 @@ function PlayerMetadata({ track }: { track: Track | null }) {
         </bdi>
         {track && (
           <>
-            {/* the artist keeps 96px while the title shrinks, but never more than half the line,
-                so a narrow display (zoomed in) still shows the title */}
             <bdi
               className="min-w-[min(--spacing(24),50%)] flex-1 truncate text-left text-secondary"
               data-slot="player-artist"

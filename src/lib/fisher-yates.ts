@@ -1,7 +1,3 @@
-/**
- * Return a shuffled copy. The caller supplies a random value from zero up to one.
- * uses the Fisher–Yates shuffle algo.
- */
 export function shuffleEntries<T>(entries: readonly T[], random: () => number) {
   const shuffled = [...entries];
 

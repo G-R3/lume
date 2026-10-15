@@ -39,10 +39,6 @@ export function addSourceEntry(
   };
 }
 
-/**
- * Removes a committed playlist entry from the source, upcoming items, and Previous history.
- * A current item for that entry keeps playing but leaves source navigation.
- */
 export function removeSourceEntry(
   state: QueueState,
   { playlistId, sourceEntryId }: CommandOf<"sourceEntryRemoved">,
@@ -89,16 +85,10 @@ export function removeSourceEntry(
   };
 }
 
-// Stands in for the current position when the current item is not in source navigation.
 const currentSlot = { kind: "current-slot" } as const;
 
 type PathItem = QueueItem | typeof currentSlot;
 
-/**
- * Moves a committed playlist entry. sourcePosition follows the move. Sequential playback also
- * moves the entry's queued visit, with its anchored queue-only items, without changing the current
- * item. Shuffled playback keeps its order.
- */
 export function moveSourceEntry(
   state: QueueState,
   command: CommandOf<"sourceEntryMoved">,
@@ -178,7 +168,6 @@ export function moveSourceEntry(
       : [],
   );
 
-  // Without a queued target visit, insert before the next entry that has one.
   const targetPosition = command.orderedSourceEntryIds.indexOf(command.targetSourceEntryId);
 
   const fallbackIndex =
@@ -213,7 +202,6 @@ export function moveSourceEntry(
   };
 }
 
-/** Playback keeps the deleted playlist's saved source entries and its sourceIdentity. */
 export function detachSource(
   state: QueueState,
   { playlistId }: CommandOf<"sourceDeleted">,
@@ -254,10 +242,6 @@ function reorderSourceEntries(entries: readonly SourceEntry[], orderedIds: reado
   return reordered.length === entries.length ? reordered : null;
 }
 
-/**
- * Selects one path index per source entry. Prefers the current item, then the first upcoming
- * visit. Without either, selects the last visit in Previous history.
- */
 function visitIndexesByEntry(state: QueueState, path: readonly PathItem[]) {
   const upcomingIds = new Set(state.sourceQueue.map((item) => item.queueItemId));
   const currentItemId = state.current?.item.queueItemId;

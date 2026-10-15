@@ -86,7 +86,6 @@ export function useMediaElement(options: {
       audioRef.current = audio;
       mountedRequestIdRef.current = audio ? (request?.requestId ?? null) : null;
 
-      // Apply the saved level before a newly mounted track can start playing.
       if (audio) audio.volume = audioPreferences.volume;
     },
     [audioPreferences.volume, request?.requestId],

@@ -40,7 +40,6 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-separator bg-raised surface-raised md:absolute! md:h-auto!">
-      {/* the traffic lights and the sidebar toggle sit over this bar */}
       <SidebarHeader className="h-12 shrink-0 p-0 [-webkit-app-region:drag]" />
 
       <SidebarContent className="pb-2">
@@ -65,7 +64,6 @@ export function AppSidebar() {
           </div>
           <SidebarGroupContent>
             <SidebarMenu className="relative">
-              {/* playlists that are created or deleted later slide in and out */}
               <AnimatePresence initial={false} mode="popLayout">
                 {library.playlists.map((playlist, index) => (
                   <PlaylistSidebarItem
@@ -128,7 +126,6 @@ function PlaylistSidebarItem({
 }: {
   createTriggerRef: RefObject<HTMLButtonElement | null>;
   isPlayingFrom: boolean;
-  /** the playlist that takes this row's focus if it's deleted: the next one, else the previous */
   neighborId: number | undefined;
   playlist: PlaylistSummary;
   ref?: Ref<HTMLLIElement>;

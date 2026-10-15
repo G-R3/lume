@@ -39,9 +39,7 @@ export function setTrackSort(sort: TrackSort) {
 
   try {
     globalThis.localStorage?.setItem(storageKey, sort);
-  } catch {
-    // The choice still applies for this session.
-  }
+  } catch {}
 
   for (const listener of listeners) listener();
 }
@@ -58,7 +56,6 @@ export function useTrackSort() {
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-/** Missing values sort after present ones. */
 function compareText(left: string, right: string) {
   if (!left || !right) return Number(!left) - Number(!right);
 
@@ -91,7 +88,6 @@ const comparators: Record<Exclude<TrackSort, "title">, (left: Track, right: Trac
 
 const sortedTracks = new WeakMap<readonly Track[], Map<TrackSort, readonly Track[]>>();
 
-/** The library arrives sorted by title. Results are cached per library snapshot and sort. */
 export function sortTracks(tracks: readonly Track[], sort: TrackSort): readonly Track[] {
   if (sort === "title") return tracks;
 

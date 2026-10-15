@@ -56,7 +56,6 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
     return <Notice title="All folders are off">{manageFolders("secondary")}</Notice>;
   }
 
-  // disabled folders also leave unavailable tracks, and this copy would be wrong for them.
   if (unavailableCount > 0 && library.sources.every((source) => source.enabled)) {
     return (
       <Notice

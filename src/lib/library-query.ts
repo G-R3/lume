@@ -213,10 +213,6 @@ function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number)
   ]);
 }
 
-// The commitPlaylist functions apply a committed change to the cached playlist that playback
-// reads. Each cancels older reads first, so they cannot replace the updated data.
-
-/** Returns the entry's index in the cached playlist, or undefined when nothing is cached. */
 function commitPlaylistAddition(
   queryClient: QueryClient,
   playlistId: number,
@@ -258,7 +254,6 @@ function commitPlaylistRemoval(
   );
 }
 
-/** Caches null so playback does not read the deleted playlist. */
 function commitPlaylistDeletion(queryClient: QueryClient, playlistId: number) {
   const options = playlistQueryOptions(playlistId);
   void queryClient.cancelQueries({ queryKey: options.queryKey });

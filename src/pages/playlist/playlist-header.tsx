@@ -54,7 +54,6 @@ export function PlaylistHeader({
             )}
           </p>
         )}
-        {/* nudged down 3px to sit on the title's lowercase letters rather than its line box */}
         <div
           aria-label="Playback actions"
           className="col-start-2 row-start-1 flex translate-y-0.75 items-center gap-2"
@@ -74,7 +73,6 @@ export function PlaylistHeader({
             />
             Play
           </Button>
-          {/* named apart from the player's shuffle toggle, which is also "Shuffle" */}
           <Button
             aria-label="Shuffle play"
             disabled={!canPlay}
@@ -119,7 +117,6 @@ function PlaylistMenu({ playlist }: { playlist: PlaylistDetails }) {
       </DropdownMenu>
       <DeletePlaylistDialog
         finalFocus={menuTriggerRef}
-        // the page is gone; Tracks takes its place
         focusAfterDelete={() => document.querySelector<HTMLElement>("[data-slot=page-title]")}
         onOpenChange={setDeleteOpen}
         open={deleteOpen}

@@ -54,7 +54,6 @@ const PlaybackContext = React.createContext<PlaybackContextValue | null>(null);
 
 const PlaybackTimeContext = React.createContext<PlaybackTimeStore | null>(null);
 
-/** Lets components read the queue and control playback. */
 export function usePlayback() {
   const context = useContext(PlaybackContext);
 
@@ -63,7 +62,6 @@ export function usePlayback() {
   return context;
 }
 
-/** Updates components that show playback time without rerendering those that only use the queue. */
 export function usePlaybackTime() {
   const store = useContext(PlaybackTimeContext);
 
@@ -72,7 +70,6 @@ export function usePlaybackTime() {
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
-/** Connects the queue to audio playback and lets child components use the playback hooks. */
 export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const controllerRef = useRef<ReturnType<typeof createPlaybackController> | null>(null);

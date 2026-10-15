@@ -9,12 +9,6 @@ import { sameSource } from "./source";
 import type { QueueRandom } from "./commands";
 import type { QueueItem, QueueState, SourceIdentity } from "./model";
 
-/**
- * Turns shuffle on or off without changing the current item.
- * Turning it on shuffles every eligible source entry, including entries before the current one.
- * Turning it off restores source order after sourcePosition.
- * Setting the current value returns the same state object.
- */
 export function setShuffleEnabled(
   state: QueueState,
   enabled: boolean,
@@ -52,7 +46,6 @@ export function setShuffleEnabled(
 
   const entries = enabled ? random.shuffle(eligibleEntries) : eligibleEntries;
 
-  // Keep the queued items for entries that are already upcoming, and create the others.
   const itemsByEntry = new Map<number, QueueItem>();
   const queueOnlyItems: QueueItem[] = [];
 
@@ -69,7 +62,6 @@ export function setShuffleEnabled(
     (item, index) => itemsByEntry.set(missingEntries[index].sourceEntryId, item),
   );
 
-  // Keep queue-only items in their chosen order around each source entry.
   const before = new Map<number, QueueItem[]>();
   const after = new Map<number, QueueItem[]>();
 
@@ -107,10 +99,6 @@ export function setShuffleEnabled(
   };
 }
 
-/**
- * Returns true when a table selection from this source plays within the current shuffled session.
- * Other selections start a new session from the source.
- */
 export function selectsWithinShuffledSession(state: QueueState | null, source: SourceIdentity) {
   return (
     state !== null &&
@@ -120,10 +108,6 @@ export function selectsWithinShuffledSession(state: QueueState | null, source: S
   );
 }
 
-/**
- * Plays a source entry in the current shuffled session. An upcoming entry leaves the queue, and
- * the other upcoming items keep their order. Selecting the current entry plays it again.
- */
 export function selectSourceEntry(
   state: QueueState,
   source: SourceIdentity,

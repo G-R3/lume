@@ -45,8 +45,16 @@ export function createArtworkResponse(artwork: ArtworkData | null) {
 }
 
 export async function createTrackResponse(path: string, request: Request) {
-  // Tracks can disappear after scanning. For now, we treat every stat failure as a missing file.
-  const file = await stat(path).catch(() => null);
+  const file = await stat(path).catch((error) => {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR")
+    )
+      return null;
+
+    throw error;
+  });
 
   if (!file?.isFile()) return new Response(null, { status: 404 });
 

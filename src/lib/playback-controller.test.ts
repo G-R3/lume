@@ -346,7 +346,6 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
   await playback.controller.shufflePlay({ kind: "playlist", playlistId: 1 });
   const second = playback.controller.getSnapshot().queue;
 
-  // The removed entry plays first, so the fresh session cleared its suppression
   expect(second).toMatchObject({
     shuffleEnabled: true,
     status: "playing",
@@ -710,7 +709,6 @@ it("rebuilds a shuffled queue from another source and keeps the manual queue", a
   });
 });
 
-/** Let any scheduled save run before a test checks that none was added. */
 function settle() {
   return new Promise((resolve) => setTimeout(resolve));
 }
@@ -721,7 +719,6 @@ type TestWrite =
   | { kind: "session"; session: SavedPlaybackSession }
   | { kind: "position"; position: number };
 
-/** Describe each write as the saved current track and position, or the saved position only. */
 function describeWrites(writes: readonly TestWrite[], library: MusicLibrary) {
   return writes.map((write) =>
     write.kind === "position"
@@ -741,7 +738,6 @@ function createTestPlayback(
   const seeks: number[] = [];
   const writes: TestWrite[] = [];
   const flushes: SavedPlaybackSession[] = [];
-  // Stored like the database: a session save replaces both values, a position save updates one
   let stored: SavedPlaybackSession | null = null;
 
   const audioState: TestAudioState = {

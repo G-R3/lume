@@ -1,17 +1,12 @@
 import type { QueueItem, QueueLane, QueueState, SourceEntry, SourceIdentity } from "./model";
 import { sameSource } from "./source";
 
-/**
- * Source items are named `<session>:source:<entry>`. Later visits of the same occurrence add
- * `:visit:<n>`. Saved sessions rebuild these IDs, so both must use this function.
- */
 export function sourceQueueItemId(sessionId: string, sourceEntryId: number, visit: number) {
   const base = sessionId + ":source:" + sourceEntryId;
 
   return visit === 0 ? base : base + ":visit:" + visit;
 }
 
-/** Returns the visit encoded by sourceQueueItemId, or null when the ID has another form. */
 export function sourceItemVisit(queueItemId: string, sessionId: string, sourceEntryId: number) {
   const firstVisitId = sourceQueueItemId(sessionId, sourceEntryId, 0);
 
@@ -30,7 +25,6 @@ export function sourceItemVisit(queueItemId: string, sessionId: string, sourceEn
     : null;
 }
 
-// sourceEntries arrays are never changed in place, so each array keeps one ID set.
 const sourceEntryIdSets = new WeakMap<readonly SourceEntry[], ReadonlySet<number>>();
 
 function sourceEntryIdSet(sourceEntries: readonly SourceEntry[]) {
@@ -44,11 +38,6 @@ function sourceEntryIdSet(sourceEntries: readonly SourceEntry[]) {
   return ids;
 }
 
-/**
- * Returns the item's source entry ID when the item belongs to the active source session and its
- * occurrence is still in sourceEntries. Returns null for manual items, items from other sessions,
- * and items whose occurrence was deleted. The queue treats those as queue-only items.
- */
 export function activeSourceEntryId(state: QueueState, item: QueueItem) {
   const origin = item.origin;
 
@@ -66,7 +55,6 @@ export function currentSourceEntryId(state: QueueState) {
     : null;
 }
 
-/** Creates source queue items with IDs that differ from every queue item ID stored in `existing`. */
 export function createSourceItems(
   existing: QueueState | null,
   entries: readonly SourceEntry[],

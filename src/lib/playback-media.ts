@@ -1,4 +1,3 @@
-/** One item to load. Its request ID lets the controller ignore late events from a previous load. */
 export type PlaybackRequest = {
   requestId: string;
   queueItemId: string;
@@ -8,7 +7,6 @@ export type PlaybackRequest = {
   durationHint: number;
 };
 
-/** Playback events include the request ID and the ID of the item that produced them. */
 export type AudioEvent =
   | { type: "started"; requestId: string; queueItemId: string }
   | { type: "paused"; requestId: string; queueItemId: string }

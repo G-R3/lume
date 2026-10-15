@@ -10,7 +10,6 @@ export function playlistQueryOptions(playlistId: number) {
   });
 }
 
-/** Reads a playlist's saved order. Loads it only when the cache is missing or invalidated, or for a refresh. */
 export function createPlaylistReader(queryClient: QueryClient) {
   return {
     read: async (playlistId: number, refresh: boolean): Promise<SessionSource | null> => {

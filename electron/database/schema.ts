@@ -143,8 +143,6 @@ export const playbackSession = sqliteTable("playback_session", {
   payload: text("payload").notNull(),
 });
 
-// Playback saves its position about once per second. A separate table avoids rewriting the
-// session payload for each position update.
 export const playbackPosition = sqliteTable("playback_position", {
   id: integer("id").primaryKey(),
   position: real("position").notNull(),

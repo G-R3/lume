@@ -17,10 +17,6 @@ import {
   removeSourceEntry,
 } from "./source-edits";
 
-/**
- * Applies a queue command and returns the updated queue.
- * The playback controller controls audio playback.
- */
 export function transition(
   state: QueueState | null,
   command: QueueCommand,
@@ -69,11 +65,6 @@ export function transition(
   }
 }
 
-/**
- * Starts a new source session and keeps the manual queue. A shuffled session queues every other
- * entry in a random order and has no Previous history. A sequential session continues in source
- * order, and Previous returns to the entries before the start.
- */
 function startSession(
   previous: QueueState | null,
   command: Extract<QueueCommand, { type: "startSession" }>,
@@ -85,7 +76,6 @@ function startSession(
 
   const isAvailable = (entry: SourceEntry) => availableTrackIds.has(entry.trackId);
 
-  // Check the start before shuffling, so a rejected start uses no random values.
   const requestedStart =
     start.kind === "entry"
       ? entries.find((entry) => entry.sourceEntryId === start.sourceEntryId && isAvailable(entry))
@@ -95,8 +85,6 @@ function startSession(
 
   const order = command.shuffled ? random.shuffle(entries) : entries;
 
-  // A random start is the first available entry in the shuffled order. requestedStart shows that
-  // one exists.
   const startEntry =
     start.kind === "random" ? (order.find(isAvailable) ?? requestedStart) : requestedStart;
 
@@ -128,7 +116,6 @@ function startSession(
   };
 }
 
-/** Reorders the items of a new session to match `order`. `items[i]` was created for `entries[i]`. */
 function reorderItems(
   entries: readonly SourceEntry[],
   items: readonly QueueItem[],
@@ -273,10 +260,6 @@ function jumpTo(
   };
 }
 
-/**
- * Removes a queued item. Removing a source occurrence also removes its other visits and keeps
- * it out of this session.
- */
 function removeQueueItem(state: QueueState, queueItemId: string): QueueState {
   if (state.manualQueue.some((item) => item.queueItemId === queueItemId)) {
     return {
@@ -353,7 +336,6 @@ function moveQueueItem(
 
   const sourceEntryId = activeSourceEntryId(state, item);
 
-  // A queue-only item in the source lane stays next to its neighboring source entry.
   destination.splice(insertionIndex, 0, {
     ...item,
     anchor:

@@ -4,7 +4,6 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
 import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
 
-// closing the menu with the keyboard returns focus to the trigger
 const returnFocusOnKeyboardClose = (closeType: string) => closeType === "keyboard";
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {

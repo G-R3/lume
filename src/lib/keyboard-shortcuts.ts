@@ -7,7 +7,6 @@ export type KeyboardShortcut = {
   shift?: boolean;
   alt?: boolean;
   allowInEditable?: boolean;
-  // Lets a focused button handle the key instead, such as Space activating it.
   yieldToButtons?: boolean;
   action: () => void;
 };
@@ -90,7 +89,6 @@ function normalizeKey(key: string) {
   return key.toLowerCase();
 }
 
-// Range inputs are not editable here, so playback shortcuts work while a slider has focus.
 const editableSelector =
   "input:not([type='range']), textarea, select, [contenteditable]:not([contenteditable='false'])";
 

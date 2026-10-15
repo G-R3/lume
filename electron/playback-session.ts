@@ -29,7 +29,6 @@ export function savePlaybackSession({ payload, position }: SavedPlaybackSession)
   });
 }
 
-/** Update the position of the saved session. Does nothing before a session is saved. */
 export function savePlaybackPosition(position: number) {
   getDatabase().update(playbackPosition).set({ position }).where(eq(playbackPosition.id, 1)).run();
 }

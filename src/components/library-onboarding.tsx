@@ -7,31 +7,29 @@ const glyphColumns = [
   2, 2, 3, 3, 3, 2, 1,
 ];
 
-// The dots' y positions for 1, 2 and 3 dots, floored to whole pixels
 const glyphRows = [[], [10], [8, 13], [5, 10, 15]];
 
-/** A fixed pseudo-random 0–1 per dot, so every dot keeps its own rhythm across renders. */
 function hash(column: number, y: number, salt: number) {
   const value = Math.sin(column * 12.9898 + y * 78.233 + salt * 37.719) * 43758.5453;
 
   return value - Math.floor(value);
 }
 
-// Each dot twinkles on its own clock: 0.9–2.4s, started anywhere in its cycle, dimming to 10–40%.
-function twinkle(column: number, y: number) {
-  // SAFETY: React passes these valid CSS custom properties through to the DOM.
+function twinkle(
+  column: number,
+  y: number,
+): CSSProperties & {
+  "--twinkle-duration": string;
+  "--twinkle-delay": string;
+  "--twinkle-low": number;
+} {
   return {
     "--twinkle-duration": `${900 + hash(column, y, 1) * 1500}ms`,
     "--twinkle-delay": `${-hash(column, y, 2) * 2400}ms`,
     "--twinkle-low": 0.1 + hash(column, y, 3) * 0.3,
-  } as CSSProperties;
+  };
 }
 
-/**
- * Gray at rest. While a folder is being added, an amber copy fades in over it and shimmers, the
- * only time the glyph means "running"; under reduced motion it holds still. When the picker closes
- * without a folder, the shimmer pauses where it is and the copy fades out, shorter than it came in.
- */
 function ScanGlyph({ busy }: { busy: boolean }) {
   return (
     <div className="relative shrink-0" data-slot="scan-glyph">
@@ -111,7 +109,6 @@ export function LibraryOnboarding({
   );
 }
 
-/** The whole window on first run, before any folder has been added. */
 export function FirstRunScreen({
   errorMessage,
   isLoading,

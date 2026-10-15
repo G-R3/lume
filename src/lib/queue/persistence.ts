@@ -10,9 +10,6 @@ import {
   type QueueState,
 } from "./model";
 
-// A source item from the current session is saved as its source entry ID, or as
-// [source entry ID, visit] for a repeated visit. Restoring rebuilds its queue item ID, track ID,
-// and origin from the session. Every other item is saved in full.
 const savedItemSchema = z.union([
   databaseId.transform((sourceEntryId) => ({ kind: "short" as const, sourceEntryId, visit: 0 })),
   z
@@ -37,7 +34,6 @@ const savedSessionSchema = z.object({
 
 const positionSchema = z.number().finite().nonnegative();
 
-/** Serialize the queue. The playback position is saved separately. */
 export function serializeQueueSession(state: QueueState) {
   const trackIdsByEntry = new Map(
     state.sourceEntries.map((entry) => [entry.sourceEntryId, entry.trackId]),
@@ -131,7 +127,6 @@ export function parseQueueSession(saved: SavedPlaybackSession | null, library: M
   }
 }
 
-/** Save the short form only when restoring it rebuilds exactly the same item. */
 function saveItem(
   state: QueueState,
   trackIdsByEntry: ReadonlyMap<number, number>,
@@ -155,7 +150,6 @@ function saveItem(
   return visit === 0 ? origin.sourceEntryId : [origin.sourceEntryId, visit];
 }
 
-/** Rebuild saved source entries and short-form items. Returns null for an unknown entry. */
 function restoreItems(saved: z.infer<typeof savedSessionSchema>["state"]): QueueState | null {
   const sourceEntries = saved.sourceEntries.map(([sourceEntryId, trackId]) => ({
     sourceEntryId,
@@ -235,7 +229,6 @@ function validQueueState(state: QueueState) {
   return true;
 }
 
-/** check each item's source and session. Allow retained items from earlier sessions */
 function validQueueItem(
   state: QueueState,
   item: QueueItem,

@@ -17,7 +17,6 @@ import { useLibraryMutation } from "@/lib/library-query";
 
 type DeletePlaylistDialogProps = {
   finalFocus?: RefObject<HTMLElement | null>;
-  /** where focus goes once the playlist is gone, since the trigger may go with it */
   focusAfterDelete: () => HTMLElement | null | undefined;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -58,7 +57,6 @@ export function DeletePlaylistDialog({
 
           if (isOpenPlaylist) await navigate({ replace: true, to: "/" });
 
-          // the next frame, so the new page (if any) has rendered
           requestAnimationFrame(() => focusAfterDelete()?.focus());
         },
       },

@@ -18,17 +18,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useCreatePlaylistMutation } from "@/lib/library-query";
 
-type CreateForm = {
-  description: string;
-  title: string;
-};
-
 export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButtonElement> }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const createPlaylist = useCreatePlaylistMutation();
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -47,11 +43,8 @@ export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButt
     event.preventDefault();
     const form = event.currentTarget;
 
-    // SAFETY: `title` and `description` are named text controls in this form.
-    const values = Object.fromEntries(new FormData(form)) as CreateForm;
-
-    const title = values.title.trim();
-    const description = values.description.trim();
+    const title = titleRef.current?.value.trim() ?? "";
+    const description = descriptionRef.current?.value.trim() ?? "";
 
     if (title.length === 0) {
       setTitleError("Give the playlist a title.");
@@ -125,6 +118,7 @@ export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButt
                   id="description"
                   maxLength={300}
                   name="description"
+                  ref={descriptionRef}
                   onKeyDown={handleDescriptionKeyDown}
                   placeholder="What’s it for?"
                 />

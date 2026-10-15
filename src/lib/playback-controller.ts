@@ -20,7 +20,6 @@ type SourceChange = Extract<
   { type: "sourceEntryAdded" | "sourceEntryRemoved" | "sourceEntryMoved" | "sourceDeleted" }
 >;
 
-/** How a source action starts its session. The source and its entries come from a read. */
 type SessionRequest = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
   "start" | "shuffled" | "paused"
@@ -37,11 +36,6 @@ function savedPosition(position: number) {
   return Number.isFinite(position) ? Math.max(0, position) : 0;
 }
 
-/**
- * Loads the track selected by the queue and moves to the next track when audio ends or fails.
- * Pressing Previous after more than two seconds restarts the current track.
- * Saves the queue and playback position so they can be restored when the app reopens.
- */
 export function createPlaybackController(dependencies: {
   audio: {
     load: (request: PlaybackRequest | null, position?: number) => void;
@@ -59,7 +53,6 @@ export function createPlaybackController(dependencies: {
 }) {
   const listeners = new Set<() => void>();
   const random = createQueueRandom(dependencies.random);
-  // Each committed edit to a playlist increases its revision, so earlier reads become stale.
   const playlistRevisions = new Map<number, number>();
   let snapshot: Snapshot = { queue: null, library: null, isInitialized: false, errorMessage: null };
   let sessionRestoreStarted = false;
@@ -67,7 +60,6 @@ export function createPlaybackController(dependencies: {
   let actionId = 0;
   let requestId: string | null = null;
   let pendingSave: { state: QueueState; position: number } | null = null;
-  // The queue state sent with the latest save. Unchanged queues save only their position.
   let savedState: QueueState | null = null;
   let saving = false;
   let tracksById = new Map<number, MusicLibrary["tracks"][number]>();
@@ -88,7 +80,6 @@ export function createPlaybackController(dependencies: {
     if (saving || closing) return;
     saving = true;
 
-    // Save only the latest pending state after the current save finishes
     while (pendingSave && !closing) {
       const next = pendingSave;
       pendingSave = null;
@@ -103,7 +94,6 @@ export function createPlaybackController(dependencies: {
             })
           : dependencies.storage.savePosition(next.position)
       ).catch((error: Error) => {
-        // The queue may not have been written, so send it with the next save
         savedState = null;
         setError(error.message || "Could not save playback");
       });
@@ -117,7 +107,6 @@ export function createPlaybackController(dependencies: {
 
     pendingSave = { state, position: savedPosition(position) };
 
-    // Wait until synchronous queue and audio changes are complete
     void Promise.resolve().then(savePending);
   };
 
@@ -142,7 +131,6 @@ export function createPlaybackController(dependencies: {
     );
   };
 
-  /** Publishes and saves a changed queue. Loads audio when the current item changes, or to restart it. */
   const commit = (queue: QueueState | null, { restartAudio = false } = {}) => {
     const previous = snapshot.queue;
 
@@ -173,14 +161,12 @@ export function createPlaybackController(dependencies: {
     });
   };
 
-  /** Reads the source, then starts a session unless a newer action replaced this one. */
   const startSession = async (
     source: SourceIdentity,
     request: SessionRequest,
     initiatingAction: number,
     refresh = false,
   ): Promise<void> => {
-    // All Tracks needs no read, so its session starts within this call.
     if (source.kind === "all-tracks") {
       if (snapshot.library)
         dispatchSessionStart({ source, entries: libraryEntries(snapshot.library) }, request);
@@ -200,7 +186,6 @@ export function createPlaybackController(dependencies: {
 
     if (closing || initiatingAction !== actionId) return;
 
-    // Refresh a changed source before selecting entries for the latest queue state.
     if (revision !== revisionOf(source.playlistId))
       return startSession(source, request, initiatingAction, true);
 
@@ -220,7 +205,6 @@ export function createPlaybackController(dependencies: {
     });
   };
 
-  /** Plays the next item. After the last item, loads the source's first available entry paused. */
   const advance = () => {
     if (closing || !snapshot.isInitialized) return;
     const initiatingAction = ++actionId;
@@ -317,7 +301,6 @@ export function createPlaybackController(dependencies: {
         const restored = parseQueueSession(raw, latestLibrary);
 
         if (restored) {
-          // Add tracks found since the session was saved.
           const queue = transition(
             restored.state,
             { type: "libraryRescanned", entries: libraryEntries(latestLibrary) },
@@ -422,7 +405,6 @@ export function createPlaybackController(dependencies: {
 
       if (selectsWithinShuffledSession(queue, input.source)) {
         ++actionId;
-        // Selecting the current row keeps its queue item, so restart its audio explicitly.
         dispatch({ type: "selectSourceEntry", ...input }, { restartAudio: true });
 
         return Promise.resolve();
@@ -449,7 +431,6 @@ export function createPlaybackController(dependencies: {
     },
     setError,
     setShuffleEnabled: (enabled: boolean) => {
-      // An unchanged setting must not cancel a pending source action.
       if (closing || !snapshot.queue || snapshot.queue.shuffleEnabled === enabled) return;
       ++actionId;
       dispatch({ type: "setShuffleEnabled", enabled });

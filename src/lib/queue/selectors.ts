@@ -13,7 +13,6 @@ export function selectQueueView(state: QueueState | null) {
   };
 }
 
-/** Returns the current source entry ID for highlighting its table row. Detached sources have no rows. */
 export function selectActiveSourceEntryId(state: QueueState | null) {
   return state && state.source.kind !== "detached" ? currentSourceEntryId(state) : null;
 }

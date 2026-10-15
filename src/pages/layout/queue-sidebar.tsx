@@ -1,6 +1,5 @@
 import { ArrowCounterClockwiseIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { type ReactNode, type Ref, useMemo, useRef } from "react";
-import type { CSSProperties } from "react";
 import type { Track } from "../../../shared/lib";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
+  type SidebarStyle,
   SidebarContent,
   SidebarGroup,
   SidebarGroupLabel,
@@ -26,7 +26,6 @@ import type { QueueItem, QueueLane } from "@/lib/queue/model";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import { cn } from "@/lib/utils";
 
-// queue shows a window of upcoming tracks that moves as playback advances
 const VISIBLE_ROWS = 50;
 
 const QUEUE_SIDEBAR_WIDTH = "20rem";
@@ -38,7 +37,8 @@ export function QueueSidebar({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  // SAFETY: React accepts CSS custom properties in the style object.
+  const style: SidebarStyle = { "--sidebar-width": QUEUE_SIDEBAR_WIDTH };
+
   return (
     <Sidebar
       aria-label="Playback queue"
@@ -50,7 +50,7 @@ export function QueueSidebar({
       open={open}
       role="complementary"
       side="right"
-      style={{ "--sidebar-width": QUEUE_SIDEBAR_WIDTH } as CSSProperties}
+      style={style}
     >
       {open && <QueuePanel />}
     </Sidebar>
@@ -313,7 +313,6 @@ function QueueTrack({
         <span
           className={cn(
             "block truncate text-left text-body font-medium",
-            // the current track: an amber title beside the meter, as in the track tables
             unavailable ? "text-disabled" : state ? "text-accent" : "text-primary",
           )}
           data-truncate

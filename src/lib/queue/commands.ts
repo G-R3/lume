@@ -1,9 +1,7 @@
 import type { QueueLane, SourceEntry, SourceIdentity, SourceRef } from "./model";
 
-/** Random choices for queue transitions. The controller supplies them, so transitions stay deterministic. */
 export type QueueRandom = {
   shuffle: (entries: readonly SourceEntry[]) => SourceEntry[];
-  /** Returns a random integer from zero up to, but not including, count. */
   index: (count: number) => number;
 };
 
@@ -12,13 +10,9 @@ export type QueueContext = {
   random: QueueRandom;
 };
 
-/** Which entry a new session plays first. */
 export type SessionStart =
-  /** This source entry. The session does not start if its track is unavailable. */
   | { kind: "entry"; sourceEntryId: number }
-  /** The first available entry in source order, also when the session is shuffled. */
   | { kind: "first-available" }
-  /** The first available entry in the shuffled order. */
   | { kind: "random" };
 
 export type QueueCommand =
@@ -50,7 +44,6 @@ export type QueueCommand =
       type: "sourceEntryAdded";
       playlistId: number;
       entry: SourceEntry;
-      // Position in the saved playlist. Without it, the entry is added at the end.
       canonicalIndex?: number;
     }
   | { type: "sourceEntryRemoved"; playlistId: number; sourceEntryId: number }

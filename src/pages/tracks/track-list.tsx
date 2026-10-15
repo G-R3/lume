@@ -40,6 +40,7 @@ type TrackListProps = {
   caption: string;
   items: readonly TrackListItem[];
   playlistId?: number;
+  onReady?: (list: HTMLElement) => void;
   renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
 
@@ -47,12 +48,17 @@ const rowHeight = 40;
 
 const headerHeight = 32;
 
-// The 4px gap between the column header and the first row
 const listInset = 4;
 
 // The React Compiler skips this component: it lists `useVirtualizer` as incompatible with
 // memoization. That's why the row callbacks go through `useStableActions` instead.
-export function TrackList({ caption, items, playlistId, renderMenuItems }: TrackListProps) {
+export function TrackList({
+  caption,
+  items,
+  playlistId,
+  renderMenuItems,
+  onReady,
+}: TrackListProps) {
   const playback = usePlayback();
   const navigate = useNavigate();
   const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
@@ -63,7 +69,6 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const pendingFocusIndex = useRef<number | null>(null);
-  // `undefined` until the first layout effect has looked for the list's scroll container
   const [scrollContainer, setScrollContainer] = useState<HTMLElement | null | undefined>(undefined);
   const [scrollMargin, setScrollMargin] = useState(0);
   const isPlaylist = playlistId !== undefined;
@@ -141,8 +146,6 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     });
   };
 
-  // The selected row, else the first. It scans every item, so it reruns only when the items or the
-  // selection change, not on every scroll frame.
   const { tabStopEntryId, tabStopIndex } = useMemo(() => {
     const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
     const index = selectedIndex < 0 ? 0 : selectedIndex;
@@ -157,7 +160,6 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     getScrollElement: () => scrollContainer ?? null,
     overscan: 8,
     paddingStart: headerHeight + listInset,
-    // The tab stop always renders, so the list keeps its Tab stop and focus while scrolled away.
     rangeExtractor: (range) => {
       const indexes = defaultRangeExtractor(range);
 
@@ -169,14 +171,18 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     scrollPaddingStart: headerHeight + listInset,
   });
 
-  // Nothing renders before the container is known; rendering every item would mount the whole
-  // library for one commit. Lists without a scroll container render every item.
   const mountedIndexes =
     scrollContainer === undefined
       ? []
       : scrollContainer
         ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
         : items.map((_item, index) => index);
+
+  const hasMountedRows = mountedIndexes.length > 0;
+
+  useLayoutEffect(() => {
+    if (hasMountedRows && tableRef.current) onReady?.(tableRef.current);
+  }, [hasMountedRows, onReady]);
 
   const focusRow = (index: number) => {
     const target = Math.max(0, Math.min(items.length - 1, index));
@@ -235,7 +241,7 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     }
   };
 
-  const rowActions = useStableActions<TrackRowActions>({
+  const rowActions = useStableActions({
     addToPlaylist: openAddToPlaylist,
     addToQueue: (trackId) => playback.enqueueTrack(trackId),
     createPlaylist: createPlaylistWithTrack,
@@ -275,9 +281,6 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
   const bodyRows: ReactNode[] = [];
   let nextUnmountedIndex = 0;
 
-  // One empty row stands in for the unmounted rows before `untilIndex`, keeping the scroll height.
-  // Its one cell spans nothing: a colSpan would count the columns that narrow lists hide, and the
-  // fixed table layout would give those phantom columns part of the title's width.
   const addSpacerRow = (untilIndex: number) => {
     if (untilIndex <= nextUnmountedIndex) return;
 
@@ -375,7 +378,6 @@ const TrackRow = memo(function TrackRow({
       onClick={() => actions.select(item.sourceEntryId)}
       onDoubleClick={() => actions.play(item)}
       onKeyDown={(event) => actions.keyDown(event, index)}
-      // a double-click plays, so it shouldn't also select a word; dragging still selects text
       onMouseDown={(event) => {
         if (event.detail > 1) event.preventDefault();
       }}
@@ -466,26 +468,22 @@ const TrackRow = memo(function TrackRow({
   );
 });
 
-// Functions that keep their identity across renders but always call the latest ones passed in
-function useStableActions<Actions extends Record<string, (...args: never[]) => void>>(
-  actions: Actions,
-) {
+function useStableActions(actions: TrackRowActions) {
   const latest = useRef(actions);
 
   useLayoutEffect(() => {
     latest.current = actions;
   });
 
-  const [stable] = useState(
-    () =>
-      // SAFETY: one wrapper per key of `actions`, each with the same signature as the original.
-      Object.fromEntries(
-        Object.keys(actions).map((name) => [
-          name,
-          (...args: never[]) => latest.current[name](...args),
-        ]),
-      ) as Actions,
-  );
+  const [stable] = useState<TrackRowActions>(() => ({
+    addToPlaylist: (track, trigger) => latest.current.addToPlaylist(track, trigger),
+    addToQueue: (trackId) => latest.current.addToQueue(trackId),
+    createPlaylist: (track) => latest.current.createPlaylist(track),
+    keyDown: (event, index) => latest.current.keyDown(event, index),
+    play: (item) => latest.current.play(item),
+    select: (sourceEntryId) => latest.current.select(sourceEntryId),
+    toggleLike: (track) => latest.current.toggleLike(track),
+  }));
 
   return stable;
 }

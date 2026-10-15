@@ -15,7 +15,7 @@ const sourceIdentitySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("playlist"), playlistId: databaseId }),
 ]);
 
-const sourceEntrySchema = z.object({ sourceEntryId: databaseId, trackId: databaseId });
+const sourceEntrySchema = z.object({ sourceEntryId: databaseId, trackId: databaseId }).readonly();
 
 const sourcePositionSchema = z
   .discriminatedUnion("kind", [
@@ -42,7 +42,7 @@ export const queueItemSchema = z.object({
 export const queueStateSchema = z.object({
   source: sourceSchema,
   sessionId: queueItemId,
-  sourceEntries: z.array(sourceEntrySchema),
+  sourceEntries: z.array(sourceEntrySchema).readonly(),
   sourceIdentity: sourceIdentitySchema,
   sourcePosition: sourcePositionSchema,
   shuffleEnabled: z.boolean(),
@@ -61,11 +61,6 @@ export const queueStateSchema = z.object({
   manualQueue: z.array(queueItemSchema),
   sourceQueue: z.array(queueItemSchema),
 
-  // Tracks that were played, skipped, or came before the first selected track.
-  // A shuffled session starts with this list empty.
-  // The `previous` command uses this list to go back to an earlier track.
-  // Unavailable tracks stay in the list but are skipped.
-  // Removing a track from its playlist or from the queue also removes it from this list.
   previousSourceItems: z.array(queueItemSchema),
   suppressedSourceEntryIds: z.array(databaseId),
   status: z.enum(["playing", "paused", "stopped"]),

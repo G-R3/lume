@@ -21,16 +21,13 @@ export function LikeButton({
   tabIndex?: number;
 }) {
   const reduceMotion = useReducedMotionConfig();
-  // Each pointer like is a new run: the key remounts its animated parts
   const [runKey, setRunKey] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const isLikeRunning = liked && isRunning;
-  // the outline, pulse, rings and sparks; reduced motion keeps only the fill's fade
   const showsEffects = isLikeRunning && !reduceMotion;
   const { fill, outline, pulse, rings, sparks } = feel;
   const dots = sparkDots(feel);
 
-  // Every animated part reports when it ends; the last one ends the run
   const partsLeft = useRef(0);
   const animatedPartCount = 2 + (pulse ? 1 : 0) + rings.length + dots.length;
 
@@ -53,7 +50,6 @@ export function LikeButton({
       aria-pressed={liked}
       className={cn("hover:not-data-disabled:bg-transparent", className)}
       onClick={(event) => {
-        // like via keyboard is instant with no animation
         if (!liked && event.detail > 0) {
           partsLeft.current = reduceMotion ? 1 : animatedPartCount;
           setRunKey((key) => key + 1);
@@ -192,7 +188,6 @@ export function LikeButton({
   );
 }
 
-// Each pair is a lead dot and a smaller, dimmer one a few degrees behind it
 function sparkDots({ sparks }: LikeFeel) {
   if (!sparks) return [];
 

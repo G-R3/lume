@@ -20,15 +20,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SidebarSimpleIcon } from "@phosphor-icons/react";
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state";
-
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-
 const SIDEBAR_WIDTH = "14rem";
 
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 
 const SIDEBAR_WIDTH_ICON = "3rem";
+
+export type SidebarStyle = React.CSSProperties & {
+  "--sidebar-width"?: string;
+  "--sidebar-width-icon"?: string;
+  "--skeleton-width"?: string;
+};
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -67,37 +69,29 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
-
-  // This is the internal state of the sidebar.
-  // An explicit open value lets callers control this provider.
   const [_open, _setOpen] = React.useState(defaultOpen);
   const open = controlledOpen ?? _open;
 
   const setOpen = React.useCallback(
-    (value: boolean | ((value: boolean) => boolean)) => {
-      // eslint-disable-next-line anti-slop/no-runtime-typeof
-      const openState = typeof value === "function" ? value(open) : value;
+    (value: boolean) => {
+      if (onOpenChange) return onOpenChange(value);
 
-      if (onOpenChange) {
-        onOpenChange(openState);
-      } else {
-        _setOpen(openState);
-      }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      _setOpen(value);
     },
-    [onOpenChange, open],
+    [onOpenChange],
   );
 
-  // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-  }, [isMobile, setOpen, setOpenMobile]);
+    return isMobile ? setOpenMobile((open) => !open) : setOpen(!open);
+  }, [isMobile, open, setOpen, setOpenMobile]);
 
-  // We add a state so that we can do data-state="expanded" or "collapsed".
-  // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed";
+
+  const sidebarStyle: SidebarStyle = {
+    "--sidebar-width": SIDEBAR_WIDTH,
+    "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+    ...style,
+  };
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
@@ -116,14 +110,7 @@ function SidebarProvider({
     <SidebarContext.Provider value={contextValue}>
       <div
         data-slot="sidebar-wrapper"
-        style={
-          // SAFETY: React passes valid CSS custom properties through to the DOM.
-          {
-            "--sidebar-width": SIDEBAR_WIDTH,
-            "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-            ...style,
-          } as React.CSSProperties
-        }
+        style={sidebarStyle}
         className={cn(
           "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-page",
           className,
@@ -155,6 +142,7 @@ function Sidebar({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
+  const mobileStyle: SidebarStyle = { "--sidebar-width": SIDEBAR_WIDTH_MOBILE };
   const sidebar = useSidebar();
   const state = (open ?? sidebar.open) ? "expanded" : "collapsed";
   const openMobile = open ?? sidebar.openMobile;
@@ -187,12 +175,7 @@ function Sidebar({
             "w-(--sidebar-width) bg-page p-0 text-primary motion-reduce:transition-opacity [&>button]:hidden",
             className,
           )}
-          style={
-            // SAFETY: React passes this valid CSS custom property through to the DOM.
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
+          style={mobileStyle}
           side={side}
         >
           <SheetHeader className="sr-only">
@@ -218,7 +201,6 @@ function Sidebar({
       data-side={side}
       data-slot="sidebar"
     >
-      {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
         className={cn(
@@ -235,7 +217,6 @@ function Sidebar({
         data-side={side}
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) bg-page data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:-left-(--sidebar-width) data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:-right-(--sidebar-width) md:flex",
-          // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
@@ -591,10 +572,11 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean;
 }) {
-  // Random width between 50 to 90%.
   const [width] = React.useState(() => {
     return `${Math.floor(Math.random() * 40) + 50}%`;
   });
+
+  const skeletonStyle: SidebarStyle = { "--skeleton-width": width };
 
   return (
     <div
@@ -607,12 +589,7 @@ function SidebarMenuSkeleton({
       <Skeleton
         className="h-4 max-w-(--skeleton-width) flex-1"
         data-sidebar="menu-skeleton-text"
-        style={
-          // SAFETY: React passes this valid percentage-valued CSS custom property through to the DOM.
-          {
-            "--skeleton-width": width,
-          } as React.CSSProperties
-        }
+        style={skeletonStyle}
       />
     </div>
   );

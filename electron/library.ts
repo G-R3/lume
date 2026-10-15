@@ -296,7 +296,6 @@ export async function scanEnabledSources(scanFiles = scanAudioFiles) {
   }
 }
 
-// The scanner parameter lets tests pause overlapping scans without mocking Node's filesystem APIs.
 export async function scanSource(sourceId: number, scanFiles = scanAudioFiles) {
   const source = getEnabledSource(sourceId);
 

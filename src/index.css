@@ -22,28 +22,26 @@
   --color-neutral-50: oklch(0.985 0 0);
   --color-neutral-100: oklch(0.97 0 0);
   --color-neutral-400: oklch(0.708 0 0);
-  --color-neutral-450: oklch(0.632 0 0); /* #8A8A8A */
+  --color-neutral-450: oklch(0.632 0 0);
   --color-neutral-500: oklch(0.556 0 0);
   --color-neutral-600: oklch(0.439 0 0);
   --color-neutral-700: oklch(0.371 0 0);
-  --color-neutral-750: oklch(0.3211 0 0); /* #333333 */
-  --color-neutral-775: oklch(0.2951 0 0); /* #2C2C2C, a quarter step */
+  --color-neutral-750: oklch(0.3211 0 0);
+  --color-neutral-775: oklch(0.2951 0 0);
   --color-neutral-800: oklch(0.269 0 0);
-  --color-neutral-850: oklch(0.235 0 0); /* #1E1E1E */
+  --color-neutral-850: oklch(0.235 0 0);
   --color-neutral-900: oklch(0.205 0 0);
-  --color-neutral-912: oklch(0.1913 0 0); /* #141414 */
+  --color-neutral-912: oklch(0.1913 0 0);
   --color-neutral-950: oklch(0.145 0 0);
 
   --color-amber-400-soft: oklch(0.828 0.13 84.429);
 
   --color-red-300: oklch(0.808 0.114 19.571);
 
-  /* red-400 raised to the 300/400 lightness midpoint, keeping red-400's hue and chroma */
   --color-red-350: #ff8785;
   --color-red-350: oklch(0.756 0.187 22.216);
   --color-red-400: oklch(0.704 0.191 22.216);
 
-  /* The only line an accent mode (album art, monochrome) changes */
   --accent-root: var(--color-amber-400-soft);
 }
 
@@ -57,7 +55,6 @@
   --color-bg-sunken: var(--color-neutral-950);
   --color-bg-scrim: oklch(0.145 0 0 / 60%);
 
-  /* Surface roles match the explicit tokens in Paper. The contextual roles below follow their container. */
   --color-bg-page-hover: var(--color-neutral-850);
   --color-bg-raised-hover: var(--color-neutral-800);
   --color-bg-raised-selected: var(--color-neutral-775);
@@ -75,9 +72,7 @@
   --color-text-primary: var(--color-neutral-100);
   --color-text-secondary: var(--color-neutral-400);
   --color-text-tertiary: var(--color-neutral-500);
-  /* APCA Lc 36+ on every fill: better-colors puts disabled text at Lc 30 or more */
   --color-text-disabled: var(--color-neutral-450);
-  /* marks that only repeat nearby text: the missing-artwork note, the idle status dot */
   --color-text-faint: var(--color-neutral-600);
   --color-text-placeholder: var(--color-neutral-400);
   --color-text-inverse: var(--color-neutral-950);
@@ -85,12 +80,10 @@
   --color-border-default: var(--color-neutral-800);
   --color-border-strong: var(--color-neutral-700);
   --color-border-separator: var(--color-neutral-800);
-  /* 3:1 or more on every fill it crosses, including the raised selected step */
   --color-border-focus: var(--color-neutral-450);
 
   --color-accent-solid: var(--accent-root);
   --color-accent-subtle: color-mix(in oklab, var(--accent-root) 10%, transparent);
-  /* the waveform columns between the playhead and the pointer while seeking */
   --color-accent-preview: color-mix(in oklab, var(--accent-root) 60%, transparent);
   --color-accent-border: var(--accent-root);
   --color-accent-text: var(--accent-root);
@@ -100,7 +93,6 @@
   --color-danger-subtle: color-mix(in oklab, var(--color-red-400) 14%, transparent);
   --color-danger-text: var(--color-red-300);
 
-  /* shortcut chips set into the primary and danger buttons */
   --color-bg-inverse-kbd: oklch(0.145 0 0 / 8%);
   --color-text-inverse-kbd: var(--color-neutral-600);
   --color-bg-danger-kbd: oklch(0.145 0 0 / 12%);
@@ -142,15 +134,12 @@
   --shadow-toast: 0 8px 24px oklch(0 0 0 / 50%), 0 2px 4px oklch(0 0 0 / 30%);
   --shadow-tooltip: 0 4px 12px oklch(0 0 0 / 40%);
 
-  /* see src/lib/motion.ts for JS springs */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
   --ease-crossfade: cubic-bezier(0.2, 0, 0, 1);
-  /* spring.ui (300ms) and spring.exit (200ms) sampled by motion's spring().toString() */
   --ease-spring-ui: linear(0, 0.2738, 0.6079, 0.8122, 0.9157, 0.9637, 0.9848, 0.9938, 0.9975, 1);
   --ease-spring-exit: linear(0, 0.4551, 0.8122, 0.9445, 0.9848, 0.996, 1);
 
-  /* Playing meter: a column's lit dots step through levels 2, 4, 3, 1 (4px per dot) */
   --animate-meter-column: meter-column 1s step-end infinite;
 
   @keyframes meter-column {
@@ -171,10 +160,6 @@
 }
 
 @theme inline {
-  /*
-   * Scan glyph: each dot of the amber copy twinkles on its own clock. Inline, because
-   * the twinkle reads per-dot variables that don't exist where the theme's variables are defined.
-   */
   --animate-glyph-twinkle: glyph-twinkle var(--twinkle-duration) var(--ease-in-out)
     var(--twinkle-delay) infinite;
 
@@ -273,16 +258,13 @@
   }
 }
 
-/* Panels, dialogs and the palette: hover and selected lift from bg-raised */
 @utility surface-raised {
   --color-bg-hover: var(--color-bg-raised-hover);
   --color-bg-selected: var(--color-bg-raised-selected);
 }
 
-/* Menus, toasts: a step above the raised panels they open over */
 @utility surface-overlay {
   --color-bg-hover: var(--color-bg-overlay-hover);
   --color-bg-selected: var(--color-neutral-700);
-  /* the page's separator is the overlay's own color, so it steps up with the surface */
   --color-border-separator: var(--color-border-overlay-separator);
 }

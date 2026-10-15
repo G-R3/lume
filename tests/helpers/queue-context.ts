@@ -1,6 +1,5 @@
 import type { QueueContext, QueueRandom } from "../../src/lib/queue/commands";
 
-/** Fails the test when a transition makes a random choice that the test did not supply. */
 export const noRandom: QueueRandom = {
   shuffle: () => {
     throw new Error("Unexpected shuffle");

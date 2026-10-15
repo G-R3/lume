@@ -12,7 +12,6 @@ export function formatDuration(duration: number | null) {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}:${remainingSeconds}`;
 }
 
-/** A total length for stat lines: "42m", "3h 08m", "3d 4h". */
 export function formatTotalDuration(duration: number) {
   const minutes = duration > 0 ? Math.max(1, Math.round(duration / 60)) : 0;
   const hours = Math.floor(minutes / 60);
