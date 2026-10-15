@@ -1,6 +1,6 @@
 import { PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, useRef, useState } from "react";
+import { type KeyboardEvent, type Ref, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +23,7 @@ type CreateForm = {
   title: string;
 };
 
-export function CreatePlaylistDialog() {
+export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButtonElement> }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -87,7 +87,9 @@ export function CreatePlaylistDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
-        render={<Button aria-label="Create playlist" size="icon-sm" variant="ghost" />}
+        render={
+          <Button aria-label="Create playlist" ref={triggerRef} size="icon-sm" variant="ghost" />
+        }
       >
         <PlusIcon aria-hidden="true" />
       </DialogTrigger>

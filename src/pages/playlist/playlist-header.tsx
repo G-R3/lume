@@ -119,6 +119,8 @@ function PlaylistMenu({ playlist }: { playlist: PlaylistDetails }) {
       </DropdownMenu>
       <DeletePlaylistDialog
         finalFocus={menuTriggerRef}
+        // the page is gone; Tracks takes its place
+        focusAfterDelete={() => document.querySelector<HTMLElement>("[data-slot=page-title]")}
         onOpenChange={setDeleteOpen}
         open={deleteOpen}
         playlist={{ ...playlist, trackCount: playlist.tracks.length }}

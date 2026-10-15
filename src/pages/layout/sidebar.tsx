@@ -1,7 +1,7 @@
 import { DotsThreeIcon, GearIcon, MusicNotesIcon, TrashIcon } from "@phosphor-icons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { type Ref, useRef, useState } from "react";
+import { type Ref, type RefObject, useRef, useState } from "react";
 import type { LibrarySource, PlaylistSummary } from "../../../shared/lib";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
@@ -36,6 +36,7 @@ export function AppSidebar() {
   const playback = usePlayback();
   const matchRoute = useMatchRoute();
   const isTracks = Boolean(matchRoute({ to: "/" }));
+  const createTriggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <Sidebar className="border-separator bg-raised md:absolute! md:h-auto!">
@@ -60,16 +61,18 @@ export function AppSidebar() {
         <SidebarGroup className="px-2 pt-6 pb-0">
           <div className="flex items-center justify-between pr-1">
             <SidebarGroupLabel render={<h2 />}>Playlists</SidebarGroupLabel>
-            <CreatePlaylistDialog />
+            <CreatePlaylistDialog triggerRef={createTriggerRef} />
           </div>
           <SidebarGroupContent>
             <SidebarMenu className="relative">
               {/* playlists that are created or deleted later slide in and out */}
               <AnimatePresence initial={false} mode="popLayout">
-                {library.playlists.map((playlist) => (
+                {library.playlists.map((playlist, index) => (
                   <PlaylistSidebarItem
+                    createTriggerRef={createTriggerRef}
                     isPlayingFrom={playback.activeSourcePlaylistId === playlist.id}
                     key={playlist.id}
+                    neighborId={(library.playlists[index + 1] ?? library.playlists[index - 1])?.id}
                     playlist={playlist}
                   />
                 ))}
@@ -117,11 +120,16 @@ function PlayingFromDot() {
 const MotionSidebarMenuItem = motion.create(SidebarMenuItem);
 
 function PlaylistSidebarItem({
+  createTriggerRef,
   isPlayingFrom,
+  neighborId,
   playlist,
   ref,
 }: {
+  createTriggerRef: RefObject<HTMLButtonElement | null>;
   isPlayingFrom: boolean;
+  /** the playlist that takes this row's focus if it's deleted: the next one, else the previous */
+  neighborId: number | undefined;
   playlist: PlaylistSummary;
   ref?: Ref<HTMLLIElement>;
 }) {
@@ -145,6 +153,7 @@ function PlaylistSidebarItem({
       }}
     >
       <SidebarMenuButton
+        data-playlist-id={playlist.id}
         isActive={isActive}
         render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
       >
@@ -180,6 +189,11 @@ function PlaylistSidebarItem({
       </DropdownMenu>
       <DeletePlaylistDialog
         finalFocus={menuTriggerRef}
+        focusAfterDelete={() =>
+          neighborId !== undefined
+            ? document.querySelector<HTMLElement>(`[data-playlist-id="${neighborId}"]`)
+            : createTriggerRef.current
+        }
         onOpenChange={setDeleteOpen}
         open={deleteOpen}
         playlist={playlist}

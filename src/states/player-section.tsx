@@ -232,7 +232,7 @@ function playerParts(state: PlayerState): PartSpec[] {
     {
       name: "transport",
       selector: "[data-slot=player-transport]",
-      paper: { height: 32, width: 200 },
+      paper: { height: 32, width: 140 },
     },
     {
       name: "display",
@@ -344,7 +344,8 @@ function playerParts(state: PlayerState): PartSpec[] {
     {
       name: "utilities",
       selector: "[data-slot=player-utilities]",
-      paper: { width: 200, height: 32 },
+      // Paper draws the reserved command lane inside this group (183); the app keeps it apart
+      paper: { width: 128, height: 32 },
     },
     { name: "volume", selector: "[data-slot=player-volume]", paper: { width: 48, height: 32 } },
     {

@@ -86,6 +86,8 @@
   --color-danger-text: var(--color-red-300);
 
   /* shortcut chips set into the primary and danger buttons */
+  /* the waveform columns between the playhead and the pointer while seeking */
+  --color-accent-preview: color-mix(in oklab, var(--accent-root) 60%, transparent);
   --color-bg-inverse-kbd: oklch(0.145 0 0 / 8%);
   --color-text-inverse-kbd: var(--color-neutral-600);
   --color-bg-danger-kbd: oklch(0.145 0 0 / 12%);
@@ -242,6 +244,7 @@
   * {
     border-color: var(--color-border-default);
   }
+  --fill-accent-preview: var(--color-accent-preview);
   html {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

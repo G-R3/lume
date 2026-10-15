@@ -39,135 +39,152 @@ export function AudioPlayerControls({
     <header
       aria-label="Player"
       className={cn(
-        "@container/player flex h-12 w-full shrink-0 items-center gap-4 border-b border-separator bg-page px-4 pt-px [&_button]:motion-reduce:transition-none [&_button]:motion-reduce:active:not-data-disabled:scale-100",
+        "@container/player flex h-12 w-full shrink-0 items-center border-b border-separator bg-page px-4 pt-px [&_button]:motion-reduce:transition-none [&_button]:motion-reduce:active:not-data-disabled:scale-100",
         window.lume.isMac && "[-webkit-app-region:drag]",
       )}
       data-slot="player"
     >
-      {(sidebar.isMobile || sidebar.state === "collapsed") && (
-        <div aria-hidden="true" className="w-52 shrink-0" />
-      )}
-      <div
-        className="flex shrink-0 items-center gap-1 @min-[984px]/player:w-50 [&_button]:[-webkit-app-region:no-drag]"
-        data-slot="player-transport"
-      >
-        <Button
-          aria-label="Shuffle"
-          aria-pressed={playback.shuffleEnabled}
-          className={cn(
-            "relative",
-            playback.shuffleEnabled &&
-              "text-accent aria-pressed:bg-transparent aria-pressed:hover:not-data-disabled:bg-page-hover hover:not-data-disabled:text-accent focus-visible:text-accent",
-          )}
-          disabled={!playback.isInitialized || playback.queue === null}
-          onClick={() => playback.setShuffleEnabled(!playback.shuffleEnabled)}
-          size="icon"
-          type="button"
-          variant="toolbar"
+      {/* Keep the sidebar's lane when collapsed so the player doesn't move. */}
+      {sidebar.state === "collapsed" && <div aria-hidden="true" className="w-52 shrink-0" />}
+      <div aria-hidden="true" className="flex-1" />
+      {/* transport, display, volume and queue are one unit, centered on the window (Paper 26 E) */}
+      <div className="flex min-w-0 items-center gap-4" data-slot="player-unit">
+        <div
+          className="flex shrink-0 items-center gap-1 [&_button]:[-webkit-app-region:no-drag]"
+          data-slot="player-transport"
         >
-          <ShuffleAngularIcon aria-hidden="true" />
-          {playback.shuffleEnabled && (
-            <span
-              aria-hidden="true"
-              className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-accent"
-            />
-          )}
-        </Button>
-        <Button
-          aria-label="Previous track"
-          className="text-primary"
-          disabled={!playback.activeTrack}
-          onClick={playback.previous}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          <SkipBackIcon aria-hidden="true" weight="fill" />
-        </Button>
-        <Button
-          aria-label={playback.isPlaying ? "Pause" : "Play"}
-          className="rounded-full"
-          disabled={!playback.activeTrack}
-          onClick={playback.togglePlayback}
-          size="icon"
-          type="button"
-          variant="primary"
-        >
-          {playback.isPlaying ? (
-            <PauseIcon aria-hidden="true" weight="fill" />
-          ) : (
-            <PlayIcon aria-hidden="true" weight="fill" />
-          )}
-        </Button>
-        <Button
-          aria-label="Next track"
-          className="text-primary"
-          disabled={!playback.canGoNext}
-          onClick={playback.next}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          <SkipForwardIcon aria-hidden="true" weight="fill" />
-        </Button>
-      </div>
-      <div className="flex min-w-0 flex-1 justify-center">
+          <Button
+            aria-label="Shuffle"
+            aria-pressed={playback.shuffleEnabled}
+            className={cn(
+              "relative",
+              playback.shuffleEnabled &&
+                "text-accent aria-pressed:bg-transparent aria-pressed:hover:not-data-disabled:bg-hover hover:not-data-disabled:text-accent focus-visible:text-accent",
+            )}
+            disabled={!playback.isInitialized || playback.queue === null}
+            onClick={() => playback.setShuffleEnabled(!playback.shuffleEnabled)}
+            size="icon"
+            type="button"
+            variant="toolbar"
+          >
+            <ShuffleAngularIcon aria-hidden="true" />
+            {playback.shuffleEnabled && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-accent"
+              />
+            )}
+          </Button>
+          <Button
+            aria-label="Previous track"
+            className="text-primary"
+            disabled={!playback.activeTrack}
+            onClick={playback.previous}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <SkipBackIcon aria-hidden="true" weight="fill" />
+          </Button>
+          <Button
+            aria-label={playback.isPlaying ? "Pause" : "Play"}
+            className="rounded-full"
+            disabled={!playback.activeTrack}
+            onClick={playback.togglePlayback}
+            size="icon"
+            type="button"
+            variant="primary"
+          >
+            {playback.isPlaying ? (
+              <PauseIcon aria-hidden="true" weight="fill" />
+            ) : (
+              <PlayIcon aria-hidden="true" weight="fill" />
+            )}
+          </Button>
+          <Button
+            aria-label="Next track"
+            className="text-primary"
+            disabled={!playback.canGoNext}
+            onClick={playback.next}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <SkipForwardIcon aria-hidden="true" weight="fill" />
+          </Button>
+        </div>
         <PlayerDisplay />
+        <div
+          className="flex shrink-0 items-center gap-1 [&_button]:[-webkit-app-region:no-drag]"
+          data-slot="player-utilities"
+        >
+          <Button
+            aria-label={playback.isMuted ? "Unmute audio" : "Mute audio"}
+            aria-pressed={playback.isMuted}
+            onClick={playback.toggleMute}
+            size="icon"
+            type="button"
+            variant="toolbar"
+          >
+            {playback.isMuted ? (
+              <SpeakerSlashIcon aria-hidden="true" />
+            ) : (
+              <SpeakerHighIcon aria-hidden="true" />
+            )}
+          </Button>
+          <Slider.Root
+            aria-label="Volume"
+            className="mr-2 hidden w-12 @min-[700px]/player:block [-webkit-app-region:no-drag]"
+            data-slot="player-volume"
+            format={{ style: "percent" }}
+            largeStep={0.1}
+            max={1}
+            min={0}
+            onValueChange={playback.setVolume}
+            step={0.01}
+            thumbAlignment="edge"
+            value={playback.isMuted ? 0 : playback.volume}
+          >
+            <Slider.Control className="group/volume relative flex h-8 cursor-pointer touch-none items-center rounded-xs has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus">
+              <Slider.Track className="relative h-0.5 w-full overflow-hidden rounded-xs bg-track">
+                <Slider.Indicator className="h-full bg-inverse" />
+              </Slider.Track>
+              <Slider.Thumb
+                aria-label="Volume"
+                className="absolute size-2 rounded-full bg-inverse opacity-0 group-hover/volume:opacity-100 group-has-focus-visible/volume:opacity-100 data-dragging:opacity-100 [&_input]:outline-none"
+              />
+            </Slider.Control>
+          </Slider.Root>
+          <Button
+            aria-controls="queue-sidebar"
+            aria-expanded={queueOpen}
+            aria-label={queueOpen ? "Close queue sidebar" : "Open queue sidebar"}
+            onClick={toggleQueue}
+            size="icon"
+            type="button"
+            variant="toolbar"
+          >
+            <QueueIcon aria-hidden="true" weight={queueOpen ? "fill" : "regular"} />
+          </Button>
+        </div>
       </div>
+      <div aria-hidden="true" className="flex-1" />
+      <span aria-hidden="true" className="hidden w-13 shrink-0 @min-[984px]/player:block" />
+      {/*
+       * Balances what sits left of the header (the open sidebar, or the toggle's lane) against the
+       * command lane on the right, so the unit centers on the window rather than on the header.
+       * It gives way first when space runs out, so the unit slides right instead of under the
+       * sidebar, and only then does the display shrink.
+       */}
       <div
-        className="flex shrink-0 items-center justify-end gap-1 pr-2 @min-[984px]/player:w-50 [&_button]:[-webkit-app-region:no-drag]"
-        data-slot="player-utilities"
-      >
-        <Button
-          aria-label={playback.isMuted ? "Unmute audio" : "Mute audio"}
-          aria-pressed={playback.isMuted}
-          onClick={playback.toggleMute}
-          size="icon"
-          type="button"
-          variant="toolbar"
-        >
-          {playback.isMuted ? (
-            <SpeakerSlashIcon aria-hidden="true" />
-          ) : (
-            <SpeakerHighIcon aria-hidden="true" />
-          )}
-        </Button>
-        <Slider.Root
-          aria-label="Volume"
-          className="mr-2 hidden w-12 @min-[700px]/player:block [-webkit-app-region:no-drag]"
-          data-slot="player-volume"
-          format={{ style: "percent" }}
-          largeStep={0.1}
-          max={1}
-          min={0}
-          onValueChange={playback.setVolume}
-          step={0.01}
-          thumbAlignment="edge"
-          value={playback.isMuted ? 0 : playback.volume}
-        >
-          <Slider.Control className="group/volume relative flex h-8 cursor-pointer touch-none items-center rounded-xs has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus">
-            <Slider.Track className="relative h-0.5 w-full overflow-hidden rounded-xs bg-track">
-              <Slider.Indicator className="h-full bg-inverse" />
-            </Slider.Track>
-            <Slider.Thumb
-              aria-label="Volume"
-              className="absolute size-2 rounded-full bg-inverse opacity-0 group-hover/volume:opacity-100 group-has-focus-visible/volume:opacity-100 data-dragging:opacity-100 [&_input]:outline-none"
-            />
-          </Slider.Control>
-        </Slider.Root>
-        <Button
-          aria-controls="queue-sidebar"
-          aria-expanded={queueOpen}
-          aria-label={queueOpen ? "Close queue sidebar" : "Open queue sidebar"}
-          onClick={toggleQueue}
-          size="icon"
-          type="button"
-          variant="toolbar"
-        >
-          <QueueIcon aria-hidden="true" weight={queueOpen ? "fill" : "regular"} />
-        </Button>
-        <span aria-hidden="true" className="hidden w-13 @min-[984px]/player:block" />
-      </div>
+        aria-hidden="true"
+        className={cn(
+          "shrink-[100000]",
+          sidebar.state === "collapsed"
+            ? "w-52 @min-[984px]/player:w-39"
+            : "w-(--sidebar-width) @min-[984px]/player:w-[calc(var(--sidebar-width)-var(--spacing)*13)]",
+        )}
+      />
     </header>
   );
 }
@@ -177,7 +194,7 @@ function PlayerDisplay() {
 
   return (
     <div
-      className="@container/display relative flex h-10 w-130 min-w-0 max-w-full items-center gap-2 rounded-lg bg-raised py-1 pr-3 pl-1 ring-1 ring-default ring-inset [-webkit-app-region:no-drag]"
+      className="@container/display relative flex h-10 w-130 min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-lg bg-raised py-1 pr-3 pl-1 ring-1 ring-default ring-inset [-webkit-app-region:no-drag]"
       data-slot="player-display"
     >
       <div className="absolute inset-x-0 top-1 grid px-3 pl-1">
@@ -225,8 +242,10 @@ function PlayerMetadata({ track }: { track: Track | null }) {
         </bdi>
         {track && (
           <>
+            {/* the artist keeps 96px while the title shrinks, but never more than half the line,
+                so a narrow display (zoomed in) still shows the title */}
             <bdi
-              className="min-w-24 flex-1 truncate text-left text-secondary"
+              className="min-w-[min(--spacing(24),50%)] flex-1 truncate text-left text-secondary"
               data-slot="player-artist"
               title={artist}
             >
@@ -403,7 +422,13 @@ function PlayerWaveform({
   }, []);
 
   return (
-    <svg aria-hidden="true" className="absolute top-0 left-0" height="12" ref={ref} width="340">
+    <svg
+      aria-hidden="true"
+      className="absolute top-0 left-0 fill-none"
+      height="12"
+      ref={ref}
+      width="340"
+    >
       <defs>
         <clipPath id={`${id}-played`}>
           <rect height="12" width={playedEnd} />
@@ -432,7 +457,7 @@ function PlayerWaveform({
         </g>
       </defs>
       <use className="fill-accent" clipPath={`url(#${id}-played)`} href={`#${id}-dots`} />
-      <use className="fill-accent/60" clipPath={`url(#${id}-hover)`} href={`#${id}-dots`} />
+      <use className="fill-accent-preview" clipPath={`url(#${id}-hover)`} href={`#${id}-dots`} />
       <use className="fill-track" clipPath={`url(#${id}-remaining)`} href={`#${id}-dots`} />
     </svg>
   );

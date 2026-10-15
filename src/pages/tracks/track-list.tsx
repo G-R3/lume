@@ -280,20 +280,18 @@ export function TrackList({ caption, items, playlistId, renderMenuItems }: Track
     );
   }
 
-  const columnCount = isPlaylist ? 6 : 5;
   const bodyRows: ReactNode[] = [];
   let nextUnmountedIndex = 0;
 
-  // One empty row stands in for the unmounted rows before `untilIndex`, keeping the scroll height
+  // One empty row stands in for the unmounted rows before `untilIndex`, keeping the scroll height.
+  // Its one cell spans nothing: a colSpan would count the columns that narrow lists hide, and the
+  // fixed table layout would give those phantom columns part of the title's width.
   const addSpacerRow = (untilIndex: number) => {
     if (untilIndex <= nextUnmountedIndex) return;
 
     bodyRows.push(
       <tr aria-hidden="true" key={`spacer-${nextUnmountedIndex}`}>
-        <td
-          colSpan={columnCount}
-          style={{ height: (untilIndex - nextUnmountedIndex) * rowHeight }}
-        />
+        <td style={{ height: (untilIndex - nextUnmountedIndex) * rowHeight }} />
       </tr>,
     );
   };
@@ -377,6 +375,10 @@ const TrackRow = memo(function TrackRow({
       aria-current={isActive ? "true" : undefined}
       aria-rowindex={index + 2}
       aria-selected={isSelected}
+      // a double-click plays, so it shouldn't also select a word; dragging still selects text
+      onMouseDown={(event) => {
+        if (event.detail > 1) event.preventDefault();
+      }}
       className={cn(
         "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
         isSelected ? "*:bg-selected" : isActive ? "*:bg-accent-subtle" : "hover:*:bg-page-hover",

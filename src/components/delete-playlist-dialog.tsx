@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
-import type { KeyboardEvent, RefObject } from "react";
+import { type KeyboardEvent, type RefObject, useRef } from "react";
 import type { PlaylistSummary } from "../../shared/lib";
 import {
   AlertDialog,
@@ -17,6 +17,8 @@ import { useLibraryMutation } from "@/lib/library-query";
 
 type DeletePlaylistDialogProps = {
   finalFocus?: RefObject<HTMLElement | null>;
+  /** where focus goes once the playlist is gone, since the trigger may go with it */
+  focusAfterDelete: () => HTMLElement | null | undefined;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   playlist: PlaylistSummary;
@@ -24,6 +26,7 @@ type DeletePlaylistDialogProps = {
 
 export function DeletePlaylistDialog({
   finalFocus,
+  focusAfterDelete,
   onOpenChange,
   open,
   playlist,
@@ -31,13 +34,16 @@ export function DeletePlaylistDialog({
   const libraryMutation = useLibraryMutation();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
+  const deletedRef = useRef(false);
 
   const isOpenPlaylist = params.playlistId === playlist.id;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && libraryMutation.isPending) return;
 
-    if (!nextOpen) libraryMutation.reset();
+    if (nextOpen) deletedRef.current = false;
+    else libraryMutation.reset();
+
     onOpenChange(nextOpen);
   };
 
@@ -45,10 +51,15 @@ export function DeletePlaylistDialog({
     libraryMutation.mutate(
       { kind: "delete-playlist", playlistId: playlist.id },
       {
-        onSuccess: () => {
-          if (isOpenPlaylist) void navigate({ replace: true, to: "/" });
+        onSuccess: async () => {
+          deletedRef.current = true;
           libraryMutation.reset();
           onOpenChange(false);
+
+          if (isOpenPlaylist) await navigate({ replace: true, to: "/" });
+
+          // the next frame, so the new page (if any) has rendered
+          requestAnimationFrame(() => focusAfterDelete()?.focus());
         },
       },
     );
@@ -64,7 +75,10 @@ export function DeletePlaylistDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent finalFocus={finalFocus} onKeyDown={handleKeyDown}>
+      <AlertDialogContent
+        finalFocus={() => (deletedRef.current ? false : (finalFocus?.current ?? true))}
+        onKeyDown={handleKeyDown}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {playlist.title}?</AlertDialogTitle>
           <AlertDialogDescription>{describeTracks(playlist.trackCount)}</AlertDialogDescription>

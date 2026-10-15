@@ -40,7 +40,13 @@ export function TracksPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center gap-4 pr-4 pl-6" data-slot="page-header">
         <div className="flex min-w-0 flex-1 items-baseline gap-3">
-          <h1 className="shrink-0 text-title font-semibold text-primary">Tracks</h1>
+          <h1
+            className="shrink-0 text-title font-semibold text-primary"
+            data-slot="page-title"
+            tabIndex={-1}
+          >
+            Tracks
+          </h1>
           <p className="truncate text-meta text-secondary tabular-nums">
             <span data-slot="track-count">{library.tracks.length.toLocaleString()}</span>
             <span data-slot="track-stats-after-count">

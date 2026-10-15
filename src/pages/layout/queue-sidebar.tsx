@@ -1,9 +1,4 @@
-import {
-  ArrowCounterClockwiseIcon,
-  DotsThreeIcon,
-  MinusCircleIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { type ReactNode, type Ref, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { Track } from "../../../shared/lib";
@@ -63,10 +58,8 @@ export function QueueSidebar({
 }
 
 export function QueuePanel({
-  onClose,
   visibleRows = VISIBLE_ROWS,
 }: {
-  onClose?: () => void;
   /** Upcoming rows shown per lane. */
   visibleRows?: number;
 }) {
@@ -130,18 +123,6 @@ export function QueuePanel({
           {queuedItems.length > 0 &&
             `${queuedItems.length.toLocaleString()} ${queuedItems.length === 1 ? "track" : "tracks"} · ${formatTotalDuration(queuedDuration)}`}
         </p>
-        {onClose && (
-          <Button
-            aria-label="Close queue sidebar"
-            className="md:hidden"
-            onClick={onClose}
-            size="icon"
-            type="button"
-            variant="toolbar"
-          >
-            <XIcon aria-hidden="true" />
-          </Button>
-        )}
       </SidebarHeader>
       <SidebarContent className="gap-4 pb-2" onPointerOver={showTruncatedText}>
         {playback.errorMessage && (
