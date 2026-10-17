@@ -38,7 +38,6 @@
 
   --color-red-300: oklch(0.808 0.114 19.571);
 
-  --color-red-350: #ff8785;
   --color-red-350: oklch(0.756 0.187 22.216);
   --color-red-400: oklch(0.704 0.191 22.216);
 
@@ -59,6 +58,7 @@
   --color-bg-raised-hover: var(--color-neutral-800);
   --color-bg-raised-selected: var(--color-neutral-775);
   --color-bg-overlay-hover: var(--color-neutral-750);
+  --color-bg-overlay-selected: var(--color-neutral-700);
   --color-border-overlay-separator: var(--color-neutral-750);
 
   --color-bg-hover: var(--color-bg-page-hover);
@@ -265,6 +265,6 @@
 
 @utility surface-overlay {
   --color-bg-hover: var(--color-bg-overlay-hover);
-  --color-bg-selected: var(--color-neutral-700);
+  --color-bg-selected: var(--color-bg-overlay-selected);
   --color-border-separator: var(--color-border-overlay-separator);
 }
