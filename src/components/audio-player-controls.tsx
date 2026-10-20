@@ -139,7 +139,7 @@ export function AudioPlayerControls({
             min={0}
             onValueChange={playback.setVolume}
             step={0.01}
-            thumbAlignment="edge"
+            thumbAlignment="center"
             value={playback.isMuted ? 0 : playback.volume}
           >
             <Slider.Control className="group/volume relative flex h-8 cursor-pointer touch-none items-center rounded-xs has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus">
