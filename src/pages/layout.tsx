@@ -1,3 +1,4 @@
+import { CommandIcon } from "@phosphor-icons/react";
 import { Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
@@ -35,7 +36,7 @@ export function AppLayout() {
             <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page">
               <div className="flex min-h-0 flex-1 flex-col">
                 {playback.errorMessage && (
-                  <p className="m-4 text-sm text-danger" role="alert">
+                  <p className="px-6 pt-4 text-meta text-danger" role="alert">
                     {playback.errorMessage}
                   </p>
                 )}
@@ -53,7 +54,16 @@ export function AppLayout() {
         >
           <SidebarTrigger
             className="pointer-events-auto [-webkit-app-region:no-drag]"
-            shortcut={getSidebarShortcut(window.lume.isMac)}
+            shortcut={{
+              ...getSidebarShortcut(window.lume.isMac),
+              label: window.lume.isMac ? (
+                <>
+                  <CommandIcon aria-hidden="true" className="size-3" weight="bold" />B
+                </>
+              ) : (
+                "Ctrl+B"
+              ),
+            }}
           />
         </div>
       </div>

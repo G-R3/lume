@@ -22,6 +22,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
@@ -384,9 +385,7 @@ const TrackRow = memo(function TrackRow({
       tabIndex={isTabStop ? 0 : -1}
     >
       {isPlaylist && (
-        <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">
-          {String(index + 1).padStart(2, "0")}
-        </td>
+        <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">{index + 1}</td>
       )}
       <td className="pl-4">
         <div className="flex min-w-0 items-center gap-2">
@@ -490,7 +489,7 @@ function useStableActions(actions: TrackRowActions) {
 
 function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
   return (
-    <thead className="sticky top-0 z-10 text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
+    <thead className="sticky top-0 z-10 text-left font-mono text-meta text-secondary">
       <tr
         aria-rowindex={1}
         className="*:bg-page *:first:relative *:first:before:absolute *:first:before:top-0 *:first:before:right-full *:first:before:-bottom-px *:first:before:w-2 *:first:before:border-b *:first:before:border-separator *:first:before:bg-page *:last:relative *:last:after:absolute *:last:after:top-0 *:last:after:-bottom-px *:last:after:left-full *:last:after:w-2 *:last:after:border-b *:last:after:border-separator *:last:after:bg-page"
@@ -617,6 +616,9 @@ function TrackRowMenu({
             <DropdownMenuItem onClick={onAddToQueue}>
               <ListPlusIcon aria-hidden="true" />
               Add to queue
+              <DropdownMenuShortcut aria-hidden="true" className="pl-2">
+                Q
+              </DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -628,6 +630,9 @@ function TrackRowMenu({
         >
           <PlaylistIcon aria-hidden="true" />
           Add to playlist…
+          <DropdownMenuShortcut aria-hidden="true" className="pl-2">
+            P
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
           <PlusIcon aria-hidden="true" />

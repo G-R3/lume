@@ -127,10 +127,6 @@ function ToastIcon({ type }: { type: string | undefined }) {
     return <CheckIcon aria-hidden="true" className="size-4 shrink-0 text-secondary" />;
   }
 
-  if (type === "error") {
-    return <span aria-hidden="true" className="mt-1.25 size-1.5 shrink-0 rounded-full bg-danger" />;
-  }
-
   return null;
 }
 

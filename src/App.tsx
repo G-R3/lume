@@ -39,13 +39,13 @@ export function AppRoot() {
     if (!library.error) return <div className="min-h-screen bg-page" />;
 
     return (
-      <main className="grid min-h-screen place-items-center bg-page px-6 text-primary">
-        <div className="max-w-md text-center">
-          <h1 className="text-xl font-semibold tracking-tight">Lume could not load your library</h1>
-          <p className="mt-3 text-sm leading-6 text-danger" role="alert">
+      <main className="flex min-h-screen justify-center bg-page px-6 pt-66 text-primary">
+        <div className="flex w-100 max-w-full flex-col items-start">
+          <h1 className="text-display font-semibold">Lume could not load your library</h1>
+          <p className="pt-2 text-copy text-danger" role="alert">
             {recoveryError ?? library.error.message}
           </p>
-          <div className="mt-7 flex justify-center gap-2">
+          <div className="flex items-center gap-2 pt-6">
             <Button
               onClick={() => {
                 setRecoveryError(null);

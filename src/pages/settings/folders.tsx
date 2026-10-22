@@ -1,4 +1,4 @@
-import { DotsThreeIcon, FolderIcon, FolderMinusIcon, PlusIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, FolderMinusIcon, PlusIcon } from "@phosphor-icons/react";
 import type { LibrarySource, MusicLibrary } from "../../../shared/lib";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,9 +70,9 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
         <div className="@container min-h-0 flex-1 overflow-y-auto">
           <table className="w-full table-fixed border-separate border-spacing-0 px-2">
             <caption className="sr-only">Folders</caption>
-            <thead className="sticky top-0 z-10 text-left font-mono text-meta tracking-[0.08em] text-secondary uppercase">
+            <thead className="sticky top-0 z-10 text-left font-mono text-meta text-secondary">
               <tr className="*:h-8 *:border-b *:border-separator *:bg-page *:font-normal *:first:relative *:first:before:absolute *:first:before:top-0 *:first:before:right-full *:first:before:-bottom-px *:first:before:w-2 *:first:before:border-b *:first:before:border-separator *:first:before:bg-page *:last:relative *:last:after:absolute *:last:after:top-0 *:last:after:-bottom-px *:last:after:left-full *:last:after:w-2 *:last:after:border-b *:last:after:border-separator *:last:after:bg-page">
-                <th className="pl-14" scope="col">
+                <th className="pl-4" scope="col">
                   Folder
                 </th>
                 <th className="hidden w-74 pl-4 @3xl:table-cell" scope="col">
@@ -161,49 +161,35 @@ function FolderRow({
   return (
     <tr className="group/folder *:h-10 *:first:rounded-l-md *:last:rounded-r-md hover:*:bg-hover">
       <td className="pl-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-raised inset-ring inset-ring-default">
-            <FolderIcon
-              aria-hidden="true"
-              className={cn("size-4 text-secondary", isOff && "opacity-disabled")}
-            />
-          </span>
-          <div className="min-w-0">
-            <p
-              className={cn(
-                "truncate text-body font-medium",
-                isOff ? "text-tertiary" : "text-primary",
-              )}
-            >
-              {name}
-            </p>
-            <p
-              className={cn(
-                "truncate font-mono text-meta",
-                isOff ? "text-disabled" : "text-secondary",
-              )}
-              title={source.path}
-            >
-              {source.path}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <p
+            className={cn(
+              "truncate text-body font-medium",
+              isOff ? "text-tertiary" : "text-primary",
+            )}
+          >
+            {name}
+          </p>
+          <p
+            className={cn(
+              "truncate font-mono text-meta",
+              isOff ? "text-disabled" : "text-secondary",
+            )}
+            title={source.path}
+          >
+            {source.path}
+          </p>
         </div>
       </td>
       <td className="hidden pl-4 @3xl:table-cell">
-        <p className="flex min-w-0 items-center gap-2 text-meta">
-          <span
-            aria-hidden="true"
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              isScanning ? "bg-accent" : hasError ? "bg-danger" : "bg-current text-faint",
-            )}
-          />
-          <span
-            className={cn("truncate", hasError && !isScanning ? "text-primary" : "text-secondary")}
-            title={hasError ? (source.lastScanError ?? undefined) : undefined}
-          >
-            {status}
-          </span>
+        <p
+          className={cn(
+            "truncate text-meta",
+            hasError && !isScanning ? "text-primary" : "text-secondary",
+          )}
+          title={hasError ? (source.lastScanError ?? undefined) : undefined}
+        >
+          {status}
         </p>
       </td>
       <td
@@ -212,7 +198,7 @@ function FolderRow({
           isOff || hasError ? "text-disabled" : "text-secondary",
         )}
       >
-        {isOff || hasError ? "—" : source.trackCount.toLocaleString()}
+        {isOff || hasError ? null : source.trackCount.toLocaleString()}
       </td>
       <td className="pl-4">
         <div className="flex items-center justify-end gap-1">

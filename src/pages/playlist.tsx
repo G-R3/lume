@@ -1,10 +1,10 @@
-import { MinusCircleIcon } from "@phosphor-icons/react";
+import { BackspaceIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 import type { PlaylistDetails } from "../../shared/lib";
 import { buttonVariants } from "@/components/ui/button";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem, DropdownMenuShortcut } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useRemovePlaylistTrackMutation } from "@/lib/library-query";
@@ -106,6 +106,9 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
                 <span className="truncate" title={`Remove from ${playlist.title}`}>
                   Remove from {playlist.title}
                 </span>
+                <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
+                  <BackspaceIcon className="size-3" weight="bold" />
+                </DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
           />
@@ -119,7 +122,6 @@ export function PlaylistPageSkeleton() {
   return (
     <main aria-busy="true" aria-label="Loading playlist" className="flex min-h-0 flex-1 flex-col">
       <header aria-hidden="true" className="flex h-22 shrink-0 items-center gap-4 pr-4 pl-6">
-        <span className="size-14 shrink-0 rounded-md bg-raised" />
         <span className="grid flex-1 grid-cols-[minmax(0,1fr)_auto] items-center justify-items-start gap-x-4 gap-y-1">
           <span className="h-4 w-50 rounded-sm bg-raised" />
           <span className="flex translate-y-0.75 items-center gap-2 pr-10">

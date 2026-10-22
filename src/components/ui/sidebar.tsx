@@ -242,7 +242,7 @@ function SidebarTrigger({
   shortcut,
   ...props
 }: React.ComponentProps<typeof Button> & {
-  shortcut?: { ariaKeyShortcuts: string; label: string };
+  shortcut?: { ariaKeyShortcuts: string; label: React.ReactNode };
 }) {
   const { open, toggleSidebar } = useSidebar();
   const label = open ? "Hide sidebar" : "Show sidebar";
@@ -271,7 +271,9 @@ function SidebarTrigger({
       </TooltipTrigger>
       <TooltipContent side="right">
         {label}
-        {shortcut && <span className="font-mono text-secondary">{shortcut.label}</span>}
+        {shortcut && (
+          <span className="flex items-center font-mono text-secondary">{shortcut.label}</span>
+        )}
       </TooltipContent>
     </Tooltip>
   );

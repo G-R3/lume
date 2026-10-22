@@ -1,3 +1,4 @@
+import { BackspaceIcon, CommandIcon } from "@phosphor-icons/react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { type KeyboardEvent, type RefObject, useRef } from "react";
 import type { PlaylistSummary } from "../../shared/lib";
@@ -92,8 +93,13 @@ export function DeletePlaylistDialog({
             variant="danger"
           >
             Delete playlist
-            <Kbd aria-hidden="true" variant="danger">
-              {window.lume.isMac ? "⌘⌫" : "Ctrl ⌫"}
+            <Kbd
+              aria-hidden="true"
+              className={window.lume.isMac ? "gap-0" : undefined}
+              variant="danger"
+            >
+              {window.lume.isMac ? <CommandIcon className="size-3" weight="bold" /> : "Ctrl"}
+              <BackspaceIcon className="size-3" weight="bold" />
             </Kbd>
           </AlertDialogAction>
         </AlertDialogFooter>

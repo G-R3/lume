@@ -1,4 +1,4 @@
-import { ArrowCounterClockwiseIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
+import { BackspaceIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { type ReactNode, type Ref, useMemo, useRef } from "react";
 import type { Track } from "../../../shared/lib";
 import { TrackArtwork } from "@/components/track-artwork";
@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -147,12 +148,6 @@ function QueuePanel() {
                 </div>
               ) : finished ? (
                 <div className="flex h-10 items-center gap-2 px-1" data-slot="queue-finished">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-overlay">
-                    <ArrowCounterClockwiseIcon
-                      aria-hidden="true"
-                      className="size-4 text-secondary"
-                    />
-                  </span>
                   <p
                     className="min-w-0 flex-1 truncate text-body font-medium text-primary"
                     data-truncate
@@ -357,6 +352,9 @@ function QueueRowMenu({ onRemove, title }: { onRemove: () => void; title: string
         <DropdownMenuItem onClick={onRemove} variant="danger">
           <MinusCircleIcon aria-hidden="true" />
           Remove from queue
+          <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
+            <BackspaceIcon className="size-3" weight="bold" />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,12 +1,17 @@
+import {
+  ArrowDownIcon,
+  ArrowElbowDownLeftIcon,
+  ArrowUpIcon,
+  CommandIcon,
+} from "@phosphor-icons/react";
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { PlusIcon } from "@phosphor-icons/react";
 import { type RefObject, useState } from "react";
 import type { PlaylistSummary, Track } from "../../shared/lib";
-import { PlaylistCover } from "@/components/playlist-cover";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
@@ -161,8 +166,20 @@ export function AddToPlaylistDialog({
                 <span className="truncate text-meta text-primary">{track.title}</span>
               </span>
               <Autocomplete.Input
+                aria-keyshortcuts={window.lume.isMac ? "Meta+Enter" : "Control+Enter"}
                 aria-label="Find a playlist"
                 className="h-full min-w-0 flex-1 bg-transparent text-title font-normal tracking-normal text-primary caret-accent outline-none placeholder:text-placeholder"
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== "Enter" ||
+                    !(window.lume.isMac ? event.metaKey : event.ctrlKey)
+                  ) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  handleSelect(createItem);
+                }}
                 placeholder="Add to playlist…"
               />
             </div>
@@ -195,8 +212,23 @@ export function AddToPlaylistDialog({
                 `${track.title} is already in ${alreadyAddedTitle}. Choose it again to add it twice.`}
             </p>
             <div className="flex h-10 shrink-0 items-center gap-4 rounded-b-[11px] border-t border-separator bg-inset px-4 font-mono text-meta text-secondary">
-              <span>↑↓ move</span>
-              <span>↵ {enterHint}</span>
+              <span className="flex items-center gap-1">
+                <span className="flex">
+                  <ArrowUpIcon aria-hidden="true" className="size-3" weight="bold" />
+                  <ArrowDownIcon aria-hidden="true" className="-ml-0.5 size-3" weight="bold" />
+                </span>
+                move
+              </span>
+              <span className="flex items-center gap-1">
+                <ArrowElbowDownLeftIcon aria-hidden="true" className="size-3" weight="bold" />
+                {enterHint}
+              </span>
+              {highlighted?.kind !== "create" && (
+                <span className="flex items-center gap-1">
+                  <CreateShortcut />
+                  create
+                </span>
+              )}
               <span className="ml-auto">esc</span>
             </div>
           </Autocomplete.Root>
@@ -215,19 +247,13 @@ function PaletteRow({
   item: PaletteItem;
   onSelect: (item: PaletteItem) => void;
 }) {
+  // A larger optical size tightens medium back to regular's width at 13px, so highlighting doesn't reflow the label.
   return (
     <Autocomplete.Item
-      className="group/palette-row flex h-10 shrink-0 cursor-default items-center gap-3 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-highlighted:font-medium"
+      className="group/palette-row flex h-10 shrink-0 cursor-default items-center gap-3 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-highlighted:font-medium data-highlighted:[font-variation-settings:'opsz'_19.75]"
       onClick={() => onSelect(item)}
       value={item}
     >
-      {item.kind === "create" ? (
-        <span className="grid size-6 shrink-0 place-items-center rounded-sm inset-ring inset-ring-strong">
-          <PlusIcon aria-hidden="true" className="size-3 text-secondary" />
-        </span>
-      ) : (
-        <PlaylistCover className="size-6" playlist={item.playlist} />
-      )}
       <span className="min-w-0 flex-1 truncate">
         {item.kind === "create" ? "New playlist with this track" : item.playlist.title}
       </span>
@@ -239,9 +265,23 @@ function PaletteRow({
           className="hidden group-data-highlighted/palette-row:inline-flex"
           size="lg"
         >
-          ↵
+          <ArrowElbowDownLeftIcon className="size-3" weight="bold" />
         </Kbd>
+        {item.kind === "create" && (
+          <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
+            <CreateShortcut />
+          </Kbd>
+        )}
       </span>
     </Autocomplete.Item>
+  );
+}
+
+function CreateShortcut() {
+  return (
+    <span aria-hidden="true" className={cn("flex items-center", !window.lume.isMac && "gap-1")}>
+      {window.lume.isMac ? <CommandIcon className="size-3" weight="bold" /> : "Ctrl"}
+      <ArrowElbowDownLeftIcon className="size-3" weight="bold" />
+    </span>
   );
 }

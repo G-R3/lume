@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/sidebar";
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { usePlayback } from "@/hooks/use-playback";
 import { duration, ease } from "@/lib/motion";
 import { getSourceName } from "@/lib/source-name";
 import { cn } from "@/lib/utils";
@@ -33,7 +32,6 @@ import {
 
 export function AppSidebar() {
   const library = useMusicLibrary();
-  const playback = usePlayback();
   const matchRoute = useMatchRoute();
   const isTracks = Boolean(matchRoute({ to: "/" }));
   const createTriggerRef = useRef<HTMLButtonElement>(null);
@@ -50,7 +48,7 @@ export function AppSidebar() {
                 <SidebarMenuButton isActive={isTracks} render={<Link to="/" />}>
                   <MusicNotesIcon aria-hidden="true" weight={isTracks ? "fill" : "regular"} />
                   <span className="min-w-0 flex-1 truncate">Tracks</span>
-                  {playback.queue?.source.kind === "all-tracks" && <PlayingFromDot />}
+
                   <NavCount count={library.tracks.length} />
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -68,7 +66,6 @@ export function AppSidebar() {
                 {library.playlists.map((playlist, index) => (
                   <PlaylistSidebarItem
                     createTriggerRef={createTriggerRef}
-                    isPlayingFrom={playback.activeSourcePlaylistId === playlist.id}
                     key={playlist.id}
                     neighborId={(library.playlists[index + 1] ?? library.playlists[index - 1])?.id}
                     playlist={playlist}
@@ -107,25 +104,15 @@ function NavCount({ count, className }: { count: number; className?: string }) {
   );
 }
 
-function PlayingFromDot() {
-  return (
-    <span className="size-1.5 shrink-0 rounded-full bg-accent">
-      <span className="sr-only">playing</span>
-    </span>
-  );
-}
-
 const MotionSidebarMenuItem = motion.create(SidebarMenuItem);
 
 function PlaylistSidebarItem({
   createTriggerRef,
-  isPlayingFrom,
   neighborId,
   playlist,
   ref,
 }: {
   createTriggerRef: RefObject<HTMLButtonElement | null>;
-  isPlayingFrom: boolean;
   neighborId: number | undefined;
   playlist: PlaylistSummary;
   ref?: Ref<HTMLLIElement>;
@@ -155,7 +142,6 @@ function PlaylistSidebarItem({
         render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
       >
         <span className="min-w-0 flex-1 truncate">{playlist.title}</span>
-        {isPlayingFrom && <PlayingFromDot />}
         <NavCount
           className="min-w-6 text-right group-hover/menu-item:invisible group-has-focus-visible/menu-item:invisible group-has-data-popup-open/menu-item:invisible"
           count={playlist.trackCount}
@@ -209,26 +195,23 @@ function SourceStatus({ sources }: { sources: readonly LibrarySource[] }) {
 
   const name = sources.length === 1 ? getSourceName(sources[0].path) : `${sources.length} folders`;
 
-  const [tone, detail] =
+  const detail =
     sources.length === 0
-      ? ["idle", null]
+      ? null
       : enabled.length === 0
-        ? ["off", sources.length === 1 ? "off" : "all off"]
+        ? sources.length === 1
+          ? "off"
+          : "all off"
         : issues > 0
-          ? ["issue", issues === 1 ? "1 issue" : `${issues} issues`]
-          : ["idle", scannedAt.length > 0 ? formatScanAge(Math.min(...scannedAt), now) : null];
+          ? issues === 1
+            ? "1 issue"
+            : `${issues} issues`
+          : scannedAt.length > 0
+            ? formatScanAge(Math.min(...scannedAt), now)
+            : null;
 
   return (
     <>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          tone === "issue" && "bg-danger",
-          tone === "off" && "bg-current text-tertiary",
-          tone === "idle" && "bg-current text-faint",
-        )}
-      />
       <p
         className="min-w-0 flex-1 truncate text-meta text-secondary"
         title={sources.map((source) => source.path).join("\n") || undefined}

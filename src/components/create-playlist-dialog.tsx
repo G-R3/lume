@@ -1,4 +1,4 @@
-import { PlusIcon } from "@phosphor-icons/react";
+import { ArrowElbowDownLeftIcon, PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type KeyboardEvent, type Ref, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -140,7 +140,7 @@ export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButt
           >
             Create
             <Kbd aria-hidden="true" variant="inverse">
-              ↵
+              <ArrowElbowDownLeftIcon className="size-3" weight="bold" />
             </Kbd>
           </Button>
         </DialogFooter>

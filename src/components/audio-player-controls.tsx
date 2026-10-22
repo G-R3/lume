@@ -54,9 +54,8 @@ export function AudioPlayerControls({
             aria-label="Shuffle"
             aria-pressed={playback.shuffleEnabled}
             className={cn(
-              "relative",
               playback.shuffleEnabled &&
-                "text-accent aria-pressed:bg-transparent aria-pressed:hover:not-data-disabled:bg-hover hover:not-data-disabled:text-accent focus-visible:text-accent",
+                "text-accent hover:not-data-disabled:text-accent focus-visible:text-accent",
             )}
             disabled={!playback.isInitialized || playback.queue === null}
             onClick={() => playback.setShuffleEnabled(!playback.shuffleEnabled)}
@@ -65,12 +64,6 @@ export function AudioPlayerControls({
             variant="toolbar"
           >
             <ShuffleAngularIcon aria-hidden="true" />
-            {playback.shuffleEnabled && (
-              <span
-                aria-hidden="true"
-                className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-accent"
-              />
-            )}
           </Button>
           <Button
             aria-label="Previous track"

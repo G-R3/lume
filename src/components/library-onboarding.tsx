@@ -100,8 +100,7 @@ export function LibraryOnboarding({
         {actions}
       </div>
       {errorMessage && (
-        <p className="flex gap-2 pt-4 text-meta text-danger" data-onboarding-part role="alert">
-          <span aria-hidden="true" className="mt-1.25 size-1.5 shrink-0 rounded-full bg-danger" />
+        <p className="pt-4 text-meta text-danger" data-onboarding-part role="alert">
           {errorMessage}
         </p>
       )}

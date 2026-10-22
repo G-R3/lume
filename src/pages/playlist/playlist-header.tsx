@@ -7,7 +7,6 @@ import {
 import { useRef, useState } from "react";
 import type { PlaylistDetails } from "../../../shared/lib";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
-import { PlaylistCover } from "@/components/playlist-cover";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,7 +34,6 @@ export function PlaylistHeader({
 
   return (
     <header className="flex h-22 shrink-0 items-center gap-4 pr-4 pl-6" data-slot="page-header">
-      <PlaylistCover className="size-14 rounded-md p-1.5" playlist={playlist} showInitials />
       <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1">
         <h1 className="truncate text-display font-semibold text-primary">{playlist.title}</h1>
         {(playlist.description || trackCount > 0) && (
