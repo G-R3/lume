@@ -38,7 +38,7 @@ export function AudioPlayerControls({
     <header
       aria-label="Player"
       className={cn(
-        "@container/player flex h-12 w-full shrink-0 items-center border-b border-separator bg-page px-4 pt-px [&_button]:motion-reduce:transition-none [&_button]:motion-reduce:active:not-data-disabled:scale-100",
+        "@container/player flex h-12 w-full shrink-0 items-center border-b border-separator bg-page px-4 pt-px select-none [&_button]:motion-reduce:transition-none [&_button]:motion-reduce:active:not-data-disabled:scale-100",
         window.lume.isMac && "[-webkit-app-region:drag]",
       )}
       data-slot="player"
@@ -178,7 +178,7 @@ function PlayerDisplay() {
 
   return (
     <div
-      className="@container/display relative flex h-10 w-130 min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-lg bg-raised py-1 pr-3 pl-1 ring-1 ring-default ring-inset [-webkit-app-region:no-drag]"
+      className="@container/display relative flex h-10 w-130 min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-lg bg-raised py-1 pr-3 pl-1 ring-1 ring-default ring-inset"
       data-slot="player-display"
     >
       <div className="absolute inset-x-0 top-1 grid px-3 pl-1">
@@ -284,7 +284,7 @@ function PlayerProgress() {
       {playback.activeTrack ? (
         <Slider.Root
           aria-label="Playback position in seconds"
-          className="w-85 min-w-0 shrink @min-[504px]/display:shrink-0"
+          className="w-85 min-w-0 shrink @min-[504px]/display:shrink-0 [-webkit-app-region:no-drag]"
           data-slot="player-seek"
           disabled={playback.duration <= 0}
           largeStep={10}
