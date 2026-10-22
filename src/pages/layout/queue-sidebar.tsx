@@ -1,3 +1,4 @@
+import { ContextMenu } from "@base-ui/react/context-menu";
 import { BackspaceIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { type ReactNode, type Ref, useMemo, useRef } from "react";
 import type { Track } from "../../../shared/lib";
@@ -260,29 +261,44 @@ function QueueRow({
   const title = track?.title ?? `Track ${item.trackId}`;
   const unavailable = !track?.available;
 
+  const menuItems = (
+    <DropdownMenuItem onClick={onRemove} variant="danger">
+      <MinusCircleIcon aria-hidden="true" />
+      Remove from queue
+      <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
+        <BackspaceIcon className="size-3" weight="bold" />
+      </DropdownMenuShortcut>
+    </DropdownMenuItem>
+  );
+
   return (
-    <SidebarMenuItem className="rounded-lg hover:bg-hover">
-      <button
-        aria-disabled={unavailable}
-        aria-label={unavailable ? `${title} unavailable` : `Play ${title} now`}
-        className="flex h-10 w-full items-center gap-2 rounded-lg px-1 text-left focus-visible:-outline-offset-2"
-        onClick={unavailable ? undefined : onJump}
-        ref={playRef}
-        type="button"
-      >
-        <QueueTrack item={item} track={track} />
-        <span
-          className={cn(
-            "min-w-10 shrink-0 text-right font-mono text-meta tabular-nums group-hover/menu-item:invisible group-has-focus-visible/menu-item:invisible group-has-data-popup-open/menu-item:invisible",
-            unavailable ? "text-disabled" : "text-secondary",
-          )}
-          data-slot="queue-time"
+    <ContextMenu.Root>
+      <ContextMenu.Trigger render={<SidebarMenuItem className="rounded-lg hover:bg-hover" />}>
+        <button
+          aria-disabled={unavailable}
+          aria-label={unavailable ? `${title} unavailable` : `Play ${title} now`}
+          className="flex h-10 w-full items-center gap-2 rounded-lg px-1 text-left focus-visible:-outline-offset-2"
+          onClick={unavailable ? undefined : onJump}
+          ref={playRef}
+          type="button"
         >
-          {track && formatDuration(track.duration)}
-        </span>
-      </button>
-      <QueueRowMenu onRemove={onRemove} title={title} />
-    </SidebarMenuItem>
+          <QueueTrack item={item} track={track} />
+          <span
+            className={cn(
+              "min-w-10 shrink-0 text-right font-mono text-meta tabular-nums group-hover/menu-item:invisible group-has-focus-visible/menu-item:invisible group-has-data-popup-open/menu-item:invisible",
+              unavailable ? "text-disabled" : "text-secondary",
+            )}
+            data-slot="queue-time"
+          >
+            {track && formatDuration(track.duration)}
+          </span>
+        </button>
+        <QueueRowMenu title={title}>{menuItems}</QueueRowMenu>
+      </ContextMenu.Trigger>
+      <DropdownMenuContent side="right" sideOffset={0}>
+        {menuItems}
+      </DropdownMenuContent>
+    </ContextMenu.Root>
   );
 }
 
@@ -331,7 +347,7 @@ function QueueTrack({
   );
 }
 
-function QueueRowMenu({ onRemove, title }: { onRemove: () => void; title: string }) {
+function QueueRowMenu({ children, title }: { children: ReactNode; title: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -348,15 +364,7 @@ function QueueRowMenu({ onRemove, title }: { onRemove: () => void; title: string
       >
         <DotsThreeIcon aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={onRemove} variant="danger">
-          <MinusCircleIcon aria-hidden="true" />
-          Remove from queue
-          <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
-            <BackspaceIcon className="size-3" weight="bold" />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
     </DropdownMenu>
   );
 }

@@ -1,3 +1,4 @@
+import { ContextMenu } from "@base-ui/react/context-menu";
 import { DotsThreeIcon, ListPlusIcon, PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
@@ -363,107 +364,140 @@ const TrackRow = memo(function TrackRow({
   item,
   renderMenuItems,
 }: TrackRowProps) {
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const track = item.track;
+
+  const menuItems = (
+    <TrackRowMenuItems
+      canAddToQueue={canAddToQueue}
+      isCreatingPlaylist={isCreatingPlaylist}
+      onAddToQueue={() => actions.addToQueue(track.id)}
+      onAddToPlaylist={() => {
+        if (menuTriggerRef.current) actions.addToPlaylist(track, menuTriggerRef.current);
+      }}
+      onCreatePlaylist={() => actions.createPlaylist(track)}
+    >
+      {renderMenuItems?.(item)}
+    </TrackRowMenuItems>
+  );
+
   const metadataColor = track.available ? "text-secondary" : "text-disabled";
 
   return (
-    <tr
-      aria-current={isActive ? "true" : undefined}
-      aria-rowindex={index + 2}
-      aria-selected={isSelected}
-      className={cn(
-        "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
-        isSelected ? "*:bg-selected" : "hover:*:bg-hover",
-      )}
-      data-entry-id={item.sourceEntryId}
-      onClick={() => actions.select(item.sourceEntryId)}
-      onDoubleClick={() => actions.play(item)}
-      onKeyDown={(event) => actions.keyDown(event, index)}
-      onMouseDown={(event) => {
-        if (event.detail > 1) event.preventDefault();
-      }}
-      tabIndex={isTabStop ? 0 : -1}
-    >
-      {isPlaylist && (
-        <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">{index + 1}</td>
-      )}
-      <td className="pl-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <TrackArtwork
-            artworkUrl={track.artworkUrl}
-            className={cn("size-8", !track.available && "opacity-disabled")}
-            state={artworkState}
+    <ContextMenu.Root>
+      <ContextMenu.Trigger
+        render={
+          <tr
+            aria-current={isActive ? "true" : undefined}
+            aria-rowindex={index + 2}
+            aria-selected={isSelected}
+            className={cn(
+              "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
+              isSelected ? "*:bg-selected" : "hover:*:bg-hover",
+            )}
+            data-entry-id={item.sourceEntryId}
+            onClick={() => actions.select(item.sourceEntryId)}
+            onDoubleClick={() => actions.play(item)}
+            onKeyDown={(event) => actions.keyDown(event, index)}
+            onMouseDown={(event) => {
+              if (event.detail > 1) event.preventDefault();
+            }}
+            tabIndex={isTabStop ? 0 : -1}
           />
-          <div className="min-w-0 flex-1">
-            <p
-              className={cn(
-                "truncate text-left text-body font-medium",
-                !track.available ? "text-disabled" : isActive ? "text-accent" : "text-primary",
-              )}
-              data-truncate
-              dir="auto"
-            >
-              {track.title}
-            </p>
-            <p
-              className={cn("truncate text-left text-meta", metadataColor)}
-              data-truncate
-              dir="auto"
-            >
-              {track.artists.join(", ") || "Unknown artist"}
-            </p>
-          </div>
-          {!track.available && (
-            <span className="shrink-0 text-meta text-secondary">Unavailable</span>
-          )}
-          <div
-            className="contents"
-            onClick={(event) => event.stopPropagation()}
-            onDoubleClick={(event) => event.stopPropagation()}
-          >
-            <TrackRowMenu
-              canAddToQueue={canAddToQueue}
-              isCreatingPlaylist={isCreatingPlaylist}
-              onAddToQueue={() => actions.addToQueue(track.id)}
-              onAddToPlaylist={actions.addToPlaylist}
-              onCreatePlaylist={actions.createPlaylist}
-              tabIndex={isTabStop ? 0 : -1}
-              track={track}
-            >
-              {renderMenuItems?.(item)}
-            </TrackRowMenu>
-          </div>
-        </div>
-      </td>
-      <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
-        <p className="truncate text-left text-body" data-truncate dir="auto">
-          {track.album || "Unknown album"}
-        </p>
-      </td>
-      <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
-        {formatAddedDate(track.addedAt)}
-      </td>
-      <td
-        className="pl-4"
-        onClick={(event) => event.stopPropagation()}
-        onDoubleClick={(event) => event.stopPropagation()}
+        }
       >
-        <LikeButton
-          className={cn(
-            "-m-1",
-            track.likedAt === null &&
-              "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
-          )}
-          label={track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`}
-          liked={track.likedAt !== null}
-          onToggle={() => actions.toggleLike(track)}
-          tabIndex={isTabStop ? 0 : -1}
-        />
-      </td>
-      <td className={cn("pr-4 pl-4 text-right font-mono text-meta tabular-nums", metadataColor)}>
-        {formatDuration(track.duration)}
-      </td>
-    </tr>
+        {isPlaylist && (
+          <td className="pl-4 font-mono text-meta text-tertiary tabular-nums">{index + 1}</td>
+        )}
+        <td className="pl-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <TrackArtwork
+              artworkUrl={track.artworkUrl}
+              className={cn("size-8", !track.available && "opacity-disabled")}
+              state={artworkState}
+            />
+            <div className="min-w-0 flex-1">
+              <p
+                className={cn(
+                  "truncate text-left text-body font-medium",
+                  !track.available ? "text-disabled" : isActive ? "text-accent" : "text-primary",
+                )}
+                data-truncate
+                dir="auto"
+              >
+                {track.title}
+              </p>
+              <p
+                className={cn("truncate text-left text-meta", metadataColor)}
+                data-truncate
+                dir="auto"
+              >
+                {track.artists.join(", ") || "Unknown artist"}
+              </p>
+            </div>
+            {!track.available && (
+              <span className="shrink-0 text-meta text-secondary">Unavailable</span>
+            )}
+            <div
+              className="contents"
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      aria-label={`More options for ${track.title}`}
+                      className="opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100 data-popup-open:opacity-100"
+                      onMouseDown={(event) => event.preventDefault()}
+                      ref={menuTriggerRef}
+                      size="icon-sm"
+                      static
+                      tabIndex={isTabStop ? 0 : -1}
+                      variant="row-action"
+                    />
+                  }
+                >
+                  <DotsThreeIcon aria-hidden="true" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">{menuItems}</DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </td>
+        <td className={cn("hidden pl-4 @3xl:table-cell", metadataColor)}>
+          <p className="truncate text-left text-body" data-truncate dir="auto">
+            {track.album || "Unknown album"}
+          </p>
+        </td>
+        <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
+          {formatAddedDate(track.addedAt)}
+        </td>
+        <td
+          className="pl-4"
+          onClick={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          <LikeButton
+            className={cn(
+              "-m-1",
+              track.likedAt === null &&
+                "opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100",
+            )}
+            label={track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`}
+            liked={track.likedAt !== null}
+            onToggle={() => actions.toggleLike(track)}
+            tabIndex={isTabStop ? 0 : -1}
+          />
+        </td>
+        <td className={cn("pr-4 pl-4 text-right font-mono text-meta tabular-nums", metadataColor)}>
+          {formatDuration(track.duration)}
+        </td>
+      </ContextMenu.Trigger>
+      <DropdownMenuContent side="right" sideOffset={0}>
+        {menuItems}
+      </DropdownMenuContent>
+    </ContextMenu.Root>
   );
 });
 
@@ -571,80 +605,52 @@ export function TrackListSkeleton({ isPlaylist }: { isPlaylist: boolean }) {
   );
 }
 
-function TrackRowMenu({
+function TrackRowMenuItems({
   canAddToQueue,
   children,
   isCreatingPlaylist,
   onAddToQueue,
   onAddToPlaylist,
   onCreatePlaylist,
-  tabIndex,
-  track,
 }: {
   canAddToQueue: boolean;
   children?: ReactNode;
   isCreatingPlaylist: boolean;
   onAddToQueue: () => void;
-  onAddToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
-  onCreatePlaylist: (track: Track) => void;
-  tabIndex: number;
-  track: Track;
+  onAddToPlaylist: () => void;
+  onCreatePlaylist: () => void;
 }) {
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={`More options for ${track.title}`}
-            className="opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100 data-popup-open:opacity-100"
-            onMouseDown={(event) => event.preventDefault()}
-            ref={triggerRef}
-            size="icon-sm"
-            static
-            tabIndex={tabIndex}
-            variant="row-action"
-          />
-        }
-      >
-        <DotsThreeIcon aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {canAddToQueue && (
-          <>
-            <DropdownMenuItem onClick={onAddToQueue}>
-              <ListPlusIcon aria-hidden="true" />
-              Add to queue
-              <DropdownMenuShortcut aria-hidden="true" className="pl-2">
-                Q
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        <DropdownMenuItem
-          onClick={() => {
-            if (triggerRef.current) onAddToPlaylist(track, triggerRef.current);
-          }}
-        >
-          <PlaylistIcon aria-hidden="true" />
-          Add to playlist…
-          <DropdownMenuShortcut aria-hidden="true" className="pl-2">
-            P
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={isCreatingPlaylist} onClick={() => onCreatePlaylist(track)}>
-          <PlusIcon aria-hidden="true" />
-          New playlist from track
-        </DropdownMenuItem>
-        {children && (
-          <>
-            <DropdownMenuSeparator />
-            {children}
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      {canAddToQueue && (
+        <>
+          <DropdownMenuItem onClick={onAddToQueue}>
+            <ListPlusIcon aria-hidden="true" />
+            Add to queue
+            <DropdownMenuShortcut aria-hidden="true" className="pl-2">
+              Q
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+      )}
+      <DropdownMenuItem onClick={onAddToPlaylist}>
+        <PlaylistIcon aria-hidden="true" />
+        Add to playlist…
+        <DropdownMenuShortcut aria-hidden="true" className="pl-2">
+          P
+        </DropdownMenuShortcut>
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={isCreatingPlaylist} onClick={onCreatePlaylist}>
+        <PlusIcon aria-hidden="true" />
+        New playlist from track
+      </DropdownMenuItem>
+      {children && (
+        <>
+          <DropdownMenuSeparator />
+          {children}
+        </>
+      )}
+    </>
   );
 }

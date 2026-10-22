@@ -59,6 +59,15 @@ it("keeps a scanned track and playlist working after restart", async () => {
 
   await firstWindow.getByRole("link", { name: /^Tracks/ }).click();
   await firstWindow.getByRole("button", { exact: true, name: "More options for smoke" }).click();
+  const trackMenuActions = await firstWindow.getByRole("menuitem").allTextContents();
+  await firstWindow.keyboard.press("Escape");
+  await firstWindow
+    .getByRole("grid", { name: "Tracks" })
+    .getByRole("row", { name: /smoke/ })
+    .click({
+      button: "right",
+    });
+  expect(await firstWindow.getByRole("menuitem").allTextContents()).toEqual(trackMenuActions);
   await firstWindow.getByRole("menuitem", { name: "Add to playlist" }).click();
   await firstWindow
     .getByRole("dialog")
@@ -75,6 +84,27 @@ it("keeps a scanned track and playlist working after restart", async () => {
   expect(await firstWindow.locator("audio").getAttribute("src")).toMatch(
     /^lume:\/\/app\/media\/\d+$/,
   );
+
+  const playlistRow = firstWindow
+    .getByRole("grid", { name: "Smoke playlist" })
+    .getByRole("row", { name: /smoke/ });
+
+  await playlistRow.click({ button: "right" });
+  expect(
+    await firstWindow.getByRole("menuitem", { name: "Remove from Smoke playlist" }).count(),
+  ).toBe(1);
+  await firstWindow.getByRole("menuitem", { name: "Add to queue" }).click();
+  await firstWindow.getByRole("button", { name: "Open queue sidebar" }).click();
+  const queue = firstWindow.getByRole("complementary", { name: "Playback queue" });
+  await queue.getByRole("button", { name: "Play smoke now" }).click({ button: "right" });
+  await firstWindow.getByRole("menuitem", { name: "Remove from queue" }).click();
+  await queue.getByRole("button", { name: "Play smoke now" }).waitFor({ state: "detached" });
+
+  await playlistRow.click({ button: "right" });
+  await firstWindow.getByRole("menuitem", { name: "Add to queue" }).click();
+  await queue.getByRole("button", { name: "More options for smoke" }).click();
+  await firstWindow.getByRole("menuitem", { name: "Remove from queue" }).click();
+  await queue.getByRole("button", { name: "Play smoke now" }).waitFor({ state: "detached" });
 
   await firstApplication.evaluate((electronApi) => {
     electronApi.BrowserWindow.getAllWindows()[0]?.minimize();

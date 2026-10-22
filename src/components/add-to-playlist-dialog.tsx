@@ -247,7 +247,6 @@ function PaletteRow({
   item: PaletteItem;
   onSelect: (item: PaletteItem) => void;
 }) {
-  // A larger optical size tightens medium back to regular's width at 13px, so highlighting doesn't reflow the label.
   return (
     <Autocomplete.Item
       className="group/palette-row flex h-10 shrink-0 cursor-default items-center gap-3 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-highlighted:font-medium data-highlighted:[font-variation-settings:'opsz'_19.75]"
