@@ -304,7 +304,7 @@ export function TrackList({
   return (
     <div className="@container" id="tracks">
       <table
-        className="w-full table-fixed border-separate border-spacing-0 px-2"
+        className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
         onPointerOver={showTruncatedText}
         aria-rowcount={items.length + 1}
         ref={tableRef}
@@ -574,7 +574,7 @@ const skeletonRows = [
 export function TrackListSkeleton({ isPlaylist }: { isPlaylist: boolean }) {
   return (
     <div aria-hidden="true" className="@container">
-      <table className="w-full table-fixed border-separate border-spacing-0 px-2">
+      <table className="w-full table-fixed border-separate border-spacing-0 px-2 select-none">
         <TrackListHead isPlaylist={isPlaylist} />
         <tbody className="before:table-row before:h-1">
           {skeletonRows.map(([title, artist, album, opacity], index) => (

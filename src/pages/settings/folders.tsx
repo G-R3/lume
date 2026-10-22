@@ -68,7 +68,7 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
         </div>
       ) : (
         <div className="@container min-h-0 flex-1 overflow-y-auto">
-          <table className="w-full table-fixed border-separate border-spacing-0 px-2">
+          <table className="w-full table-fixed border-separate border-spacing-0 px-2 select-none">
             <caption className="sr-only">Folders</caption>
             <thead className="sticky top-0 z-10 text-left font-mono text-meta text-secondary">
               <tr className="*:h-8 *:border-b *:border-separator *:bg-page *:font-normal *:first:relative *:first:before:absolute *:first:before:top-0 *:first:before:right-full *:first:before:-bottom-px *:first:before:w-2 *:first:before:border-b *:first:before:border-separator *:first:before:bg-page *:last:relative *:last:after:absolute *:last:after:top-0 *:last:after:-bottom-px *:last:after:left-full *:last:after:w-2 *:last:after:border-b *:last:after:border-separator *:last:after:bg-page">
