@@ -1,6 +1,9 @@
 allowBuilds:
   electron: true
   esbuild: true
+# Install the Electron security fixes before the normal release-age window expires.
+minimumReleaseAgeExclude:
+  - electron@43.8.3
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.2.4
   vite-plus: 0.2.4

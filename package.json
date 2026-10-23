@@ -46,7 +46,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "babel-plugin-react-compiler": "^1.0.0",
     "drizzle-kit": "1.0.0-rc.4",
-    "electron": "^43.4.0",
+    "electron": "^43.8.3",
     "electron-vite": "^5.0.0",
     "happy-dom": "^20.11.6",
     "oxlint-tsgolint": "^0.24.0",

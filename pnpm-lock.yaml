@@ -299,8 +299,8 @@ importers:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4
       electron:
-        specifier: ^43.4.0
-        version: 43.4.0
+        specifier: ^43.8.3
+        version: 43.8.3
       electron-vite:
         specifier: ^5.0.0
         version: 5.0.0(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.13.3)(jiti@2.7.0)(typescript@6.0.3))
@@ -2010,8 +2010,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@43.4.0:
-    resolution: {integrity: sha512-3qxGF0CeQbiox5oWV1JlbWGQ1VerbmDhTFqW4sJ8h7uqTHniFYPObXJcDna0DMh32et0fFyKzz0YY8lJv3t5jg==}
+  electron@43.8.3:
+    resolution: {integrity: sha512-KgvSm3bHXz96hSXzqxyRjLeli80rIdszbDQFKlRSfckmGazTPCH/CxUN31Dp9c5rFKTQSNf9gPJRWl1yWNB3pA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -4640,7 +4640,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@43.4.0:
+  electron@43.8.3:
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0
