@@ -1,3 +1,4 @@
+import { ContextMenu } from "@base-ui/react/context-menu";
 import { DotsThreeIcon, GearIcon, MusicNotesIcon, TrashIcon } from "@phosphor-icons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
@@ -123,6 +124,13 @@ function PlaylistSidebarItem({
 
   const isActive = params.playlistId === playlist.id;
 
+  const menuItems = (
+    <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
+      <TrashIcon aria-hidden="true" />
+      Delete playlist…
+    </DropdownMenuItem>
+  );
+
   return (
     <MotionSidebarMenuItem
       animate={{ opacity: 1, y: 0 }}
@@ -136,40 +144,44 @@ function PlaylistSidebarItem({
         layout: { duration: duration.move, ease: ease.inOut },
       }}
     >
-      <SidebarMenuButton
-        data-playlist-id={playlist.id}
-        isActive={isActive}
-        render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
-      >
-        <span className="min-w-0 flex-1 truncate">{playlist.title}</span>
-        <NavCount
-          className="min-w-6 text-right group-hover/menu-item:invisible group-has-focus-visible/menu-item:invisible group-has-data-popup-open/menu-item:invisible"
-          count={playlist.trackCount}
-        />
-      </SidebarMenuButton>
-      <DropdownMenu>
-        <DropdownMenuTrigger
+      <ContextMenu.Root>
+        <ContextMenu.Trigger
           render={
-            <Button
-              aria-label={`More options for ${playlist.title}`}
-              className="absolute top-1 right-1 opacity-0 group-hover/menu-item:opacity-100 group-has-focus-visible/menu-item:opacity-100 data-popup-open:opacity-100"
-              onMouseDown={(event) => event.preventDefault()}
-              ref={menuTriggerRef}
-              size="icon-sm"
-              static
-              variant="row-action"
+            <SidebarMenuButton
+              data-playlist-id={playlist.id}
+              isActive={isActive}
+              render={<Link params={{ playlistId: playlist.id }} to="/playlists/$playlistId" />}
             />
           }
         >
-          <DotsThreeIcon aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
-            <TrashIcon aria-hidden="true" />
-            Delete playlist…
-          </DropdownMenuItem>
+          <span className="min-w-0 flex-1 truncate">{playlist.title}</span>
+          <NavCount
+            className="min-w-6 text-right group-hover/menu-item:invisible group-has-focus-visible/menu-item:invisible group-has-data-popup-open/menu-item:invisible"
+            count={playlist.trackCount}
+          />
+        </ContextMenu.Trigger>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                aria-label={`More options for ${playlist.title}`}
+                className="absolute top-1 right-1 opacity-0 group-hover/menu-item:opacity-100 group-has-focus-visible/menu-item:opacity-100 data-popup-open:opacity-100"
+                onMouseDown={(event) => event.preventDefault()}
+                ref={menuTriggerRef}
+                size="icon-sm"
+                static
+                variant="row-action"
+              />
+            }
+          >
+            <DotsThreeIcon aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>{menuItems}</DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenuContent side="right" sideOffset={0}>
+          {menuItems}
         </DropdownMenuContent>
-      </DropdownMenu>
+      </ContextMenu.Root>
       <DeletePlaylistDialog
         finalFocus={menuTriggerRef}
         focusAfterDelete={() =>
