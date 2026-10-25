@@ -4,7 +4,7 @@ import { appScheme, lumeChannels } from "../shared/lib";
 import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
 import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
 import { registerIpc } from "./ipc";
-import { getLibrarySnapshot, scanEnabledSources } from "./library";
+import { getScanUpdate, scanEnabledSources } from "./library";
 
 app.enableSandbox();
 
@@ -68,10 +68,10 @@ async function startPrimaryInstance() {
   });
 
   await app.whenReady();
-  await startApplication();
+  await startApp();
 }
 
-async function startApplication() {
+async function startApp() {
   const userDataDirectory = app.getPath("userData");
   await initializeDatabase({
     location: getLibraryDatabasePath(userDataDirectory, app.isPackaged),
@@ -90,10 +90,10 @@ async function startApplication() {
   const window = createWindow();
 
   void scanEnabledSources()
-    .then(() => {
-      if (!window.isDestroyed()) {
-        window.webContents.send(lumeChannels.libraryUpdated, getLibrarySnapshot());
-      }
+    .then((result) => {
+      const update = window.isDestroyed() ? null : getScanUpdate(result);
+
+      if (update) window.webContents.send(lumeChannels.libraryUpdated, update);
     })
     .catch((error) => console.error("Could not scan the music library", error));
 

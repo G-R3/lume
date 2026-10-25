@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FirstScanContext } from "@/hooks/use-first-scan";
 import { playFirstScan } from "@/lib/first-scan";
 import { cn } from "@/lib/utils";
-import { libraryQueryOptions, useLibraryMutation } from "@/lib/library-query";
+import { applyLibraryUpdate, libraryQueryOptions, useLibraryMutation } from "@/lib/library-query";
 import { MusicLibraryContext } from "@/hooks/use-music-library";
 
 export function AppRoot() {
@@ -29,8 +29,8 @@ export function AppRoot() {
 
   useEffect(
     () =>
-      window.lume.onLibraryUpdate((library) => {
-        queryClient.setQueryData(libraryQueryOptions.queryKey, library);
+      window.lume.onLibraryUpdate((update) => {
+        applyLibraryUpdate(queryClient, update);
       }),
     [queryClient],
   );

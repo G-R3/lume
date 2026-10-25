@@ -72,7 +72,7 @@ function contentSecurityPolicy(command: "build" | "serve"): Plugin {
   const content =
     command === "serve"
       ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: lume:; media-src 'self' lume:; connect-src 'self' ws:"
-      : "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: lume:; media-src 'self'; connect-src 'none'";
+      : "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: lume:; media-src 'self'; connect-src 'none'";
 
   return {
     name: "content-security-policy",

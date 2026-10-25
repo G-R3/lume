@@ -1,18 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { lumeChannels, type LibrarySnapshot, type LumeApi } from "../shared/lib";
+import {
+  createBufferedListeners,
+  lumeChannels,
+  type LibraryUpdate,
+  type LumeApi,
+} from "../shared/lib";
 
-const libraryUpdateListeners = new Set<(library: LibrarySnapshot) => void>();
+const libraryUpdates = createBufferedListeners<LibraryUpdate>();
 
-let pendingLibraryUpdate: LibrarySnapshot | undefined;
-
-ipcRenderer.on(lumeChannels.libraryUpdated, (_event, library: LibrarySnapshot) => {
-  if (libraryUpdateListeners.size === 0) {
-    pendingLibraryUpdate = library;
-
-    return;
-  }
-
-  libraryUpdateListeners.forEach((listener) => listener(library));
+ipcRenderer.on(lumeChannels.libraryUpdated, (_event, update: LibraryUpdate) => {
+  libraryUpdates.publish(update);
 });
 
 const lumeApi = {
@@ -49,18 +46,7 @@ const lumeApi = {
     savePosition: (position): Promise<void> =>
       ipcRenderer.invoke(lumeChannels.savePlaybackPosition, position),
   },
-  onLibraryUpdate: (listener) => {
-    libraryUpdateListeners.add(listener);
-
-    if (pendingLibraryUpdate !== undefined) {
-      listener(pendingLibraryUpdate);
-      pendingLibraryUpdate = undefined;
-    }
-
-    return () => {
-      libraryUpdateListeners.delete(listener);
-    };
-  },
+  onLibraryUpdate: libraryUpdates.subscribe,
   openDataFolder: (): ReturnType<LumeApi["openDataFolder"]> =>
     ipcRenderer.invoke(lumeChannels.openDataFolder),
   rescanSource: (sourceId): ReturnType<LumeApi["rescanSource"]> =>

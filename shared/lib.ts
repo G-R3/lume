@@ -96,6 +96,199 @@ export type MusicLibrary = {
 
 export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
 
+export type LibrarySnapshotJson = string;
+
+export const compactTrackKeys = [
+  "addedAt",
+  "album",
+  "albumArtists",
+  "artists",
+  "artworkUrl",
+  "available",
+  "bitrate",
+  "bitsPerSample",
+  "channelCount",
+  "codec",
+  "discNumber",
+  "discTotal",
+  "duration",
+  "format",
+  "genres",
+  "id",
+  "likedAt",
+  "lossless",
+  "title",
+  "sampleRate",
+  "trackNumber",
+  "trackTotal",
+  "year",
+] as const satisfies readonly Exclude<keyof Track, "url">[];
+
+export type CompactTrackKey = (typeof compactTrackKeys)[number];
+
+type CompactTrackValue<Key extends CompactTrackKey> = Key extends "albumArtists"
+  ? Track[Key] | null
+  : Track[Key];
+
+type CompactValues<Keys extends readonly CompactTrackKey[]> = {
+  -readonly [Index in keyof Keys]: CompactTrackValue<Keys[Index]>;
+};
+
+export type CompactTrack = CompactValues<typeof compactTrackKeys>;
+
+type CompactLibrarySnapshot =
+  | { kind: "first-run" }
+  | {
+      kind: "library";
+      playlists: PlaylistSummary[];
+      sources: LibrarySource[];
+      trackKeys: readonly string[];
+      tracks: CompactTrack[];
+    };
+
+export function stringifyFirstRunLibrary(): LibrarySnapshotJson {
+  return JSON.stringify({ kind: "first-run" } satisfies LibrarySnapshot);
+}
+
+export function stringifyCompactLibrary(
+  playlists: PlaylistSummary[],
+  sources: LibrarySource[],
+  tracks: CompactTrack[],
+): LibrarySnapshotJson {
+  const library = {
+    kind: "library",
+    playlists,
+    sources,
+    trackKeys: compactTrackKeys,
+    tracks,
+  } satisfies CompactLibrarySnapshot;
+
+  return JSON.stringify(library);
+}
+
+export function compactAlbumArtists(albumArtists: string[], artists: string[]) {
+  if (albumArtists.length !== artists.length) return albumArtists;
+
+  for (let index = 0; index < artists.length; index += 1) {
+    if (albumArtists[index] !== artists[index]) return albumArtists;
+  }
+
+  return null;
+}
+
+export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot {
+  // SAFETY: JSON.parse returns an untyped value.
+  // Only the two stringify functions above write this text.
+  // The `trackKeys` check below rejects text from a build with different track fields.
+  const library = JSON.parse(json) as CompactLibrarySnapshot;
+
+  if (library.kind === "first-run") return library;
+
+  if (library.kind !== "library" || library.trackKeys?.join() !== compactTrackKeys.join()) {
+    throw new Error("Unsupported library snapshot");
+  }
+
+  // Clear each tuple after expanding it. this lowers peak memory on large libraries
+  const compactTracks = library.tracks;
+  const releasedTracks: (CompactTrack | null)[] = compactTracks;
+  const tracks: Track[] = [];
+
+  for (let index = 0; index < compactTracks.length; index += 1) {
+    tracks.push(expandCompactTrack(compactTracks[index]));
+    releasedTracks[index] = null;
+  }
+
+  return { kind: "library", playlists: library.playlists, sources: library.sources, tracks };
+}
+
+function expandCompactTrack(track: CompactTrack) {
+  const [
+    addedAt,
+    album,
+    albumArtists,
+    artists,
+    artworkUrl,
+    available,
+    bitrate,
+    bitsPerSample,
+    channelCount,
+    codec,
+    discNumber,
+    discTotal,
+    duration,
+    format,
+    genres,
+    id,
+    likedAt,
+    lossless,
+    title,
+    sampleRate,
+    trackNumber,
+    trackTotal,
+    year,
+  ] = track;
+
+  return {
+    addedAt,
+    album,
+    albumArtists: albumArtists ?? artists,
+    artists,
+    artworkUrl,
+    available,
+    bitrate,
+    bitsPerSample,
+    channelCount,
+    codec,
+    discNumber,
+    discTotal,
+    duration,
+    format,
+    genres,
+    id,
+    likedAt,
+    lossless,
+    title,
+    sampleRate,
+    trackNumber,
+    trackTotal,
+    url: getTrackUrl(id),
+    year,
+  } satisfies Track;
+}
+
+export function createBufferedListeners<Value>() {
+  const listeners = new Set<(value: Value) => void>();
+  let pending: Value | undefined;
+
+  return {
+    publish: (value: Value) => {
+      if (listeners.size === 0) {
+        pending = value;
+
+        return;
+      }
+
+      listeners.forEach((listener) => listener(value));
+    },
+    subscribe: (listener: (value: Value) => void) => {
+      listeners.add(listener);
+
+      if (pending !== undefined) {
+        listener(pending);
+        pending = undefined;
+      }
+
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+export type LibraryUpdate =
+  | { kind: "snapshot"; library: LibrarySnapshotJson }
+  | { kind: "sources"; sources: LibrarySource[] };
+
 export type SavedPlaybackSession = {
   payload: string;
   position: number;
@@ -116,7 +309,7 @@ export type LumeApi = {
   disableSource: (sourceId: number) => Promise<LibrarySnapshot>;
   enableSource: (sourceId: number) => Promise<LibrarySnapshot>;
   forgetSource: (sourceId: number) => Promise<LibrarySnapshot>;
-  loadLibrary: () => Promise<LibrarySnapshot>;
+  loadLibrary: () => Promise<LibrarySnapshotJson>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
   playbackSession: {
     flush: (session: SavedPlaybackSession) => void;
@@ -124,7 +317,7 @@ export type LumeApi = {
     save: (session: SavedPlaybackSession) => Promise<void>;
     savePosition: (position: number) => Promise<void>;
   };
-  onLibraryUpdate: (listener: (library: LibrarySnapshot) => void) => () => void;
+  onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   openDataFolder: () => Promise<void>;
   rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
   rescanSources: () => Promise<LibrarySnapshot>;

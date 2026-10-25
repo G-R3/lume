@@ -19,6 +19,7 @@ import {
   enableSource,
   forgetSource,
   getLibrarySnapshot,
+  getLibrarySnapshotJson,
   getSources,
   saveSource,
   scanEnabledSources,
@@ -103,7 +104,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     return getLibrarySnapshot();
   });
 
-  handleTrusted(lumeChannels.loadLibrary, () => getLibrarySnapshot());
+  handleTrusted(lumeChannels.loadLibrary, () => getLibrarySnapshotJson());
 
   handleTrusted(lumeChannels.loadPlaybackSession, () => loadPlaybackSession());
 

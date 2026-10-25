@@ -13,16 +13,28 @@ import {
 } from "drizzle-orm";
 import {
   type LibrarySnapshot,
+  type LibraryUpdate,
   type TrackLikeInput,
+  type CompactTrack,
+  type CompactTrackKey,
+  compactAlbumArtists,
+  compactTrackKeys,
   getArtworkUrl,
   getTrackUrl,
+  stringifyCompactLibrary,
+  stringifyFirstRunLibrary,
 } from "../shared/lib";
+import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { getDatabase, runImmediateTransaction, type LibraryDatabase } from "./database";
 import { artwork, librarySources, tracks, trackState } from "./database/schema";
 import { scanAudioFiles, trackMetadataVersion, type ScannedTrack } from "./library-files";
 import { getPlaylists } from "./playlists";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
+
+export type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
+
+export type LibraryScanResult = "changed" | "none" | "unchanged";
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
 
@@ -48,12 +60,12 @@ export function getLibrarySnapshot() {
     playlists: getPlaylists(),
     sources,
     tracks: storedTracks.map((track) => {
-      const artists = track.artists.length > 0 ? track.artists : ["Unknown artist"];
+      const artists = displayArtists(track.artists);
 
       return {
         addedAt: track.createdAt,
-        album: track.album ?? "Unknown album",
-        albumArtists: track.albumArtists.length > 0 ? track.albumArtists : artists,
+        album: displayAlbum(track.album),
+        albumArtists: displayAlbumArtists(track.albumArtists, artists),
         artists,
         artworkUrl: track.artworkId ? getArtworkUrl(track.artworkId) : null,
         available: track.available,
@@ -78,6 +90,139 @@ export function getLibrarySnapshot() {
       };
     }),
   } satisfies LibrarySnapshot;
+}
+
+function displayAlbum(album: string | null) {
+  return album ?? "Unknown album";
+}
+
+function displayArtists(artists: string[]) {
+  return artists.length > 0 ? artists : ["Unknown artist"];
+}
+
+function displayAlbumArtists(albumArtists: string[], artists: string[]) {
+  return albumArtists.length > 0 ? albumArtists : artists;
+}
+
+const storedTrackColumns = {
+  addedAt: tracks.createdAt,
+  album: tracks.album,
+  albumArtists: tracks.albumArtists,
+  artists: tracks.artists,
+  artworkUrl: tracks.artworkId,
+  available: tracks.available,
+  bitrate: tracks.bitrate,
+  bitsPerSample: tracks.bitsPerSample,
+  channelCount: tracks.channelCount,
+  codec: tracks.codec,
+  discNumber: tracks.discNumber,
+  discTotal: tracks.discTotal,
+  duration: tracks.duration,
+  format: tracks.format,
+  genres: tracks.genres,
+  id: tracks.id,
+  likedAt: trackState.likedAt,
+  lossless: tracks.lossless,
+  title: tracks.title,
+  sampleRate: tracks.sampleRate,
+  trackNumber: tracks.trackNumber,
+  trackTotal: tracks.trackTotal,
+  year: tracks.year,
+} satisfies Record<CompactTrackKey, SQLiteColumn>;
+
+const compactTrackColumns = Object.fromEntries(
+  compactTrackKeys.map((key) => [key, storedTrackColumns[key]]),
+);
+
+type StoredValue<Column extends SQLiteColumn> =
+  | Column["_"]["driverParam"]
+  | (Column["_"]["notNull"] extends true ? never : null);
+
+type StoredValues<Keys extends readonly CompactTrackKey[]> = {
+  -readonly [Index in keyof Keys]: StoredValue<(typeof storedTrackColumns)[Keys[Index]]>;
+};
+
+type StoredTrackRow = StoredValues<typeof compactTrackKeys>;
+
+export function getLibrarySnapshotJson() {
+  const sources = getSources();
+
+  if (sources.length === 0 && !hasForgottenSources()) {
+    return stringifyFirstRunLibrary();
+  }
+
+  // SAFETY: Drizzle returns `.values()` rows untyped.
+  // Each row holds the raw SQLite values of `compactTrackColumns`, in that order.
+  // tests/compact-snapshot.test.ts checks every position.
+  const rows = getDatabase()
+    .select(compactTrackColumns)
+    .from(tracks)
+    .leftJoin(trackState, eq(trackState.trackId, tracks.id))
+    .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
+    .values() as StoredTrackRow[];
+
+  return stringifyCompactLibrary(getPlaylists(), sources, rows.map(compactStoredTrack));
+}
+
+function compactStoredTrack(row: StoredTrackRow): CompactTrack {
+  const [
+    addedAt,
+    album,
+    storedAlbumArtists,
+    storedArtists,
+    artworkId,
+    available,
+    bitrate,
+    bitsPerSample,
+    channelCount,
+    codec,
+    discNumber,
+    discTotal,
+    duration,
+    format,
+    genres,
+    id,
+    likedAt,
+    lossless,
+    title,
+    sampleRate,
+    trackNumber,
+    trackTotal,
+    year,
+  ] = row;
+
+  const artists = displayArtists(tracks.artists.mapFromDriverValue(storedArtists));
+
+  const albumArtists = displayAlbumArtists(
+    tracks.albumArtists.mapFromDriverValue(storedAlbumArtists),
+    artists,
+  );
+
+  return [
+    addedAt,
+    displayAlbum(album),
+    compactAlbumArtists(albumArtists, artists),
+    artists,
+    artworkId ? getArtworkUrl(artworkId) : null,
+    tracks.available.mapFromDriverValue(available),
+    bitrate,
+    bitsPerSample,
+    channelCount,
+    codec,
+    discNumber,
+    discTotal,
+    duration,
+    format,
+    tracks.genres.mapFromDriverValue(genres),
+    id,
+    likedAt,
+    lossless === null ? null : tracks.lossless.mapFromDriverValue(lossless),
+    title,
+    sampleRate,
+    trackNumber,
+    trackTotal,
+    year,
+  ];
 }
 
 export function setTrackLiked(input: TrackLikeInput) {
@@ -290,16 +435,35 @@ export function forgetSource(sourceId: number) {
   });
 }
 
-export async function scanEnabledSources(scanFiles = scanAudioFiles) {
-  for (const source of getEnabledSources()) {
-    await scanSource(source.id, scanFiles);
+export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<LibraryScanResult> {
+  const sources = getEnabledSources();
+
+  if (sources.length === 0) return "none";
+
+  const results: SourceScanResult[] = [];
+
+  for (const source of sources) {
+    results.push(await scanSource(source.id, scanFiles));
   }
+
+  return results.every((result) => result === "unchanged") ? "unchanged" : "changed";
 }
 
-export async function scanSource(sourceId: number, scanFiles = scanAudioFiles) {
+export function getScanUpdate(result: LibraryScanResult): LibraryUpdate | null {
+  if (result === "none") return null;
+
+  if (result === "unchanged") return { kind: "sources", sources: getSources() };
+
+  return { kind: "snapshot", library: getLibrarySnapshotJson() };
+}
+
+export async function scanSource(
+  sourceId: number,
+  scanFiles = scanAudioFiles,
+): Promise<SourceScanResult> {
   const source = getEnabledSource(sourceId);
 
-  if (!source) return;
+  if (!source) return "skipped";
 
   const database = getDatabase();
   const versions = scanVersions.get(database) ?? new Map<number, number>();
@@ -311,16 +475,17 @@ export async function scanSource(sourceId: number, scanFiles = scanAudioFiles) {
   try {
     scannedTracks = await scanFiles(source.path, getTrackMetadata(sourceId));
   } catch (error) {
-    if (versions.get(sourceId) !== version) return;
+    if (versions.get(sourceId) !== version) return "superseded";
 
     console.warn("Could not read library source", { error, sourceId });
-    applyScanFailure(sourceId, error instanceof Error ? getScanErrorMessage(error) : String(error));
+    const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
 
-    return;
+    return applyScanFailure(sourceId, message) ? "changed" : "skipped";
   }
 
-  if (versions.get(sourceId) !== version) return;
-  applySourceScan(sourceId, scannedTracks);
+  if (versions.get(sourceId) !== version) return "superseded";
+
+  return applySourceScan(sourceId, scannedTracks);
 }
 
 export function applyScanFailure(sourceId: number, error: string) {
@@ -394,20 +559,36 @@ export function getTrackMetadata(sourceId: number) {
   );
 }
 
-export function applySourceScan(sourceId: number, scannedTracks: readonly ScannedTrack[]) {
+export function applySourceScan(
+  sourceId: number,
+  scannedTracks: readonly ScannedTrack[],
+): Exclude<SourceScanResult, "superseded"> {
   const database = getDatabase();
 
-  if (!isSourceScannable(database, sourceId)) return false;
+  if (!isSourceScannable(database, sourceId)) return "skipped";
 
   const now = Date.now();
 
-  runImmediateTransaction(database, (transaction) => {
-    markSourceTracksUnavailable(transaction, sourceId, now);
+  return runImmediateTransaction(database, (transaction) => {
+    const unseenTracks = new Map(
+      transaction
+        .select({ available: tracks.available, id: tracks.id, path: tracks.path })
+        .from(tracks)
+        .where(eq(tracks.sourceId, sourceId))
+        .all()
+        .map((track) => [track.path, track] as const),
+    );
 
     const restoreTrack = transaction
       .update(tracks)
-      .set({ available: true, updatedAt: sql.placeholder("updatedAt") })
-      .where(and(eq(tracks.sourceId, sourceId), eq(tracks.path, sql.placeholder("path"))))
+      .set({ available: true, updatedAt: now })
+      .where(eq(tracks.id, sql.placeholder("id")))
+      .prepare();
+
+    const markTrackUnavailable = transaction
+      .update(tracks)
+      .set({ available: false, updatedAt: now })
+      .where(eq(tracks.id, sql.placeholder("id")))
       .prepare();
 
     const saveArtwork = transaction
@@ -483,9 +664,18 @@ export function applySourceScan(sourceId: number, scannedTracks: readonly Scanne
       })
       .prepare();
 
+    let savedTracks = false;
+    let tracksChanged = false;
+
     scannedTracks.forEach((track) => {
+      const storedTrack = unseenTracks.get(track.path);
+      unseenTracks.delete(track.path);
+
       if (track.kind === "unchanged") {
-        restoreTrack.run({ path: track.path, updatedAt: now });
+        if (storedTrack && !storedTrack.available) {
+          restoreTrack.run({ id: storedTrack.id });
+          tracksChanged = true;
+        }
 
         return;
       }
@@ -496,28 +686,39 @@ export function applySourceScan(sourceId: number, scannedTracks: readonly Scanne
         ...track,
         artworkId: track.artwork?.id ?? null,
       });
+      savedTracks = true;
+      tracksChanged = true;
     });
 
-    transaction
-      .delete(artwork)
-      .where(
-        notExists(
-          transaction
-            .select({ id: tracks.id })
-            .from(tracks)
-            .where(eq(tracks.artworkId, artwork.id)),
-        ),
-      )
-      .run();
+    unseenTracks.forEach((track) => {
+      if (!track.available) return;
+
+      markTrackUnavailable.run({ id: track.id });
+      tracksChanged = true;
+    });
+
+    if (savedTracks) {
+      transaction
+        .delete(artwork)
+        .where(
+          notExists(
+            transaction
+              .select({ id: tracks.id })
+              .from(tracks)
+              .where(eq(tracks.artworkId, artwork.id)),
+          ),
+        )
+        .run();
+    }
 
     transaction
       .update(librarySources)
       .set({ lastScanError: null, lastScannedAt: now, updatedAt: now })
       .where(eq(librarySources.id, sourceId))
       .run();
-  });
 
-  return true;
+    return tracksChanged ? "changed" : "unchanged";
+  });
 }
 
 function isSourceScannable(database: LibraryDatabase, sourceId: number) {
