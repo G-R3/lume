@@ -11,8 +11,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-inverse text-inverse hover:not-data-disabled:bg-inverse-hover",
-        secondary: "bg-control text-primary hover:not-data-disabled:bg-control-hover",
+        primary:
+          "bg-inverse-control text-inverse hover:not-data-disabled:bg-inverse-control-hover",
+        secondary:
+          "bg-control text-primary inset-ring inset-ring-control hover:not-data-disabled:bg-control-hover",
         ghost:
           "text-secondary hover:not-data-disabled:bg-hover hover:not-data-disabled:text-primary focus-visible:text-primary aria-pressed:text-primary data-popup-open:bg-selected data-popup-open:text-primary",
         toolbar:

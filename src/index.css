@@ -21,6 +21,7 @@
 :root {
   --color-neutral-50: oklch(0.985 0 0);
   --color-neutral-100: oklch(0.97 0 0);
+  --color-neutral-200: oklch(0.922 0 0);
   --color-neutral-400: oklch(0.708 0 0);
   --color-neutral-450: oklch(0.632 0 0);
   --color-neutral-500: oklch(0.556 0 0);
@@ -67,6 +68,10 @@
   --color-bg-control-hover: var(--color-neutral-750);
   --color-bg-inverse: var(--color-neutral-100);
   --color-bg-inverse-hover: var(--color-neutral-50);
+  /* White on the dark page reads larger than a control fill, so buttons offset it. */
+  --color-bg-inverse-control: var(--color-neutral-200);
+  --color-bg-inverse-control-hover: var(--color-neutral-100);
+  --color-border-control: oklch(1 0 0 / 8%);
   --color-bg-track: var(--color-neutral-700);
 
   --color-text-primary: var(--color-neutral-100);
@@ -187,6 +192,8 @@
   --background-color-control-hover: var(--color-bg-control-hover);
   --background-color-inverse: var(--color-bg-inverse);
   --background-color-inverse-hover: var(--color-bg-inverse-hover);
+  --background-color-inverse-control: var(--color-bg-inverse-control);
+  --background-color-inverse-control-hover: var(--color-bg-inverse-control-hover);
   --background-color-track: var(--color-bg-track);
   --background-color-separator: var(--color-border-separator);
   --background-color-accent: var(--color-accent-solid);
@@ -225,6 +232,7 @@
 
   --ring-color-default: var(--color-border-default);
   --ring-color-strong: var(--color-border-strong);
+  --ring-color-control: var(--color-border-control);
   --ring-color-focus: var(--color-border-focus);
   --ring-color-danger: var(--color-danger-solid);
   --ring-offset-color-page: var(--color-bg-page);

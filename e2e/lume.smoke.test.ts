@@ -58,6 +58,19 @@ it("keeps a scanned track and playlist working after restart", async () => {
   await firstWindow.getByRole("heading", { level: 1, name: "Smoke playlist" }).last().waitFor();
 
   await firstWindow.getByRole("link", { name: /^Tracks/ }).click();
+  await firstWindow.getByRole("link", { name: "Smoke playlist" }).click({ button: "right" });
+  await firstWindow.getByRole("menuitem", { name: "Delete playlist" }).click();
+  const deleteDialog = firstWindow.getByRole("alertdialog", { name: "Delete Smoke playlist?" });
+  await deleteDialog.getByRole("button", { name: "Cancel" }).click();
+  await firstWindow
+    .getByRole("button", { name: "More options for Smoke playlist", exact: true })
+    .click();
+  await firstWindow.getByRole("menuitem", { name: "Delete playlist" }).click();
+  await deleteDialog.getByRole("button", { name: "Cancel" }).click();
+  await deleteDialog.waitFor({ state: "hidden" });
+  await firstWindow.getByRole("link", { name: "Smoke playlist" }).waitFor();
+  await firstWindow.getByRole("heading", { name: "Tracks", exact: true }).waitFor();
+
   await firstWindow.getByRole("button", { exact: true, name: "More options for smoke" }).click();
   const trackMenuActions = await firstWindow.getByRole("menuitem").allTextContents();
   await firstWindow.keyboard.press("Escape");
