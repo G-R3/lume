@@ -72,7 +72,7 @@ export function TrackList({
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const pendingFocusIndex = useRef<number | null>(null);
-  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null | undefined>(undefined);
+  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const isPlaylist = playlistId !== undefined;
 
@@ -174,12 +174,9 @@ export function TrackList({
     scrollPaddingStart: headerHeight + listInset,
   });
 
-  const mountedIndexes =
-    scrollContainer === undefined
-      ? []
-      : scrollContainer
-        ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
-        : items.map((_item, index) => index);
+  const mountedIndexes = scrollContainer
+    ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
+    : [];
 
   const hasMountedRows = mountedIndexes.length > 0;
 
@@ -196,7 +193,7 @@ export function TrackList({
     setSelectedEntryId(item.sourceEntryId);
     pendingFocusIndex.current = target;
 
-    if (scrollContainer) virtualizer.scrollToIndex(target);
+    virtualizer.scrollToIndex(target);
   };
 
   useLayoutEffect(() => {
@@ -211,16 +208,13 @@ export function TrackList({
     if (!row) return;
 
     pendingFocusIndex.current = null;
-    row.focus({ preventScroll: Boolean(scrollContainer) });
+    row.focus({ preventScroll: true });
   });
 
   const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
 
-    const pageSize = Math.max(
-      1,
-      Math.floor((scrollContainer?.clientHeight ?? window.innerHeight) / rowHeight) - 1,
-    );
+    const pageSize = Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1);
 
     const target = {
       ArrowDown: index + 1,
@@ -303,7 +297,7 @@ export function TrackList({
   if (scrollContainer) addSpacerRow(items.length);
 
   return (
-    <div className="@container" id="tracks">
+    <div className="@container">
       <table
         className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
         onPointerOver={showTruncatedText}
