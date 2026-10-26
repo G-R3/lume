@@ -44,7 +44,10 @@ export function PlaylistPage() {
 
 export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
-  const removePlaylistTrack = useRemovePlaylistTrackMutation();
+
+  const { isPending: isRemovingTrack, mutate: removePlaylistTrack } =
+    useRemovePlaylistTrackMutation();
+
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
 
   const items = playlist.tracks.flatMap((playlistTrack) => {
@@ -54,7 +57,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   });
 
   const handleRemove = (playlistTrackId: number) => {
-    removePlaylistTrack.mutate(
+    removePlaylistTrack(
       { playlistTrackId, playlistId: playlist.id },
       {
         onError: (error) => {
@@ -98,7 +101,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
             playlistId={playlist.id}
             renderMenuItems={(item) => (
               <DropdownMenuItem
-                disabled={removePlaylistTrack.isPending}
+                disabled={isRemovingTrack}
                 onClick={() => handleRemove(item.sourceEntryId)}
                 variant="danger"
               >
