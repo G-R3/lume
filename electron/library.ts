@@ -4,12 +4,12 @@ import { and, count, eq, isNotNull, isNull, notExists, sql, type SQL } from "dri
 import {
   type LibraryUpdate,
   type TrackLikeInput,
-  type CompactTrack,
-  type CompactTrackKey,
-  compactAlbumArtists,
-  compactTrackKeys,
+  type TrackTuple,
+  type TrackTupleKey,
+  albumArtistsIfDifferent,
+  trackTupleKeys,
   getArtworkUrl,
-  stringifyCompactLibrary,
+  stringifyLibrary,
   stringifyFirstRunLibrary,
 } from "../shared/lib";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
@@ -67,22 +67,24 @@ const storedTrackColumns = {
   trackNumber: tracks.trackNumber,
   trackTotal: tracks.trackTotal,
   year: tracks.year,
-} satisfies Record<CompactTrackKey, SQLiteColumn>;
+} satisfies Record<TrackTupleKey, SQLiteColumn>;
 
-const compactTrackColumns = Object.fromEntries(
-  compactTrackKeys.map((key) => [key, storedTrackColumns[key]]),
+const trackTupleColumns = Object.fromEntries(
+  trackTupleKeys.map((key) => [key, storedTrackColumns[key]]),
 );
 
 type StoredValue<Column extends SQLiteColumn> =
   | Column["_"]["driverParam"]
   | (Column["_"]["notNull"] extends true ? never : null);
 
-type StoredValues<Keys extends readonly CompactTrackKey[]> = {
+type StoredValues<Keys extends readonly TrackTupleKey[]> = {
   -readonly [Index in keyof Keys]: StoredValue<(typeof storedTrackColumns)[Keys[Index]]>;
 };
 
-type StoredTrackRow = StoredValues<typeof compactTrackKeys>;
+type StoredTrackRow = StoredValues<typeof trackTupleKeys>;
 
+// Returns the library as JSON, with each track as a tuple ([addedAt, album, ...]) instead of an object
+// tuples don't repeat the field names for every track, so the string is smaller and faster to send
 export function getLibrarySnapshotJson() {
   const sources = getSources();
 
@@ -91,19 +93,19 @@ export function getLibrarySnapshotJson() {
   }
 
   // SAFETY: Drizzle returns `.values()` rows untyped.
-  // Each row holds the raw SQLite values of `compactTrackColumns`, in that order.
-  // tests/compact-snapshot.test.ts checks every position.
+  // Each row holds the raw SQLite values of `trackTupleColumns`, in that order.
+  // tests/library-json.test.ts checks every position.
   const rows = getDatabase()
-    .select(compactTrackColumns)
+    .select(trackTupleColumns)
     .from(tracks)
     .leftJoin(trackState, eq(trackState.trackId, tracks.id))
     .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
     .values() as StoredTrackRow[];
 
-  return stringifyCompactLibrary(getPlaylists(), sources, rows.map(compactStoredTrack));
+  return stringifyLibrary(getPlaylists(), sources, rows.map(trackTupleFromRow));
 }
 
-function compactStoredTrack(row: StoredTrackRow): CompactTrack {
+function trackTupleFromRow(row: StoredTrackRow): TrackTuple {
   const [
     addedAt,
     album,
@@ -140,7 +142,7 @@ function compactStoredTrack(row: StoredTrackRow): CompactTrack {
   return [
     addedAt,
     displayAlbum(album),
-    compactAlbumArtists(albumArtists, artists),
+    albumArtistsIfDifferent(albumArtists, artists),
     artists,
     artworkId ? getArtworkUrl(artworkId) : null,
     tracks.available.mapFromDriverValue(available),

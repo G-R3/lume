@@ -96,9 +96,12 @@ export type MusicLibrary = {
 
 export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
 
+// The library as a JSON string. This is what main sends to the renderer.
 export type LibrarySnapshotJson = string;
 
-export const compactTrackKeys = [
+// the field order of each track tuple in the library JSON string
+// index 0 is addedAt, index 1 is album, and so on
+export const trackTupleKeys = [
   "addedAt",
   "album",
   "albumArtists",
@@ -124,47 +127,47 @@ export const compactTrackKeys = [
   "year",
 ] as const satisfies readonly Exclude<keyof Track, "url">[];
 
-export type CompactTrackKey = (typeof compactTrackKeys)[number];
+export type TrackTupleKey = (typeof trackTupleKeys)[number];
 
-type CompactTrackValue<Key extends CompactTrackKey> = Key extends "albumArtists"
+type TrackTupleValue<Key extends TrackTupleKey> = Key extends "albumArtists"
   ? Track[Key] | null
   : Track[Key];
 
-type CompactValues<Keys extends readonly CompactTrackKey[]> = {
-  -readonly [Index in keyof Keys]: CompactTrackValue<Keys[Index]>;
+type TupleValues<Keys extends readonly TrackTupleKey[]> = {
+  -readonly [Index in keyof Keys]: TrackTupleValue<Keys[Index]>;
 };
 
-export type CompactTrack = CompactValues<typeof compactTrackKeys>;
+export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
-type CompactLibrarySnapshot =
+type LibraryJsonShape =
   | { kind: "first-run" }
   | {
       kind: "library";
       playlists: PlaylistSummary[];
       sources: LibrarySource[];
-      tracks: CompactTrack[];
+      tracks: TrackTuple[];
     };
 
 export function stringifyFirstRunLibrary(): LibrarySnapshotJson {
   return JSON.stringify({ kind: "first-run" } satisfies LibrarySnapshot);
 }
 
-export function stringifyCompactLibrary(
+export function stringifyLibrary(
   playlists: PlaylistSummary[],
   sources: LibrarySource[],
-  tracks: CompactTrack[],
+  tracks: TrackTuple[],
 ): LibrarySnapshotJson {
   const library = {
     kind: "library",
     playlists,
     sources,
     tracks,
-  } satisfies CompactLibrarySnapshot;
+  } satisfies LibraryJsonShape;
 
   return JSON.stringify(library);
 }
 
-export function compactAlbumArtists(albumArtists: string[], artists: string[]) {
+export function albumArtistsIfDifferent(albumArtists: string[], artists: string[]) {
   if (albumArtists.length !== artists.length) return albumArtists;
 
   for (let index = 0; index < artists.length; index += 1) {
@@ -174,28 +177,29 @@ export function compactAlbumArtists(albumArtists: string[], artists: string[]) {
   return null;
 }
 
+// Turns the library string back into objects. The rest of the app only sees tracks as objects.
 export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot {
   // SAFETY: JSON.parse returns an untyped value.
   // Only the two stringify functions above write this text.
   // Main and renderer ship in one bundle, so both sides agree on the track tuple layout.
-  const library = JSON.parse(json) as CompactLibrarySnapshot;
+  const library = JSON.parse(json) as LibraryJsonShape;
 
   if (library.kind === "first-run") return library;
 
   // Clear each tuple after expanding it. this lowers peak memory on large libraries
-  const compactTracks = library.tracks;
-  const releasedTracks: (CompactTrack | null)[] = compactTracks;
+  const trackTuples = library.tracks;
+  const releasedTracks: (TrackTuple | null)[] = trackTuples;
   const tracks: Track[] = [];
 
-  for (let index = 0; index < compactTracks.length; index += 1) {
-    tracks.push(expandCompactTrack(compactTracks[index]));
+  for (let index = 0; index < trackTuples.length; index += 1) {
+    tracks.push(trackFromTuple(trackTuples[index]));
     releasedTracks[index] = null;
   }
 
   return { kind: "library", playlists: library.playlists, sources: library.sources, tracks };
 }
 
-function expandCompactTrack(track: CompactTrack) {
+function trackFromTuple(track: TrackTuple) {
   const [
     addedAt,
     album,

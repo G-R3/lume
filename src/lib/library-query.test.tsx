@@ -18,9 +18,9 @@ import {
   type LibraryUpdate,
   type LumeApi,
   type MusicLibrary,
-  type CompactTrack,
+  type TrackTuple,
   createBufferedListeners,
-  stringifyCompactLibrary,
+  stringifyLibrary,
   getTrackUrl,
   stringifyFirstRunLibrary,
   type Track,
@@ -231,14 +231,14 @@ function SourcesProbe() {
 function json(snapshot: LibrarySnapshot) {
   if (snapshot.kind === "first-run") return stringifyFirstRunLibrary();
 
-  return stringifyCompactLibrary(
+  return stringifyLibrary(
     snapshot.playlists,
     snapshot.sources,
-    snapshot.tracks.map(compactTrack),
+    snapshot.tracks.map(trackTupleFromTrack),
   );
 }
 
-function compactTrack(track: Track): CompactTrack {
+function trackTupleFromTrack(track: Track): TrackTuple {
   return [
     track.addedAt,
     track.album,
