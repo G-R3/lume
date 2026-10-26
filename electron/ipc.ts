@@ -9,8 +9,11 @@ import {
 import { z } from "zod";
 import {
   lumeChannels,
+  lumeEventChannels,
+  type LumeInvokeApi,
   type PlaylistCreationInput,
-  type PlaylistCreationResult,
+  type PlaylistTrackInput,
+  type PlaylistTrackRemovalInput,
   type SavedPlaybackSession,
   type TrackLikeInput,
 } from "../shared/lib";
@@ -50,12 +53,12 @@ const playlistCreationSchema = z.object(
 const playlistTrackInputSchema = z.object({
   playlistId: rowIdSchema,
   trackId: rowIdSchema,
-});
+}) satisfies z.ZodType<PlaylistTrackInput>;
 
 const playlistTrackRemovalSchema = z.object({
   playlistTrackId: rowIdSchema,
   playlistId: rowIdSchema,
-});
+}) satisfies z.ZodType<PlaylistTrackRemovalInput>;
 
 const trackLikeInputSchema = z.object({
   liked: z.boolean("Invalid track like input"),
@@ -69,53 +72,105 @@ const playbackSessionSchema = z.object({
   position: playbackPositionSchema,
 }) satisfies z.ZodType<SavedPlaybackSession>;
 
+type LumeHandlers = {
+  [Method in keyof LumeInvokeApi]: (
+    window: BrowserWindow,
+    ...args: unknown[]
+  ) => ReturnType<LumeInvokeApi[Method]> | Awaited<ReturnType<LumeInvokeApi[Method]>>;
+};
+
 export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
-  function handleTrusted<Result>(
-    channel: string,
-    handler: (window: BrowserWindow, ...args: unknown[]) => Result,
-  ) {
-    ipcMain.handle(channel, (event, ...args) => {
-      return handler(requireTrustedWindow(event, options.rendererUrl), ...args);
-    });
+  const handlers = {
+    addSource: async (window) => {
+      const result = await dialog.showOpenDialog(window, {
+        title: "Add a music source",
+        buttonLabel: "Add Source",
+        defaultPath: getSources().at(-1)?.path,
+        properties: ["openDirectory"],
+      });
+
+      const folder = result.filePaths[0];
+
+      if (!folder) return getLibrarySnapshotJson();
+
+      const source = await saveSource(folder);
+      await scanSource(source.id);
+
+      return getLibrarySnapshotJson();
+    },
+    addTrackToPlaylist: (_window, input) =>
+      addTrackToPlaylist(playlistTrackInputSchema.parse(input)),
+    confirmAddTrackToPlaylist: (_window, input) =>
+      confirmAddTrackToPlaylist(playlistTrackInputSchema.parse(input)),
+    createPlaylist: (_window, input) => {
+      const playlist = createPlaylist(playlistCreationSchema.parse(input));
+
+      return { library: getLibrarySnapshotJson(), playlist };
+    },
+    createPlaylistFromTrack: (_window, trackId) =>
+      createPlaylistFromTrack(rowIdSchema.parse(trackId)),
+    deletePlaylist: (_window, playlistId) => {
+      deletePlaylist(rowIdSchema.parse(playlistId));
+
+      return getLibrarySnapshotJson();
+    },
+    disableSource: (_window, input) => {
+      disableSource(rowIdSchema.parse(input));
+
+      return getLibrarySnapshotJson();
+    },
+    enableSource: async (_window, input) => {
+      const sourceId = rowIdSchema.parse(input);
+      enableSource(sourceId);
+      await scanSource(sourceId);
+
+      return getLibrarySnapshotJson();
+    },
+    forgetSource: (_window, input) => {
+      forgetSource(rowIdSchema.parse(input));
+
+      return getLibrarySnapshotJson();
+    },
+    loadLibrary: () => getLibrarySnapshotJson(),
+    loadPlaybackSession: () => loadPlaybackSession(),
+    loadPlaylist: (_window, playlistId) => getPlaylist(rowIdSchema.parse(playlistId)),
+    openDataFolder: async () => {
+      const errorMessage = await shell.openPath(options.userDataDirectory);
+
+      if (errorMessage) throw new Error(errorMessage);
+    },
+    removePlaylistTrack: (_window, input) => {
+      removePlaylistTrack(playlistTrackRemovalSchema.parse(input));
+    },
+    rescanSource: async (_window, input) => {
+      await scanSource(rowIdSchema.parse(input));
+
+      return getLibrarySnapshotJson();
+    },
+    rescanSources: async () => {
+      await scanEnabledSources();
+
+      return getLibrarySnapshotJson();
+    },
+    savePlaybackPosition: (_window, position) => {
+      savePlaybackPosition(playbackPositionSchema.parse(position));
+    },
+    savePlaybackSession: (_window, session) => {
+      savePlaybackSession(playbackSessionSchema.parse(session));
+    },
+    setTrackLiked: (_window, input) => setTrackLiked(trackLikeInputSchema.parse(input)),
+  } satisfies LumeHandlers;
+
+  for (const [method, channel] of Object.entries(lumeChannels)) {
+    // SAFETY: `lumeChannels` and `handlers` both have exactly the keys of `LumeInvokeApi`.
+    const handler = handlers[method as keyof LumeInvokeApi] as LumeHandlers[keyof LumeInvokeApi];
+
+    ipcMain.handle(channel, (event, ...args) =>
+      handler(requireTrustedWindow(event, options.rendererUrl), ...args),
+    );
   }
 
-  handleTrusted(lumeChannels.openDataFolder, async () => {
-    const errorMessage = await shell.openPath(options.userDataDirectory);
-
-    if (errorMessage) throw new Error(errorMessage);
-  });
-
-  handleTrusted(lumeChannels.addSource, async (window) => {
-    const result = await dialog.showOpenDialog(window, {
-      title: "Add a music source",
-      buttonLabel: "Add Source",
-      defaultPath: getSources().at(-1)?.path,
-      properties: ["openDirectory"],
-    });
-
-    const folder = result.filePaths[0];
-
-    if (!folder) return getLibrarySnapshotJson();
-
-    const source = await saveSource(folder);
-    await scanSource(source.id);
-
-    return getLibrarySnapshotJson();
-  });
-
-  handleTrusted(lumeChannels.loadLibrary, () => getLibrarySnapshotJson());
-
-  handleTrusted(lumeChannels.loadPlaybackSession, () => loadPlaybackSession());
-
-  handleTrusted(lumeChannels.savePlaybackSession, (_window, session) => {
-    savePlaybackSession(playbackSessionSchema.parse(session));
-  });
-
-  handleTrusted(lumeChannels.savePlaybackPosition, (_window, position) => {
-    savePlaybackPosition(playbackPositionSchema.parse(position));
-  });
-
-  ipcMain.on(lumeChannels.flushPlaybackSession, (event, session) => {
+  ipcMain.on(lumeEventChannels.flushPlaybackSession, (event, session) => {
     try {
       requireTrustedWindow(event, options.rendererUrl);
       savePlaybackSession(playbackSessionSchema.parse(session));
@@ -123,74 +178,6 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     } catch (error) {
       event.returnValue = error instanceof Error ? error.message : "Could not save playback";
     }
-  });
-
-  handleTrusted(lumeChannels.createPlaylist, (_window, input) => {
-    const playlist = createPlaylist(playlistCreationSchema.parse(input));
-
-    return { library: getLibrarySnapshotJson(), playlist } satisfies PlaylistCreationResult;
-  });
-
-  handleTrusted(lumeChannels.createPlaylistFromTrack, (_window, trackId) => {
-    return createPlaylistFromTrack(rowIdSchema.parse(trackId));
-  });
-
-  handleTrusted(lumeChannels.loadPlaylist, (_window, playlistId) => {
-    return getPlaylist(rowIdSchema.parse(playlistId));
-  });
-
-  handleTrusted(lumeChannels.deletePlaylist, (_window, playlistId) => {
-    deletePlaylist(rowIdSchema.parse(playlistId));
-
-    return getLibrarySnapshotJson();
-  });
-
-  handleTrusted(lumeChannels.addTrackToPlaylist, (_window, input) => {
-    return addTrackToPlaylist(playlistTrackInputSchema.parse(input));
-  });
-
-  handleTrusted(lumeChannels.confirmAddTrackToPlaylist, (_window, input) => {
-    return confirmAddTrackToPlaylist(playlistTrackInputSchema.parse(input));
-  });
-
-  handleTrusted(lumeChannels.removePlaylistTrack, (_window, input) => {
-    removePlaylistTrack(playlistTrackRemovalSchema.parse(input));
-  });
-
-  handleTrusted(lumeChannels.enableSource, async (_window, input) => {
-    const sourceId = rowIdSchema.parse(input);
-    enableSource(sourceId);
-    await scanSource(sourceId);
-
-    return getLibrarySnapshotJson();
-  });
-
-  handleTrusted(lumeChannels.disableSource, (_window, input) => {
-    disableSource(rowIdSchema.parse(input));
-
-    return getLibrarySnapshotJson();
-  });
-
-  handleTrusted(lumeChannels.forgetSource, (_window, input) => {
-    forgetSource(rowIdSchema.parse(input));
-
-    return getLibrarySnapshotJson();
-  });
-
-  handleTrusted(lumeChannels.rescanSource, async (_window, input) => {
-    await scanSource(rowIdSchema.parse(input));
-
-    return getLibrarySnapshotJson();
-  });
-
-  handleTrusted(lumeChannels.rescanSources, async () => {
-    await scanEnabledSources();
-
-    return getLibrarySnapshotJson();
-  });
-
-  handleTrusted(lumeChannels.setTrackLiked, (_window, input) => {
-    return setTrackLiked(trackLikeInputSchema.parse(input));
   });
 }
 

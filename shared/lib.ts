@@ -293,7 +293,7 @@ export type PlaylistCreationResult = {
   playlist: PlaylistSummary;
 };
 
-export type LumeApi = {
+export type LumeInvokeApi = {
   addTrackToPlaylist: (input: PlaylistTrackInput) => Promise<AddTrackToPlaylistResult>;
   addSource: () => Promise<LibrarySnapshotJson>;
   confirmAddTrackToPlaylist: (input: PlaylistTrackInput) => Promise<PlaylistTrack>;
@@ -304,22 +304,31 @@ export type LumeApi = {
   enableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   forgetSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   loadLibrary: () => Promise<LibrarySnapshotJson>;
+  loadPlaybackSession: () => Promise<SavedPlaybackSession | null>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
-  playbackSession: {
-    flush: (session: SavedPlaybackSession) => void;
-    load: () => Promise<SavedPlaybackSession | null>;
-    save: (session: SavedPlaybackSession) => Promise<void>;
-    savePosition: (position: number) => Promise<void>;
-  };
-  onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   openDataFolder: () => Promise<void>;
+  removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
   rescanSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   rescanSources: () => Promise<LibrarySnapshotJson>;
-  removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
+  savePlaybackPosition: (position: number) => Promise<void>;
+  savePlaybackSession: (session: SavedPlaybackSession) => Promise<void>;
   setTrackLiked: (input: TrackLikeInput) => Promise<TrackLikeResult>;
+};
+
+type PlaybackSessionMethod = "loadPlaybackSession" | "savePlaybackPosition" | "savePlaybackSession";
+
+export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
+  playbackSession: {
+    flush: (session: SavedPlaybackSession) => void;
+    load: LumeInvokeApi["loadPlaybackSession"];
+    save: LumeInvokeApi["savePlaybackSession"];
+    savePosition: LumeInvokeApi["savePlaybackPosition"];
+  };
+  onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   isMac: boolean;
 };
 
+// Electron includes the channel name in the error text the renderer shows for a failed call.
 export const lumeChannels = {
   addTrackToPlaylist: "lume:add-track-to-playlist",
   addSource: "lume:add-source",
@@ -331,17 +340,20 @@ export const lumeChannels = {
   enableSource: "lume:enable-source",
   forgetSource: "lume:forget-source",
   loadLibrary: "lume:load-library",
-  loadPlaylist: "lume:load-playlist",
   loadPlaybackSession: "lume:load-playback-session",
-  flushPlaybackSession: "lume:flush-playback-session",
-  savePlaybackSession: "lume:save-playback-session",
-  savePlaybackPosition: "lume:save-playback-position",
-  libraryUpdated: "lume:library-updated",
+  loadPlaylist: "lume:load-playlist",
   openDataFolder: "lume:open-data-folder",
+  removePlaylistTrack: "lume:remove-playlist-track",
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
-  removePlaylistTrack: "lume:remove-playlist-track",
+  savePlaybackPosition: "lume:save-playback-position",
+  savePlaybackSession: "lume:save-playback-session",
   setTrackLiked: "lume:set-track-liked",
+} as const satisfies Record<keyof LumeInvokeApi, `lume:${string}`>;
+
+export const lumeEventChannels = {
+  flushPlaybackSession: "lume:flush-playback-session",
+  libraryUpdated: "lume:library-updated",
 } as const;
 
 export const appScheme = "lume";
