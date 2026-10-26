@@ -35,7 +35,7 @@ export function closeDatabase() {
   if (client.isOpen) client.close();
 }
 
-export async function openLibraryDatabase(
+async function openLibraryDatabase(
   location: string,
   migrationsFolder = join(__dirname, "drizzle"),
 ) {

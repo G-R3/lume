@@ -299,7 +299,7 @@ function selectSources(condition: SQL | undefined) {
     .groupBy(librarySources.id);
 }
 
-export function hasForgottenSources() {
+function hasForgottenSources() {
   return (
     getDatabase()
       .select({ id: librarySources.id })
@@ -479,7 +479,7 @@ export async function scanSource(
   return applySourceScan(sourceId, scannedTracks);
 }
 
-export function applyScanFailure(sourceId: number, error: string) {
+function applyScanFailure(sourceId: number, error: string) {
   const database = getDatabase();
 
   if (!isSourceScannable(database, sourceId)) return false;
@@ -498,7 +498,7 @@ export function applyScanFailure(sourceId: number, error: string) {
   return true;
 }
 
-export function getTracks() {
+function getTracks() {
   return getDatabase()
     .select({
       ...trackColumns,
@@ -532,7 +532,7 @@ export function getTrackPath(trackId: number) {
   );
 }
 
-export function getTrackMetadata(sourceId: number) {
+function getTrackMetadata(sourceId: number) {
   return new Map(
     getDatabase()
       .select({
@@ -550,7 +550,7 @@ export function getTrackMetadata(sourceId: number) {
   );
 }
 
-export function applySourceScan(
+function applySourceScan(
   sourceId: number,
   scannedTracks: readonly ScannedTrack[],
 ): Exclude<SourceScanResult, "superseded"> {

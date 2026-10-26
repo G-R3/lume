@@ -1,17 +1,10 @@
 import { cp } from "node:fs/promises";
 import { createTemporaryFolder } from "../../tests/helpers/temp-folder";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { getLibraryDatabasePath, openLibraryDatabase } from ".";
+import { closeDatabase, getDatabase, getLibraryDatabasePath, initializeDatabase } from ".";
 
-const openDatabases: DatabaseSync[] = [];
-
-afterEach(() => {
-  openDatabases.splice(0).forEach((database) => {
-    if (database.isOpen) database.close();
-  });
-});
+afterEach(closeDatabase);
 
 describe("library database lifecycle", () => {
   it("uses separate development and packaged database names", () => {
@@ -55,7 +48,7 @@ describe("library database lifecycle", () => {
         ) VALUES (1, 1, '/Music/song.wav', 'Song', 'WAV', 1, 1, 1, 1, 1, '[]', '[]', '[]', 1)`,
       )
       .run();
-    previousDatabase.close();
+    closeDatabase();
 
     const migratedDatabase = await openTestDatabase(databasePath);
 
@@ -71,9 +64,7 @@ async function openTestDatabase(
   location = ":memory:",
   migrationsFolder = join(import.meta.dirname, "../../drizzle"),
 ) {
-  const database = (await openLibraryDatabase(location, migrationsFolder)).$client;
+  await initializeDatabase({ location, migrationsFolder });
 
-  openDatabases.push(database);
-
-  return database;
+  return getDatabase().$client;
 }

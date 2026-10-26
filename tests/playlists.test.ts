@@ -1,13 +1,12 @@
 import { writeFile } from "node:fs/promises";
 import { openTestDatabase } from "./helpers/database";
+import { libraryTracks, scanWith } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
-import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vite-plus/test";
-import { closeDatabase, type LibraryDatabase } from "../electron/database";
-import { librarySources, tracks } from "../electron/database/schema";
-import { applySourceScan, getTracks, saveSource } from "../electron/library";
-import { scanAudioFiles, trackMetadataVersion } from "../electron/library-files";
+import { closeDatabase } from "../electron/database";
+import { saveSource } from "../electron/library";
+import { scanAudioFiles } from "../electron/library-files";
 import { transition } from "../src/lib/queue/transition";
 import {
   addTrackToPlaylist,
@@ -28,7 +27,7 @@ describe("playlist behavior", () => {
     const secondTrack = await addTrack("B");
     const playlist = createPlaylistFromTrack(firstTrack.id);
     const context = queueContext([firstTrack.id, secondTrack.id]);
-    const titlesById = new Map(getTracks().map((track) => [track.id, track.title]));
+    const titlesById = new Map(libraryTracks().map((track) => [track.id, track.title]));
 
     const started = transition(
       null,
@@ -168,14 +167,14 @@ describe("playlist behavior", () => {
     deletePlaylist(playlist.id);
 
     expect(getPlaylist(playlist.id)).toBeNull();
-    expect(getTracks().map((track) => track.title)).toEqual(["First", "Second", "Third"]);
+    expect(libraryTracks().map((track) => track.title)).toEqual(["First", "Second", "Third"]);
   });
 
   it("creates a playlist from a track atomically and falls back for unusable names", async () => {
     const database = await openTestDatabase();
     const namedTrack = await addTrack("Night Drive");
-    const blankTrackId = insertTrack(database, "blank-track", "   ");
-    const longTrackId = insertTrack(database, "long-track", "x".repeat(101));
+    const blankTrackId = await addTrackTitled("blank-track", "   ");
+    const longTrackId = await addTrackTitled("long-track", "x".repeat(101));
     const namedPlaylist = createPlaylistFromTrack(namedTrack.id);
     const blankPlaylist = createPlaylistFromTrack(blankTrackId);
     const longPlaylist = createPlaylistFromTrack(longTrackId);
@@ -191,7 +190,7 @@ describe("playlist behavior", () => {
       { title: "New Playlist", trackId: longTrackId },
     ]);
 
-    const failingTrackId = insertTrack(database, "failing-track", "Uncommitted");
+    const failingTrackId = await addTrackTitled("failing-track", "Uncommitted");
     database.$client.exec(`
       CREATE TRIGGER reject_playlist_track
       BEFORE INSERT ON playlist_entries
@@ -237,51 +236,45 @@ async function addTrack(title: string) {
   const folder = await createTemporaryFolder("lume-playlist-track-");
   await writeFile(join(folder, `${title}.mp3`), "audio");
   const source = await saveSource(folder);
-  applySourceScan(source.id, await scanAudioFiles(folder));
-  const track = getTracks().find((track) => track.title === title);
+  await scanWith(source.id, await scanAudioFiles(folder));
+  const track = libraryTracks().find((track) => track.title === title);
 
   if (track) return track;
   throw new Error(`Expected ${title} to be stored`);
 }
 
-function insertTrack(database: LibraryDatabase, name: string, title: string) {
-  database
-    .insert(librarySources)
-    .values({
-      createdAt: 1,
-      enabled: true,
-      path: "/Generated",
-      updatedAt: 1,
-    })
-    .onConflictDoNothing({ target: librarySources.path })
-    .run();
-
-  const source = database
-    .select({ id: librarySources.id })
-    .from(librarySources)
-    .where(eq(librarySources.path, "/Generated"))
-    .get();
-
-  if (!source) throw new Error("Expected the generated source to exist");
-
-  return database
-    .insert(tracks)
-    .values({
+async function addTrackTitled(name: string, title: string) {
+  const folder = await createTemporaryFolder("lume-playlist-track-");
+  const source = await saveSource(folder);
+  await scanWith(source.id, [
+    {
+      album: null,
       albumArtists: [],
       artists: [],
-      available: true,
-      createdAt: 1,
+      artwork: null,
+      bitrate: null,
+      bitsPerSample: null,
+      channelCount: null,
+      codec: null,
+      discNumber: null,
+      discTotal: null,
       duration: 180,
       fileSize: 1,
       format: "MP3",
       genres: [],
-      metadataVersion: trackMetadataVersion,
+      kind: "changed",
+      lossless: null,
       modifiedAt: 1,
-      path: `/Generated/${name}.mp3`,
-      sourceId: source.id,
+      path: join(folder, `${name}.mp3`),
+      sampleRate: null,
       title,
-      updatedAt: 1,
-    })
-    .returning({ id: tracks.id })
-    .get().id;
+      trackNumber: null,
+      trackTotal: null,
+      year: null,
+    },
+  ]);
+  const track = libraryTracks().find((track) => track.title === title);
+
+  if (track) return track.id;
+  throw new Error(`Expected ${title} to be stored`);
 }

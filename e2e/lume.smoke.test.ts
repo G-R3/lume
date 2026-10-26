@@ -1,12 +1,13 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
+import { libraryTracks } from "../tests/helpers/library";
 import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { join } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
 import { afterEach, expect, it } from "vite-plus/test";
 import { createWaveAudio } from "../tests/helpers/wave-audio";
 import { closeDatabase, initializeDatabase } from "../electron/database";
-import { getTracks, saveSource, scanSource } from "../electron/library";
+import { saveSource, scanSource } from "../electron/library";
 
 const launchedApplications: ElectronApplication[] = [];
 
@@ -37,7 +38,7 @@ it("keeps a scanned track and playlist working after restart", async () => {
   });
   const source = await saveSource(sourceDirectory);
   await scanSource(source.id);
-  expect(getTracks().map((track) => track.title)).toEqual(["smoke"]);
+  expect(libraryTracks().map((track) => track.title)).toEqual(["smoke"]);
   closeDatabase();
 
   const firstApplication = await launchLume(profile);

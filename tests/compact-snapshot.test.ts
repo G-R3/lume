@@ -1,14 +1,12 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { openTestDatabase } from "./helpers/database";
+import { failScan, libraryTracks, scanWith } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import {
-  applyScanFailure,
-  applySourceScan,
   disableSource,
   getLibrarySnapshot,
   getLibrarySnapshotJson,
-  getTracks,
   saveSource,
   setTrackLiked,
 } from "../electron/library";
@@ -90,7 +88,7 @@ describe("library transport from stored rows", () => {
     const source = await saveSource(folder);
     const failingSource = await saveSource(failingFolder);
 
-    applySourceScan(source.id, [
+    await scanWith(source.id, [
       scannedTrack(join(folder, "bare.mp3"), {}),
       scannedTrack(join(folder, "tagged.flac"), {
         album: "Album",
@@ -114,8 +112,8 @@ describe("library transport from stored rows", () => {
         year: 2019,
       }),
     ]);
-    applySourceScan(failingSource.id, [scannedTrack(join(failingFolder, "gone.ogg"), {})]);
-    applyScanFailure(failingSource.id, "Folder is missing");
+    await scanWith(failingSource.id, [scannedTrack(join(failingFolder, "gone.ogg"), {})]);
+    await failScan(failingSource.id, "Folder is missing");
     disableSource(failingSource.id);
 
     const bare = trackTitled("bare");
@@ -157,7 +155,7 @@ function libraryWithTrackKeys(trackKeys: readonly string[] | undefined) {
 }
 
 function trackTitled(title: string) {
-  const track = getTracks().find((entry) => entry.title === title);
+  const track = libraryTracks().find((entry) => entry.title === title);
 
   if (!track) throw new Error(`Expected a track titled ${title}`);
 
