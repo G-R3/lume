@@ -1,5 +1,6 @@
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { openTestDatabase } from "./helpers/database";
+import { getActiveSource } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
@@ -11,7 +12,6 @@ import {
   forgetSource,
   getArtworkData,
   getLibrarySnapshot,
-  getSource,
   getSources,
   getTrackPath,
   getTracks,
@@ -68,16 +68,16 @@ describe("library source persistence", () => {
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(folder);
     applySourceScan(source.id, await scanAudioFiles(folder));
-    expect(getSource(source.id).trackCount).toBe(1);
+    expect(getActiveSource(source.id).trackCount).toBe(1);
 
     disableSource(source.id);
-    expect(getSource(source.id).enabled).toBe(false);
+    expect(getActiveSource(source.id).enabled).toBe(false);
     expect(getTracks().map((track) => track.available)).toEqual([false]);
     expect(applySourceScan(source.id, await scanAudioFiles(folder))).toBe("skipped");
     expect(getTracks().map((track) => track.available)).toEqual([false]);
 
     enableSource(source.id);
-    expect(getSource(source.id).enabled).toBe(true);
+    expect(getActiveSource(source.id).enabled).toBe(true);
     expect(getTracks().map((track) => track.available)).toEqual([false]);
 
     expect(applySourceScan(source.id, await scanAudioFiles(folder))).toBe("changed");

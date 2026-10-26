@@ -1,5 +1,6 @@
 import { chmod, rm, writeFile } from "node:fs/promises";
 import { openTestDatabase } from "./helpers/database";
+import { getActiveSource } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
@@ -11,7 +12,6 @@ import {
   getArtworkData,
   getLibrarySnapshot,
   getScanUpdate,
-  getSource,
   getSources,
   getTrackMetadata,
   getTracks,
@@ -58,7 +58,7 @@ describe("enabled source scanning", () => {
     const missingSource = await saveSource(missingFolder);
     applySourceScan(missingSource.id, await scanAudioFiles(missingFolder));
 
-    const lastSuccessfulScan = getSource(missingSource.id).lastScannedAt;
+    const lastSuccessfulScan = getActiveSource(missingSource.id).lastScannedAt;
 
     await rm(missingFolder, { recursive: true });
 
@@ -69,12 +69,12 @@ describe("enabled source scanning", () => {
       { available: true, title: "healthy" },
       { available: false, title: "missing" },
     ]);
-    expect(getSource(missingSource.id)).toMatchObject({
+    expect(getActiveSource(missingSource.id)).toMatchObject({
       lastScanError: expect.stringContaining("ENOENT"),
       lastScannedAt: lastSuccessfulScan,
       trackCount: 0,
     });
-    expect(getSource(healthySource.id)).toMatchObject({
+    expect(getActiveSource(healthySource.id)).toMatchObject({
       lastScanError: null,
       lastScannedAt: expect.any(Number),
       trackCount: 1,
@@ -132,7 +132,7 @@ describe("enabled source scanning", () => {
     `);
 
     await expect(scanEnabledSources()).rejects.toThrow("track write failed");
-    expect(getSource(source.id).lastScanError).toBeNull();
+    expect(getActiveSource(source.id).lastScanError).toBeNull();
   });
 
   it("reports a change only when a track's availability changed", async () => {
@@ -157,8 +157,8 @@ describe("enabled source scanning", () => {
       { available: false, title: "removed" },
       { available: true, title: "restored" },
     ]);
-    expect(getSource(source.id).lastScanError).toBeNull();
-    expect(getSource(source.id).lastScannedAt).toBeGreaterThan(1);
+    expect(getActiveSource(source.id).lastScanError).toBeNull();
+    expect(getActiveSource(source.id).lastScannedAt).toBeGreaterThan(1);
 
     expect(applySourceScan(source.id, await scanUnchanged())).toBe("unchanged");
     expect(getAvailability()).toEqual([
@@ -176,7 +176,7 @@ describe("enabled source scanning", () => {
       { available: false, title: "removed" },
       { available: true, title: "restored" },
     ]);
-    expect(getSource(source.id).lastScanError).toBeNull();
+    expect(getActiveSource(source.id).lastScanError).toBeNull();
   });
 
   it("removes artwork that changed tracks no longer use", async () => {
@@ -211,7 +211,7 @@ describe("enabled source scanning", () => {
 
       await scanSource(source.id);
       expect(getTracks().map((track) => track.title)).toEqual(["readable"]);
-      expect(getSource(source.id).lastScanError).toBeNull();
+      expect(getActiveSource(source.id).lastScanError).toBeNull();
     },
   );
 });
@@ -232,7 +232,7 @@ describe("startup scan update", () => {
 
     expect(result).toBe("unchanged");
     expect(getScanUpdate(result)).toEqual({ kind: "sources", sources: getSources() });
-    expect(getSource(source.id).lastScannedAt).toBeGreaterThan(1);
+    expect(getActiveSource(source.id).lastScannedAt).toBeGreaterThan(1);
 
     const after = getLibrarySnapshot();
 
@@ -309,7 +309,7 @@ describe("startup scan update", () => {
     await writeFile(join(changed.path, "new.mp3"), "");
 
     await expect(scanEnabledSources()).resolves.toBe("changed");
-    expect(getSource(unchanged.id).lastScannedAt).toBeGreaterThan(1);
+    expect(getActiveSource(unchanged.id).lastScannedAt).toBeGreaterThan(1);
   });
 
   it("sends the full snapshot when a source is disabled during the scan", async () => {
@@ -340,7 +340,7 @@ describe("startup scan update", () => {
     startupRead.reject(new Error("read failed"));
 
     await expect(startupScan).resolves.toBe("changed");
-    expect(getSource(source.id).lastScanError).toBeNull();
+    expect(getActiveSource(source.id).lastScanError).toBeNull();
   });
 
   it.each([

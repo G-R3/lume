@@ -90,7 +90,7 @@ function validateForeignKeys(database: DatabaseSync) {
   if (foreignKeyFailures.length > 0) throw new Error("Database failed its foreign key check");
 }
 
-export function configureLibraryDatabase(database: DatabaseSync) {
+function configureLibraryDatabase(database: DatabaseSync) {
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
 
   if (!database.location()) return;

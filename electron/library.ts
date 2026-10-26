@@ -32,9 +32,9 @@ import { getPlaylists } from "./playlists";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
 
-export type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
+type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
 
-export type LibraryScanResult = "changed" | "none" | "unchanged";
+type LibraryScanResult = "changed" | "none" | "unchanged";
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
 
@@ -265,22 +265,13 @@ export function getSources() {
   return selectSources(isNull(librarySources.forgottenAt)).orderBy(librarySources.createdAt).all();
 }
 
-export function getEnabledSources() {
+function getEnabledSources() {
   return selectSources(and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt)))
     .orderBy(librarySources.createdAt)
     .all();
 }
 
-export function getSource(sourceId: number) {
-  const source = selectSources(
-    and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)),
-  ).get();
-
-  if (source) return source;
-  throw new Error(`Library source ${sourceId} does not exist`);
-}
-
-export function getEnabledSource(sourceId: number) {
+function getEnabledSource(sourceId: number) {
   return (
     selectSources(
       and(
