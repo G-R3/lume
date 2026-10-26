@@ -8,7 +8,6 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   disableSource,
   getArtworkData,
-  getLibrarySnapshot,
   getScanUpdate,
   getSources,
   saveSource,
@@ -298,7 +297,7 @@ describe("startup scan update", () => {
     const update = getScanUpdate(result);
 
     if (update?.kind !== "snapshot") throw new Error("Expected a snapshot update");
-    expect(parseLibrarySnapshot(update.library)).toStrictEqual(getLibrarySnapshot());
+    expect(parseLibrarySnapshot(update.library)).toStrictEqual(readLibrary());
   });
 
   it("sends the full snapshot when any one source changed", async () => {

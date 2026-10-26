@@ -4,6 +4,7 @@ import {
   type LibrarySource,
   type LibraryUpdate,
   parseLibrarySnapshot,
+  type PlaylistCreationInput,
   type PlaylistTrack,
   type PlaylistTrackInput,
   type PlaylistTrackRemovalInput,
@@ -91,7 +92,8 @@ export function useLibraryMutation() {
   const playback = usePlayback();
 
   return useMutation({
-    mutationFn: runLibraryCommand,
+    mutationFn: async (command: LibraryCommand) =>
+      parseLibrarySnapshot(await runLibraryCommand(command)),
     networkMode: "always",
     scope: { id: "library" },
     onSuccess: (library, command) => {
@@ -109,7 +111,11 @@ export function useCreatePlaylistMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: window.lume.createPlaylist,
+    mutationFn: async (input: PlaylistCreationInput) => {
+      const result = await window.lume.createPlaylist(input);
+
+      return { library: parseLibrarySnapshot(result.library), playlist: result.playlist };
+    },
     networkMode: "always",
     scope: { id: "library" },
     onSuccess: (result) => queryClient.setQueryData(libraryQueryOptions.queryKey, result.library),

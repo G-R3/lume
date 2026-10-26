@@ -18,7 +18,6 @@ import {
   disableSource,
   enableSource,
   forgetSource,
-  getLibrarySnapshot,
   getLibrarySnapshotJson,
   getSources,
   saveSource,
@@ -96,12 +95,12 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
     const folder = result.filePaths[0];
 
-    if (!folder) return getLibrarySnapshot();
+    if (!folder) return getLibrarySnapshotJson();
 
     const source = await saveSource(folder);
     await scanSource(source.id);
 
-    return getLibrarySnapshot();
+    return getLibrarySnapshotJson();
   });
 
   handleTrusted(lumeChannels.loadLibrary, () => getLibrarySnapshotJson());
@@ -129,7 +128,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   handleTrusted(lumeChannels.createPlaylist, (_window, input) => {
     const playlist = createPlaylist(playlistCreationSchema.parse(input));
 
-    return { library: getLibrarySnapshot(), playlist } satisfies PlaylistCreationResult;
+    return { library: getLibrarySnapshotJson(), playlist } satisfies PlaylistCreationResult;
   });
 
   handleTrusted(lumeChannels.createPlaylistFromTrack, (_window, trackId) => {
@@ -143,7 +142,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
   handleTrusted(lumeChannels.deletePlaylist, (_window, playlistId) => {
     deletePlaylist(rowIdSchema.parse(playlistId));
 
-    return getLibrarySnapshot();
+    return getLibrarySnapshotJson();
   });
 
   handleTrusted(lumeChannels.addTrackToPlaylist, (_window, input) => {
@@ -163,31 +162,31 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     enableSource(sourceId);
     await scanSource(sourceId);
 
-    return getLibrarySnapshot();
+    return getLibrarySnapshotJson();
   });
 
   handleTrusted(lumeChannels.disableSource, (_window, input) => {
     disableSource(rowIdSchema.parse(input));
 
-    return getLibrarySnapshot();
+    return getLibrarySnapshotJson();
   });
 
   handleTrusted(lumeChannels.forgetSource, (_window, input) => {
     forgetSource(rowIdSchema.parse(input));
 
-    return getLibrarySnapshot();
+    return getLibrarySnapshotJson();
   });
 
   handleTrusted(lumeChannels.rescanSource, async (_window, input) => {
     await scanSource(rowIdSchema.parse(input));
 
-    return getLibrarySnapshot();
+    return getLibrarySnapshotJson();
   });
 
   handleTrusted(lumeChannels.rescanSources, async () => {
     await scanEnabledSources();
 
-    return getLibrarySnapshot();
+    return getLibrarySnapshotJson();
   });
 
   handleTrusted(lumeChannels.setTrackLiked, (_window, input) => {

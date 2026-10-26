@@ -142,7 +142,6 @@ type CompactLibrarySnapshot =
       kind: "library";
       playlists: PlaylistSummary[];
       sources: LibrarySource[];
-      trackKeys: readonly string[];
       tracks: CompactTrack[];
     };
 
@@ -159,7 +158,6 @@ export function stringifyCompactLibrary(
     kind: "library",
     playlists,
     sources,
-    trackKeys: compactTrackKeys,
     tracks,
   } satisfies CompactLibrarySnapshot;
 
@@ -179,14 +177,10 @@ export function compactAlbumArtists(albumArtists: string[], artists: string[]) {
 export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot {
   // SAFETY: JSON.parse returns an untyped value.
   // Only the two stringify functions above write this text.
-  // The `trackKeys` check below rejects text from a build with different track fields.
+  // Main and renderer ship in one bundle, so both sides agree on the track tuple layout.
   const library = JSON.parse(json) as CompactLibrarySnapshot;
 
   if (library.kind === "first-run") return library;
-
-  if (library.kind !== "library" || library.trackKeys?.join() !== compactTrackKeys.join()) {
-    throw new Error("Unsupported library snapshot");
-  }
 
   // Clear each tuple after expanding it. this lowers peak memory on large libraries
   const compactTracks = library.tracks;
@@ -295,20 +289,20 @@ export type SavedPlaybackSession = {
 };
 
 export type PlaylistCreationResult = {
-  library: LibrarySnapshot;
+  library: LibrarySnapshotJson;
   playlist: PlaylistSummary;
 };
 
 export type LumeApi = {
   addTrackToPlaylist: (input: PlaylistTrackInput) => Promise<AddTrackToPlaylistResult>;
-  addSource: () => Promise<LibrarySnapshot>;
+  addSource: () => Promise<LibrarySnapshotJson>;
   confirmAddTrackToPlaylist: (input: PlaylistTrackInput) => Promise<PlaylistTrack>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   createPlaylistFromTrack: (trackId: number) => Promise<PlaylistDetails>;
-  deletePlaylist: (playlistId: number) => Promise<LibrarySnapshot>;
-  disableSource: (sourceId: number) => Promise<LibrarySnapshot>;
-  enableSource: (sourceId: number) => Promise<LibrarySnapshot>;
-  forgetSource: (sourceId: number) => Promise<LibrarySnapshot>;
+  deletePlaylist: (playlistId: number) => Promise<LibrarySnapshotJson>;
+  disableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  enableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  forgetSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   loadLibrary: () => Promise<LibrarySnapshotJson>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
   playbackSession: {
@@ -319,8 +313,8 @@ export type LumeApi = {
   };
   onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   openDataFolder: () => Promise<void>;
-  rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
-  rescanSources: () => Promise<LibrarySnapshot>;
+  rescanSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  rescanSources: () => Promise<LibrarySnapshotJson>;
   removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
   setTrackLiked: (input: TrackLikeInput) => Promise<TrackLikeResult>;
   isMac: boolean;

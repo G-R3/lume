@@ -4,7 +4,6 @@ import {
   and,
   count,
   eq,
-  getColumns,
   isNotNull,
   isNull,
   notExists,
@@ -12,7 +11,6 @@ import {
   type SQL,
 } from "drizzle-orm";
 import {
-  type LibrarySnapshot,
   type LibraryUpdate,
   type TrackLikeInput,
   type CompactTrack,
@@ -20,7 +18,6 @@ import {
   compactAlbumArtists,
   compactTrackKeys,
   getArtworkUrl,
-  getTrackUrl,
   stringifyCompactLibrary,
   stringifyFirstRunLibrary,
 } from "../shared/lib";
@@ -42,60 +39,6 @@ type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
 type LibraryScanResult = "changed" | "none" | "unchanged";
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
-
-const {
-  fileSize: _fileSize,
-  metadataVersion: _metadataVersion,
-  modifiedAt: _modifiedAt,
-  sourceId: _sourceId,
-  updatedAt: _updatedAt,
-  ...trackColumns
-} = getColumns(tracks);
-
-export function getLibrarySnapshot() {
-  const sources = getSources();
-  const storedTracks = getTracks();
-
-  if (sources.length === 0 && !hasForgottenSources()) {
-    return { kind: "first-run" } satisfies LibrarySnapshot;
-  }
-
-  return {
-    kind: "library",
-    playlists: getPlaylists(),
-    sources,
-    tracks: storedTracks.map((track) => {
-      const artists = displayArtists(track.artists);
-
-      return {
-        addedAt: track.createdAt,
-        album: displayAlbum(track.album),
-        albumArtists: displayAlbumArtists(track.albumArtists, artists),
-        artists,
-        artworkUrl: track.artworkId ? getArtworkUrl(track.artworkId) : null,
-        available: track.available,
-        bitrate: track.bitrate,
-        bitsPerSample: track.bitsPerSample,
-        channelCount: track.channelCount,
-        codec: track.codec,
-        discNumber: track.discNumber,
-        discTotal: track.discTotal,
-        duration: track.duration,
-        format: track.format,
-        genres: track.genres,
-        id: track.id,
-        likedAt: track.likedAt,
-        lossless: track.lossless,
-        title: track.title,
-        sampleRate: track.sampleRate,
-        trackNumber: track.trackNumber,
-        trackTotal: track.trackTotal,
-        url: getTrackUrl(track.id),
-        year: track.year,
-      };
-    }),
-  } satisfies LibrarySnapshot;
-}
 
 function displayAlbum(album: string | null) {
   return album ?? "Unknown album";
@@ -501,18 +444,6 @@ function applyScanFailure(sourceId: number, error: string) {
   });
 
   return true;
-}
-
-function getTracks() {
-  return getDatabase()
-    .select({
-      ...trackColumns,
-      likedAt: trackState.likedAt,
-    })
-    .from(tracks)
-    .leftJoin(trackState, eq(trackState.trackId, tracks.id))
-    .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
-    .all();
 }
 
 export function getArtworkData(artworkId: string): ArtworkData | null {
