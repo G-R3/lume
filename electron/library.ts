@@ -265,21 +265,21 @@ export function getSources() {
   return selectSources(isNull(librarySources.forgottenAt)).orderBy(librarySources.createdAt).all();
 }
 
-function getEnabledSources() {
-  return selectSources(and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt)))
-    .orderBy(librarySources.createdAt)
-    .all();
+function getScannableSources() {
+  return selectSources(scannableSource()).orderBy(librarySources.createdAt).all();
 }
 
-function getEnabledSource(sourceId: number) {
+function scannableSource() {
+  return and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt));
+}
+
+function getScannableSourcePath(database: LibraryDatabase, sourceId: number) {
   return (
-    selectSources(
-      and(
-        eq(librarySources.id, sourceId),
-        eq(librarySources.enabled, true),
-        isNull(librarySources.forgottenAt),
-      ),
-    ).get() ?? null
+    database
+      .select({ path: librarySources.path })
+      .from(librarySources)
+      .where(and(eq(librarySources.id, sourceId), scannableSource()))
+      .get()?.path ?? null
   );
 }
 
@@ -427,7 +427,7 @@ export function forgetSource(sourceId: number) {
 }
 
 export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<LibraryScanResult> {
-  const sources = getEnabledSources();
+  const sources = getScannableSources();
 
   if (sources.length === 0) return "none";
 
@@ -452,11 +452,11 @@ export async function scanSource(
   sourceId: number,
   scanFiles = scanAudioFiles,
 ): Promise<SourceScanResult> {
-  const source = getEnabledSource(sourceId);
-
-  if (!source) return "skipped";
-
   const database = getDatabase();
+  const sourcePath = getScannableSourcePath(database, sourceId);
+
+  if (sourcePath === null) return "skipped";
+
   const versions = scanVersions.get(database) ?? new Map<number, number>();
   scanVersions.set(database, versions);
   const version = (versions.get(sourceId) ?? 0) + 1;
@@ -464,7 +464,7 @@ export async function scanSource(
   let scannedTracks: ScannedTrack[];
 
   try {
-    scannedTracks = await scanFiles(source.path, getTrackMetadata(sourceId));
+    scannedTracks = await scanFiles(sourcePath, getTrackMetadata(sourceId));
   } catch (error) {
     if (versions.get(sourceId) !== version) return "superseded";
 
@@ -482,7 +482,7 @@ export async function scanSource(
 function applyScanFailure(sourceId: number, error: string) {
   const database = getDatabase();
 
-  if (!isSourceScannable(database, sourceId)) return false;
+  if (getScannableSourcePath(database, sourceId) === null) return false;
 
   const now = Date.now();
 
@@ -556,7 +556,7 @@ function applySourceScan(
 ): Exclude<SourceScanResult, "superseded"> {
   const database = getDatabase();
 
-  if (!isSourceScannable(database, sourceId)) return "skipped";
+  if (getScannableSourcePath(database, sourceId) === null) return "skipped";
 
   const now = Date.now();
 
@@ -710,22 +710,6 @@ function applySourceScan(
 
     return tracksChanged ? "changed" : "unchanged";
   });
-}
-
-function isSourceScannable(database: LibraryDatabase, sourceId: number) {
-  return (
-    database
-      .select({ id: librarySources.id })
-      .from(librarySources)
-      .where(
-        and(
-          eq(librarySources.id, sourceId),
-          eq(librarySources.enabled, true),
-          isNull(librarySources.forgottenAt),
-        ),
-      )
-      .get() !== undefined
-  );
 }
 
 function getScanErrorMessage(error: Error) {

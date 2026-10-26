@@ -110,16 +110,11 @@ export function createPlaylistFromTrack(trackId: number) {
       .returning(playlistColumns)
       .get();
 
-    const playlistTrack = transaction
-      .insert(playlistTracks)
-      .values({
-        createdAt: now,
-        playlistId: playlist.id,
-        position: 0,
-        trackId,
-      })
-      .returning(playlistTrackColumns)
-      .get();
+    const playlistTrack = insertPlaylistTrack(
+      transaction,
+      { playlistId: playlist.id, trackId },
+      now,
+    );
 
     return { ...playlist, tracks: [playlistTrack] } satisfies PlaylistDetails;
   });
@@ -137,7 +132,8 @@ export function deletePlaylist(playlistId: number) {
 
 export function addTrackToPlaylist(input: PlaylistTrackInput): AddTrackToPlaylistResult {
   return runImmediateTransaction(getDatabase(), (transaction) => {
-    requirePlaylistAndTrack(transaction, input);
+    requirePlaylist(transaction, input.playlistId);
+    requireTrack(transaction, input.trackId);
 
     const duplicate = transaction
       .select({ id: playlistTracks.id })
@@ -152,7 +148,7 @@ export function addTrackToPlaylist(input: PlaylistTrackInput): AddTrackToPlaylis
 
     if (duplicate) return { kind: "duplicate" };
 
-    const track = insertPlaylistTrack(transaction, input);
+    const track = insertPlaylistTrack(transaction, input, Date.now());
 
     return { kind: "added", track };
   });
@@ -160,21 +156,16 @@ export function addTrackToPlaylist(input: PlaylistTrackInput): AddTrackToPlaylis
 
 export function confirmAddTrackToPlaylist(input: PlaylistTrackInput) {
   return runImmediateTransaction(getDatabase(), (transaction) => {
-    requirePlaylistAndTrack(transaction, input);
+    requirePlaylist(transaction, input.playlistId);
+    requireTrack(transaction, input.trackId);
 
-    return insertPlaylistTrack(transaction, input);
+    return insertPlaylistTrack(transaction, input, Date.now());
   });
 }
 
 export function removePlaylistTrack(input: PlaylistTrackRemovalInput) {
   runImmediateTransaction(getDatabase(), (transaction) => {
-    const playlist = transaction
-      .select({ id: playlists.id })
-      .from(playlists)
-      .where(eq(playlists.id, input.playlistId))
-      .get();
-
-    if (!playlist) throw new Error("Playlist does not exist");
+    requirePlaylist(transaction, input.playlistId);
 
     const playlistTrack = transaction
       .delete(playlistTracks)
@@ -191,35 +182,27 @@ export function removePlaylistTrack(input: PlaylistTrackRemovalInput) {
       throw new Error("Playlist track does not exist in this playlist");
     }
 
-    transaction
-      .update(playlists)
-      .set({ updatedAt: Date.now() })
-      .where(eq(playlists.id, input.playlistId))
-      .run();
+    touchPlaylist(transaction, input.playlistId, Date.now());
   });
 }
 
-function requirePlaylistAndTrack(database: LibraryTransaction, input: PlaylistTrackInput) {
+function requirePlaylist(database: LibraryTransaction, playlistId: number) {
   const playlist = database
     .select({ id: playlists.id })
     .from(playlists)
-    .where(eq(playlists.id, input.playlistId))
+    .where(eq(playlists.id, playlistId))
     .get();
 
   if (!playlist) throw new Error("Playlist does not exist");
+}
 
-  const track = database
-    .select({ id: tracks.id })
-    .from(tracks)
-    .where(eq(tracks.id, input.trackId))
-    .get();
+function requireTrack(database: LibraryTransaction, trackId: number) {
+  const track = database.select({ id: tracks.id }).from(tracks).where(eq(tracks.id, trackId)).get();
 
   if (!track) throw new Error("Track does not exist");
 }
 
-function insertPlaylistTrack(database: LibraryTransaction, input: PlaylistTrackInput) {
-  const now = Date.now();
-
+function insertPlaylistTrack(database: LibraryTransaction, input: PlaylistTrackInput, now: number) {
   const playlistTrack = database
     .insert(playlistTracks)
     .values({
@@ -238,11 +221,11 @@ function insertPlaylistTrack(database: LibraryTransaction, input: PlaylistTrackI
     .returning(playlistTrackColumns)
     .get();
 
-  database
-    .update(playlists)
-    .set({ updatedAt: now })
-    .where(eq(playlists.id, input.playlistId))
-    .run();
+  touchPlaylist(database, input.playlistId, now);
 
   return playlistTrack;
+}
+
+function touchPlaylist(database: LibraryTransaction, playlistId: number, now: number) {
+  database.update(playlists).set({ updatedAt: now }).where(eq(playlists.id, playlistId)).run();
 }
