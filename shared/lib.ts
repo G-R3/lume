@@ -139,7 +139,7 @@ type TupleValues<Keys extends readonly TrackTupleKey[]> = {
 
 export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
-type LibraryJsonShape =
+type LibraryWithTrackTuples =
   | { kind: "first-run" }
   | {
       kind: "library";
@@ -162,7 +162,7 @@ export function stringifyLibrary(
     playlists,
     sources,
     tracks,
-  } satisfies LibraryJsonShape;
+  } satisfies LibraryWithTrackTuples;
 
   return JSON.stringify(library);
 }
@@ -182,7 +182,7 @@ export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot
   // SAFETY: JSON.parse returns an untyped value.
   // Only the two stringify functions above write this text.
   // Main and renderer ship in one bundle, so both sides agree on the track tuple layout.
-  const library = JSON.parse(json) as LibraryJsonShape;
+  const library = JSON.parse(json) as LibraryWithTrackTuples;
 
   if (library.kind === "first-run") return library;
 
