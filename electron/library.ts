@@ -1,15 +1,6 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import {
-  and,
-  count,
-  eq,
-  isNotNull,
-  isNull,
-  notExists,
-  sql,
-  type SQL,
-} from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, notExists, sql, type SQL } from "drizzle-orm";
 import {
   type LibraryUpdate,
   type TrackLikeInput,
@@ -213,20 +204,20 @@ export function getSources() {
   return selectSources(isNull(librarySources.forgottenAt)).orderBy(librarySources.createdAt).all();
 }
 
-function getScannableSources() {
-  return selectSources(scannableSource()).orderBy(librarySources.createdAt).all();
+function getEnabledSources() {
+  return selectSources(enabledSource()).orderBy(librarySources.createdAt).all();
 }
 
-function scannableSource() {
+function enabledSource() {
   return and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt));
 }
 
-function getScannableSourcePath(database: LibraryDatabase, sourceId: number) {
+function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
   return (
     database
       .select({ path: librarySources.path })
       .from(librarySources)
-      .where(and(eq(librarySources.id, sourceId), scannableSource()))
+      .where(and(eq(librarySources.id, sourceId), enabledSource()))
       .get()?.path ?? null
   );
 }
@@ -375,7 +366,7 @@ export function forgetSource(sourceId: number) {
 }
 
 export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<LibraryScanResult> {
-  const sources = getScannableSources();
+  const sources = getEnabledSources();
 
   if (sources.length === 0) return "none";
 
@@ -388,7 +379,7 @@ export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<Li
   return results.every((result) => result === "unchanged") ? "unchanged" : "changed";
 }
 
-export function getScanUpdate(result: LibraryScanResult): LibraryUpdate | null {
+export function getLibraryUpdate(result: LibraryScanResult): LibraryUpdate | null {
   if (result === "none") return null;
 
   if (result === "unchanged") return { kind: "sources", sources: getSources() };
@@ -401,7 +392,7 @@ export async function scanSource(
   scanFiles = scanAudioFiles,
 ): Promise<SourceScanResult> {
   const database = getDatabase();
-  const sourcePath = getScannableSourcePath(database, sourceId);
+  const sourcePath = getEnabledSourcePath(database, sourceId);
 
   if (sourcePath === null) return "skipped";
 
@@ -430,7 +421,7 @@ export async function scanSource(
 function applyScanFailure(sourceId: number, error: string) {
   const database = getDatabase();
 
-  if (getScannableSourcePath(database, sourceId) === null) return false;
+  if (getEnabledSourcePath(database, sourceId) === null) return false;
 
   const now = Date.now();
 
@@ -490,7 +481,7 @@ function applySourceScan(
 ): Exclude<SourceScanResult, "superseded"> {
   const database = getDatabase();
 
-  if (getScannableSourcePath(database, sourceId) === null) return "skipped";
+  if (getEnabledSourcePath(database, sourceId) === null) return "skipped";
 
   const now = Date.now();
 

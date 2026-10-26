@@ -8,7 +8,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   disableSource,
   getArtworkData,
-  getScanUpdate,
+  getLibraryUpdate,
   getSources,
   saveSource,
   scanEnabledSources,
@@ -231,7 +231,7 @@ describe("startup scan update", () => {
     const result = await scanEnabledSources();
 
     expect(result).toBe("unchanged");
-    expect(getScanUpdate(result)).toEqual({ kind: "sources", sources: getSources() });
+    expect(getLibraryUpdate(result)).toEqual({ kind: "sources", sources: getSources() });
     expect(getActiveSource(source.id).lastScannedAt).toBeGreaterThan(1);
 
     const after = readLibrary();
@@ -250,7 +250,7 @@ describe("startup scan update", () => {
     const result = await scanEnabledSources();
 
     expect(result).toBe("unchanged");
-    expect(getScanUpdate(result)).toEqual({
+    expect(getLibraryUpdate(result)).toEqual({
       kind: "sources",
       sources: [expect.objectContaining({ id: source.id, lastScanError: null, trackCount: 0 })],
     });
@@ -294,7 +294,7 @@ describe("startup scan update", () => {
     const result = await scanEnabledSources();
 
     expect(result).toBe("changed");
-    const update = getScanUpdate(result);
+    const update = getLibraryUpdate(result);
 
     if (update?.kind !== "snapshot") throw new Error("Expected a snapshot update");
     expect(parseLibrarySnapshot(update.library)).toStrictEqual(readLibrary());
@@ -354,7 +354,7 @@ describe("startup scan update", () => {
     const result = await scanEnabledSources();
 
     expect(result).toBe("none");
-    expect(getScanUpdate(result)).toBeNull();
+    expect(getLibraryUpdate(result)).toBeNull();
   });
 });
 

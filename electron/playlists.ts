@@ -110,7 +110,7 @@ export function createPlaylistFromTrack(trackId: number) {
       .returning(playlistColumns)
       .get();
 
-    const playlistTrack = insertPlaylistTrack(
+    const playlistTrack = appendPlaylistTrack(
       transaction,
       { playlistId: playlist.id, trackId },
       now,
@@ -148,7 +148,7 @@ export function addTrackToPlaylist(input: PlaylistTrackInput): AddTrackToPlaylis
 
     if (duplicate) return { kind: "duplicate" };
 
-    const track = insertPlaylistTrack(transaction, input, Date.now());
+    const track = appendPlaylistTrack(transaction, input, Date.now());
 
     return { kind: "added", track };
   });
@@ -159,7 +159,7 @@ export function confirmAddTrackToPlaylist(input: PlaylistTrackInput) {
     requirePlaylist(transaction, input.playlistId);
     requireTrack(transaction, input.trackId);
 
-    return insertPlaylistTrack(transaction, input, Date.now());
+    return appendPlaylistTrack(transaction, input, Date.now());
   });
 }
 
@@ -202,7 +202,7 @@ function requireTrack(database: LibraryTransaction, trackId: number) {
   if (!track) throw new Error("Track does not exist");
 }
 
-function insertPlaylistTrack(database: LibraryTransaction, input: PlaylistTrackInput, now: number) {
+function appendPlaylistTrack(database: LibraryTransaction, input: PlaylistTrackInput, now: number) {
   const playlistTrack = database
     .insert(playlistTracks)
     .values({
