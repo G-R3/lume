@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuShortcut } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { useRemovePlaylistTrackMutation } from "@/lib/library-query";
+import { useRemovePlaylistTrackMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
 import { TrackList, TrackListSkeleton } from "@/pages/tracks/track-list";

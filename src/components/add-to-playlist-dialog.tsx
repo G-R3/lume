@@ -18,7 +18,7 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import {
   useAddTrackToPlaylistMutation,
   useConfirmAddTrackToPlaylistMutation,
-} from "@/lib/library-query";
+} from "@/lib/playlist-mutations";
 
 type PaletteItem = { kind: "create" } | { kind: "playlist"; playlist: PlaylistSummary };
 

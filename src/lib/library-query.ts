@@ -4,24 +4,18 @@ import {
   type LibrarySource,
   type LibraryUpdate,
   parseLibrarySnapshot,
-  type PlaylistCreationInput,
-  type PlaylistTrack,
-  type PlaylistTrackInput,
-  type PlaylistTrackRemovalInput,
   type TrackLikeInput,
 } from "../../shared/lib";
-import { usePlayback } from "@/hooks/use-playback";
-import { playlistQueryOptions } from "@/lib/playlist-query";
 
 type LibraryCommand =
   | { kind: "add-source" }
-  | { kind: "delete-playlist"; playlistId: number }
   | { kind: "forget-source"; sourceId: number }
   | { kind: "rescan-source"; sourceId: number }
   | { kind: "rescan-sources" }
   | { enabled: boolean; kind: "set-source-enabled"; sourceId: number };
 
-const playlistMutationOptions = {
+// Every mutation shares one queue (`scope`), so they run one at a time. `networkMode` ignores online status.
+export const libraryMutationOptions = {
   networkMode: "always",
   scope: { id: "library" },
 } as const;
@@ -89,114 +83,12 @@ export function applyLibraryUpdate(queryClient: QueryClient, update: LibraryUpda
 
 export function useLibraryMutation() {
   const queryClient = useQueryClient();
-  const playback = usePlayback();
 
   return useMutation({
+    ...libraryMutationOptions,
     mutationFn: async (command: LibraryCommand) =>
       parseLibrarySnapshot(await runLibraryCommand(command)),
-    networkMode: "always",
-    scope: { id: "library" },
-    onSuccess: (library, command) => {
-      if (command.kind === "delete-playlist") {
-        commitPlaylistDeletion(queryClient, command.playlistId);
-        playback.applySourceChange({ type: "sourceDeleted", playlistId: command.playlistId });
-      }
-
-      queryClient.setQueryData(libraryQueryOptions.queryKey, library);
-    },
-  });
-}
-
-export function useCreatePlaylistMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: PlaylistCreationInput) => {
-      const result = await window.lume.createPlaylist(input);
-
-      return { library: parseLibrarySnapshot(result.library), playlist: result.playlist };
-    },
-    networkMode: "always",
-    scope: { id: "library" },
-    onSuccess: (result) => queryClient.setQueryData(libraryQueryOptions.queryKey, result.library),
-  });
-}
-
-export function useAddTrackToPlaylistMutation() {
-  const queryClient = useQueryClient();
-  const playback = usePlayback();
-
-  return useMutation({
-    ...playlistMutationOptions,
-    mutationFn: (input: PlaylistTrackInput) => window.lume.addTrackToPlaylist(input),
-    onSuccess: (result, input) => {
-      if (result.kind === "duplicate") return;
-
-      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, result.track);
-      playback.applySourceChange({
-        type: "sourceEntryAdded",
-        playlistId: input.playlistId,
-        entry: { sourceEntryId: result.track.id, trackId: result.track.trackId },
-        canonicalIndex,
-      });
-
-      return invalidatePlaylistQueries(queryClient, input.playlistId);
-    },
-  });
-}
-
-export function useConfirmAddTrackToPlaylistMutation() {
-  const queryClient = useQueryClient();
-  const playback = usePlayback();
-
-  return useMutation({
-    ...playlistMutationOptions,
-    mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
-    onSuccess: (track, input) => {
-      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, track);
-      playback.applySourceChange({
-        type: "sourceEntryAdded",
-        playlistId: input.playlistId,
-        entry: { sourceEntryId: track.id, trackId: track.trackId },
-        canonicalIndex,
-      });
-
-      return invalidatePlaylistQueries(queryClient, input.playlistId);
-    },
-  });
-}
-
-export function useCreatePlaylistFromTrackMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    ...playlistMutationOptions,
-    mutationFn: window.lume.createPlaylistFromTrack,
-    onSuccess: (playlist) => {
-      queryClient.setQueryData(playlistQueryOptions(playlist.id).queryKey, playlist);
-
-      return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
-    },
-  });
-}
-
-export function useRemovePlaylistTrackMutation() {
-  const queryClient = useQueryClient();
-  const playback = usePlayback();
-
-  return useMutation({
-    ...playlistMutationOptions,
-    mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
-    onSuccess: (_result, input) => {
-      commitPlaylistRemoval(queryClient, input.playlistId, input.playlistTrackId);
-      playback.applySourceChange({
-        type: "sourceEntryRemoved",
-        playlistId: input.playlistId,
-        sourceEntryId: input.playlistTrackId,
-      });
-
-      return invalidatePlaylistQueries(queryClient, input.playlistId);
-    },
+    onSuccess: (library) => queryClient.setQueryData(libraryQueryOptions.queryKey, library),
   });
 }
 
@@ -204,9 +96,8 @@ export function useSetTrackLiked() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    ...libraryMutationOptions,
     mutationFn: window.lume.setTrackLiked,
-    networkMode: "always",
-    scope: { id: "library" },
     onMutate: async (input: TrackLikeInput) => {
       await queryClient.cancelQueries({ queryKey: libraryQueryOptions.queryKey });
 
@@ -251,8 +142,6 @@ function runLibraryCommand(command: LibraryCommand) {
   switch (command.kind) {
     case "add-source":
       return window.lume.addSource();
-    case "delete-playlist":
-      return window.lume.deletePlaylist(command.playlistId);
     case "forget-source":
       return window.lume.forgetSource(command.sourceId);
     case "rescan-source":
@@ -266,58 +155,4 @@ function runLibraryCommand(command: LibraryCommand) {
   }
 
   command satisfies never;
-}
-
-function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number) {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey }),
-    queryClient.invalidateQueries({ queryKey: playlistQueryOptions(playlistId).queryKey }),
-  ]);
-}
-
-function commitPlaylistAddition(
-  queryClient: QueryClient,
-  playlistId: number,
-  track: PlaylistTrack,
-) {
-  const options = playlistQueryOptions(playlistId);
-  void queryClient.cancelQueries({ queryKey: options.queryKey });
-  const playlist = queryClient.getQueryData(options.queryKey);
-
-  if (!playlist) return undefined;
-
-  const canonicalIndex = playlist.tracks.filter((entry) => entry.position < track.position).length;
-
-  queryClient.setQueryData(options.queryKey, () => ({
-    ...playlist,
-    tracks: [...playlist.tracks.filter((entry) => entry.id !== track.id), track].sort(
-      (left, right) => left.position - right.position,
-    ),
-  }));
-
-  return canonicalIndex;
-}
-
-function commitPlaylistRemoval(
-  queryClient: QueryClient,
-  playlistId: number,
-  playlistTrackId: number,
-) {
-  const options = playlistQueryOptions(playlistId);
-  void queryClient.cancelQueries({ queryKey: options.queryKey });
-
-  queryClient.setQueryData(
-    options.queryKey,
-    (playlist) =>
-      playlist && {
-        ...playlist,
-        tracks: playlist.tracks.filter((track) => track.id !== playlistTrackId),
-      },
-  );
-}
-
-function commitPlaylistDeletion(queryClient: QueryClient, playlistId: number) {
-  const options = playlistQueryOptions(playlistId);
-  void queryClient.cancelQueries({ queryKey: options.queryKey });
-  queryClient.setQueryData(options.queryKey, null);
 }

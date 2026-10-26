@@ -30,7 +30,8 @@ import { toast } from "@/components/ui/toast";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
 import { showTruncatedText } from "@/lib/show-truncated-text";
-import { useCreatePlaylistFromTrackMutation, useSetTrackLiked } from "@/lib/library-query";
+import { useSetTrackLiked } from "@/lib/library-query";
+import { useCreatePlaylistFromTrackMutation } from "@/lib/playlist-mutations";
 import { cn } from "@/lib/utils";
 
 export type TrackListItem = {
