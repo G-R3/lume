@@ -71,6 +71,8 @@ it("keeps a scanned track and playlist working after restart", async () => {
   await deleteDialog.waitFor({ state: "hidden" });
   await firstWindow.getByRole("link", { name: "Smoke playlist" }).waitFor();
   await firstWindow.getByRole("heading", { name: "Tracks", exact: true }).waitFor();
+  // The playlist menu stays in the page while it animates closed. Wait so its items don't mix with the track menu's.
+  await firstWindow.getByRole("menu").waitFor({ state: "detached" });
 
   await firstWindow.getByRole("button", { exact: true, name: "More options for smoke" }).click();
   const trackMenuActions = await firstWindow.getByRole("menuitem").allTextContents();
