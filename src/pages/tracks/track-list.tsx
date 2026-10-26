@@ -6,6 +6,8 @@ import {
   type KeyboardEvent,
   memo,
   type ReactNode,
+  type Ref,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -53,8 +55,6 @@ const headerHeight = 32;
 
 const listInset = 4;
 
-// The React Compiler skips this component: it lists `useVirtualizer` as incompatible with
-// memoization. That's why the row callbacks go through `useStableActions` instead.
 export function TrackList({
   caption,
   items,
@@ -70,34 +70,8 @@ export function TrackList({
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
-  const tableRef = useRef<HTMLTableElement>(null);
-  const pendingFocusIndex = useRef<number | null>(null);
-  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null);
-  const [scrollMargin, setScrollMargin] = useState(0);
+  const bodyRef = useRef<TrackListBodyHandle>(null);
   const isPlaylist = playlistId !== undefined;
-
-  useLayoutEffect(() => {
-    const table = tableRef.current;
-    const container = table?.parentElement?.closest<HTMLElement>("[data-scroll-container]") ?? null;
-
-    setScrollContainer(container);
-
-    if (!table || !container) return;
-
-    const measureScrollMargin = () =>
-      setScrollMargin(
-        table.getBoundingClientRect().top -
-          container.getBoundingClientRect().top +
-          container.scrollTop,
-      );
-
-    measureScrollMargin();
-    const observer = new ResizeObserver(measureScrollMargin);
-    observer.observe(container);
-    observer.observe(table);
-
-    return () => observer.disconnect();
-  }, []);
 
   const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
     addToPlaylistTriggerRef.current = trigger;
@@ -156,65 +130,20 @@ export function TrackList({
     return { tabStopEntryId: items[index]?.sourceEntryId, tabStopIndex: items.length ? index : -1 };
   }, [items, selectedEntryId]);
 
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    enabled: Boolean(scrollContainer),
-    estimateSize: () => rowHeight,
-    getScrollElement: () => scrollContainer ?? null,
-    overscan: 8,
-    paddingStart: headerHeight + listInset,
-    rangeExtractor: (range) => {
-      const indexes = defaultRangeExtractor(range);
-
-      return tabStopIndex < 0 || indexes.includes(tabStopIndex)
-        ? indexes
-        : [...indexes, tabStopIndex].sort((left, right) => left - right);
-    },
-    scrollMargin,
-    scrollPaddingStart: headerHeight + listInset,
-  });
-
-  const mountedIndexes = scrollContainer
-    ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
-    : [];
-
-  const hasMountedRows = mountedIndexes.length > 0;
-
-  useLayoutEffect(() => {
-    if (hasMountedRows && tableRef.current) onReady?.(tableRef.current);
-  }, [hasMountedRows, onReady]);
-
-  const focusRow = (index: number) => {
+  const selectAndFocusRow = (index: number) => {
     const target = Math.max(0, Math.min(items.length - 1, index));
     const item = items[target];
 
     if (!item) return;
 
     setSelectedEntryId(item.sourceEntryId);
-    pendingFocusIndex.current = target;
-
-    virtualizer.scrollToIndex(target);
+    bodyRef.current?.focusRow(target, item.sourceEntryId);
   };
-
-  useLayoutEffect(() => {
-    const index = pendingFocusIndex.current;
-
-    if (index === null) return;
-
-    const row = tableRef.current?.querySelector<HTMLElement>(
-      `tr[data-entry-id="${items[index]?.sourceEntryId}"]`,
-    );
-
-    if (!row) return;
-
-    pendingFocusIndex.current = null;
-    row.focus({ preventScroll: true });
-  });
 
   const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
 
-    const pageSize = Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1);
+    const pageSize = bodyRef.current?.rowsPerPage() ?? 1;
 
     const target = {
       ArrowDown: index + 1,
@@ -227,7 +156,7 @@ export function TrackList({
 
     if (target !== undefined) {
       event.preventDefault();
-      focusRow(target);
+      selectAndFocusRow(target);
 
       return;
     }
@@ -275,6 +204,133 @@ export function TrackList({
     );
   }
 
+  return (
+    <div className="@container">
+      <table
+        className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
+        onPointerOver={showTruncatedText}
+        aria-rowcount={items.length + 1}
+        role="grid"
+      >
+        <caption className="sr-only">{caption}</caption>
+        <TrackListHead isPlaylist={isPlaylist} />
+        <TrackListBody
+          count={items.length}
+          onReady={onReady}
+          pinnedIndex={tabStopIndex}
+          ref={bodyRef}
+          renderRow={renderTrackRow}
+        />
+      </table>
+      {trackToAdd && (
+        <AddToPlaylistDialog
+          finalFocus={addToPlaylistTriggerRef}
+          onCreatePlaylist={createPlaylistWithTrack}
+          onOpenChange={setIsAddToPlaylistOpen}
+          open={isAddToPlaylistOpen}
+          track={trackToAdd}
+        />
+      )}
+    </div>
+  );
+}
+
+type TrackListBodyHandle = {
+  focusRow: (index: number, sourceEntryId: number) => void;
+  rowsPerPage: () => number;
+};
+
+type TrackListBodyProps = {
+  count: number;
+  onReady?: (list: HTMLElement) => void;
+  pinnedIndex: number;
+  ref: Ref<TrackListBodyHandle>;
+  renderRow: (index: number) => ReactNode;
+};
+
+// The React Compiler skips any component that calls `useVirtualizer`, so the virtualizer lives
+// here, apart from TrackList.
+function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackListBodyProps) {
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const pendingFocusEntryId = useRef<number | null>(null);
+  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  useLayoutEffect(() => {
+    const table = bodyRef.current?.closest("table");
+    const container = table?.parentElement?.closest<HTMLElement>("[data-scroll-container]") ?? null;
+
+    setScrollContainer(container);
+
+    if (!table || !container) return;
+
+    const measureScrollMargin = () =>
+      setScrollMargin(
+        table.getBoundingClientRect().top -
+          container.getBoundingClientRect().top +
+          container.scrollTop,
+      );
+
+    measureScrollMargin();
+    const observer = new ResizeObserver(measureScrollMargin);
+    observer.observe(container);
+    observer.observe(table);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count,
+    enabled: Boolean(scrollContainer),
+    estimateSize: () => rowHeight,
+    getScrollElement: () => scrollContainer,
+    overscan: 8,
+    paddingStart: headerHeight + listInset,
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+
+      return pinnedIndex < 0 || indexes.includes(pinnedIndex)
+        ? indexes
+        : [...indexes, pinnedIndex].sort((left, right) => left - right);
+    },
+    scrollMargin,
+    scrollPaddingStart: headerHeight + listInset,
+  });
+
+  const mountedIndexes = scrollContainer
+    ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
+    : [];
+
+  const hasMountedRows = mountedIndexes.length > 0;
+
+  useLayoutEffect(() => {
+    const table = bodyRef.current?.closest("table");
+
+    if (hasMountedRows && table) onReady?.(table);
+  }, [hasMountedRows, onReady]);
+
+  useImperativeHandle(ref, () => ({
+    focusRow: (index, sourceEntryId) => {
+      pendingFocusEntryId.current = sourceEntryId;
+      virtualizer.scrollToIndex(index);
+    },
+    rowsPerPage: () =>
+      Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1),
+  }));
+
+  useLayoutEffect(() => {
+    const entryId = pendingFocusEntryId.current;
+
+    if (entryId === null) return;
+
+    const row = bodyRef.current?.querySelector<HTMLElement>(`tr[data-entry-id="${entryId}"]`);
+
+    if (!row) return;
+
+    pendingFocusEntryId.current = null;
+    row.focus({ preventScroll: true });
+  });
+
   const bodyRows: ReactNode[] = [];
   let nextUnmountedIndex = 0;
 
@@ -290,35 +346,16 @@ export function TrackList({
 
   for (const index of mountedIndexes) {
     addSpacerRow(index);
-    bodyRows.push(renderTrackRow(index));
+    bodyRows.push(renderRow(index));
     nextUnmountedIndex = index + 1;
   }
 
-  if (scrollContainer) addSpacerRow(items.length);
+  if (scrollContainer) addSpacerRow(count);
 
   return (
-    <div className="@container">
-      <table
-        className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
-        onPointerOver={showTruncatedText}
-        aria-rowcount={items.length + 1}
-        ref={tableRef}
-        role="grid"
-      >
-        <caption className="sr-only">{caption}</caption>
-        <TrackListHead isPlaylist={isPlaylist} />
-        <tbody className="before:table-row before:h-1">{bodyRows}</tbody>
-      </table>
-      {trackToAdd && (
-        <AddToPlaylistDialog
-          finalFocus={addToPlaylistTriggerRef}
-          onCreatePlaylist={createPlaylistWithTrack}
-          onOpenChange={setIsAddToPlaylistOpen}
-          open={isAddToPlaylistOpen}
-          track={trackToAdd}
-        />
-      )}
-    </div>
+    <tbody className="before:table-row before:h-1" ref={bodyRef}>
+      {bodyRows}
+    </tbody>
   );
 }
 
