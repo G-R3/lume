@@ -9,7 +9,6 @@ import {
   type Ref,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -62,10 +61,21 @@ export function TrackList({
   renderMenuItems,
   onReady,
 }: TrackListProps) {
-  const playback = usePlayback();
+  const {
+    activeSourceEntryId,
+    activeSourcePlaylistId,
+    enqueueTrack,
+    isPlaying,
+    playSourceEntry,
+    queue,
+  } = usePlayback();
+
   const navigate = useNavigate();
-  const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
-  const setTrackLiked = useSetTrackLiked();
+
+  const { isPending: isCreatingPlaylist, mutate: createPlaylistFromTrack } =
+    useCreatePlaylistFromTrackMutation();
+
+  const { mutate: setTrackLiked } = useSetTrackLiked();
   const addToPlaylistTriggerRef = useRef<HTMLElement | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
@@ -80,7 +90,7 @@ export function TrackList({
   };
 
   const createPlaylistWithTrack = (track: Track) => {
-    createPlaylistFromTrack.mutate(track.id, {
+    createPlaylistFromTrack(track.id, {
       onError: (error) => {
         toast.add({
           description: error.message,
@@ -99,7 +109,7 @@ export function TrackList({
   };
 
   const toggleTrackLiked = (track: Track) => {
-    setTrackLiked.mutate(
+    setTrackLiked(
       { liked: track.likedAt === null, trackId: track.id },
       {
         onError: (error) => {
@@ -117,18 +127,15 @@ export function TrackList({
   const playItem = (item: TrackListItem) => {
     if (!item.track.available) return;
 
-    void playback.playSourceEntry({
+    void playSourceEntry({
       source: collectionSource(playlistId),
       sourceEntryId: item.sourceEntryId,
     });
   };
 
-  const { tabStopEntryId, tabStopIndex } = useMemo(() => {
-    const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
-    const index = selectedIndex < 0 ? 0 : selectedIndex;
-
-    return { tabStopEntryId: items[index]?.sourceEntryId, tabStopIndex: items.length ? index : -1 };
-  }, [items, selectedEntryId]);
+  const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
+  const tabStopIndex = items.length ? Math.max(0, selectedIndex) : -1;
+  const tabStopEntryId = items[tabStopIndex]?.sourceEntryId;
 
   const selectAndFocusRow = (index: number) => {
     const target = Math.max(0, Math.min(items.length - 1, index));
@@ -167,33 +174,32 @@ export function TrackList({
     }
   };
 
-  const rowActions = useStableActions({
+  const rowActions: TrackRowActions = {
     addToPlaylist: openAddToPlaylist,
-    addToQueue: (trackId) => playback.enqueueTrack(trackId),
+    addToQueue: enqueueTrack,
     createPlaylist: createPlaylistWithTrack,
     keyDown: handleRowKeyDown,
     play: playItem,
     select: setSelectedEntryId,
     toggleLike: toggleTrackLiked,
-  });
+  };
 
   function renderTrackRow(index: number) {
     const item = items[index];
 
     const isActive =
-      playback.activeSourceEntryId === item.sourceEntryId &&
-      playback.activeSourcePlaylistId === (playlistId ?? null);
+      activeSourceEntryId === item.sourceEntryId && activeSourcePlaylistId === (playlistId ?? null);
 
     const isSelected = item.sourceEntryId === selectedEntryId;
 
     return (
       <TrackRow
         actions={rowActions}
-        artworkState={isActive ? (playback.isPlaying ? "playing" : "paused") : undefined}
-        canAddToQueue={playback.queue !== null}
+        artworkState={isActive ? (isPlaying ? "playing" : "paused") : undefined}
+        canAddToQueue={queue !== null}
         index={index}
         isActive={isActive}
-        isCreatingPlaylist={createPlaylistFromTrack.isPending}
+        isCreatingPlaylist={isCreatingPlaylist}
         isPlaylist={isPlaylist}
         isSelected={isSelected}
         isTabStop={item.sourceEntryId === tabStopEntryId}
@@ -532,26 +538,6 @@ const TrackRow = memo(function TrackRow({
     </ContextMenu.Root>
   );
 });
-
-function useStableActions(actions: TrackRowActions) {
-  const latest = useRef(actions);
-
-  useLayoutEffect(() => {
-    latest.current = actions;
-  });
-
-  const [stable] = useState<TrackRowActions>(() => ({
-    addToPlaylist: (track, trigger) => latest.current.addToPlaylist(track, trigger),
-    addToQueue: (trackId) => latest.current.addToQueue(trackId),
-    createPlaylist: (track) => latest.current.createPlaylist(track),
-    keyDown: (event, index) => latest.current.keyDown(event, index),
-    play: (item) => latest.current.play(item),
-    select: (sourceEntryId) => latest.current.select(sourceEntryId),
-    toggleLike: (track) => latest.current.toggleLike(track),
-  }));
-
-  return stable;
-}
 
 function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
   return (
