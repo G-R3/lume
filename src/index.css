@@ -68,7 +68,7 @@
   --color-bg-control-hover: var(--color-neutral-750);
   --color-bg-inverse: var(--color-neutral-100);
   --color-bg-inverse-hover: var(--color-neutral-50);
-  /* White on the dark page reads larger than a control fill, so buttons offset it. */
+
   --color-bg-inverse-control: var(--color-neutral-200);
   --color-bg-inverse-control-hover: var(--color-neutral-100);
   --color-border-control: oklch(1 0 0 / 8%);
