@@ -27,7 +27,12 @@ import {
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { getDatabase, runImmediateTransaction, type LibraryDatabase } from "./database";
 import { artwork, librarySources, tracks, trackState } from "./database/schema";
-import { scanAudioFiles, trackMetadataVersion, type ScannedTrack } from "./library-files";
+import {
+  describeFolderReadError,
+  scanAudioFiles,
+  trackMetadataVersion,
+  type ScannedTrack,
+} from "./library-files";
 import { getPlaylists } from "./playlists";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
@@ -464,12 +469,12 @@ export async function scanSource(
   let scannedTracks: ScannedTrack[];
 
   try {
-    scannedTracks = await scanFiles(sourcePath, getTrackMetadata(sourceId));
+    scannedTracks = await scanFiles(sourcePath, getStoredTrackFingerprints(sourceId));
   } catch (error) {
     if (versions.get(sourceId) !== version) return "superseded";
 
     console.warn("Could not read library source", { error, sourceId });
-    const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
+    const message = error instanceof Error ? describeFolderReadError(error) : String(error);
 
     return applyScanFailure(sourceId, message) ? "changed" : "skipped";
   }
@@ -532,21 +537,19 @@ export function getTrackPath(trackId: number) {
   );
 }
 
-function getTrackMetadata(sourceId: number) {
+function getStoredTrackFingerprints(sourceId: number) {
   return new Map(
     getDatabase()
       .select({
         fileSize: tracks.fileSize,
+        metadataVersion: tracks.metadataVersion,
         modifiedAt: tracks.modifiedAt,
         path: tracks.path,
       })
       .from(tracks)
-      .where(and(eq(tracks.sourceId, sourceId), eq(tracks.metadataVersion, trackMetadataVersion)))
+      .where(eq(tracks.sourceId, sourceId))
       .all()
-      .map(
-        (track) =>
-          [track.path, { fileSize: track.fileSize, modifiedAt: track.modifiedAt }] as const,
-      ),
+      .map(({ path, ...fingerprint }) => [path, fingerprint] as const),
   );
 }
 
@@ -710,14 +713,6 @@ function applySourceScan(
 
     return tracksChanged ? "changed" : "unchanged";
   });
-}
-
-function getScanErrorMessage(error: Error) {
-  if ("code" in error && (error.code === "EACCES" || error.code === "EPERM")) {
-    return "Lume does not have permission to read this folder. Allow access in System Settings, then try again.";
-  }
-
-  return error.message;
 }
 
 function markSourceTracksUnavailable(database: SourceWriter, sourceId: number, now: number) {
