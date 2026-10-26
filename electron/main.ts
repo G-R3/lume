@@ -1,10 +1,10 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, protocol, session, shell } from "electron";
-import { appScheme, lumeChannels } from "../shared/lib";
+import { appScheme, lumeEventChannels } from "../shared/lib";
 import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
 import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
 import { registerIpc } from "./ipc";
-import { getScanUpdate, scanEnabledSources } from "./library";
+import { getLibraryUpdate, scanEnabledSources } from "./library";
 
 app.enableSandbox();
 
@@ -91,9 +91,9 @@ async function startApp() {
 
   void scanEnabledSources()
     .then((result) => {
-      const update = window.isDestroyed() ? null : getScanUpdate(result);
+      const update = window.isDestroyed() ? null : getLibraryUpdate(result);
 
-      if (update) window.webContents.send(lumeChannels.libraryUpdated, update);
+      if (update) window.webContents.send(lumeEventChannels.libraryUpdated, update);
     })
     .catch((error) => console.error("Could not scan the music library", error));
 

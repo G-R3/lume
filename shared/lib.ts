@@ -96,9 +96,12 @@ export type MusicLibrary = {
 
 export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
 
+// The library as a JSON string. This is what main sends to the renderer.
 export type LibrarySnapshotJson = string;
 
-export const compactTrackKeys = [
+// the field order of each track tuple in the library JSON string
+// index 0 is addedAt, index 1 is album, and so on
+export const trackTupleKeys = [
   "addedAt",
   "album",
   "albumArtists",
@@ -124,49 +127,47 @@ export const compactTrackKeys = [
   "year",
 ] as const satisfies readonly Exclude<keyof Track, "url">[];
 
-export type CompactTrackKey = (typeof compactTrackKeys)[number];
+export type TrackTupleKey = (typeof trackTupleKeys)[number];
 
-type CompactTrackValue<Key extends CompactTrackKey> = Key extends "albumArtists"
+type TrackTupleValue<Key extends TrackTupleKey> = Key extends "albumArtists"
   ? Track[Key] | null
   : Track[Key];
 
-type CompactValues<Keys extends readonly CompactTrackKey[]> = {
-  -readonly [Index in keyof Keys]: CompactTrackValue<Keys[Index]>;
+type TupleValues<Keys extends readonly TrackTupleKey[]> = {
+  -readonly [Index in keyof Keys]: TrackTupleValue<Keys[Index]>;
 };
 
-export type CompactTrack = CompactValues<typeof compactTrackKeys>;
+export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
-type CompactLibrarySnapshot =
+type LibraryWithTrackTuples =
   | { kind: "first-run" }
   | {
       kind: "library";
       playlists: PlaylistSummary[];
       sources: LibrarySource[];
-      trackKeys: readonly string[];
-      tracks: CompactTrack[];
+      tracks: TrackTuple[];
     };
 
 export function stringifyFirstRunLibrary(): LibrarySnapshotJson {
   return JSON.stringify({ kind: "first-run" } satisfies LibrarySnapshot);
 }
 
-export function stringifyCompactLibrary(
+export function stringifyLibrary(
   playlists: PlaylistSummary[],
   sources: LibrarySource[],
-  tracks: CompactTrack[],
+  tracks: TrackTuple[],
 ): LibrarySnapshotJson {
   const library = {
     kind: "library",
     playlists,
     sources,
-    trackKeys: compactTrackKeys,
     tracks,
-  } satisfies CompactLibrarySnapshot;
+  } satisfies LibraryWithTrackTuples;
 
   return JSON.stringify(library);
 }
 
-export function compactAlbumArtists(albumArtists: string[], artists: string[]) {
+export function albumArtistsIfDifferent(albumArtists: string[], artists: string[]) {
   if (albumArtists.length !== artists.length) return albumArtists;
 
   for (let index = 0; index < artists.length; index += 1) {
@@ -176,32 +177,29 @@ export function compactAlbumArtists(albumArtists: string[], artists: string[]) {
   return null;
 }
 
+// Turns the library string back into objects. The rest of the app only sees tracks as objects.
 export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot {
   // SAFETY: JSON.parse returns an untyped value.
   // Only the two stringify functions above write this text.
-  // The `trackKeys` check below rejects text from a build with different track fields.
-  const library = JSON.parse(json) as CompactLibrarySnapshot;
+  // Main and renderer ship in one bundle, so both sides agree on the track tuple layout.
+  const library = JSON.parse(json) as LibraryWithTrackTuples;
 
   if (library.kind === "first-run") return library;
 
-  if (library.kind !== "library" || library.trackKeys?.join() !== compactTrackKeys.join()) {
-    throw new Error("Unsupported library snapshot");
-  }
-
   // Clear each tuple after expanding it. this lowers peak memory on large libraries
-  const compactTracks = library.tracks;
-  const releasedTracks: (CompactTrack | null)[] = compactTracks;
+  const trackTuples = library.tracks;
+  const releasedTracks: (TrackTuple | null)[] = trackTuples;
   const tracks: Track[] = [];
 
-  for (let index = 0; index < compactTracks.length; index += 1) {
-    tracks.push(expandCompactTrack(compactTracks[index]));
+  for (let index = 0; index < trackTuples.length; index += 1) {
+    tracks.push(trackFromTuple(trackTuples[index]));
     releasedTracks[index] = null;
   }
 
   return { kind: "library", playlists: library.playlists, sources: library.sources, tracks };
 }
 
-function expandCompactTrack(track: CompactTrack) {
+function trackFromTuple(track: TrackTuple) {
   const [
     addedAt,
     album,
@@ -295,37 +293,46 @@ export type SavedPlaybackSession = {
 };
 
 export type PlaylistCreationResult = {
-  library: LibrarySnapshot;
+  library: LibrarySnapshotJson;
   playlist: PlaylistSummary;
 };
 
-export type LumeApi = {
+export type LumeInvokeApi = {
   addTrackToPlaylist: (input: PlaylistTrackInput) => Promise<AddTrackToPlaylistResult>;
-  addSource: () => Promise<LibrarySnapshot>;
+  addSource: () => Promise<LibrarySnapshotJson>;
   confirmAddTrackToPlaylist: (input: PlaylistTrackInput) => Promise<PlaylistTrack>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   createPlaylistFromTrack: (trackId: number) => Promise<PlaylistDetails>;
-  deletePlaylist: (playlistId: number) => Promise<LibrarySnapshot>;
-  disableSource: (sourceId: number) => Promise<LibrarySnapshot>;
-  enableSource: (sourceId: number) => Promise<LibrarySnapshot>;
-  forgetSource: (sourceId: number) => Promise<LibrarySnapshot>;
+  deletePlaylist: (playlistId: number) => Promise<LibrarySnapshotJson>;
+  disableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  enableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  forgetSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   loadLibrary: () => Promise<LibrarySnapshotJson>;
+  loadPlaybackSession: () => Promise<SavedPlaybackSession | null>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
+  openDataFolder: () => Promise<void>;
+  removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
+  rescanSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  rescanSources: () => Promise<LibrarySnapshotJson>;
+  savePlaybackPosition: (position: number) => Promise<void>;
+  savePlaybackSession: (session: SavedPlaybackSession) => Promise<void>;
+  setTrackLiked: (input: TrackLikeInput) => Promise<TrackLikeResult>;
+};
+
+type PlaybackSessionMethod = "loadPlaybackSession" | "savePlaybackPosition" | "savePlaybackSession";
+
+export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
   playbackSession: {
     flush: (session: SavedPlaybackSession) => void;
-    load: () => Promise<SavedPlaybackSession | null>;
-    save: (session: SavedPlaybackSession) => Promise<void>;
-    savePosition: (position: number) => Promise<void>;
+    load: LumeInvokeApi["loadPlaybackSession"];
+    save: LumeInvokeApi["savePlaybackSession"];
+    savePosition: LumeInvokeApi["savePlaybackPosition"];
   };
   onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
-  openDataFolder: () => Promise<void>;
-  rescanSource: (sourceId: number) => Promise<LibrarySnapshot>;
-  rescanSources: () => Promise<LibrarySnapshot>;
-  removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
-  setTrackLiked: (input: TrackLikeInput) => Promise<TrackLikeResult>;
   isMac: boolean;
 };
 
+// Electron includes the channel name in the error text the renderer shows for a failed call.
 export const lumeChannels = {
   addTrackToPlaylist: "lume:add-track-to-playlist",
   addSource: "lume:add-source",
@@ -337,17 +344,20 @@ export const lumeChannels = {
   enableSource: "lume:enable-source",
   forgetSource: "lume:forget-source",
   loadLibrary: "lume:load-library",
-  loadPlaylist: "lume:load-playlist",
   loadPlaybackSession: "lume:load-playback-session",
-  flushPlaybackSession: "lume:flush-playback-session",
-  savePlaybackSession: "lume:save-playback-session",
-  savePlaybackPosition: "lume:save-playback-position",
-  libraryUpdated: "lume:library-updated",
+  loadPlaylist: "lume:load-playlist",
   openDataFolder: "lume:open-data-folder",
+  removePlaylistTrack: "lume:remove-playlist-track",
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
-  removePlaylistTrack: "lume:remove-playlist-track",
+  savePlaybackPosition: "lume:save-playback-position",
+  savePlaybackSession: "lume:save-playback-session",
   setTrackLiked: "lume:set-track-liked",
+} as const satisfies Record<keyof LumeInvokeApi, `lume:${string}`>;
+
+export const lumeEventChannels = {
+  flushPlaybackSession: "lume:flush-playback-session",
+  libraryUpdated: "lume:library-updated",
 } as const;
 
 export const appScheme = "lume";

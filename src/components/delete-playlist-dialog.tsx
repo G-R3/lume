@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FieldError } from "@/components/ui/field";
 import { Kbd } from "@/components/ui/kbd";
-import { useLibraryMutation } from "@/lib/library-query";
+import { useDeletePlaylistMutation } from "@/lib/playlist-mutations";
 
 type DeletePlaylistDialogProps = {
   finalFocus?: RefObject<HTMLElement | null>;
@@ -31,7 +31,7 @@ export function DeletePlaylistDialog({
   open,
   playlist,
 }: DeletePlaylistDialogProps) {
-  const libraryMutation = useLibraryMutation();
+  const deletePlaylist = useDeletePlaylistMutation();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const deletedRef = useRef(false);
@@ -39,29 +39,26 @@ export function DeletePlaylistDialog({
   const isOpenPlaylist = params.playlistId === playlist.id;
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && libraryMutation.isPending) return;
+    if (!nextOpen && deletePlaylist.isPending) return;
 
     if (nextOpen) deletedRef.current = false;
-    else libraryMutation.reset();
+    else deletePlaylist.reset();
 
     onOpenChange(nextOpen);
   };
 
   const handleDelete = () => {
-    libraryMutation.mutate(
-      { kind: "delete-playlist", playlistId: playlist.id },
-      {
-        onSuccess: async () => {
-          deletedRef.current = true;
-          libraryMutation.reset();
-          onOpenChange(false);
+    deletePlaylist.mutate(playlist.id, {
+      onSuccess: async () => {
+        deletedRef.current = true;
+        deletePlaylist.reset();
+        onOpenChange(false);
 
-          if (isOpenPlaylist) await navigate({ replace: true, to: "/" });
+        if (isOpenPlaylist) await navigate({ replace: true, to: "/" });
 
-          requestAnimationFrame(() => focusAfterDelete()?.focus());
-        },
+        requestAnimationFrame(() => focusAfterDelete()?.focus());
       },
-    );
+    });
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
@@ -69,7 +66,7 @@ export function DeletePlaylistDialog({
 
     event.preventDefault();
 
-    if (!libraryMutation.isPending) handleDelete();
+    if (!deletePlaylist.isPending) handleDelete();
   };
 
   return (
@@ -81,14 +78,14 @@ export function DeletePlaylistDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {playlist.title}?</AlertDialogTitle>
           <AlertDialogDescription>{describeTracks(playlist.trackCount)}</AlertDialogDescription>
-          <FieldError>{libraryMutation.error?.message}</FieldError>
+          <FieldError>{deletePlaylist.error?.message}</FieldError>
         </AlertDialogHeader>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={libraryMutation.isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={deletePlaylist.isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             aria-keyshortcuts={window.lume.isMac ? "Meta+Backspace" : "Control+Backspace"}
-            busy={libraryMutation.isPending}
+            busy={deletePlaylist.isPending}
             onClick={handleDelete}
             variant="danger"
           >

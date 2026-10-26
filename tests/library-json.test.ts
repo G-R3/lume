@@ -1,32 +1,17 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { openTestDatabase } from "./helpers/database";
+import { failScan, libraryTracks, readLibrary, scanWith } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import {
-  applyScanFailure,
-  applySourceScan,
   disableSource,
-  getLibrarySnapshot,
   getLibrarySnapshotJson,
-  getTracks,
   saveSource,
   setTrackLiked,
 } from "../electron/library";
 import type { ScannedTrack } from "../electron/library-files";
 import { addTrackToPlaylist, createPlaylist } from "../electron/playlists";
-import { compactTrackKeys, parseLibrarySnapshot } from "../shared/lib";
-
-describe("compact library transport", () => {
-  it.each([
-    ["an unknown kind", { kind: "other" }],
-    ["other track keys", libraryWithTrackKeys(compactTrackKeys.slice(1))],
-    ["no track keys", libraryWithTrackKeys(undefined)],
-  ])("refuses text with %s", (_name, library) => {
-    expect(() => parseLibrarySnapshot(JSON.stringify(library))).toThrow(
-      /Unsupported library snapshot/,
-    );
-  });
-});
+import { parseLibrarySnapshot } from "../shared/lib";
 
 describe("library transport from stored rows", () => {
   it("sends first-run before any source exists", async () => {
@@ -52,8 +37,12 @@ describe("library transport from stored rows", () => {
 
     const decoded = parseLibrarySnapshot(getLibrarySnapshotJson());
 
-    expect(decoded).toStrictEqual(getLibrarySnapshot());
-    expect(decoded.kind === "library" && decoded.tracks).toStrictEqual([
+    if (decoded.kind !== "library") throw new Error("Expected a populated library");
+    expect(decoded.playlists).toStrictEqual([]);
+    expect(decoded.sources).toStrictEqual([
+      { enabled: true, id: 1, lastScanError: null, lastScannedAt: null, path: "/s", trackCount: 1 },
+    ]);
+    expect(decoded.tracks).toStrictEqual([
       {
         addedAt: 111,
         album: "album-s",
@@ -83,14 +72,14 @@ describe("library transport from stored rows", () => {
     ]);
   });
 
-  it("sends a populated library the way the object path builds it", async () => {
+  it("sends a populated library with display fallbacks, sources, and playlists", async () => {
     await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     const failingFolder = await createTemporaryFolder("lume-failing-");
     const source = await saveSource(folder);
     const failingSource = await saveSource(failingFolder);
 
-    applySourceScan(source.id, [
+    await scanWith(source.id, [
       scannedTrack(join(folder, "bare.mp3"), {}),
       scannedTrack(join(folder, "tagged.flac"), {
         album: "Album",
@@ -114,50 +103,92 @@ describe("library transport from stored rows", () => {
         year: 2019,
       }),
     ]);
-    applySourceScan(failingSource.id, [scannedTrack(join(failingFolder, "gone.ogg"), {})]);
-    applyScanFailure(failingSource.id, "Folder is missing");
+    await scanWith(failingSource.id, [scannedTrack(join(failingFolder, "gone.ogg"), {})]);
+    await failScan(failingSource.id, "Folder is missing");
     disableSource(failingSource.id);
 
     const bare = trackTitled("bare");
+    const gone = trackTitled("gone");
     const tagged = trackTitled("tagged");
     setTrackLiked({ liked: true, trackId: tagged.id });
     const playlist = createPlaylist({ description: null, title: "Mix" });
-    createPlaylist({ description: "Notes", title: "Empty" });
+    const empty = createPlaylist({ description: "Notes", title: "Empty" });
     addTrackToPlaylist({ playlistId: playlist.id, trackId: bare.id });
     addTrackToPlaylist({ playlistId: playlist.id, trackId: tagged.id });
 
-    const library = getLibrarySnapshot();
+    const library = readLibrary();
 
     if (library.kind !== "library") throw new Error("Expected a populated library");
     expect(
-      library.tracks.map((track) => [track.title, track.artworkUrl, track.likedAt === null]),
-    ).toEqual([
-      ["bare", null, true],
-      ["gone", null, true],
-      ["tagged", expect.stringContaining("art-1"), false],
+      library.tracks.map((track) => ({
+        album: track.album,
+        albumArtists: track.albumArtists,
+        artists: track.artists,
+        artworkUrl: track.artworkUrl,
+        available: track.available,
+        likedAt: track.likedAt,
+        title: track.title,
+        url: track.url,
+      })),
+    ).toStrictEqual([
+      {
+        album: "Unknown album",
+        albumArtists: ["Unknown artist"],
+        artists: ["Unknown artist"],
+        artworkUrl: null,
+        available: true,
+        likedAt: null,
+        title: "bare",
+        url: `lume://app/media/${bare.id}`,
+      },
+      {
+        album: "Unknown album",
+        albumArtists: ["Unknown artist"],
+        artists: ["Unknown artist"],
+        artworkUrl: null,
+        available: false,
+        likedAt: null,
+        title: "gone",
+        url: `lume://app/media/${gone.id}`,
+      },
+      {
+        album: "Album",
+        albumArtists: ["Album artist"],
+        artists: ["Artist A", "Artist B"],
+        artworkUrl: "lume://app/artwork/art-1",
+        available: true,
+        likedAt: expect.any(Number),
+        title: "tagged",
+        url: `lume://app/media/${tagged.id}`,
+      },
     ]);
-    expect(library.tracks.map((track) => track.available)).toEqual([true, false, true]);
-    expect(library.sources.map((entry) => [entry.enabled, entry.lastScanError])).toEqual([
-      [true, null],
-      [false, "Folder is missing"],
+    expect(library.sources).toStrictEqual([
+      {
+        enabled: true,
+        id: source.id,
+        lastScanError: null,
+        lastScannedAt: expect.any(Number),
+        path: source.path,
+        trackCount: 2,
+      },
+      {
+        enabled: false,
+        id: failingSource.id,
+        lastScanError: "Folder is missing",
+        lastScannedAt: expect.any(Number),
+        path: failingSource.path,
+        trackCount: 0,
+      },
     ]);
-    expect(
-      library.playlists.map((entry) => [entry.title, entry.description, entry.trackCount]),
-    ).toEqual([
-      ["Mix", null, 2],
-      ["Empty", "Notes", 0],
+    expect(library.playlists).toStrictEqual([
+      { description: null, id: playlist.id, title: "Mix", trackCount: 2 },
+      { description: "Notes", id: empty.id, title: "Empty", trackCount: 0 },
     ]);
-
-    expect(parseLibrarySnapshot(getLibrarySnapshotJson())).toStrictEqual(library);
   });
 });
 
-function libraryWithTrackKeys(trackKeys: readonly string[] | undefined) {
-  return { kind: "library", playlists: [], sources: [], trackKeys, tracks: [] };
-}
-
 function trackTitled(title: string) {
-  const track = getTracks().find((entry) => entry.title === title);
+  const track = libraryTracks().find((entry) => entry.title === title);
 
   if (!track) throw new Error(`Expected a track titled ${title}`);
 

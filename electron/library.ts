@@ -1,96 +1,35 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
+import { and, count, eq, isNotNull, isNull, notExists, sql, type SQL } from "drizzle-orm";
 import {
-  and,
-  count,
-  eq,
-  getColumns,
-  isNotNull,
-  isNull,
-  notExists,
-  sql,
-  type SQL,
-} from "drizzle-orm";
-import {
-  type LibrarySnapshot,
   type LibraryUpdate,
   type TrackLikeInput,
-  type CompactTrack,
-  type CompactTrackKey,
-  compactAlbumArtists,
-  compactTrackKeys,
+  type TrackTuple,
+  type TrackTupleKey,
+  albumArtistsIfDifferent,
+  trackTupleKeys,
   getArtworkUrl,
-  getTrackUrl,
-  stringifyCompactLibrary,
+  stringifyLibrary,
   stringifyFirstRunLibrary,
 } from "../shared/lib";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { getDatabase, runImmediateTransaction, type LibraryDatabase } from "./database";
 import { artwork, librarySources, tracks, trackState } from "./database/schema";
-import { scanAudioFiles, trackMetadataVersion, type ScannedTrack } from "./library-files";
+import {
+  describeFolderReadError,
+  scanAudioFiles,
+  trackMetadataVersion,
+  type ScannedTrack,
+} from "./library-files";
 import { getPlaylists } from "./playlists";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
 
-export type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
+type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
 
-export type LibraryScanResult = "changed" | "none" | "unchanged";
+type LibraryScanResult = "changed" | "none" | "unchanged";
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
-
-const {
-  fileSize: _fileSize,
-  metadataVersion: _metadataVersion,
-  modifiedAt: _modifiedAt,
-  sourceId: _sourceId,
-  updatedAt: _updatedAt,
-  ...trackColumns
-} = getColumns(tracks);
-
-export function getLibrarySnapshot() {
-  const sources = getSources();
-  const storedTracks = getTracks();
-
-  if (sources.length === 0 && !hasForgottenSources()) {
-    return { kind: "first-run" } satisfies LibrarySnapshot;
-  }
-
-  return {
-    kind: "library",
-    playlists: getPlaylists(),
-    sources,
-    tracks: storedTracks.map((track) => {
-      const artists = displayArtists(track.artists);
-
-      return {
-        addedAt: track.createdAt,
-        album: displayAlbum(track.album),
-        albumArtists: displayAlbumArtists(track.albumArtists, artists),
-        artists,
-        artworkUrl: track.artworkId ? getArtworkUrl(track.artworkId) : null,
-        available: track.available,
-        bitrate: track.bitrate,
-        bitsPerSample: track.bitsPerSample,
-        channelCount: track.channelCount,
-        codec: track.codec,
-        discNumber: track.discNumber,
-        discTotal: track.discTotal,
-        duration: track.duration,
-        format: track.format,
-        genres: track.genres,
-        id: track.id,
-        likedAt: track.likedAt,
-        lossless: track.lossless,
-        title: track.title,
-        sampleRate: track.sampleRate,
-        trackNumber: track.trackNumber,
-        trackTotal: track.trackTotal,
-        url: getTrackUrl(track.id),
-        year: track.year,
-      };
-    }),
-  } satisfies LibrarySnapshot;
-}
 
 function displayAlbum(album: string | null) {
   return album ?? "Unknown album";
@@ -128,22 +67,24 @@ const storedTrackColumns = {
   trackNumber: tracks.trackNumber,
   trackTotal: tracks.trackTotal,
   year: tracks.year,
-} satisfies Record<CompactTrackKey, SQLiteColumn>;
+} satisfies Record<TrackTupleKey, SQLiteColumn>;
 
-const compactTrackColumns = Object.fromEntries(
-  compactTrackKeys.map((key) => [key, storedTrackColumns[key]]),
+const trackTupleColumns = Object.fromEntries(
+  trackTupleKeys.map((key) => [key, storedTrackColumns[key]]),
 );
 
 type StoredValue<Column extends SQLiteColumn> =
   | Column["_"]["driverParam"]
   | (Column["_"]["notNull"] extends true ? never : null);
 
-type StoredValues<Keys extends readonly CompactTrackKey[]> = {
+type StoredValues<Keys extends readonly TrackTupleKey[]> = {
   -readonly [Index in keyof Keys]: StoredValue<(typeof storedTrackColumns)[Keys[Index]]>;
 };
 
-type StoredTrackRow = StoredValues<typeof compactTrackKeys>;
+type StoredTrackRow = StoredValues<typeof trackTupleKeys>;
 
+// Returns the library as JSON, with each track as a tuple ([addedAt, album, ...]) instead of an object
+// tuples don't repeat the field names for every track, so the string is smaller and faster to send
 export function getLibrarySnapshotJson() {
   const sources = getSources();
 
@@ -152,19 +93,19 @@ export function getLibrarySnapshotJson() {
   }
 
   // SAFETY: Drizzle returns `.values()` rows untyped.
-  // Each row holds the raw SQLite values of `compactTrackColumns`, in that order.
-  // tests/compact-snapshot.test.ts checks every position.
+  // Each row holds the raw SQLite values of `trackTupleColumns`, in that order.
+  // tests/library-json.test.ts checks every position.
   const rows = getDatabase()
-    .select(compactTrackColumns)
+    .select(trackTupleColumns)
     .from(tracks)
     .leftJoin(trackState, eq(trackState.trackId, tracks.id))
     .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
     .values() as StoredTrackRow[];
 
-  return stringifyCompactLibrary(getPlaylists(), sources, rows.map(compactStoredTrack));
+  return stringifyLibrary(getPlaylists(), sources, rows.map(trackTupleFromRow));
 }
 
-function compactStoredTrack(row: StoredTrackRow): CompactTrack {
+function trackTupleFromRow(row: StoredTrackRow): TrackTuple {
   const [
     addedAt,
     album,
@@ -201,7 +142,7 @@ function compactStoredTrack(row: StoredTrackRow): CompactTrack {
   return [
     addedAt,
     displayAlbum(album),
-    compactAlbumArtists(albumArtists, artists),
+    albumArtistsIfDifferent(albumArtists, artists),
     artists,
     artworkId ? getArtworkUrl(artworkId) : null,
     tracks.available.mapFromDriverValue(available),
@@ -265,30 +206,21 @@ export function getSources() {
   return selectSources(isNull(librarySources.forgottenAt)).orderBy(librarySources.createdAt).all();
 }
 
-export function getEnabledSources() {
-  return selectSources(and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt)))
-    .orderBy(librarySources.createdAt)
-    .all();
+function getEnabledSources() {
+  return selectSources(enabledSource()).orderBy(librarySources.createdAt).all();
 }
 
-export function getSource(sourceId: number) {
-  const source = selectSources(
-    and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)),
-  ).get();
-
-  if (source) return source;
-  throw new Error(`Library source ${sourceId} does not exist`);
+function enabledSource() {
+  return and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt));
 }
 
-export function getEnabledSource(sourceId: number) {
+function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
   return (
-    selectSources(
-      and(
-        eq(librarySources.id, sourceId),
-        eq(librarySources.enabled, true),
-        isNull(librarySources.forgottenAt),
-      ),
-    ).get() ?? null
+    database
+      .select({ path: librarySources.path })
+      .from(librarySources)
+      .where(and(eq(librarySources.id, sourceId), enabledSource()))
+      .get()?.path ?? null
   );
 }
 
@@ -308,7 +240,7 @@ function selectSources(condition: SQL | undefined) {
     .groupBy(librarySources.id);
 }
 
-export function hasForgottenSources() {
+function hasForgottenSources() {
   return (
     getDatabase()
       .select({ id: librarySources.id })
@@ -449,7 +381,7 @@ export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<Li
   return results.every((result) => result === "unchanged") ? "unchanged" : "changed";
 }
 
-export function getScanUpdate(result: LibraryScanResult): LibraryUpdate | null {
+export function getLibraryUpdate(result: LibraryScanResult): LibraryUpdate | null {
   if (result === "none") return null;
 
   if (result === "unchanged") return { kind: "sources", sources: getSources() };
@@ -461,11 +393,11 @@ export async function scanSource(
   sourceId: number,
   scanFiles = scanAudioFiles,
 ): Promise<SourceScanResult> {
-  const source = getEnabledSource(sourceId);
-
-  if (!source) return "skipped";
-
   const database = getDatabase();
+  const sourcePath = getEnabledSourcePath(database, sourceId);
+
+  if (sourcePath === null) return "skipped";
+
   const versions = scanVersions.get(database) ?? new Map<number, number>();
   scanVersions.set(database, versions);
   const version = (versions.get(sourceId) ?? 0) + 1;
@@ -473,12 +405,12 @@ export async function scanSource(
   let scannedTracks: ScannedTrack[];
 
   try {
-    scannedTracks = await scanFiles(source.path, getTrackMetadata(sourceId));
+    scannedTracks = await scanFiles(sourcePath, getStoredTrackFingerprints(sourceId));
   } catch (error) {
     if (versions.get(sourceId) !== version) return "superseded";
 
     console.warn("Could not read library source", { error, sourceId });
-    const message = error instanceof Error ? getScanErrorMessage(error) : String(error);
+    const message = error instanceof Error ? describeFolderReadError(error) : String(error);
 
     return applyScanFailure(sourceId, message) ? "changed" : "skipped";
   }
@@ -488,10 +420,10 @@ export async function scanSource(
   return applySourceScan(sourceId, scannedTracks);
 }
 
-export function applyScanFailure(sourceId: number, error: string) {
+function applyScanFailure(sourceId: number, error: string) {
   const database = getDatabase();
 
-  if (!isSourceScannable(database, sourceId)) return false;
+  if (getEnabledSourcePath(database, sourceId) === null) return false;
 
   const now = Date.now();
 
@@ -505,18 +437,6 @@ export function applyScanFailure(sourceId: number, error: string) {
   });
 
   return true;
-}
-
-export function getTracks() {
-  return getDatabase()
-    .select({
-      ...trackColumns,
-      likedAt: trackState.likedAt,
-    })
-    .from(tracks)
-    .leftJoin(trackState, eq(trackState.trackId, tracks.id))
-    .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
-    .all();
 }
 
 export function getArtworkData(artworkId: string): ArtworkData | null {
@@ -541,31 +461,39 @@ export function getTrackPath(trackId: number) {
   );
 }
 
-export function getTrackMetadata(sourceId: number) {
+function getStoredTrackFingerprints(sourceId: number) {
   return new Map(
     getDatabase()
       .select({
         fileSize: tracks.fileSize,
+        metadataVersion: tracks.metadataVersion,
         modifiedAt: tracks.modifiedAt,
         path: tracks.path,
       })
       .from(tracks)
-      .where(and(eq(tracks.sourceId, sourceId), eq(tracks.metadataVersion, trackMetadataVersion)))
+      .where(eq(tracks.sourceId, sourceId))
       .all()
       .map(
         (track) =>
-          [track.path, { fileSize: track.fileSize, modifiedAt: track.modifiedAt }] as const,
+          [
+            track.path,
+            {
+              fileSize: track.fileSize,
+              metadataVersion: track.metadataVersion,
+              modifiedAt: track.modifiedAt,
+            },
+          ] as const,
       ),
   );
 }
 
-export function applySourceScan(
+function applySourceScan(
   sourceId: number,
   scannedTracks: readonly ScannedTrack[],
 ): Exclude<SourceScanResult, "superseded"> {
   const database = getDatabase();
 
-  if (!isSourceScannable(database, sourceId)) return "skipped";
+  if (getEnabledSourcePath(database, sourceId) === null) return "skipped";
 
   const now = Date.now();
 
@@ -719,30 +647,6 @@ export function applySourceScan(
 
     return tracksChanged ? "changed" : "unchanged";
   });
-}
-
-function isSourceScannable(database: LibraryDatabase, sourceId: number) {
-  return (
-    database
-      .select({ id: librarySources.id })
-      .from(librarySources)
-      .where(
-        and(
-          eq(librarySources.id, sourceId),
-          eq(librarySources.enabled, true),
-          isNull(librarySources.forgottenAt),
-        ),
-      )
-      .get() !== undefined
-  );
-}
-
-function getScanErrorMessage(error: Error) {
-  if ("code" in error && (error.code === "EACCES" || error.code === "EPERM")) {
-    return "Lume does not have permission to read this folder. Allow access in System Settings, then try again.";
-  }
-
-  return error.message;
 }
 
 function markSourceTracksUnavailable(database: SourceWriter, sourceId: number, now: number) {

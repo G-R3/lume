@@ -43,11 +43,14 @@ type ExtractedTrack = TrackMetadata & {
 
 export type ScannedTrack = ExtractedTrack | { kind: "unchanged"; path: string };
 
-type StoredTrackMetadata = Pick<typeof tracks.$inferSelect, "fileSize" | "modifiedAt">;
+export type StoredTrackFingerprint = Pick<
+  typeof tracks.$inferSelect,
+  "fileSize" | "metadataVersion" | "modifiedAt"
+>;
 
 export async function scanAudioFiles(
   folder: string,
-  storedTracks: ReadonlyMap<string, StoredTrackMetadata> = new Map(),
+  storedTracks: ReadonlyMap<string, StoredTrackFingerprint> = new Map(),
 ): Promise<ScannedTrack[]> {
   const entries = await readdir(folder, {
     recursive: true,
@@ -73,7 +76,7 @@ export async function scanAudioFiles(
 
 async function scanTrack(
   path: string,
-  storedTrack: StoredTrackMetadata | undefined,
+  storedTrack: StoredTrackFingerprint | undefined,
 ): Promise<ScannedTrack | null> {
   const file = await stat(path).catch((error: Error) => {
     console.warn("Could not read audio file", { error, path });
@@ -86,7 +89,11 @@ async function scanTrack(
   const extension = extname(path);
   const modifiedAt = Math.trunc(file.mtimeMs);
 
-  if (storedTrack?.fileSize === file.size && storedTrack.modifiedAt === modifiedAt) {
+  if (
+    storedTrack?.fileSize === file.size &&
+    storedTrack.modifiedAt === modifiedAt &&
+    storedTrack.metadataVersion === trackMetadataVersion
+  ) {
     return { kind: "unchanged", path };
   }
 
@@ -161,7 +168,7 @@ async function parseTrackMetadata(path: string, filename: string) {
     .catch((error: Error) => {
       console.warn("Could not read audio metadata", { error, path });
 
-      if ("code" in error && (error.code === "EACCES" || error.code === "EPERM")) return null;
+      if (isPermissionError(error)) return null;
 
       return {
         album: null,
@@ -206,4 +213,16 @@ function positiveNumber(value: number | undefined) {
 
 function normalizeArtworkMediaType(value: string) {
   return artworkMediaTypes.get(value.trim().toLowerCase()) ?? null;
+}
+
+export function describeFolderReadError(error: Error) {
+  if (isPermissionError(error)) {
+    return "Lume does not have permission to read this folder. Allow access in System Settings, then try again.";
+  }
+
+  return error.message;
+}
+
+function isPermissionError(error: Error) {
+  return "code" in error && (error.code === "EACCES" || error.code === "EPERM");
 }

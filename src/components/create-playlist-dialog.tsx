@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useCreatePlaylistMutation } from "@/lib/library-query";
+import { useCreatePlaylistMutation } from "@/lib/playlist-mutations";
 
 export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButtonElement> }) {
   const navigate = useNavigate();
