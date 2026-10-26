@@ -70,6 +70,8 @@ export function TrackList({
     queue,
   } = usePlayback();
 
+  const canAddToQueue = queue !== null;
+
   const navigate = useNavigate();
 
   const { isPending: isCreatingPlaylist, mutate: createPlaylistFromTrack } =
@@ -196,7 +198,7 @@ export function TrackList({
       <TrackRow
         actions={rowActions}
         artworkState={isActive ? (isPlaying ? "playing" : "paused") : undefined}
-        canAddToQueue={queue !== null}
+        canAddToQueue={canAddToQueue}
         index={index}
         isActive={isActive}
         isCreatingPlaylist={isCreatingPlaylist}
