@@ -14,7 +14,6 @@ type LibraryCommand =
   | { kind: "rescan-sources" }
   | { enabled: boolean; kind: "set-source-enabled"; sourceId: number };
 
-// Every mutation shares one queue (`scope`), so they run one at a time. `networkMode` ignores online status.
 export const libraryMutationOptions = {
   networkMode: "always",
   scope: { id: "library" },
@@ -153,6 +152,4 @@ function runLibraryCommand(command: LibraryCommand) {
         ? window.lume.enableSource(command.sourceId)
         : window.lume.disableSource(command.sourceId);
   }
-
-  command satisfies never;
 }
