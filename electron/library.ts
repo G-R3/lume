@@ -471,7 +471,17 @@ function getStoredTrackFingerprints(sourceId: number) {
       .from(tracks)
       .where(eq(tracks.sourceId, sourceId))
       .all()
-      .map(({ path, ...fingerprint }) => [path, fingerprint] as const),
+      .map(
+        (track) =>
+          [
+            track.path,
+            {
+              fileSize: track.fileSize,
+              metadataVersion: track.metadataVersion,
+              modifiedAt: track.modifiedAt,
+            },
+          ] as const,
+      ),
   );
 }
 
