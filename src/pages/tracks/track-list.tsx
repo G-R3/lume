@@ -149,9 +149,7 @@ export function TrackList({
     bodyRef.current?.focusRow(target, item.sourceEntryId);
   };
 
-  // The table handles row keys so that no row prop reads `items`, which is new on every library
-  // change. A like then re-renders only the liked row.
-  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableElement>) => {
+  const handleGridKeyDown = (event: KeyboardEvent<HTMLTableElement>) => {
     const row = event.target;
 
     if (!(row instanceof HTMLTableRowElement)) return;
@@ -226,7 +224,7 @@ export function TrackList({
     <div className="@container">
       <table
         className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
-        onKeyDown={handleRowKeyDown}
+        onKeyDown={handleGridKeyDown}
         onPointerOver={showTruncatedText}
         aria-rowcount={items.length + 1}
         role="grid"
