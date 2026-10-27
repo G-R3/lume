@@ -126,12 +126,12 @@ export function TrackList({
     );
   };
 
-  const playItem = (item: TrackListItem) => {
-    if (!item.track.available) return;
+  const playEntry = (sourceEntryId: number, track: Track) => {
+    if (!track.available) return;
 
     void playSourceEntry({
       source: collectionSource(playlistId),
-      sourceEntryId: item.sourceEntryId,
+      sourceEntryId,
     });
   };
 
@@ -149,8 +149,14 @@ export function TrackList({
     bodyRef.current?.focusRow(target, item.sourceEntryId);
   };
 
-  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
-    if (event.target !== event.currentTarget) return;
+  const handleGridKeyDown = (event: KeyboardEvent<HTMLTableElement>) => {
+    const row = event.target;
+
+    if (!(row instanceof HTMLTableRowElement)) return;
+
+    const index = items.findIndex((item) => String(item.sourceEntryId) === row.dataset.entryId);
+
+    if (index < 0) return;
 
     const pageSize = bodyRef.current?.rowsPerPage() ?? 1;
 
@@ -171,17 +177,20 @@ export function TrackList({
     }
 
     if (event.key === "Enter") {
+      const { sourceEntryId, track } = items[index];
+
       event.preventDefault();
-      playItem(items[index]);
+      playEntry(sourceEntryId, track);
     }
   };
 
+  // Every mounted row receives these actions and `renderMenuItems`. If either reads `items`, the
+  // compiler rebuilds it on every library change and a like re-renders every row.
   const rowActions: TrackRowActions = {
     addToPlaylist: openAddToPlaylist,
     addToQueue: enqueueTrack,
     createPlaylist: createPlaylistWithTrack,
-    keyDown: handleRowKeyDown,
-    play: playItem,
+    play: playEntry,
     select: setSelectedEntryId,
     toggleLike: toggleTrackLiked,
   };
@@ -205,9 +214,10 @@ export function TrackList({
         isPlaylist={isPlaylist}
         isSelected={isSelected}
         isTabStop={item.sourceEntryId === tabStopEntryId}
-        item={item}
         key={item.sourceEntryId}
         renderMenuItems={renderMenuItems}
+        sourceEntryId={item.sourceEntryId}
+        track={item.track}
       />
     );
   }
@@ -216,6 +226,7 @@ export function TrackList({
     <div className="@container">
       <table
         className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
+        onKeyDown={handleGridKeyDown}
         onPointerOver={showTruncatedText}
         aria-rowcount={items.length + 1}
         role="grid"
@@ -374,8 +385,7 @@ type TrackRowActions = {
   addToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   addToQueue: (trackId: number) => void;
   createPlaylist: (track: Track) => void;
-  keyDown: (event: KeyboardEvent<HTMLTableRowElement>, index: number) => void;
-  play: (item: TrackListItem) => void;
+  play: (sourceEntryId: number, track: Track) => void;
   select: (sourceEntryId: number) => void;
   toggleLike: (track: Track) => void;
 };
@@ -390,8 +400,9 @@ type TrackRowProps = {
   isPlaylist: boolean;
   isSelected: boolean;
   isTabStop: boolean;
-  item: TrackListItem;
   renderMenuItems?: (item: TrackListItem) => ReactNode;
+  sourceEntryId: number;
+  track: Track;
 };
 
 const TrackRow = memo(function TrackRow({
@@ -404,11 +415,11 @@ const TrackRow = memo(function TrackRow({
   isPlaylist,
   isSelected,
   isTabStop,
-  item,
   renderMenuItems,
+  sourceEntryId,
+  track,
 }: TrackRowProps) {
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const track = item.track;
 
   const menuItems = (
     <TrackRowMenuItems
@@ -420,7 +431,7 @@ const TrackRow = memo(function TrackRow({
       }}
       onCreatePlaylist={() => actions.createPlaylist(track)}
     >
-      {renderMenuItems?.(item)}
+      {renderMenuItems?.({ sourceEntryId, track })}
     </TrackRowMenuItems>
   );
 
@@ -438,10 +449,9 @@ const TrackRow = memo(function TrackRow({
               "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
               isSelected ? "*:bg-selected" : "hover:*:bg-hover",
             )}
-            data-entry-id={item.sourceEntryId}
-            onClick={() => actions.select(item.sourceEntryId)}
-            onDoubleClick={() => actions.play(item)}
-            onKeyDown={(event) => actions.keyDown(event, index)}
+            data-entry-id={sourceEntryId}
+            onClick={() => actions.select(sourceEntryId)}
+            onDoubleClick={() => actions.play(sourceEntryId, track)}
             onMouseDown={(event) => {
               if (event.detail > 1) event.preventDefault();
             }}
