@@ -176,6 +176,81 @@ it("keeps a scanned track and playlist working after restart", async () => {
   ).toBe(true);
 });
 
+it("moves the track selection with the keyboard and plays it with Enter", async () => {
+  const profile = await createTemporaryFolder("lume-electron-keys-");
+  const sourceDirectory = join(profile, "music");
+  await mkdir(sourceDirectory);
+  await Promise.all(
+    Array.from({ length: 60 }, (_, index) =>
+      writeFile(
+        join(sourceDirectory, `track ${String(index + 1).padStart(2, "0")}.wav`),
+        createWaveAudio(5),
+      ),
+    ),
+  );
+
+  await initializeDatabase({
+    location: join(profile, "lume-dev.sqlite"),
+    migrationsFolder: join(process.cwd(), "drizzle"),
+  });
+  await scanSource((await saveSource(sourceDirectory)).id);
+  closeDatabase();
+
+  const application = await launchLume(profile);
+  launchedApplications.push(application);
+  const window = await application.firstWindow();
+  const grid = window.getByRole("grid", { name: "Tracks" });
+  await grid.locator("tr[data-entry-id]").first().waitFor();
+
+  const focusedRow = grid.locator("tr[data-entry-id]:focus");
+
+  const focusedRowIndex = async () =>
+    Number(await focusedRow.getAttribute("aria-rowindex", { timeout: 1_000 }));
+
+  const expectFocusedRow = async (rowIndex: number) => {
+    await expect.poll(focusedRowIndex).toBe(rowIndex);
+    expect(await focusedRow.getAttribute("aria-selected")).toBe("true");
+  };
+
+  await grid.locator('tr[aria-rowindex="3"]').click();
+  await expectFocusedRow(3);
+  await window.keyboard.press("ArrowDown");
+  await expectFocusedRow(4);
+  await window.keyboard.press("ArrowUp");
+  await expectFocusedRow(3);
+  await window.keyboard.press("End");
+  await expectFocusedRow(61);
+  await window.keyboard.press("PageUp");
+  await expect.poll(focusedRowIndex).toBeLessThan(60);
+  await window.keyboard.press("Home");
+  await expectFocusedRow(2);
+  await window.keyboard.press("PageDown");
+  await expect.poll(focusedRowIndex).toBeGreaterThan(3);
+  await window.keyboard.press("Home");
+  await expectFocusedRow(2);
+
+  const firstRow = grid.locator('tr[aria-rowindex="2"]');
+  const firstTitle = (await firstRow.locator("p").first().textContent()) ?? "";
+  await firstRow.click({ button: "right" });
+  await window.getByRole("menu").waitFor();
+  await window.keyboard.press("ArrowDown");
+  await window.keyboard.press("End");
+  await window.keyboard.press("Escape");
+  await window.getByRole("menu").waitFor({ state: "detached" });
+  expect(await grid.locator('tr[aria-selected="true"]').getAttribute("aria-rowindex")).toBe("2");
+
+  await grid.getByRole("button", { exact: true, name: `Like ${firstTitle}` }).focus();
+  await window.keyboard.press("Enter");
+  await grid.getByRole("button", { exact: true, name: `Unlike ${firstTitle}` }).waitFor();
+  expect(await window.getByRole("button", { name: "Pause" }).count()).toBe(0);
+  expect(await grid.locator('tr[aria-selected="true"]').getAttribute("aria-rowindex")).toBe("2");
+
+  await firstRow.focus();
+  await window.keyboard.press("Enter");
+  await window.getByRole("button", { name: "Pause" }).waitFor();
+  expect(await firstRow.getAttribute("aria-current")).toBe("true");
+});
+
 function launchLume(profile: string) {
   return electron.launch({
     args: [".", `--user-data-dir=${profile}`],
