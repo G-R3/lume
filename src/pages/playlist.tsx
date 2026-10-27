@@ -10,7 +10,7 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useRemovePlaylistTrackMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
-import { TrackList, TrackListSkeleton } from "@/pages/tracks/track-list";
+import { TrackList, type TrackListItem, TrackListSkeleton } from "@/pages/tracks/track-list";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -75,6 +75,22 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
     );
   };
 
+  const renderMenuItems = (item: TrackListItem) => (
+    <DropdownMenuItem
+      disabled={isRemovingTrack}
+      onClick={() => handleRemove(item.sourceEntryId)}
+      variant="danger"
+    >
+      <MinusCircleIcon aria-hidden="true" />
+      <span className="truncate" title={`Remove from ${playlist.title}`}>
+        Remove from {playlist.title}
+      </span>
+      <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
+        <BackspaceIcon className="size-3" weight="bold" />
+      </DropdownMenuShortcut>
+    </DropdownMenuItem>
+  );
+
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <PlaylistHeader items={items} playlist={playlist} />
@@ -99,21 +115,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
             items={items}
             key={playlist.id}
             playlistId={playlist.id}
-            renderMenuItems={(item) => (
-              <DropdownMenuItem
-                disabled={isRemovingTrack}
-                onClick={() => handleRemove(item.sourceEntryId)}
-                variant="danger"
-              >
-                <MinusCircleIcon aria-hidden="true" />
-                <span className="truncate" title={`Remove from ${playlist.title}`}>
-                  Remove from {playlist.title}
-                </span>
-                <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
-                  <BackspaceIcon className="size-3" weight="bold" />
-                </DropdownMenuShortcut>
-              </DropdownMenuItem>
-            )}
+            renderMenuItems={renderMenuItems}
           />
         </div>
       )}
