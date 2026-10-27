@@ -184,6 +184,8 @@ export function TrackList({
     }
   };
 
+  // Every mounted row receives these actions and `renderMenuItems`. If either reads `items`, the
+  // compiler rebuilds it on every library change and a like re-renders every row.
   const rowActions: TrackRowActions = {
     addToPlaylist: openAddToPlaylist,
     addToQueue: enqueueTrack,

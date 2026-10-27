@@ -75,6 +75,8 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
     );
   };
 
+  // The compiler caches an inline callback with the JSX around it, and that JSX reads `items`.
+  // Inline, a like would re-render every playlist row.
   const renderMenuItems = (item: TrackListItem) => (
     <DropdownMenuItem
       disabled={isRemovingTrack}
