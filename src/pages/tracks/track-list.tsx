@@ -317,16 +317,7 @@ function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackLis
     if (hasMountedRows && table) onReady?.(table);
   }, [hasMountedRows, onReady]);
 
-  useImperativeHandle(ref, () => ({
-    focusRow: (index, sourceEntryId) => {
-      pendingFocusEntryId.current = sourceEntryId;
-      virtualizer.scrollToIndex(index);
-    },
-    rowsPerPage: () =>
-      Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1),
-  }));
-
-  useLayoutEffect(() => {
+  const focusPendingRow = () => {
     const entryId = pendingFocusEntryId.current;
 
     if (entryId === null) return;
@@ -337,7 +328,19 @@ function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackLis
 
     pendingFocusEntryId.current = null;
     row.focus({ preventScroll: true });
-  });
+  };
+
+  useImperativeHandle(ref, () => ({
+    focusRow: (index, sourceEntryId) => {
+      pendingFocusEntryId.current = sourceEntryId;
+      virtualizer.scrollToIndex(index);
+      focusPendingRow();
+    },
+    rowsPerPage: () =>
+      Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1),
+  }));
+
+  useLayoutEffect(focusPendingRow);
 
   const bodyRows: ReactNode[] = [];
   let nextUnmountedIndex = 0;
