@@ -6,8 +6,9 @@ import {
   type KeyboardEvent,
   memo,
   type ReactNode,
+  type Ref,
+  useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -53,8 +54,6 @@ const headerHeight = 32;
 
 const listInset = 4;
 
-// The React Compiler skips this component: it lists `useVirtualizer` as incompatible with
-// memoization. That's why the row callbacks go through `useStableActions` instead.
 export function TrackList({
   caption,
   items,
@@ -62,22 +61,211 @@ export function TrackList({
   renderMenuItems,
   onReady,
 }: TrackListProps) {
-  const playback = usePlayback();
+  const {
+    activeSourceEntryId,
+    activeSourcePlaylistId,
+    enqueueTrack,
+    isPlaying,
+    playSourceEntry,
+    queue,
+  } = usePlayback();
+
+  const canAddToQueue = queue !== null;
+
   const navigate = useNavigate();
-  const createPlaylistFromTrack = useCreatePlaylistFromTrackMutation();
-  const setTrackLiked = useSetTrackLiked();
+
+  const { isPending: isCreatingPlaylist, mutate: createPlaylistFromTrack } =
+    useCreatePlaylistFromTrackMutation();
+
+  const { mutate: setTrackLiked } = useSetTrackLiked();
   const addToPlaylistTriggerRef = useRef<HTMLElement | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
-  const tableRef = useRef<HTMLTableElement>(null);
-  const pendingFocusIndex = useRef<number | null>(null);
-  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null | undefined>(undefined);
-  const [scrollMargin, setScrollMargin] = useState(0);
+  const bodyRef = useRef<TrackListBodyHandle>(null);
   const isPlaylist = playlistId !== undefined;
 
+  const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
+    addToPlaylistTriggerRef.current = trigger;
+    setTrackToAdd(track);
+    setIsAddToPlaylistOpen(true);
+  };
+
+  const createPlaylistWithTrack = (track: Track) => {
+    createPlaylistFromTrack(track.id, {
+      onError: (error) => {
+        toast.add({
+          description: error.message,
+          priority: "high",
+          title: "Could not create playlist",
+          type: "error",
+        });
+      },
+      onSuccess: (playlist) => {
+        void navigate({
+          params: { playlistId: playlist.id },
+          to: "/playlists/$playlistId",
+        });
+      },
+    });
+  };
+
+  const toggleTrackLiked = (track: Track) => {
+    setTrackLiked(
+      { liked: track.likedAt === null, trackId: track.id },
+      {
+        onError: (error) => {
+          toast.add({
+            description: error.message,
+            priority: "high",
+            title: "Could not update like",
+            type: "error",
+          });
+        },
+      },
+    );
+  };
+
+  const playItem = (item: TrackListItem) => {
+    if (!item.track.available) return;
+
+    void playSourceEntry({
+      source: collectionSource(playlistId),
+      sourceEntryId: item.sourceEntryId,
+    });
+  };
+
+  const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
+  const tabStopIndex = items.length ? Math.max(0, selectedIndex) : -1;
+  const tabStopEntryId = items[tabStopIndex]?.sourceEntryId;
+
+  const selectAndFocusRow = (index: number) => {
+    const target = Math.max(0, Math.min(items.length - 1, index));
+    const item = items[target];
+
+    if (!item) return;
+
+    setSelectedEntryId(item.sourceEntryId);
+    bodyRef.current?.focusRow(target, item.sourceEntryId);
+  };
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
+    if (event.target !== event.currentTarget) return;
+
+    const pageSize = bodyRef.current?.rowsPerPage() ?? 1;
+
+    const target = {
+      ArrowDown: index + 1,
+      ArrowUp: index - 1,
+      End: items.length - 1,
+      Home: 0,
+      PageDown: index + pageSize,
+      PageUp: index - pageSize,
+    }[event.key];
+
+    if (target !== undefined) {
+      event.preventDefault();
+      selectAndFocusRow(target);
+
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      playItem(items[index]);
+    }
+  };
+
+  const rowActions: TrackRowActions = {
+    addToPlaylist: openAddToPlaylist,
+    addToQueue: enqueueTrack,
+    createPlaylist: createPlaylistWithTrack,
+    keyDown: handleRowKeyDown,
+    play: playItem,
+    select: setSelectedEntryId,
+    toggleLike: toggleTrackLiked,
+  };
+
+  function renderTrackRow(index: number) {
+    const item = items[index];
+
+    const isActive =
+      activeSourceEntryId === item.sourceEntryId && activeSourcePlaylistId === (playlistId ?? null);
+
+    const isSelected = item.sourceEntryId === selectedEntryId;
+
+    return (
+      <TrackRow
+        actions={rowActions}
+        artworkState={isActive ? (isPlaying ? "playing" : "paused") : undefined}
+        canAddToQueue={canAddToQueue}
+        index={index}
+        isActive={isActive}
+        isCreatingPlaylist={isCreatingPlaylist}
+        isPlaylist={isPlaylist}
+        isSelected={isSelected}
+        isTabStop={item.sourceEntryId === tabStopEntryId}
+        item={item}
+        key={item.sourceEntryId}
+        renderMenuItems={renderMenuItems}
+      />
+    );
+  }
+
+  return (
+    <div className="@container">
+      <table
+        className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
+        onPointerOver={showTruncatedText}
+        aria-rowcount={items.length + 1}
+        role="grid"
+      >
+        <caption className="sr-only">{caption}</caption>
+        <TrackListHead isPlaylist={isPlaylist} />
+        <TrackListBody
+          count={items.length}
+          onReady={onReady}
+          pinnedIndex={tabStopIndex}
+          ref={bodyRef}
+          renderRow={renderTrackRow}
+        />
+      </table>
+      {trackToAdd && (
+        <AddToPlaylistDialog
+          finalFocus={addToPlaylistTriggerRef}
+          onCreatePlaylist={createPlaylistWithTrack}
+          onOpenChange={setIsAddToPlaylistOpen}
+          open={isAddToPlaylistOpen}
+          track={trackToAdd}
+        />
+      )}
+    </div>
+  );
+}
+
+type TrackListBodyHandle = {
+  focusRow: (index: number, sourceEntryId: number) => void;
+  rowsPerPage: () => number;
+};
+
+type TrackListBodyProps = {
+  count: number;
+  onReady?: (list: HTMLElement) => void;
+  pinnedIndex: number;
+  ref: Ref<TrackListBodyHandle>;
+  renderRow: (index: number) => ReactNode;
+};
+
+// The React Compiler skips any component that calls `useVirtualizer`, so the virtualizer lives
+// here, apart from TrackList.
+function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackListBodyProps) {
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const pendingFocusEntryId = useRef<number | null>(null);
+  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
   useLayoutEffect(() => {
-    const table = tableRef.current;
+    const table = bodyRef.current?.closest("table");
     const container = table?.parentElement?.closest<HTMLElement>("[data-scroll-container]") ?? null;
 
     setScrollContainer(container);
@@ -99,187 +287,60 @@ export function TrackList({
     return () => observer.disconnect();
   }, []);
 
-  const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
-    addToPlaylistTriggerRef.current = trigger;
-    setTrackToAdd(track);
-    setIsAddToPlaylistOpen(true);
-  };
-
-  const createPlaylistWithTrack = (track: Track) => {
-    createPlaylistFromTrack.mutate(track.id, {
-      onError: (error) => {
-        toast.add({
-          description: error.message,
-          priority: "high",
-          title: "Could not create playlist",
-          type: "error",
-        });
-      },
-      onSuccess: (playlist) => {
-        void navigate({
-          params: { playlistId: playlist.id },
-          to: "/playlists/$playlistId",
-        });
-      },
-    });
-  };
-
-  const toggleTrackLiked = (track: Track) => {
-    setTrackLiked.mutate(
-      { liked: track.likedAt === null, trackId: track.id },
-      {
-        onError: (error) => {
-          toast.add({
-            description: error.message,
-            priority: "high",
-            title: "Could not update like",
-            type: "error",
-          });
-        },
-      },
-    );
-  };
-
-  const playItem = (item: TrackListItem) => {
-    if (!item.track.available) return;
-
-    void playback.playSourceEntry({
-      source: collectionSource(playlistId),
-      sourceEntryId: item.sourceEntryId,
-    });
-  };
-
-  const { tabStopEntryId, tabStopIndex } = useMemo(() => {
-    const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
-    const index = selectedIndex < 0 ? 0 : selectedIndex;
-
-    return { tabStopEntryId: items[index]?.sourceEntryId, tabStopIndex: items.length ? index : -1 };
-  }, [items, selectedEntryId]);
-
   const virtualizer = useVirtualizer({
-    count: items.length,
+    count,
     enabled: Boolean(scrollContainer),
     estimateSize: () => rowHeight,
-    getScrollElement: () => scrollContainer ?? null,
+    getScrollElement: () => scrollContainer,
     overscan: 8,
     paddingStart: headerHeight + listInset,
     rangeExtractor: (range) => {
       const indexes = defaultRangeExtractor(range);
 
-      return tabStopIndex < 0 || indexes.includes(tabStopIndex)
+      return pinnedIndex < 0 || indexes.includes(pinnedIndex)
         ? indexes
-        : [...indexes, tabStopIndex].sort((left, right) => left - right);
+        : [...indexes, pinnedIndex].sort((left, right) => left - right);
     },
     scrollMargin,
     scrollPaddingStart: headerHeight + listInset,
   });
 
-  const mountedIndexes =
-    scrollContainer === undefined
-      ? []
-      : scrollContainer
-        ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
-        : items.map((_item, index) => index);
+  const mountedIndexes = scrollContainer
+    ? virtualizer.getVirtualItems().map((virtualItem) => virtualItem.index)
+    : [];
 
   const hasMountedRows = mountedIndexes.length > 0;
 
   useLayoutEffect(() => {
-    if (hasMountedRows && tableRef.current) onReady?.(tableRef.current);
+    const table = bodyRef.current?.closest("table");
+
+    if (hasMountedRows && table) onReady?.(table);
   }, [hasMountedRows, onReady]);
 
-  const focusRow = (index: number) => {
-    const target = Math.max(0, Math.min(items.length - 1, index));
-    const item = items[target];
+  const focusPendingRow = () => {
+    const entryId = pendingFocusEntryId.current;
 
-    if (!item) return;
+    if (entryId === null) return;
 
-    setSelectedEntryId(item.sourceEntryId);
-    pendingFocusIndex.current = target;
-
-    if (scrollContainer) virtualizer.scrollToIndex(target);
-  };
-
-  useLayoutEffect(() => {
-    const index = pendingFocusIndex.current;
-
-    if (index === null) return;
-
-    const row = tableRef.current?.querySelector<HTMLElement>(
-      `tr[data-entry-id="${items[index]?.sourceEntryId}"]`,
-    );
+    const row = bodyRef.current?.querySelector<HTMLElement>(`tr[data-entry-id="${entryId}"]`);
 
     if (!row) return;
 
-    pendingFocusIndex.current = null;
-    row.focus({ preventScroll: Boolean(scrollContainer) });
-  });
-
-  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
-    if (event.target !== event.currentTarget) return;
-
-    const pageSize = Math.max(
-      1,
-      Math.floor((scrollContainer?.clientHeight ?? window.innerHeight) / rowHeight) - 1,
-    );
-
-    const target = {
-      ArrowDown: index + 1,
-      ArrowUp: index - 1,
-      End: items.length - 1,
-      Home: 0,
-      PageDown: index + pageSize,
-      PageUp: index - pageSize,
-    }[event.key];
-
-    if (target !== undefined) {
-      event.preventDefault();
-      focusRow(target);
-
-      return;
-    }
-
-    if (event.key === "Enter") {
-      event.preventDefault();
-      playItem(items[index]);
-    }
+    pendingFocusEntryId.current = null;
+    row.focus({ preventScroll: true });
   };
 
-  const rowActions = useStableActions({
-    addToPlaylist: openAddToPlaylist,
-    addToQueue: (trackId) => playback.enqueueTrack(trackId),
-    createPlaylist: createPlaylistWithTrack,
-    keyDown: handleRowKeyDown,
-    play: playItem,
-    select: setSelectedEntryId,
-    toggleLike: toggleTrackLiked,
-  });
+  useImperativeHandle(ref, () => ({
+    focusRow: (index, sourceEntryId) => {
+      pendingFocusEntryId.current = sourceEntryId;
+      virtualizer.scrollToIndex(index);
+      focusPendingRow();
+    },
+    rowsPerPage: () =>
+      Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1),
+  }));
 
-  function renderTrackRow(index: number) {
-    const item = items[index];
-
-    const isActive =
-      playback.activeSourceEntryId === item.sourceEntryId &&
-      playback.activeSourcePlaylistId === (playlistId ?? null);
-
-    const isSelected = item.sourceEntryId === selectedEntryId;
-
-    return (
-      <TrackRow
-        actions={rowActions}
-        artworkState={isActive ? (playback.isPlaying ? "playing" : "paused") : undefined}
-        canAddToQueue={playback.queue !== null}
-        index={index}
-        isActive={isActive}
-        isCreatingPlaylist={createPlaylistFromTrack.isPending}
-        isPlaylist={isPlaylist}
-        isSelected={isSelected}
-        isTabStop={item.sourceEntryId === tabStopEntryId}
-        item={item}
-        key={item.sourceEntryId}
-        renderMenuItems={renderMenuItems}
-      />
-    );
-  }
+  useLayoutEffect(focusPendingRow);
 
   const bodyRows: ReactNode[] = [];
   let nextUnmountedIndex = 0;
@@ -296,35 +357,16 @@ export function TrackList({
 
   for (const index of mountedIndexes) {
     addSpacerRow(index);
-    bodyRows.push(renderTrackRow(index));
+    bodyRows.push(renderRow(index));
     nextUnmountedIndex = index + 1;
   }
 
-  if (scrollContainer) addSpacerRow(items.length);
+  if (scrollContainer) addSpacerRow(count);
 
   return (
-    <div className="@container" id="tracks">
-      <table
-        className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
-        onPointerOver={showTruncatedText}
-        aria-rowcount={items.length + 1}
-        ref={tableRef}
-        role="grid"
-      >
-        <caption className="sr-only">{caption}</caption>
-        <TrackListHead isPlaylist={isPlaylist} />
-        <tbody className="before:table-row before:h-1">{bodyRows}</tbody>
-      </table>
-      {trackToAdd && (
-        <AddToPlaylistDialog
-          finalFocus={addToPlaylistTriggerRef}
-          onCreatePlaylist={createPlaylistWithTrack}
-          onOpenChange={setIsAddToPlaylistOpen}
-          open={isAddToPlaylistOpen}
-          track={trackToAdd}
-        />
-      )}
-    </div>
+    <tbody className="before:table-row before:h-1" ref={bodyRef}>
+      {bodyRows}
+    </tbody>
   );
 }
 
@@ -501,26 +543,6 @@ const TrackRow = memo(function TrackRow({
     </ContextMenu.Root>
   );
 });
-
-function useStableActions(actions: TrackRowActions) {
-  const latest = useRef(actions);
-
-  useLayoutEffect(() => {
-    latest.current = actions;
-  });
-
-  const [stable] = useState<TrackRowActions>(() => ({
-    addToPlaylist: (track, trigger) => latest.current.addToPlaylist(track, trigger),
-    addToQueue: (trackId) => latest.current.addToQueue(trackId),
-    createPlaylist: (track) => latest.current.createPlaylist(track),
-    keyDown: (event, index) => latest.current.keyDown(event, index),
-    play: (item) => latest.current.play(item),
-    select: (sourceEntryId) => latest.current.select(sourceEntryId),
-    toggleLike: (track) => latest.current.toggleLike(track),
-  }));
-
-  return stable;
-}
 
 function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
   return (
