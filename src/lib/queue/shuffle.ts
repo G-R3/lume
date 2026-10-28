@@ -6,8 +6,14 @@ import {
   playAs,
 } from "./items";
 import { sameSource } from "./source";
-import type { QueueRandom } from "./commands";
+import type { QueueCommand, QueueRandom } from "./commands";
 import type { QueueItem, QueueState, SourceIdentity } from "./model";
+
+type ShuffledSelection = {
+  source: SourceIdentity;
+  filter: string | null;
+  sourceEntryId: number;
+};
 
 export function setShuffleEnabled(
   state: QueueState,
@@ -99,22 +105,28 @@ export function setShuffleEnabled(
   };
 }
 
-export function selectsWithinShuffledSession(state: QueueState | null, source: SourceIdentity) {
+export function selectsWithinShuffledSession(
+  state: QueueState | null,
+  { source, filter, sourceEntryId }: ShuffledSelection,
+) {
   return (
     state !== null &&
     state.shuffleEnabled &&
     state.source.kind !== "detached" &&
-    sameSource(state.sourceIdentity, source)
+    sameSource(state.sourceIdentity, source) &&
+    state.filter === filter &&
+    state.sourceEntries.some((entry) => entry.sourceEntryId === sourceEntryId)
   );
 }
 
 export function selectSourceEntry(
   state: QueueState,
-  source: SourceIdentity,
-  sourceEntryId: number,
+  selection: Extract<QueueCommand, { type: "selectSourceEntry" }>,
   availableTrackIds: ReadonlySet<number>,
 ): QueueState {
-  if (!selectsWithinShuffledSession(state, source)) return state;
+  if (!selectsWithinShuffledSession(state, selection)) return state;
+
+  const { sourceEntryId } = selection;
 
   const entry = state.sourceEntries.find((candidate) => candidate.sourceEntryId === sourceEntryId);
 

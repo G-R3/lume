@@ -21,6 +21,8 @@ import { setTrackSort, sortTracks, trackSorts, useTrackSort } from "@/lib/track-
 import { LibraryStatus } from "@/pages/tracks/library-status";
 import { TrackList } from "@/pages/tracks/track-list";
 
+const allTracks = { kind: "all-tracks" } as const;
+
 export function TracksPage() {
   const library = useMusicLibrary();
   const sort = useTrackSort();
@@ -70,7 +72,13 @@ export function TracksPage() {
       <LibraryStatus library={library} />
       {items.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
-          <TrackList caption="Tracks" items={items} onReady={onListReady} />
+          <TrackList
+            caption="Tracks"
+            filter={null}
+            items={items}
+            onReady={onListReady}
+            source={allTracks}
+          />
         </div>
       )}
     </div>

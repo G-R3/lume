@@ -95,7 +95,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PlaylistHeader items={items} playlist={playlist} />
+      <PlaylistHeader filter={null} items={items} playlist={playlist} />
       {playlist.tracks.length === 0 ? (
         <div className="flex flex-1 justify-center border-t border-separator px-6 pt-24">
           <div className="flex w-100 flex-col gap-2" data-slot="playlist-empty">
@@ -114,10 +114,11 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
         <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
           <TrackList
             caption={playlist.title}
+            filter={null}
             items={items}
             key={playlist.id}
-            playlistId={playlist.id}
             renderMenuItems={renderMenuItems}
+            source={{ kind: "playlist", playlistId: playlist.id, title: playlist.title }}
           />
         </div>
       )}

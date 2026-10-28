@@ -44,6 +44,7 @@ export const queueStateSchema = z.object({
   sessionId: queueItemId,
   sourceEntries: z.array(sourceEntrySchema).readonly(),
   sourceIdentity: sourceIdentitySchema,
+  filter: z.string().min(1).nullable(),
   sourcePosition: sourcePositionSchema,
   shuffleEnabled: z.boolean(),
   current: z

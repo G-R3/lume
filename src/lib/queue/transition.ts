@@ -30,12 +30,7 @@ export function transition(
     case "setShuffleEnabled":
       return setShuffleEnabled(state, command.enabled, context.random);
     case "selectSourceEntry":
-      return selectSourceEntry(
-        state,
-        command.source,
-        command.sourceEntryId,
-        context.availableTrackIds,
-      );
+      return selectSourceEntry(state, command, context.availableTrackIds);
     case "enqueueTrack":
       return enqueueTrack(state, command);
     case "jumpTo":
@@ -100,6 +95,7 @@ function startSession(
   return {
     source: command.source,
     sourceIdentity,
+    filter: command.filter,
     sourceEntries: [...entries],
     sourcePosition: { kind: "entry", sourceEntryId: startEntry.sourceEntryId },
     shuffleEnabled: command.shuffled,

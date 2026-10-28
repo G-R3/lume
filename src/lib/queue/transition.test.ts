@@ -12,6 +12,7 @@ it("plays each manual addition before returning to the source", () => {
     null,
     {
       type: "startSession",
+      filter: null,
       source,
       entries,
       start: { kind: "entry", sourceEntryId: 1 },
@@ -53,6 +54,7 @@ it("keeps a queue reorder when the playlist later moves one occurrence", () => {
     null,
     {
       type: "startSession",
+      filter: null,
       source,
       entries,
       start: { kind: "entry", sourceEntryId: 1 },
@@ -107,6 +109,7 @@ it("lets Previous visit source items skipped by a jump", () => {
     null,
     {
       type: "startSession",
+      filter: null,
       source: { kind: "all-tracks" },
       entries,
       start: { kind: "entry", sourceEntryId: 1 },
@@ -143,6 +146,7 @@ it("skips unavailable source items after a manual jump and Previous", () => {
     null,
     {
       type: "startSession",
+      filter: null,
       source: { kind: "all-tracks" },
       entries,
       start: { kind: "entry", sourceEntryId: 1 },
@@ -184,6 +188,7 @@ it("keeps a moved manual item when its source is rebuilt", () => {
     null,
     {
       type: "startSession",
+      filter: null,
       source,
       entries,
       start: { kind: "entry", sourceEntryId: 1 },
@@ -206,6 +211,7 @@ it("keeps a moved manual item when its source is rebuilt", () => {
     moved,
     {
       type: "startSession",
+      filter: null,
       source,
       entries,
       start: { kind: "entry", sourceEntryId: 1 },

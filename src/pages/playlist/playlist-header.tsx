@@ -16,18 +16,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePlayback } from "@/hooks/use-playback";
 import { formatTotalDuration } from "@/lib/format-duration";
-import { collectionSource } from "@/lib/queue/source";
+import { sessionSource } from "@/lib/queue/source";
 import type { TrackListItem } from "@/pages/tracks/track-list";
 
 export function PlaylistHeader({
+  filter,
   items,
   playlist,
 }: {
+  filter: string | null;
   items: readonly TrackListItem[];
   playlist: PlaylistDetails;
 }) {
   const playback = usePlayback();
-  const source = collectionSource(playlist.id);
+
+  const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
   const trackCount = playlist.tracks.length;
   const canPlay = playback.isInitialized && items.some((item) => item.track.available);
   const totalDuration = items.reduce((total, item) => total + (item.track.duration ?? 0), 0);
@@ -59,7 +62,7 @@ export function PlaylistHeader({
         >
           <Button
             disabled={!canPlay}
-            onClick={() => void playback.playSource(source)}
+            onClick={() => playback.playSource(sessionSource(source, items, filter))}
             type="button"
             variant="primary"
           >
@@ -74,7 +77,7 @@ export function PlaylistHeader({
           <Button
             aria-label="Shuffle play"
             disabled={!canPlay}
-            onClick={() => void playback.shufflePlay(source)}
+            onClick={() => playback.shufflePlay(sessionSource(source, items, filter))}
             type="button"
           >
             <ShuffleAngularIcon aria-hidden="true" className="size-3.5" data-icon="inline-start" />
