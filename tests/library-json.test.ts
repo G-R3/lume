@@ -72,7 +72,7 @@ describe("library transport from stored rows", () => {
     ]);
   });
 
-  it("sends a populated library with display fallbacks, sources, and playlists", async () => {
+  it("sends a populated library with missing tags left empty, sources, and playlists", async () => {
     await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     const failingFolder = await createTemporaryFolder("lume-failing-");
@@ -132,9 +132,9 @@ describe("library transport from stored rows", () => {
       })),
     ).toStrictEqual([
       {
-        album: "Unknown album",
-        albumArtists: ["Unknown artist"],
-        artists: ["Unknown artist"],
+        album: null,
+        albumArtists: [],
+        artists: [],
         artworkUrl: null,
         available: true,
         likedAt: null,
@@ -142,9 +142,9 @@ describe("library transport from stored rows", () => {
         url: `lume://app/media/${bare.id}`,
       },
       {
-        album: "Unknown album",
-        albumArtists: ["Unknown artist"],
-        artists: ["Unknown artist"],
+        album: null,
+        albumArtists: [],
+        artists: [],
         artworkUrl: null,
         available: false,
         likedAt: null,

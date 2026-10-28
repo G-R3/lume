@@ -56,7 +56,7 @@ export function useTrackSort() {
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-function compareText(left: string, right: string) {
+function compareText(left: string | null, right: string | null) {
   if (!left || !right) return Number(!left) - Number(!right);
 
   return collator.compare(left, right);
