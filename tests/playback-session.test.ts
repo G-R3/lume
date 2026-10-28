@@ -24,6 +24,7 @@ it("restores a saved queue paused at its position after its playlist is deleted"
     null,
     {
       type: "startSession",
+      filter: null,
       source: { kind: "playlist", playlistId: 1, title: "Deleted playlist" },
       entries: [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId })),
       start: { kind: "entry", sourceEntryId: 1 },

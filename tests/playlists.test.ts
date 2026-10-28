@@ -33,6 +33,7 @@ describe("playlist behavior", () => {
       null,
       {
         type: "startSession",
+        filter: null,
         source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
         sessionId: "session",
         entries: playlist.tracks.map((entry) => ({

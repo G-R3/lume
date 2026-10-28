@@ -31,14 +31,6 @@ type LibraryScanResult = "changed" | "none" | "unchanged";
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
 
-function displayAlbum(album: string | null) {
-  return album ?? "Unknown album";
-}
-
-function displayArtists(artists: string[]) {
-  return artists.length > 0 ? artists : ["Unknown artist"];
-}
-
 function displayAlbumArtists(albumArtists: string[], artists: string[]) {
   return albumArtists.length > 0 ? albumArtists : artists;
 }
@@ -132,7 +124,7 @@ function trackTupleFromRow(row: StoredTrackRow): TrackTuple {
     year,
   ] = row;
 
-  const artists = displayArtists(tracks.artists.mapFromDriverValue(storedArtists));
+  const artists = tracks.artists.mapFromDriverValue(storedArtists);
 
   const albumArtists = displayAlbumArtists(
     tracks.albumArtists.mapFromDriverValue(storedAlbumArtists),
@@ -141,7 +133,7 @@ function trackTupleFromRow(row: StoredTrackRow): TrackTuple {
 
   return [
     addedAt,
-    displayAlbum(album),
+    album,
     albumArtistsIfDifferent(albumArtists, artists),
     artists,
     artworkId ? getArtworkUrl(artworkId) : null,

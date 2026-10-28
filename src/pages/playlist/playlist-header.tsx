@@ -4,7 +4,7 @@ import {
   ShuffleAngularIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import type { PlaylistDetails } from "../../../shared/lib";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button } from "@/components/ui/button";
@@ -16,19 +16,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePlayback } from "@/hooks/use-playback";
 import { formatTotalDuration } from "@/lib/format-duration";
-import { collectionSource } from "@/lib/queue/source";
+import { sessionSource } from "@/lib/queue/source";
 import type { TrackListItem } from "@/pages/tracks/track-list";
 
 export function PlaylistHeader({
+  filter,
+  filterField,
   items,
   playlist,
 }: {
+  filter: string | null;
+  filterField: ReactNode;
   items: readonly TrackListItem[];
   playlist: PlaylistDetails;
 }) {
   const playback = usePlayback();
-  const source = collectionSource(playlist.id);
-  const trackCount = playlist.tracks.length;
+
+  const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
+  const trackCount = filter === null ? playlist.tracks.length : items.length;
+  const showsCount = filter !== null || trackCount > 0;
   const canPlay = playback.isInitialized && items.some((item) => item.track.available);
   const totalDuration = items.reduce((total, item) => total + (item.track.duration ?? 0), 0);
 
@@ -36,14 +42,14 @@ export function PlaylistHeader({
     <header className="flex h-22 shrink-0 items-center gap-4 pr-4 pl-6" data-slot="page-header">
       <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1">
         <h1 className="truncate text-display font-semibold text-primary">{playlist.title}</h1>
-        {(playlist.description || trackCount > 0) && (
+        {(playlist.description || showsCount) && (
           <p className="col-start-1 row-start-2 flex items-baseline gap-2 text-secondary">
             {playlist.description && (
               <span className="truncate text-body" title={playlist.description}>
                 {playlist.description}
               </span>
             )}
-            {trackCount > 0 && (
+            {showsCount && (
               <span className="shrink-0 text-meta tabular-nums">
                 {trackCount.toLocaleString()} {trackCount === 1 ? "track" : "tracks"}
                 {" · "}
@@ -52,35 +58,38 @@ export function PlaylistHeader({
             )}
           </p>
         )}
-        <div
-          aria-label="Playback actions"
-          className="col-start-2 row-start-1 flex translate-y-0.75 items-center gap-2"
-          role="group"
-        >
-          <Button
-            disabled={!canPlay}
-            onClick={() => void playback.playSource(source)}
-            type="button"
-            variant="primary"
-          >
-            <PlayIcon
-              aria-hidden="true"
-              className="size-3.5"
-              data-icon="inline-start"
-              weight="fill"
-            />
-            Play
-          </Button>
-          <Button
-            aria-label="Shuffle play"
-            disabled={!canPlay}
-            onClick={() => void playback.shufflePlay(source)}
-            type="button"
-          >
-            <ShuffleAngularIcon aria-hidden="true" className="size-3.5" data-icon="inline-start" />
-            Shuffle
-          </Button>
-          <PlaylistMenu playlist={playlist} />
+        <div className="col-start-2 row-start-1 flex translate-y-0.75 items-center gap-2">
+          {filterField}
+          <div aria-label="Playback actions" className="flex items-center gap-2" role="group">
+            <Button
+              disabled={!canPlay}
+              onClick={() => playback.playSource(sessionSource(source, items, filter))}
+              type="button"
+              variant="primary"
+            >
+              <PlayIcon
+                aria-hidden="true"
+                className="size-3.5"
+                data-icon="inline-start"
+                weight="fill"
+              />
+              Play
+            </Button>
+            <Button
+              aria-label="Shuffle play"
+              disabled={!canPlay}
+              onClick={() => playback.shufflePlay(sessionSource(source, items, filter))}
+              type="button"
+            >
+              <ShuffleAngularIcon
+                aria-hidden="true"
+                className="size-3.5"
+                data-icon="inline-start"
+              />
+              Shuffle
+            </Button>
+            <PlaylistMenu playlist={playlist} />
+          </div>
         </div>
       </div>
     </header>

@@ -202,6 +202,7 @@ it("keeps a carried source item independent of the next session's occurrence", (
     moved,
     {
       type: "startSession",
+      filter: null,
       source,
       entries,
       start: { kind: "entry", sourceEntryId: 1 },
@@ -250,6 +251,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
     null,
     {
       type: "startSession",
+      filter: null,
       source,
       entries: [
         { sourceEntryId: 11, trackId: 1 },
@@ -272,7 +274,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
 
   const selected = transition(
     manual,
-    { type: "selectSourceEntry", source, sourceEntryId: 13 },
+    { type: "selectSourceEntry", source, filter: null, sourceEntryId: 13 },
     context,
   );
 
@@ -282,7 +284,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
 
   const absent = transition(
     selected,
-    { type: "selectSourceEntry", source, sourceEntryId: 11 },
+    { type: "selectSourceEntry", source, filter: null, sourceEntryId: 11 },
     context,
   );
 
@@ -455,6 +457,7 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
     carried,
     {
       type: "startSession",
+      filter: null,
       source,
       entries,
       start: { kind: "entry", sourceEntryId: 1 },
@@ -522,6 +525,7 @@ function startPlaylist(startEntryId: number) {
     null,
     {
       type: "startSession",
+      filter: null,
       source,
       entries,
       start: { kind: "entry", sourceEntryId: startEntryId },

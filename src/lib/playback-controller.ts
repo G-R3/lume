@@ -151,17 +151,24 @@ export function createPlaybackController(dependencies: {
     commit(transition(snapshot.queue, command, { availableTrackIds, random }), options);
   };
 
-  const dispatchSessionStart = (data: SessionSource, request: SessionRequest) => {
+  const dispatchSessionStart = (view: SessionSource, request: SessionRequest) => {
     dispatch({
       type: "startSession",
-      source: data.source,
-      entries: data.entries,
+      source: view.source,
+      entries: view.entries,
+      filter: view.filter,
       sessionId: crypto.randomUUID(),
       ...request,
     });
   };
 
-  const startSession = async (
+  const startFromView = (view: SessionSource, request: SessionRequest) => {
+    if (!snapshot.isInitialized || closing) return;
+    ++actionId;
+    dispatchSessionStart(view, request);
+  };
+
+  const restartFromSource = async (
     source: SourceIdentity,
     request: SessionRequest,
     initiatingAction: number,
@@ -169,7 +176,10 @@ export function createPlaybackController(dependencies: {
   ): Promise<void> => {
     if (source.kind === "all-tracks") {
       if (snapshot.library)
-        dispatchSessionStart({ source, entries: libraryEntries(snapshot.library) }, request);
+        dispatchSessionStart(
+          { source, entries: libraryEntries(snapshot.library), filter: null },
+          request,
+        );
 
       return;
     }
@@ -187,22 +197,9 @@ export function createPlaybackController(dependencies: {
     if (closing || initiatingAction !== actionId) return;
 
     if (revision !== revisionOf(source.playlistId))
-      return startSession(source, request, initiatingAction, true);
+      return restartFromSource(source, request, initiatingAction, true);
 
     if (data) dispatchSessionStart(data, request);
-  };
-
-  const runSourceAction = (
-    source: SourceIdentity,
-    request: SessionRequest,
-    initiatingAction = ++actionId,
-  ) => {
-    if (!snapshot.isInitialized || closing) return Promise.resolve();
-
-    return startSession(source, request, initiatingAction).catch((error: Error) => {
-      if (initiatingAction === actionId)
-        setError(error.message || "Could not load playback source");
-    });
   };
 
   const advance = () => {
@@ -215,10 +212,30 @@ export function createPlaybackController(dependencies: {
 
     if (!queue || queue.current || queue.source.kind === "detached") return;
 
-    void runSourceAction(
-      queue.sourceIdentity,
-      { start: { kind: "first-available" }, shuffled: queue.shuffleEnabled, paused: true },
-      initiatingAction,
+    const request = {
+      start: { kind: "first-available" },
+      shuffled: queue.shuffleEnabled,
+      paused: true,
+    } satisfies SessionRequest;
+
+    if (queue.filter !== null) {
+      dispatchSessionStart(
+        {
+          source: queue.source,
+          entries: queue.sourceEntries.filter((entry) => tracksById.has(entry.trackId)),
+          filter: queue.filter,
+        },
+        request,
+      );
+
+      return;
+    }
+
+    void restartFromSource(queue.sourceIdentity, request, initiatingAction).catch(
+      (error: Error) => {
+        if (initiatingAction === actionId)
+          setError(error.message || "Could not load playback source");
+      },
     );
   };
 
@@ -397,21 +414,22 @@ export function createPlaybackController(dependencies: {
       if (snapshot.queue) persist(snapshot.queue, position);
     },
     pause,
-    playSource: (source: SourceIdentity) =>
-      runSourceAction(source, { start: { kind: "first-available" }, shuffled: false }),
-    playSourceEntry: (input: { source: SourceIdentity; sourceEntryId: number }) => {
-      if (!snapshot.isInitialized || closing) return Promise.resolve();
+    playSource: (view: SessionSource) =>
+      startFromView(view, { start: { kind: "first-available" }, shuffled: false }),
+    playSourceEntry: (view: SessionSource, sourceEntryId: number) => {
+      if (!snapshot.isInitialized || closing) return;
       const queue = snapshot.queue;
+      const selection = { source: view.source, filter: view.filter, sourceEntryId };
 
-      if (selectsWithinShuffledSession(queue, input.source)) {
+      if (selectsWithinShuffledSession(queue, selection)) {
         ++actionId;
-        dispatch({ type: "selectSourceEntry", ...input }, { restartAudio: true });
+        dispatch({ type: "selectSourceEntry", ...selection }, { restartAudio: true });
 
-        return Promise.resolve();
+        return;
       }
 
-      return runSourceAction(input.source, {
-        start: { kind: "entry", sourceEntryId: input.sourceEntryId },
+      startFromView(view, {
+        start: { kind: "entry", sourceEntryId },
         shuffled: queue?.shuffleEnabled ?? false,
       });
     },
@@ -435,8 +453,8 @@ export function createPlaybackController(dependencies: {
       ++actionId;
       dispatch({ type: "setShuffleEnabled", enabled });
     },
-    shufflePlay: (source: SourceIdentity) =>
-      runSourceAction(source, { start: { kind: "random" }, shuffled: true }),
+    shufflePlay: (view: SessionSource) =>
+      startFromView(view, { start: { kind: "random" }, shuffled: true }),
     subscribe: (listener: () => void) => {
       listeners.add(listener);
 

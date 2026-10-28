@@ -4,12 +4,17 @@ import type { QueueItem, QueueState, SourceEntry } from "./model";
 
 type CommandOf<Type extends QueueCommand["type"]> = Extract<QueueCommand, { type: Type }>;
 
+function followsSource(state: QueueState) {
+  return state.filter === null;
+}
+
 export function addSourceEntry(
   state: QueueState,
   { playlistId, entry, canonicalIndex = state.sourceEntries.length }: CommandOf<"sourceEntryAdded">,
   random: QueueRandom,
 ): QueueState {
   if (
+    !followsSource(state) ||
     !isActivePlaylist(state, playlistId) ||
     state.sourceEntries.some((existing) => existing.sourceEntryId === entry.sourceEntryId) ||
     !Number.isInteger(canonicalIndex) ||
@@ -94,6 +99,7 @@ export function moveSourceEntry(
   command: CommandOf<"sourceEntryMoved">,
 ): QueueState {
   if (
+    !followsSource(state) ||
     !isActivePlaylist(state, command.playlistId) ||
     command.sourceEntryId === command.targetSourceEntryId
   )
@@ -215,7 +221,7 @@ export function appendNewLibraryTracks(
   state: QueueState,
   { entries }: CommandOf<"libraryRescanned">,
 ): QueueState {
-  if (state.source.kind !== "all-tracks") return state;
+  if (!followsSource(state) || state.source.kind !== "all-tracks") return state;
 
   const known = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
   const added = entries.filter((entry) => !known.has(entry.sourceEntryId));

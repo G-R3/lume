@@ -18,15 +18,21 @@ export type SessionStart =
 export type QueueCommand =
   | {
       type: "startSession";
-      source: Exclude<SourceRef, { kind: "detached" }>;
+      source: PlayableSource;
       entries: readonly SourceEntry[];
+      filter: string | null;
       sessionId: string;
       start: SessionStart;
       shuffled: boolean;
       paused?: boolean;
     }
   | { type: "setShuffleEnabled"; enabled: boolean }
-  | { type: "selectSourceEntry"; source: SourceIdentity; sourceEntryId: number }
+  | {
+      type: "selectSourceEntry";
+      source: SourceIdentity;
+      filter: string | null;
+      sourceEntryId: number;
+    }
   | { type: "enqueueTrack"; trackId: number; queueItemId: string }
   | { type: "jumpTo"; queueItemId: string }
   | {
@@ -58,7 +64,9 @@ export type QueueCommand =
   | { type: "sourceDeleted"; playlistId: number }
   | { type: "libraryRescanned"; entries: readonly SourceEntry[] };
 
+export type PlayableSource = Exclude<SourceRef, { kind: "detached" }>;
+
 export type SessionSource = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
-  "source" | "entries"
+  "source" | "entries" | "filter"
 >;

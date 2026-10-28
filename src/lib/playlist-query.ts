@@ -32,6 +32,7 @@ export function createPlaylistReader(queryClient: QueryClient) {
           sourceEntryId: track.id,
           trackId: track.trackId,
         })),
+        filter: null,
       };
     },
   };

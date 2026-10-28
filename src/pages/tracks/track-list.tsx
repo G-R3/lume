@@ -5,6 +5,7 @@ import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import {
   type KeyboardEvent,
   memo,
+  type MouseEvent,
   type ReactNode,
   type Ref,
   useImperativeHandle,
@@ -13,7 +14,8 @@ import {
   useState,
 } from "react";
 import { usePlayback } from "@/hooks/use-playback";
-import { collectionSource } from "@/lib/queue/source";
+import type { PlayableSource } from "@/lib/queue/commands";
+import { sessionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
 import { LikeButton } from "@/components/like-button";
@@ -43,7 +45,8 @@ export type TrackListItem = {
 type TrackListProps = {
   caption: string;
   items: readonly TrackListItem[];
-  playlistId?: number;
+  source: PlayableSource;
+  filter: string | null;
   onReady?: (list: HTMLElement) => void;
   renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
@@ -57,7 +60,8 @@ const listInset = 4;
 export function TrackList({
   caption,
   items,
-  playlistId,
+  source,
+  filter,
   renderMenuItems,
   onReady,
 }: TrackListProps) {
@@ -83,7 +87,8 @@ export function TrackList({
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const bodyRef = useRef<TrackListBodyHandle>(null);
-  const isPlaylist = playlistId !== undefined;
+  const playlistId = source.kind === "playlist" ? source.playlistId : null;
+  const isPlaylist = playlistId !== null;
 
   const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
     addToPlaylistTriggerRef.current = trigger;
@@ -126,14 +131,18 @@ export function TrackList({
     );
   };
 
-  const playEntry = (sourceEntryId: number, track: Track) => {
-    if (!track.available) return;
+  const playRowAt = (index: number) => {
+    const item = items[index];
 
-    void playSourceEntry({
-      source: collectionSource(playlistId),
-      sourceEntryId,
-    });
+    if (!item?.track.available) return;
+
+    playSourceEntry(sessionSource(source, items, filter), item.sourceEntryId);
   };
+
+  const indexOfRow = (row: Element | null) =>
+    row instanceof HTMLTableRowElement
+      ? items.findIndex((item) => String(item.sourceEntryId) === row.dataset.entryId)
+      : -1;
 
   const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
   const tabStopIndex = items.length ? Math.max(0, selectedIndex) : -1;
@@ -150,11 +159,7 @@ export function TrackList({
   };
 
   const handleGridKeyDown = (event: KeyboardEvent<HTMLTableElement>) => {
-    const row = event.target;
-
-    if (!(row instanceof HTMLTableRowElement)) return;
-
-    const index = items.findIndex((item) => String(item.sourceEntryId) === row.dataset.entryId);
+    const index = indexOfRow(event.target instanceof Element ? event.target : null);
 
     if (index < 0) return;
 
@@ -177,11 +182,16 @@ export function TrackList({
     }
 
     if (event.key === "Enter") {
-      const { sourceEntryId, track } = items[index];
-
       event.preventDefault();
-      playEntry(sourceEntryId, track);
+      playRowAt(index);
     }
+  };
+
+  const handleGridDoubleClick = (event: MouseEvent<HTMLTableElement>) => {
+    const row = event.target instanceof Element ? event.target.closest("tr[data-entry-id]") : null;
+    const index = indexOfRow(row);
+
+    if (index >= 0) playRowAt(index);
   };
 
   // Every mounted row receives these actions and `renderMenuItems`. If either reads `items`, the
@@ -190,7 +200,6 @@ export function TrackList({
     addToPlaylist: openAddToPlaylist,
     addToQueue: enqueueTrack,
     createPlaylist: createPlaylistWithTrack,
-    play: playEntry,
     select: setSelectedEntryId,
     toggleLike: toggleTrackLiked,
   };
@@ -199,7 +208,7 @@ export function TrackList({
     const item = items[index];
 
     const isActive =
-      activeSourceEntryId === item.sourceEntryId && activeSourcePlaylistId === (playlistId ?? null);
+      activeSourceEntryId === item.sourceEntryId && activeSourcePlaylistId === playlistId;
 
     const isSelected = item.sourceEntryId === selectedEntryId;
 
@@ -226,6 +235,7 @@ export function TrackList({
     <div className="@container">
       <table
         className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
+        onDoubleClick={handleGridDoubleClick}
         onKeyDown={handleGridKeyDown}
         onPointerOver={showTruncatedText}
         aria-rowcount={items.length + 1}
@@ -385,7 +395,6 @@ type TrackRowActions = {
   addToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   addToQueue: (trackId: number) => void;
   createPlaylist: (track: Track) => void;
-  play: (sourceEntryId: number, track: Track) => void;
   select: (sourceEntryId: number) => void;
   toggleLike: (track: Track) => void;
 };
@@ -451,7 +460,6 @@ const TrackRow = memo(function TrackRow({
             )}
             data-entry-id={sourceEntryId}
             onClick={() => actions.select(sourceEntryId)}
-            onDoubleClick={() => actions.play(sourceEntryId, track)}
             onMouseDown={(event) => {
               if (event.detail > 1) event.preventDefault();
             }}

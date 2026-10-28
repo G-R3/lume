@@ -19,9 +19,8 @@ export type TrackMetadata = {
   year: number | null;
 };
 
-export type Track = Omit<TrackMetadata, "album"> & {
+export type Track = TrackMetadata & {
   addedAt: number;
-  album: string;
   artworkUrl: string | null;
   available: boolean;
   id: number;
