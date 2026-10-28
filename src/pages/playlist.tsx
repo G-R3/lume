@@ -1,14 +1,17 @@
 import { BackspaceIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import type { PlaylistDetails } from "../../shared/lib";
+import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
+import { FilterNoResults } from "@/components/filter-no-results";
 import { buttonVariants } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuShortcut } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useRemovePlaylistTrackMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
+import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
 import { TrackList, type TrackListItem, TrackListSkeleton } from "@/pages/tracks/track-list";
 
@@ -39,7 +42,7 @@ export function PlaylistPage() {
 
   if (playlist.data === null) return null;
 
-  return <PlaylistContent playlist={playlist.data} />;
+  return <PlaylistContent key={playlist.data.id} playlist={playlist.data} />;
 }
 
 export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
@@ -48,13 +51,27 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const { isPending: isRemovingTrack, mutate: removePlaylistTrack } =
     useRemovePlaylistTrackMutation();
 
+  const [filterText, setFilterText] = useState("");
+  const deferredFilterText = useDeferredValue(filterText);
+  const filter = playlist.tracks.length > 0 ? parseTrackFilter(deferredFilterText) : null;
+  const filterRef = useRef<FilterFieldHandle>(null);
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
+  const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
 
-  const items = playlist.tracks.flatMap((playlistTrack) => {
+  const allItems = playlist.tracks.flatMap((playlistTrack) => {
     const track = tracksById.get(playlistTrack.trackId);
 
     return track ? [{ sourceEntryId: playlistTrack.id, track }] : [];
   });
+
+  const items = filter
+    ? allItems.filter((item) => matchesTrackFilter(item.track, filter))
+    : allItems;
+
+  const clearFilter = () => {
+    setFilterText("");
+    filterRef.current?.focus();
+  };
 
   const handleRemove = (playlistTrackId: number) => {
     removePlaylistTrack(
@@ -95,7 +112,23 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PlaylistHeader filter={null} items={items} playlist={playlist} />
+      <PlaylistHeader
+        filter={filter?.normalizedText ?? null}
+        filterField={
+          playlist.tracks.length > 0 && (
+            <FilterField
+              aria-label={`Filter ${playlist.title}`}
+              className="w-56"
+              onValueChange={setFilterText}
+              placeholder="Filter tracks"
+              ref={filterRef}
+              value={filterText}
+            />
+          )
+        }
+        items={items}
+        playlist={playlist}
+      />
       {playlist.tracks.length === 0 ? (
         <div className="flex flex-1 justify-center border-t border-separator px-6 pt-24">
           <div className="flex w-100 flex-col gap-2" data-slot="playlist-empty">
@@ -114,12 +147,14 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
         <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
           <TrackList
             caption={playlist.title}
-            filter={null}
+            filter={filter?.normalizedText ?? null}
             items={items}
-            key={playlist.id}
             renderMenuItems={renderMenuItems}
-            source={{ kind: "playlist", playlistId: playlist.id, title: playlist.title }}
+            source={source}
           />
+          {filter && items.length === 0 && (
+            <FilterNoResults filterText={filter.text} onClear={clearFilter} />
+          )}
         </div>
       )}
     </main>

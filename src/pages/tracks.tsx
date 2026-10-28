@@ -1,9 +1,10 @@
-import { useLayoutEffect } from "react";
+import { useDeferredValue, useLayoutEffect, useRef, useState } from "react";
 import { TrackCount } from "@/pages/tracks/track-count";
 import { useFirstScan } from "@/hooks/use-first-scan";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import type { MusicLibrary } from "../../shared/lib";
-import { FilterField } from "@/components/filter-field";
+import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
+import { FilterNoResults } from "@/components/filter-no-results";
 import { LibraryOnboarding } from "@/components/library-onboarding";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatTotalDuration } from "@/lib/format-duration";
 import { useLibraryMutation } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
+import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { setTrackSort, sortTracks, trackSorts, useTrackSort } from "@/lib/track-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
 import { TrackList } from "@/pages/tracks/track-list";
@@ -28,6 +30,9 @@ export function TracksPage() {
   const sort = useTrackSort();
   const firstScan = useFirstScan();
   const onListReady = firstScan.onListReady;
+  const [filterText, setFilterText] = useState("");
+  const filter = parseTrackFilter(useDeferredValue(filterText));
+  const filterRef = useRef<FilterFieldHandle>(null);
 
   useLayoutEffect(() => {
     if (library.tracks.length === 0) onListReady(null);
@@ -39,13 +44,19 @@ export function TracksPage() {
 
   if (isEmpty) return <EmptyLibrary library={library} />;
 
-  const items = sortTracks(library.tracks, sort).map((track) => ({
-    sourceEntryId: track.id,
-    track,
-  }));
+  const sorted = sortTracks(library.tracks, sort);
+  const shown = filter ? sorted.filter((track) => matchesTrackFilter(track, filter)) : sorted;
+  const items = shown.map((track) => ({ sourceEntryId: track.id, track }));
+  const unavailableCount = shown.filter((track) => !track.available).length;
+  const totalDuration = shown.reduce((total, track) => total + (track.duration ?? 0), 0);
 
-  const unavailableCount = library.tracks.filter((track) => !track.available).length;
-  const totalDuration = library.tracks.reduce((total, track) => total + (track.duration ?? 0), 0);
+  const unavailableText =
+    unavailableCount > 0 ? ` · ${unavailableCount.toLocaleString()} unavailable` : "";
+
+  const clearFilter = () => {
+    setFilterText("");
+    filterRef.current?.focus();
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -59,26 +70,45 @@ export function TracksPage() {
             Tracks
           </h1>
           <p className="truncate text-meta text-secondary tabular-nums">
-            <TrackCount total={library.tracks.length} isRevealing={firstScan.isRevealing}>
-              {" · "}
-              {formatTotalDuration(totalDuration)}
-              {unavailableCount > 0 && ` · ${unavailableCount.toLocaleString()} unavailable`}
-            </TrackCount>
+            {filter ? (
+              <>
+                {shown.length.toLocaleString()} {shown.length === 1 ? "track" : "tracks"}
+                {" · "}
+                {formatTotalDuration(totalDuration)}
+                {unavailableText}
+              </>
+            ) : (
+              <TrackCount total={library.tracks.length} isRevealing={firstScan.isRevealing}>
+                {" · "}
+                {formatTotalDuration(totalDuration)}
+                {unavailableText}
+              </TrackCount>
+            )}
           </p>
         </div>
-        <FilterField aria-label="Filter tracks" className="w-56" placeholder="Filter tracks" />
+        <FilterField
+          aria-label="Filter tracks"
+          className="w-56"
+          onValueChange={setFilterText}
+          placeholder="Filter tracks"
+          ref={filterRef}
+          value={filterText}
+        />
         <SortMenu />
       </header>
       <LibraryStatus library={library} />
-      {items.length > 0 && (
+      {(items.length > 0 || filter) && (
         <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
           <TrackList
             caption="Tracks"
-            filter={null}
+            filter={filter?.normalizedText ?? null}
             items={items}
             onReady={onListReady}
             source={allTracks}
           />
+          {filter && items.length === 0 && (
+            <FilterNoResults filterText={filter.text} onClear={clearFilter} />
+          )}
         </div>
       )}
     </div>
