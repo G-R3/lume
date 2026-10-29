@@ -59,7 +59,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const filterRef = useRef<FilterFieldHandle>(null);
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
   const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
-  const [sort, sortBy] = useViewSort(source);
+  const [sort, stepSort] = useViewSort(source);
   const sorted = sortRows(source, playlistRows(playlist, tracksById), sort);
   const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
 
@@ -122,7 +122,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           )
         }
         items={items}
-        onSort={sortBy}
+        onStepSort={stepSort}
         playlist={playlist}
         sort={sort}
       />
@@ -146,7 +146,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
             caption={playlist.title}
             filter={filter?.normalizedText ?? null}
             items={items}
-            onSort={sortBy}
+            onStepSort={stepSort}
             renderMenuItems={renderMenuItems}
             sort={sort}
             source={source}

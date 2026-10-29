@@ -21,7 +21,7 @@ const allTracks = { kind: "all-tracks" } as const;
 
 export function TracksPage() {
   const library = useMusicLibrary();
-  const [sort, sortBy] = useViewSort(allTracks);
+  const [sort, stepSort] = useViewSort(allTracks);
   const firstScan = useFirstScan();
   const onListReady = firstScan.onListReady;
   const [filterText, setFilterText] = useState("");
@@ -87,7 +87,7 @@ export function TracksPage() {
           ref={filterRef}
           value={filterText}
         />
-        <SortMenu onSort={sortBy} sort={sort} />
+        <SortMenu onStepSort={stepSort} sort={sort} />
       </header>
       <LibraryStatus library={library} />
       {(items.length > 0 || filter) && (
@@ -97,7 +97,7 @@ export function TracksPage() {
             filter={filter?.normalizedText ?? null}
             items={items}
             onReady={onListReady}
-            onSort={sortBy}
+            onStepSort={stepSort}
             sort={sort}
             source={allTracks}
           />

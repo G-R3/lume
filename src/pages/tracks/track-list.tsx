@@ -51,7 +51,7 @@ type TrackListProps = {
   source: PlayableSource;
   filter: string | null;
   sort: TrackSort;
-  onSort: (field: SortField) => void;
+  onStepSort: (field: SortField) => void;
   onReady?: (list: HTMLElement) => void;
   renderMenuItems?: (item: TrackRow) => ReactNode;
 };
@@ -68,7 +68,7 @@ export function TrackList({
   source,
   filter,
   sort,
-  onSort,
+  onStepSort,
   renderMenuItems,
   onReady,
 }: TrackListProps) {
@@ -234,7 +234,7 @@ export function TrackList({
         isPlaylist={isPlaylist}
         isSelected={isSelected}
         isTabStop={item.sourceEntryId === tabStopEntryId}
-        addedAt={item.addedAt}
+        addedToListAt={item.addedToListAt}
         key={item.sourceEntryId}
         renderMenuItems={renderMenuItems}
         sourceEntryId={item.sourceEntryId}
@@ -254,7 +254,7 @@ export function TrackList({
         role="grid"
       >
         <caption className="sr-only">{caption}</caption>
-        <TrackListHead isPlaylist={isPlaylist} onSort={onSort} sort={sort} />
+        <TrackListHead isPlaylist={isPlaylist} onStepSort={onStepSort} sort={sort} />
         <TrackListBody
           count={items.length}
           onReady={onReady}
@@ -415,7 +415,7 @@ type TrackRowActions = {
 
 type TrackRowProps = {
   actions: TrackRowActions;
-  addedAt: number;
+  addedToListAt: number;
   artworkState: ArtworkState | undefined;
   canAddToQueue: boolean;
   index: number;
@@ -431,7 +431,7 @@ type TrackRowProps = {
 
 const TrackRow = memo(function TrackRow({
   actions,
-  addedAt,
+  addedToListAt,
   artworkState,
   canAddToQueue,
   index,
@@ -456,7 +456,7 @@ const TrackRow = memo(function TrackRow({
       }}
       onCreatePlaylist={() => actions.createPlaylist(track)}
     >
-      {renderMenuItems?.({ sourceEntryId, track, addedAt })}
+      {renderMenuItems?.({ sourceEntryId, track, addedToListAt })}
     </TrackRowMenuItems>
   );
 
@@ -548,7 +548,7 @@ const TrackRow = memo(function TrackRow({
           </p>
         </td>
         <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
-          {formatAddedDate(addedAt)}
+          {formatAddedDate(addedToListAt)}
         </td>
         <td
           className="pl-4"
@@ -580,11 +580,11 @@ const TrackRow = memo(function TrackRow({
 
 function TrackListHead({
   isPlaylist,
-  onSort,
+  onStepSort,
   sort,
 }: {
   isPlaylist: boolean;
-  onSort?: (field: SortField) => void;
+  onStepSort?: (field: SortField) => void;
   sort: TrackSort;
 }) {
   return (
@@ -598,19 +598,19 @@ function TrackListHead({
             #
           </th>
         )}
-        <SortableHeader buttonClassName="pl-14" field="title" onSort={onSort} sort={sort} />
+        <SortableHeader buttonClassName="pl-14" field="title" onStepSort={onStepSort} sort={sort} />
         <SortableHeader
           buttonClassName="pl-4"
           className="hidden w-[30%] @3xl:table-cell @6xl:w-100"
           field="album"
-          onSort={onSort}
+          onStepSort={onStepSort}
           sort={sort}
         />
         <SortableHeader
           buttonClassName="pl-4"
           className="hidden w-36 @3xl:table-cell"
           field="added"
-          onSort={onSort}
+          onStepSort={onStepSort}
           sort={sort}
         />
         <th className="h-8 w-8 border-b border-separator font-normal" scope="col">
@@ -620,7 +620,7 @@ function TrackListHead({
           buttonClassName="flex-row-reverse px-4"
           className="w-28"
           field="duration"
-          onSort={onSort}
+          onStepSort={onStepSort}
           sort={sort}
         />
       </tr>
@@ -632,13 +632,13 @@ function SortableHeader({
   buttonClassName,
   className,
   field,
-  onSort,
+  onStepSort,
   sort,
 }: {
   buttonClassName: string;
   className?: string;
   field: SortField;
-  onSort?: (field: SortField) => void;
+  onStepSort?: (field: SortField) => void;
   sort: TrackSort;
 }) {
   const direction = sort.field === field ? sort.direction : null;
@@ -658,7 +658,7 @@ function SortableHeader({
             : "text-primary",
           buttonClassName,
         )}
-        onClick={() => onSort?.(field)}
+        onClick={() => onStepSort?.(field)}
         type="button"
       >
         {sortFieldInfo(field).label}

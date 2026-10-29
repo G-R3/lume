@@ -10,8 +10,7 @@ import {
   type TrackSort,
 } from "./track-sort";
 
-// Read once per key, then kept here, so a failing localStorage still sorts for the session.
-const sorts = new Map<string, TrackSort>();
+const sortsInMemory = new Map<string, TrackSort>();
 
 const listeners = new Map<string, Set<() => void>>();
 
@@ -26,7 +25,7 @@ function storageKey(view: SourceIdentity) {
 }
 
 function readSort(key: string) {
-  const known = sorts.get(key);
+  const known = sortsInMemory.get(key);
 
   if (known) return known;
 
@@ -37,15 +36,15 @@ function readSort(key: string) {
   } catch {}
 
   const sort = parseTrackSort(stored);
-  sorts.set(key, sort);
+  sortsInMemory.set(key, sort);
 
   return sort;
 }
 
 function writeSort(key: string, sort: TrackSort) {
-  if (sorts.get(key) === sort) return;
+  if (sortsInMemory.get(key) === sort) return;
 
-  sorts.set(key, sort);
+  sortsInMemory.set(key, sort);
 
   try {
     if (sort === defaultSort) globalThis.localStorage?.removeItem(key);
@@ -69,7 +68,6 @@ export function getViewSort(view: SourceIdentity) {
   return readSort(storageKey(view));
 }
 
-/** Steps the view's sort from its latest value, so two quick clicks step twice. */
 export function stepViewSort(view: SourceIdentity, field: SortField) {
   stepSort(storageKey(view), field);
 }
@@ -91,7 +89,5 @@ export function useViewSort(view: SourceIdentity) {
     () => readSort(key),
   );
 
-  const sortBy = (field: SortField) => stepSort(key, field);
-
-  return [sort, sortBy] as const;
+  return [sort, (field: SortField) => stepSort(key, field)] as const;
 }

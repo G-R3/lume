@@ -65,7 +65,6 @@ export function sortFieldInfo(field: SortField) {
   return info;
 }
 
-/** Steps a field through asc, desc, then back to the default. A different field starts at asc. */
 export function nextSort(current: TrackSort, field: SortField): TrackSort {
   if (current.field !== field) return trackSort(field, "asc");
 
@@ -80,7 +79,6 @@ export function parseTrackSort(raw: string | null): TrackSort {
   return (raw !== null && internedSorts.get(raw)) || defaultSort;
 }
 
-/** "Duration" when idle, "Duration, shortest first" when the list is sorted by it. */
 export function sortName(sort: TrackSort, field: SortField) {
   const info = sortFieldInfo(field);
 
@@ -89,8 +87,7 @@ export function sortName(sort: TrackSort, field: SortField) {
   return `${info.label}, ${info.directions[sort.direction].toLowerCase()}`;
 }
 
-/** A row of a list. `addedAt` is when the track joined this list. */
-export type TrackRow = Readonly<{ sourceEntryId: number; track: Track; addedAt: number }>;
+export type TrackRow = Readonly<{ sourceEntryId: number; track: Track; addedToListAt: number }>;
 
 const libraryRowCache = new WeakMap<readonly Track[], readonly TrackRow[]>();
 
@@ -99,13 +96,16 @@ export function libraryRows(tracks: readonly Track[]): readonly TrackRow[] {
 
   if (cached) return cached;
 
-  const rows = tracks.map((track) => ({ sourceEntryId: track.id, track, addedAt: track.addedAt }));
+  const rows = tracks.map((track) => ({
+    sourceEntryId: track.id,
+    track,
+    addedToListAt: track.addedAt,
+  }));
   libraryRowCache.set(tracks, rows);
 
   return rows;
 }
 
-/** Playlist order, without entries whose track left the library. */
 export function playlistRows(
   playlist: PlaylistDetails,
   tracksById: ReadonlyMap<number, Track>,
@@ -113,7 +113,7 @@ export function playlistRows(
   return playlist.tracks.flatMap((entry) => {
     const track = tracksById.get(entry.trackId);
 
-    return track ? [{ sourceEntryId: entry.id, track, addedAt: entry.addedAt }] : [];
+    return track ? [{ sourceEntryId: entry.id, track, addedToListAt: entry.addedAt }] : [];
   });
 }
 
@@ -178,7 +178,7 @@ const fieldOrders: Record<
   }
 > = {
   added: {
-    compare: (left, right) => left.row.addedAt - right.row.addedAt,
+    compare: (left, right) => left.row.addedToListAt - right.row.addedToListAt,
     missing: () => false,
     within: noOrder,
   },
@@ -204,9 +204,7 @@ const fieldOrders: Record<
   },
 };
 
-// Missing values sort last in both directions and only the main field reverses, so the
-// direction multiplies one term. The sourceEntryId tie makes the order total.
-function rowComparator(sort: TrackSort) {
+function totalRowOrder(sort: TrackSort) {
   const order = fieldOrders[sort.field];
   const sign = sort.direction === "asc" ? 1 : -1;
 
@@ -215,12 +213,13 @@ function rowComparator(sort: TrackSort) {
     sign * order.compare(left, right) ||
     order.within(left, right) ||
     compareText(left.title, right.title) ||
-    left.row.addedAt - right.row.addedAt ||
+    left.row.addedToListAt - right.row.addedToListAt ||
     left.row.sourceEntryId - right.row.sourceEntryId;
 }
 
 function sameSortKeys(left: TrackRow, right: TrackRow) {
-  if (left.sourceEntryId !== right.sourceEntryId || left.addedAt !== right.addedAt) return false;
+  if (left.sourceEntryId !== right.sourceEntryId || left.addedToListAt !== right.addedToListAt)
+    return false;
 
   if (left.track === right.track) return true;
 
@@ -242,14 +241,13 @@ function sameRow(left: TrackRow, right: TrackRow) {
   return (
     left === right ||
     (left.track === right.track &&
-      left.addedAt === right.addedAt &&
+      left.addedToListAt === right.addedToListAt &&
       left.sourceEntryId === right.sourceEntryId)
   );
 }
 
 type SortSlot = { input: readonly TrackRow[]; order: Int32Array; output: readonly TrackRow[] };
 
-// One slot per view and sort, so a view and a playback session sorted differently both stay warm.
 const sortSlots = new Map<string, SortSlot>();
 
 function viewKey(view: SourceIdentity) {
@@ -273,7 +271,6 @@ function reuseSlot(slot: SortSlot, rows: readonly TrackRow[]): readonly TrackRow
     unchanged = false;
   }
 
-  // Equal keys at every position give the same permutation, because the comparator is total.
   const output = unchanged ? slot.output : Array.from(slot.order, (index) => rows[index]);
   slot.input = rows;
   slot.output = output;
@@ -293,7 +290,7 @@ export function sortRows(
 
   if (reused) return reused;
 
-  const compare = rowComparator(sort);
+  const compare = totalRowOrder(sort);
   const sorted = rows.map(sortKeys).sort(compare);
   const order = Int32Array.from(sorted, (keys) => keys.index);
   const output = sorted.map((keys) => keys.row);

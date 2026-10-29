@@ -8,7 +8,7 @@ function followsSource(state: QueueState) {
   return state.filter === null;
 }
 
-export function addSourceEntry(
+export function appendSourceEntry(
   state: QueueState,
   { playlistId, entry }: CommandOf<"sourceEntryAdded">,
   random: QueueRandom,
@@ -20,7 +20,6 @@ export function addSourceEntry(
   )
     return state;
 
-  // A session keeps its starting sort, so a newcomer joins the end until the next pass re-sorts it.
   const sourceQueue = [...state.sourceQueue];
   sourceQueue.splice(
     state.shuffleEnabled ? random.index(sourceQueue.length + 1) : sourceQueue.length,

@@ -24,14 +24,14 @@ export function PlaylistHeader({
   filter,
   filterField,
   items,
-  onSort,
+  onStepSort,
   playlist,
   sort,
 }: {
   filter: string | null;
   filterField: ReactNode;
   items: readonly TrackRow[];
-  onSort: (field: SortField) => void;
+  onStepSort: (field: SortField) => void;
   playlist: PlaylistDetails;
   sort: TrackSort;
 }) {
@@ -65,7 +65,7 @@ export function PlaylistHeader({
         )}
         <div className="col-start-2 row-start-1 flex translate-y-0.75 items-center gap-2">
           {filterField}
-          {playlist.tracks.length > 0 && <SortMenu onSort={onSort} sort={sort} />}
+          {playlist.tracks.length > 0 && <SortMenu onStepSort={onStepSort} sort={sort} />}
           <div aria-label="Playback actions" className="flex items-center gap-2" role="group">
             <Button
               disabled={!canPlay}

@@ -21,9 +21,7 @@ const directionLabels = [
   ...new Set(sortFields.flatMap(({ directions }) => [directions.asc, directions.desc])),
 ];
 
-// Every label sits hidden in the same grid cell, so the box is as wide as the longest one
-// and changing the sort never moves the layout around it.
-function WidestOf({ labels, shown }: { labels: readonly string[]; shown: string | null }) {
+function WidestLabelSlot({ labels, shown }: { labels: readonly string[]; shown: string | null }) {
   return (
     <span className="grid justify-items-end">
       {labels.map((label) => (
@@ -40,10 +38,10 @@ function WidestOf({ labels, shown }: { labels: readonly string[]; shown: string 
 }
 
 export function SortMenu({
-  onSort,
+  onStepSort,
   sort,
 }: {
-  onSort: (field: SortField) => void;
+  onStepSort: (field: SortField) => void;
   sort: TrackSort;
 }) {
   return (
@@ -57,11 +55,10 @@ export function SortMenu({
           />
         }
       >
-        <WidestOf labels={fieldLabels} shown={sortFieldInfo(sort.field).label} />
+        <WidestLabelSlot labels={fieldLabels} shown={sortFieldInfo(sort.field).label} />
         <SortArrow direction={sort.direction} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" finalFocus>
-        {/* Items step the sort on click, so picking the sorted field again flips it. */}
         <DropdownMenuRadioGroup value={sort.field}>
           {sortFields.map((option) => {
             const isSorted = sort.field === option.field;
@@ -71,12 +68,12 @@ export function SortMenu({
                 className="gap-4 pr-2 [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
                 closeOnClick
                 key={option.field}
-                onClick={() => onSort(option.field)}
+                onClick={() => onStepSort(option.field)}
                 value={option.field}
               >
                 {option.label}
                 <span className="ml-auto flex items-center gap-1 text-meta whitespace-nowrap text-secondary">
-                  <WidestOf
+                  <WidestLabelSlot
                     labels={directionLabels}
                     shown={isSorted ? option.directions[sort.direction] : null}
                   />

@@ -256,7 +256,7 @@ describe("sortRows", () => {
     const rows = playlistRows(playlist, new Map([early, late].map((track) => [track.id, track])));
 
     expect(
-      sortRows(freshView(), rows, defaultSort).map((row) => [row.track.title, row.addedAt]),
+      sortRows(freshView(), rows, defaultSort).map((row) => [row.track.title, row.addedToListAt]),
     ).toEqual([
       ["Imported last", 100],
       ["Imported first", 200],
@@ -300,7 +300,7 @@ describe("sortRows cache", () => {
     const tracks = library();
 
     const rebuild = (): TrackRow[] =>
-      tracks.map((track) => ({ sourceEntryId: track.id, track, addedAt: track.addedAt }));
+      tracks.map((track) => ({ sourceEntryId: track.id, track, addedToListAt: track.addedAt }));
 
     expect(sortRows(view, rebuild(), titleSort)).toBe(sortRows(view, rebuild(), titleSort));
   });
