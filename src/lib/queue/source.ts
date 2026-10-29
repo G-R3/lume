@@ -1,6 +1,5 @@
-import type { MusicLibrary } from "../../../shared/lib";
-import { libraryRows, sortRows } from "../track-sort";
-import { getViewSort } from "../view-sort";
+import type { MusicLibrary, PlaylistDetails, Track } from "../../../shared/lib";
+import { libraryRows, playlistRows, sortRows, type TrackSort } from "../track-sort";
 import type { PlayableSource, SessionSource } from "./commands";
 import type { SourceEntry, SourceIdentity } from "./model";
 
@@ -16,19 +15,25 @@ export function sessionSource(
   source: PlayableSource,
   rows: readonly { sourceEntryId: number; track: { id: number } }[],
   filter: string | null,
+  sort: TrackSort,
 ): SessionSource {
-  return {
-    source,
-    entries: rows.map((row) => ({ sourceEntryId: row.sourceEntryId, trackId: row.track.id })),
-    filter,
-  };
+  return { source, entries: rows.map(toEntry), filter, sort };
 }
 
-export function libraryEntries(library: MusicLibrary): SourceEntry[] {
-  const allTracks = { kind: "all-tracks" } as const;
+export function libraryEntries(library: MusicLibrary, sort: TrackSort): SourceEntry[] {
+  return sortRows({ kind: "all-tracks" }, libraryRows(library.tracks), sort).map(toEntry);
+}
 
-  return sortRows(allTracks, libraryRows(library.tracks), getViewSort(allTracks)).map((row) => ({
-    sourceEntryId: row.sourceEntryId,
-    trackId: row.track.id,
-  }));
+export function playlistEntries(
+  playlist: PlaylistDetails,
+  tracksById: ReadonlyMap<number, Track>,
+  sort: TrackSort,
+): SourceEntry[] {
+  const view = { kind: "playlist", playlistId: playlist.id } as const;
+
+  return sortRows(view, playlistRows(playlist, tracksById), sort).map(toEntry);
+}
+
+function toEntry(row: { sourceEntryId: number; track: { id: number } }): SourceEntry {
+  return { sourceEntryId: row.sourceEntryId, trackId: row.track.id };
 }

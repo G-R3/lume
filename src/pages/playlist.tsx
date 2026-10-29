@@ -12,6 +12,7 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useRemovePlaylistTrackMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
+import { defaultSort } from "@/lib/track-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
 import { TrackList, type TrackListItem, TrackListSkeleton } from "@/pages/tracks/track-list";
 
@@ -128,6 +129,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
         }
         items={items}
         playlist={playlist}
+        sort={defaultSort}
       />
       {playlist.tracks.length === 0 ? (
         <div className="flex flex-1 justify-center border-t border-separator px-6 pt-24">
@@ -150,6 +152,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
             filter={filter?.normalizedText ?? null}
             items={items}
             renderMenuItems={renderMenuItems}
+            sort={defaultSort}
             source={source}
           />
           {filter && items.length === 0 && (

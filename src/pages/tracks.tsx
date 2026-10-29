@@ -111,6 +111,7 @@ export function TracksPage() {
             filter={filter?.normalizedText ?? null}
             items={items}
             onReady={onListReady}
+            sort={sort}
             source={allTracks}
           />
           {filter && items.length === 0 && (

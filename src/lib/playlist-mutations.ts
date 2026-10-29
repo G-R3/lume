@@ -55,12 +55,11 @@ export function useAddTrackToPlaylistMutation() {
     onSuccess: (result, input) => {
       if (result.kind === "duplicate") return;
 
-      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, result.track);
+      commitPlaylistAddition(queryClient, input.playlistId, result.track);
       playback.applySourceChange({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { sourceEntryId: result.track.id, trackId: result.track.trackId },
-        canonicalIndex,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -76,12 +75,11 @@ export function useConfirmAddTrackToPlaylistMutation() {
     ...libraryMutationOptions,
     mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
     onSuccess: (track, input) => {
-      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, track);
+      commitPlaylistAddition(queryClient, input.playlistId, track);
       playback.applySourceChange({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { sourceEntryId: track.id, trackId: track.trackId },
-        canonicalIndex,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -140,9 +138,7 @@ function commitPlaylistAddition(
   void queryClient.cancelQueries({ queryKey: options.queryKey });
   const playlist = queryClient.getQueryData(options.queryKey);
 
-  if (!playlist) return undefined;
-
-  const canonicalIndex = playlist.tracks.filter((entry) => entry.position < track.position).length;
+  if (!playlist) return;
 
   queryClient.setQueryData(options.queryKey, () => ({
     ...playlist,
@@ -150,8 +146,6 @@ function commitPlaylistAddition(
       (left, right) => left.position - right.position,
     ),
   }));
-
-  return canonicalIndex;
 }
 
 function commitPlaylistRemoval(

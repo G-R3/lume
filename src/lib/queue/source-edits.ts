@@ -10,22 +10,17 @@ function followsSource(state: QueueState) {
 
 export function addSourceEntry(
   state: QueueState,
-  { playlistId, entry, canonicalIndex = state.sourceEntries.length }: CommandOf<"sourceEntryAdded">,
+  { playlistId, entry }: CommandOf<"sourceEntryAdded">,
   random: QueueRandom,
 ): QueueState {
   if (
     !followsSource(state) ||
     !isActivePlaylist(state, playlistId) ||
-    state.sourceEntries.some((existing) => existing.sourceEntryId === entry.sourceEntryId) ||
-    !Number.isInteger(canonicalIndex) ||
-    canonicalIndex < 0 ||
-    canonicalIndex > state.sourceEntries.length
+    state.sourceEntries.some((existing) => existing.sourceEntryId === entry.sourceEntryId)
   )
     return state;
 
-  const sourceEntries = [...state.sourceEntries];
-  sourceEntries.splice(canonicalIndex, 0, entry);
-
+  // A session keeps its starting sort, so a newcomer joins the end until the next pass re-sorts it.
   const sourceQueue = [...state.sourceQueue];
   sourceQueue.splice(
     state.shuffleEnabled ? random.index(sourceQueue.length + 1) : sourceQueue.length,
@@ -35,12 +30,8 @@ export function addSourceEntry(
 
   return {
     ...state,
-    sourceEntries,
+    sourceEntries: [...state.sourceEntries, entry],
     sourceQueue,
-    sourcePosition:
-      state.sourcePosition?.kind === "boundary" && canonicalIndex < state.sourcePosition.index
-        ? { kind: "boundary", index: state.sourcePosition.index + 1 }
-        : state.sourcePosition,
   };
 }
 

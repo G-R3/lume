@@ -96,6 +96,7 @@ function startSession(
     source: command.source,
     sourceIdentity,
     filter: command.filter,
+    sort: command.sort,
     sourceEntries: [...entries],
     sourcePosition: { kind: "entry", sourceEntryId: startEntry.sourceEntryId },
     shuffleEnabled: command.shuffled,

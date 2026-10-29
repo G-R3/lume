@@ -6,6 +6,7 @@ import { parseQueueSession, serializeQueueSession } from "./persistence";
 import { selectsWithinShuffledSession } from "./shuffle";
 import { transition } from "./transition";
 import { noRandom, queueContext } from "../../../tests/helpers/queue-context";
+import { defaultSort } from "../track-sort";
 
 const allTracks = { kind: "all-tracks" } as const;
 
@@ -34,6 +35,7 @@ function start(
     null,
     {
       type: "startSession",
+      sort: defaultSort,
       source,
       entries: entriesOf(ids),
       filter,
@@ -230,10 +232,19 @@ describe("saved sessions", () => {
     expect(restored?.state.filter).toBeNull();
   });
 
-  it("writes version 6", () => {
+  it("writes version 7 with the session's sort", () => {
     expect(JSON.parse(serializeQueueSession(start(allTracks, [1], null)))).toMatchObject({
-      version: 6,
+      version: 7,
+      state: { sort: { field: "added", direction: "asc" } },
     });
+  });
+
+  it("restores nothing from a version 6 payload, without throwing", () => {
+    const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
+    const { sort: _sort, ...v6State } = saved.state;
+    const payload = JSON.stringify({ version: 6, state: v6State });
+
+    expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
   });
 
   it("restores nothing from a version 5 payload, without throwing", () => {
@@ -244,7 +255,7 @@ describe("saved sessions", () => {
     expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
   });
 
-  it("rejects a version 6 payload without a filter", () => {
+  it("rejects a version 7 payload without a filter", () => {
     const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
     delete saved.state.filter;
 

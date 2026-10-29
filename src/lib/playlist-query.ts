@@ -1,5 +1,5 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { SessionSource } from "@/lib/queue/commands";
+import type { PlaylistDetails } from "../../shared/lib";
 
 export function playlistQueryOptions(playlistId: number) {
   return queryOptions({
@@ -12,28 +12,16 @@ export function playlistQueryOptions(playlistId: number) {
 
 export function createPlaylistReader(queryClient: QueryClient) {
   return {
-    read: async (playlistId: number, refresh: boolean): Promise<SessionSource | null> => {
+    read: async (playlistId: number, refresh: boolean): Promise<PlaylistDetails | null> => {
       const options = playlistQueryOptions(playlistId);
 
       if (refresh) await queryClient.cancelQueries({ queryKey: options.queryKey });
 
       const cached = refresh ? undefined : queryClient.getQueryData(options.queryKey);
 
-      const playlist =
-        cached !== undefined && !queryClient.getQueryState(options.queryKey)?.isInvalidated
-          ? cached
-          : await queryClient.fetchQuery({ ...options, staleTime: refresh ? 0 : Infinity });
-
-      if (!playlist) return null;
-
-      return {
-        source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
-        entries: playlist.tracks.map((track) => ({
-          sourceEntryId: track.id,
-          trackId: track.trackId,
-        })),
-        filter: null,
-      };
+      return cached !== undefined && !queryClient.getQueryState(options.queryKey)?.isInvalidated
+        ? cached
+        : queryClient.fetchQuery({ ...options, staleTime: refresh ? 0 : Infinity });
     },
   };
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { trackSortSchema } from "../track-sort";
 
 export const databaseId = z.number().int().positive().safe();
 
@@ -45,6 +46,7 @@ export const queueStateSchema = z.object({
   sourceEntries: z.array(sourceEntrySchema).readonly(),
   sourceIdentity: sourceIdentitySchema,
   filter: z.string().min(1).nullable(),
+  sort: trackSortSchema,
   sourcePosition: sourcePositionSchema,
   shuffleEnabled: z.boolean(),
   current: z

@@ -19,6 +19,7 @@ import {
   removePlaylistTrack,
 } from "../electron/playlists";
 import { queueContext } from "./helpers/queue-context";
+import { defaultSort } from "../src/lib/track-sort";
 
 describe("playlist behavior", () => {
   it("keeps the current track and queues a new addition after removing the playing entry", async () => {
@@ -33,6 +34,7 @@ describe("playlist behavior", () => {
       null,
       {
         type: "startSession",
+        sort: defaultSort,
         filter: null,
         source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
         sessionId: "session",

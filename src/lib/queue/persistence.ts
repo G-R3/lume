@@ -21,7 +21,7 @@ const savedItemSchema = z.union([
 type SavedItem = z.input<typeof savedItemSchema>;
 
 const savedSessionSchema = z.object({
-  version: z.literal(6),
+  version: z.literal(7),
   state: queueStateSchema.extend({
     sourceEntries: z.array(z.tuple([databaseId, databaseId])),
     current: queueStateSchema.shape.current.unwrap().extend({ item: savedItemSchema }).nullable(),
@@ -42,7 +42,7 @@ export function serializeQueueSession(state: QueueState) {
   const save = (item: QueueItem) => saveItem(state, trackIdsByEntry, item);
 
   return JSON.stringify({
-    version: 6,
+    version: 7,
     state: {
       ...state,
       sourceEntries: state.sourceEntries.map((entry) => [entry.sourceEntryId, entry.trackId]),

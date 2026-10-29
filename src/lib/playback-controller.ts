@@ -1,11 +1,12 @@
-import type { LumeApi, MusicLibrary } from "../../shared/lib";
+import type { LumeApi, MusicLibrary, PlaylistDetails } from "../../shared/lib";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueueRandom, SessionSource } from "@/lib/queue/commands";
 import type { QueueState, SourceIdentity } from "@/lib/queue/model";
 import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistence";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
-import { libraryEntries } from "@/lib/queue/source";
+import { libraryEntries, playlistEntries } from "@/lib/queue/source";
+import { defaultSort, type TrackSort } from "@/lib/track-sort";
 import { transition } from "@/lib/queue/transition";
 
 type Snapshot = {
@@ -47,7 +48,7 @@ export function createPlaybackController(dependencies: {
   };
   storage: LumeApi["playbackSession"];
   playlistReader: {
-    read: (playlistId: number, refresh: boolean) => Promise<SessionSource | null>;
+    read: (playlistId: number, refresh: boolean) => Promise<PlaylistDetails | null>;
   };
   random: () => number;
 }) {
@@ -157,6 +158,7 @@ export function createPlaybackController(dependencies: {
       source: view.source,
       entries: view.entries,
       filter: view.filter,
+      sort: view.sort,
       sessionId: crypto.randomUUID(),
       ...request,
     });
@@ -170,6 +172,7 @@ export function createPlaybackController(dependencies: {
 
   const restartFromSource = async (
     source: SourceIdentity,
+    sort: TrackSort,
     request: SessionRequest,
     initiatingAction: number,
     refresh = false,
@@ -177,7 +180,7 @@ export function createPlaybackController(dependencies: {
     if (source.kind === "all-tracks") {
       if (snapshot.library)
         dispatchSessionStart(
-          { source, entries: libraryEntries(snapshot.library), filter: null },
+          { source, entries: libraryEntries(snapshot.library, sort), filter: null, sort },
           request,
         );
 
@@ -197,9 +200,18 @@ export function createPlaybackController(dependencies: {
     if (closing || initiatingAction !== actionId) return;
 
     if (revision !== revisionOf(source.playlistId))
-      return restartFromSource(source, request, initiatingAction, true);
+      return restartFromSource(source, sort, request, initiatingAction, true);
 
-    if (data) dispatchSessionStart(data, request);
+    if (data)
+      dispatchSessionStart(
+        {
+          source: { kind: "playlist", playlistId: data.id, title: data.title },
+          entries: playlistEntries(data, tracksById, sort),
+          filter: null,
+          sort,
+        },
+        request,
+      );
   };
 
   const advance = () => {
@@ -224,6 +236,7 @@ export function createPlaybackController(dependencies: {
           source: queue.source,
           entries: queue.sourceEntries.filter((entry) => tracksById.has(entry.trackId)),
           filter: queue.filter,
+          sort: queue.sort,
         },
         request,
       );
@@ -231,7 +244,7 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    void restartFromSource(queue.sourceIdentity, request, initiatingAction).catch(
+    void restartFromSource(queue.sourceIdentity, queue.sort, request, initiatingAction).catch(
       (error: Error) => {
         if (initiatingAction === actionId)
           setError(error.message || "Could not load playback source");
@@ -297,7 +310,10 @@ export function createPlaybackController(dependencies: {
     publish({ ...snapshot, library });
 
     if (sessionRestoreStarted) {
-      dispatch({ type: "libraryRescanned", entries: libraryEntries(library) });
+      dispatch({
+        type: "libraryRescanned",
+        entries: libraryEntries(library, snapshot.queue?.sort ?? defaultSort),
+      });
 
       if (
         snapshot.queue?.current &&
@@ -320,7 +336,10 @@ export function createPlaybackController(dependencies: {
         if (restored) {
           const queue = transition(
             restored.state,
-            { type: "libraryRescanned", entries: libraryEntries(latestLibrary) },
+            {
+              type: "libraryRescanned",
+              entries: libraryEntries(latestLibrary, restored.state.sort),
+            },
             { availableTrackIds, random },
           );
 

@@ -17,6 +17,7 @@ import {
 import { usePlayback } from "@/hooks/use-playback";
 import { formatTotalDuration } from "@/lib/format-duration";
 import { sessionSource } from "@/lib/queue/source";
+import type { TrackSort } from "@/lib/track-sort";
 import type { TrackListItem } from "@/pages/tracks/track-list";
 
 export function PlaylistHeader({
@@ -24,11 +25,13 @@ export function PlaylistHeader({
   filterField,
   items,
   playlist,
+  sort,
 }: {
   filter: string | null;
   filterField: ReactNode;
   items: readonly TrackListItem[];
   playlist: PlaylistDetails;
+  sort: TrackSort;
 }) {
   const playback = usePlayback();
 
@@ -63,7 +66,7 @@ export function PlaylistHeader({
           <div aria-label="Playback actions" className="flex items-center gap-2" role="group">
             <Button
               disabled={!canPlay}
-              onClick={() => playback.playSource(sessionSource(source, items, filter))}
+              onClick={() => playback.playSource(sessionSource(source, items, filter, sort))}
               type="button"
               variant="primary"
             >
@@ -78,7 +81,7 @@ export function PlaylistHeader({
             <Button
               aria-label="Shuffle play"
               disabled={!canPlay}
-              onClick={() => playback.shufflePlay(sessionSource(source, items, filter))}
+              onClick={() => playback.shufflePlay(sessionSource(source, items, filter, sort))}
               type="button"
             >
               <ShuffleAngularIcon

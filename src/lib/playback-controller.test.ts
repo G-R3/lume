@@ -10,7 +10,8 @@ import { createPlaybackController } from "./playback-controller";
 import type { PlaybackRequest } from "./playback-media";
 import type { SessionSource } from "./queue/commands";
 import { parseQueueSession } from "./queue/persistence";
-import { libraryEntries } from "./queue/source";
+import { libraryEntries, playlistEntries } from "./queue/source";
+import { defaultSort, trackSort } from "./track-sort";
 
 it.each([
   { source: "all-tracks", shuffled: false, expectedTracks: [3, 4] },
@@ -26,14 +27,12 @@ it.each([
       id: 1,
       title: "Source",
       description: null,
-      tracks: tracks
-        .slice(0, 3)
-        .map((item, position) => ({
-          id: item.id + 10,
-          trackId: item.id,
-          position,
-          addedAt: position,
-        })),
+      tracks: tracks.slice(0, 3).map((item, position) => ({
+        id: item.id + 10,
+        trackId: item.id,
+        position,
+        addedAt: position,
+      })),
     } satisfies PlaylistDetails;
 
     const playback = createTestPlayback({ loadPlaylist: () => Promise.resolve(playlist) });
@@ -785,6 +784,7 @@ it.each([false, true])(
         { sourceEntryId: 12, trackId: 2 },
       ],
       filter: "a",
+      sort: defaultSort,
     } satisfies SessionSource;
 
     playback.controller.playSourceEntry(view, 12);
@@ -863,6 +863,203 @@ it("keeps a restored filtered session unchanged through rescans", async () => {
   expect(restored.controller.getSnapshot().queue).toBe(queue);
 });
 
+const titleSort = trackSort("title", "asc");
+
+function fruitLibrary(extra: Track[] = []): MusicLibrary {
+  return {
+    kind: "library",
+    playlists: [{ id: 1, title: "Fruit", description: null, trackCount: 3 }],
+    sources: [],
+    tracks: [
+      { ...track(1), title: "Cherry", duration: 10, addedAt: 1 },
+      { ...track(2), title: "apple", duration: 30, addedAt: 2 },
+      { ...track(3), title: "Banana", duration: 20, addedAt: 3 },
+      ...extra,
+    ],
+  };
+}
+
+function trackIds(entries: readonly { trackId: number }[] | undefined) {
+  return entries?.map((entry) => entry.trackId);
+}
+
+it("restarts an all-tracks session in the order it started, not the view's later sort", async () => {
+  const playback = createTestPlayback();
+  const library = fruitLibrary();
+  playback.controller.syncLibrary(library);
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  playback.controller.playSourceEntry(
+    {
+      source: { kind: "all-tracks" },
+      entries: libraryEntries(library, titleSort),
+      filter: null,
+      sort: titleSort,
+    },
+    1,
+  );
+  const durationView = libraryEntries(library, trackSort("duration", "asc"));
+  playback.controller.next();
+
+  expect(trackIds(durationView)).toEqual([1, 3, 2]);
+  expect(playback.controller.getSnapshot().queue).toMatchObject({
+    sort: titleSort,
+    status: "paused",
+    current: { item: { trackId: 2 } },
+  });
+  expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([2, 3, 1]);
+});
+
+it("appends rescanned tracks at the end, in the session's order", async () => {
+  const playback = createTestPlayback();
+  const library = fruitLibrary();
+  playback.controller.syncLibrary(library);
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  playback.controller.playSourceEntry(
+    {
+      source: { kind: "all-tracks" },
+      entries: libraryEntries(library, titleSort),
+      filter: null,
+      sort: titleSort,
+    },
+    2,
+  );
+  playback.controller.syncLibrary(
+    fruitLibrary([
+      { ...track(4), title: "Date", addedAt: 4 },
+      { ...track(5), title: "Aardvark", addedAt: 5 },
+    ]),
+  );
+
+  const queue = playback.controller.getSnapshot().queue;
+  expect(trackIds(queue?.sourceEntries)).toEqual([2, 3, 1, 5, 4]);
+  expect(trackIds(queue?.sourceQueue)).toEqual([3, 1, 5, 4]);
+});
+
+it("re-reads a playlist at queue end sorted by the session's sort, using membership time", async () => {
+  const newestFirst = trackSort("added", "desc");
+
+  const entry = (id: number, trackId: number, position: number, addedAt: number) => ({
+    id,
+    trackId,
+    position,
+    addedAt,
+  });
+
+  const playlist = {
+    id: 1,
+    title: "Fruit",
+    description: null,
+    tracks: [entry(11, 1, 0, 100), entry(12, 2, 1, 300), entry(13, 3, 2, 200)],
+  } satisfies PlaylistDetails;
+
+  let current: PlaylistDetails = playlist;
+  const playback = createTestPlayback({ loadPlaylist: () => Promise.resolve(current) });
+  const library = fruitLibrary([{ ...track(4), title: "Date", addedAt: 4 }]);
+  playback.controller.syncLibrary(library);
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
+  playback.controller.playSourceEntry(
+    {
+      source: { kind: "playlist", playlistId: 1, title: "Fruit" },
+      entries: playlistEntries(playlist, tracksById, newestFirst),
+      filter: null,
+      sort: newestFirst,
+    },
+    11,
+  );
+  current = { ...playlist, tracks: [...playlist.tracks, entry(14, 4, 3, 50)] };
+  playback.controller.next();
+
+  await expect
+    .poll(() => trackIds(playback.controller.getSnapshot().queue?.sourceEntries))
+    .toEqual([2, 3, 1, 4]);
+  expect(playback.controller.getSnapshot().queue).toMatchObject({
+    sort: newestFirst,
+    current: { item: { trackId: 2 } },
+  });
+});
+
+it("appends a playlist addition to a sorted session", async () => {
+  const playlist = {
+    id: 1,
+    title: "Fruit",
+    description: null,
+    tracks: [1, 2, 3].map((trackId, position) => ({
+      id: trackId + 10,
+      trackId,
+      position,
+      addedAt: position,
+    })),
+  } satisfies PlaylistDetails;
+
+  const playback = createTestPlayback({ loadPlaylist: () => Promise.resolve(playlist) });
+  const library = fruitLibrary([{ ...track(4), title: "Aardvark", addedAt: 4 }]);
+  playback.controller.syncLibrary(library);
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
+  playback.controller.playSourceEntry(
+    {
+      source: { kind: "playlist", playlistId: 1, title: "Fruit" },
+      entries: playlistEntries(playlist, tracksById, titleSort),
+      filter: null,
+      sort: titleSort,
+    },
+    12,
+  );
+  playback.controller.applySourceChange({
+    type: "sourceEntryAdded",
+    playlistId: 1,
+    entry: { sourceEntryId: 14, trackId: 4 },
+  });
+
+  const queue = playback.controller.getSnapshot().queue;
+  expect(trackIds(queue?.sourceEntries)).toEqual([2, 3, 1, 4]);
+  expect(trackIds(queue?.sourceQueue)).toEqual([3, 1, 4]);
+});
+
+it("restores a session's sort after a relaunch", async () => {
+  const titleDesc = trackSort("title", "desc");
+  const original = createTestPlayback();
+  const library = fruitLibrary();
+  original.controller.syncLibrary(library);
+  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  original.controller.playSourceEntry(
+    {
+      source: { kind: "all-tracks" },
+      entries: libraryEntries(library, titleDesc),
+      filter: null,
+      sort: titleDesc,
+    },
+    1,
+  );
+  original.controller.flush();
+  const saved = original.flushes.at(-1) ?? null;
+
+  const restored = createTestPlayback({
+    storage: {
+      load: () => Promise.resolve(saved),
+      save: () => Promise.resolve(),
+      savePosition: () => Promise.resolve(),
+      flush: () => {},
+    },
+  });
+
+  restored.controller.syncLibrary(
+    fruitLibrary([
+      { ...track(4), title: "Aardvark", addedAt: 4 },
+      { ...track(5), title: "Zucchini", addedAt: 5 },
+    ]),
+  );
+  await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
+
+  expect(restored.controller.getSnapshot().queue?.sort).toEqual(titleDesc);
+  expect(trackIds(restored.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 3, 2, 5, 4]);
+});
+
 it("restores no queue and shows no error for a version 5 session", async () => {
   const original = createTestPlayback();
   original.controller.syncLibrary(libraryOf([1, 2]));
@@ -901,6 +1098,7 @@ function tracksView(ids: readonly number[], filter: string | null): SessionSourc
     source: { kind: "all-tracks" },
     entries: ids.map((id) => ({ sourceEntryId: id, trackId: id })),
     filter,
+    sort: defaultSort,
   };
 }
 
@@ -912,7 +1110,12 @@ function allTracks(
 
   if (!library) throw new Error("Expected a synced library");
 
-  return { source: { kind: "all-tracks" }, entries: libraryEntries(library), filter };
+  return {
+    source: { kind: "all-tracks" },
+    entries: libraryEntries(library, defaultSort),
+    filter,
+    sort: defaultSort,
+  };
 }
 
 function playlistView(playlist: PlaylistDetails, filter: string | null = null): SessionSource {
@@ -920,6 +1123,7 @@ function playlistView(playlist: PlaylistDetails, filter: string | null = null): 
     source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
     entries: playlist.tracks.map((entry) => ({ sourceEntryId: entry.id, trackId: entry.trackId })),
     filter,
+    sort: defaultSort,
   };
 }
 
@@ -1003,20 +1207,7 @@ function createTestPlayback(
       },
     },
     playlistReader: {
-      read: async (playlistId) => {
-        const playlist = (await options.loadPlaylist?.(playlistId)) ?? null;
-
-        return (
-          playlist && {
-            source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
-            entries: playlist.tracks.map((entry) => ({
-              sourceEntryId: entry.id,
-              trackId: entry.trackId,
-            })),
-            filter: null,
-          }
-        );
-      },
+      read: async (playlistId) => (await options.loadPlaylist?.(playlistId)) ?? null,
     },
     random: options.random ?? (() => 0.37),
   });

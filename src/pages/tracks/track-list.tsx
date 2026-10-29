@@ -35,6 +35,7 @@ import { formatDuration } from "@/lib/format-duration";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import { useSetTrackLiked } from "@/lib/library-query";
 import { useCreatePlaylistFromTrackMutation } from "@/lib/playlist-mutations";
+import type { TrackSort } from "@/lib/track-sort";
 import { cn } from "@/lib/utils";
 
 export type TrackListItem = {
@@ -47,6 +48,7 @@ type TrackListProps = {
   items: readonly TrackListItem[];
   source: PlayableSource;
   filter: string | null;
+  sort: TrackSort;
   onReady?: (list: HTMLElement) => void;
   renderMenuItems?: (item: TrackListItem) => ReactNode;
 };
@@ -62,6 +64,7 @@ export function TrackList({
   items,
   source,
   filter,
+  sort,
   renderMenuItems,
   onReady,
 }: TrackListProps) {
@@ -136,7 +139,7 @@ export function TrackList({
 
     if (!item?.track.available) return;
 
-    playSourceEntry(sessionSource(source, items, filter), item.sourceEntryId);
+    playSourceEntry(sessionSource(source, items, filter, sort), item.sourceEntryId);
   };
 
   const indexOfRow = (row: Element | null) =>
