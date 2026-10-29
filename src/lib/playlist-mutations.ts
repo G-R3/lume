@@ -9,6 +9,7 @@ import {
 import { usePlayback } from "@/hooks/use-playback";
 import { libraryMutationOptions, libraryQueryOptions } from "@/lib/library-query";
 import { playlistQueryOptions } from "@/lib/playlist-query";
+import { forgetViewSort } from "@/lib/view-sort";
 
 export function useCreatePlaylistMutation() {
   const queryClient = useQueryClient();
@@ -20,7 +21,10 @@ export function useCreatePlaylistMutation() {
 
       return { library: parseLibrarySnapshot(result.library), playlist: result.playlist };
     },
-    onSuccess: (result) => queryClient.setQueryData(libraryQueryOptions.queryKey, result.library),
+    onSuccess: (result) => {
+      forgetViewSort({ kind: "playlist", playlistId: result.playlist.id });
+      queryClient.setQueryData(libraryQueryOptions.queryKey, result.library);
+    },
   });
 }
 
@@ -33,6 +37,7 @@ export function useDeletePlaylistMutation() {
     mutationFn: async (playlistId: number) =>
       parseLibrarySnapshot(await window.lume.deletePlaylist(playlistId)),
     onSuccess: (library, playlistId) => {
+      forgetViewSort({ kind: "playlist", playlistId });
       commitPlaylistDeletion(queryClient, playlistId);
       playback.applySourceChange({ type: "sourceDeleted", playlistId });
       queryClient.setQueryData(libraryQueryOptions.queryKey, library);
@@ -50,12 +55,11 @@ export function useAddTrackToPlaylistMutation() {
     onSuccess: (result, input) => {
       if (result.kind === "duplicate") return;
 
-      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, result.track);
+      commitPlaylistAddition(queryClient, input.playlistId, result.track);
       playback.applySourceChange({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { sourceEntryId: result.track.id, trackId: result.track.trackId },
-        canonicalIndex,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -71,12 +75,11 @@ export function useConfirmAddTrackToPlaylistMutation() {
     ...libraryMutationOptions,
     mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
     onSuccess: (track, input) => {
-      const canonicalIndex = commitPlaylistAddition(queryClient, input.playlistId, track);
+      commitPlaylistAddition(queryClient, input.playlistId, track);
       playback.applySourceChange({
         type: "sourceEntryAdded",
         playlistId: input.playlistId,
         entry: { sourceEntryId: track.id, trackId: track.trackId },
-        canonicalIndex,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -91,6 +94,7 @@ export function useCreatePlaylistFromTrackMutation() {
     ...libraryMutationOptions,
     mutationFn: window.lume.createPlaylistFromTrack,
     onSuccess: (playlist) => {
+      forgetViewSort({ kind: "playlist", playlistId: playlist.id });
       queryClient.setQueryData(playlistQueryOptions(playlist.id).queryKey, playlist);
 
       return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
@@ -134,9 +138,7 @@ function commitPlaylistAddition(
   void queryClient.cancelQueries({ queryKey: options.queryKey });
   const playlist = queryClient.getQueryData(options.queryKey);
 
-  if (!playlist) return undefined;
-
-  const canonicalIndex = playlist.tracks.filter((entry) => entry.position < track.position).length;
+  if (!playlist) return;
 
   queryClient.setQueryData(options.queryKey, () => ({
     ...playlist,
@@ -144,8 +146,6 @@ function commitPlaylistAddition(
       (left, right) => left.position - right.position,
     ),
   }));
-
-  return canonicalIndex;
 }
 
 function commitPlaylistRemoval(

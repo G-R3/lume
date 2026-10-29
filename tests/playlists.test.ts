@@ -19,6 +19,7 @@ import {
   removePlaylistTrack,
 } from "../electron/playlists";
 import { queueContext } from "./helpers/queue-context";
+import { defaultSort } from "../src/lib/track-sort";
 
 describe("playlist behavior", () => {
   it("keeps the current track and queues a new addition after removing the playing entry", async () => {
@@ -33,6 +34,7 @@ describe("playlist behavior", () => {
       null,
       {
         type: "startSession",
+        sort: defaultSort,
         filter: null,
         source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
         sessionId: "session",
@@ -206,6 +208,31 @@ describe("playlist behavior", () => {
       "New Playlist",
       "New Playlist",
     ]);
+  });
+
+  it("returns each entry's membership time as addedAt", async () => {
+    const database = await openTestDatabase();
+    const first = await addTrack("Early");
+    const second = await addTrack("Late");
+    const playlist = createPlaylistFromTrack(first.id);
+    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: second.id });
+
+    if (addition.kind !== "added") throw new Error("Expected Late to be added");
+
+    const membershipTimes = () =>
+      database.$client
+        .prepare("SELECT id, created_at AS addedAt FROM playlist_entries ORDER BY position")
+        .all();
+
+    expect(
+      [playlist.tracks[0], addition.track].map(({ id, addedAt }) => ({ id, addedAt })),
+    ).toEqual(membershipTimes());
+
+    database.$client.prepare("UPDATE playlist_entries SET created_at = id * 1000").run();
+
+    expect(getPlaylist(playlist.id)?.tracks.map(({ id, addedAt }) => ({ id, addedAt }))).toEqual(
+      [playlist.tracks[0].id, addition.track.id].map((id) => ({ id, addedAt: id * 1000 })),
+    );
   });
 
   it("validates membership and scopes track removal to its playlist", async () => {

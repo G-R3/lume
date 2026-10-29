@@ -70,6 +70,8 @@ export type PlaylistTrackRemovalInput = {
 };
 
 export type PlaylistTrack = {
+  /** When the track joined this playlist (playlist_entries.created_at, epoch ms). */
+  addedAt: number;
   id: number;
   position: number;
   trackId: number;

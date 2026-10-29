@@ -4,6 +4,7 @@ import type { QueueState } from "./model";
 import { parseQueueSession, serializeQueueSession } from "./persistence";
 import { transition } from "./transition";
 import { noRandom, queueContext } from "../../../tests/helpers/queue-context";
+import { defaultSort } from "../track-sort";
 
 const availableTrackIds = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -105,7 +106,7 @@ it("continues after the moved source anchor while a manual song plays", () => {
   expect(transition(sequential, { type: "next" }, context)?.current?.item.trackId).toBe(5);
 });
 
-it("keeps the continuation boundary through insertions, removal, and a move", () => {
+it("keeps the continuation boundary through additions, removals, and a move", () => {
   const manual = playManualAfterShuffle(2, [5, 1, 4, 3]);
 
   const removedAnchor = transition(
@@ -116,58 +117,44 @@ it("keeps the continuation boundary through insertions, removal, and a move", ()
 
   expect(unshuffle(removedAnchor).sourceQueue.map((item) => item.trackId)).toEqual([3, 4, 5]);
 
-  const insertedBefore = transition(
+  const appended = transition(
     removedAnchor,
-    {
-      type: "sourceEntryAdded",
-      playlistId: 1,
-      entry: { sourceEntryId: 7, trackId: 7 },
-      canonicalIndex: 0,
-    },
+    { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 7, trackId: 7 } },
     insertAt(0),
   );
 
-  expect(unshuffle(insertedBefore).sourceQueue.map((item) => item.trackId)).toEqual([3, 4, 5]);
+  expect(unshuffle(appended).sourceQueue.map((item) => item.trackId)).toEqual([3, 4, 5, 7]);
 
   const removedBefore = transition(
-    insertedBefore,
+    appended,
     { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 1 },
     context,
   );
 
-  expect(unshuffle(removedBefore).sourceQueue.map((item) => item.trackId)).toEqual([3, 4, 5]);
+  expect(unshuffle(removedBefore).sourceQueue.map((item) => item.trackId)).toEqual([3, 4, 5, 7]);
 
-  const insertedAtBoundary = transition(
+  const appendedAgain = transition(
     removedBefore,
-    {
-      type: "sourceEntryAdded",
-      playlistId: 1,
-      entry: { sourceEntryId: 8, trackId: 8 },
-      canonicalIndex: 1,
-    },
+    { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 8, trackId: 8 } },
     insertAt(1),
   );
 
-  expect(unshuffle(insertedAtBoundary).sourceQueue.map((item) => item.trackId)).toEqual([
-    8, 3, 4, 5,
-  ]);
-
-  const movedBefore = transition(
-    insertedAtBoundary,
+  const movedFirst = transition(
+    appendedAgain,
     {
       type: "sourceEntryMoved",
       playlistId: 1,
-      sourceEntryId: 5,
-      targetSourceEntryId: 7,
+      sourceEntryId: 8,
+      targetSourceEntryId: 3,
       side: "before",
-      orderedSourceEntryIds: [5, 7, 8, 3, 4],
+      orderedSourceEntryIds: [8, 3, 4, 5, 7],
     },
     context,
   );
 
-  const sequential = unshuffle(movedBefore);
+  const sequential = unshuffle(movedFirst);
   expect(sequential.current?.item.trackId).toBe(6);
-  expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([8, 3, 4]);
+  expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([8, 3, 4, 5, 7]);
   expect(transition(sequential, { type: "next" }, context)?.current?.item.trackId).toBe(8);
 });
 
@@ -202,6 +189,7 @@ it("keeps a carried source item independent of the next session's occurrence", (
     moved,
     {
       type: "startSession",
+      sort: defaultSort,
       filter: null,
       source,
       entries,
@@ -251,6 +239,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
     null,
     {
       type: "startSession",
+      sort: defaultSort,
       filter: null,
       source,
       entries: [
@@ -305,7 +294,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
   expect(previous?.sourceQueue.map((item) => item.trackId)).toEqual([1, 2]);
 });
 
-it("keeps shuffle order through source edits and inserts only the new occurrence", () => {
+it("keeps shuffle order through source edits and appends only the new occurrence", () => {
   const moved = transition(
     shuffle(startPlaylist(2), [5, 1, 4, 3]),
     {
@@ -327,7 +316,6 @@ it("keeps shuffle order through source edits and inserts only the new occurrence
       type: "sourceEntryAdded",
       playlistId: 1,
       entry: { sourceEntryId: 6, trackId: 6 },
-      canonicalIndex: 3,
     },
     insertAt(2),
   );
@@ -343,7 +331,7 @@ it("keeps shuffle order through source edits and inserts only the new occurrence
   expect(removed?.sourceQueue.map((item) => item.trackId)).toEqual([5, 1, 6, 3]);
   const sequential = unshuffle(removed);
   expect(sequential.current?.item.trackId).toBe(2);
-  expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([6, 3]);
+  expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([3, 6]);
 });
 
 it("restores a shuffled pass and lets Previous return through repeated visits", () => {
@@ -457,6 +445,7 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
     carried,
     {
       type: "startSession",
+      sort: defaultSort,
       filter: null,
       source,
       entries,
@@ -525,6 +514,7 @@ function startPlaylist(startEntryId: number) {
     null,
     {
       type: "startSession",
+      sort: defaultSort,
       filter: null,
       source,
       entries,

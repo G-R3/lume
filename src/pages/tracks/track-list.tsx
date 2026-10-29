@@ -19,6 +19,7 @@ import { sessionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
 import { LikeButton } from "@/components/like-button";
+import { SortArrow } from "@/components/sort-arrow";
 import { type ArtworkState, TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,20 +36,24 @@ import { formatDuration } from "@/lib/format-duration";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import { useSetTrackLiked } from "@/lib/library-query";
 import { useCreatePlaylistFromTrackMutation } from "@/lib/playlist-mutations";
+import {
+  sortFieldInfo,
+  sortName,
+  type SortField,
+  type TrackRow,
+  type TrackSort,
+} from "@/lib/track-sort";
 import { cn } from "@/lib/utils";
-
-export type TrackListItem = {
-  sourceEntryId: number;
-  track: Track;
-};
 
 type TrackListProps = {
   caption: string;
-  items: readonly TrackListItem[];
+  items: readonly TrackRow[];
   source: PlayableSource;
   filter: string | null;
+  sort: TrackSort;
+  onStepSort: (field: SortField) => void;
   onReady?: (list: HTMLElement) => void;
-  renderMenuItems?: (item: TrackListItem) => ReactNode;
+  renderMenuItems?: (item: TrackRow) => ReactNode;
 };
 
 const rowHeight = 40;
@@ -62,6 +67,8 @@ export function TrackList({
   items,
   source,
   filter,
+  sort,
+  onStepSort,
   renderMenuItems,
   onReady,
 }: TrackListProps) {
@@ -89,6 +96,10 @@ export function TrackList({
   const bodyRef = useRef<TrackListBodyHandle>(null);
   const playlistId = source.kind === "playlist" ? source.playlistId : null;
   const isPlaylist = playlistId !== null;
+
+  useLayoutEffect(() => {
+    bodyRef.current?.scrollToTop();
+  }, [sort]);
 
   const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
     addToPlaylistTriggerRef.current = trigger;
@@ -136,7 +147,7 @@ export function TrackList({
 
     if (!item?.track.available) return;
 
-    playSourceEntry(sessionSource(source, items, filter), item.sourceEntryId);
+    playSourceEntry(sessionSource(source, items, filter, sort), item.sourceEntryId);
   };
 
   const indexOfRow = (row: Element | null) =>
@@ -223,6 +234,7 @@ export function TrackList({
         isPlaylist={isPlaylist}
         isSelected={isSelected}
         isTabStop={item.sourceEntryId === tabStopEntryId}
+        addedToListAt={item.addedToListAt}
         key={item.sourceEntryId}
         renderMenuItems={renderMenuItems}
         sourceEntryId={item.sourceEntryId}
@@ -242,7 +254,7 @@ export function TrackList({
         role="grid"
       >
         <caption className="sr-only">{caption}</caption>
-        <TrackListHead isPlaylist={isPlaylist} />
+        <TrackListHead isPlaylist={isPlaylist} onStepSort={onStepSort} sort={sort} />
         <TrackListBody
           count={items.length}
           onReady={onReady}
@@ -267,6 +279,7 @@ export function TrackList({
 type TrackListBodyHandle = {
   focusRow: (index: number, sourceEntryId: number) => void;
   rowsPerPage: () => number;
+  scrollToTop: () => void;
 };
 
 type TrackListBodyProps = {
@@ -359,6 +372,7 @@ function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackLis
     },
     rowsPerPage: () =>
       Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1),
+    scrollToTop: () => scrollContainer?.scrollTo({ top: 0 }),
   }));
 
   useLayoutEffect(focusPendingRow);
@@ -401,6 +415,7 @@ type TrackRowActions = {
 
 type TrackRowProps = {
   actions: TrackRowActions;
+  addedToListAt: number;
   artworkState: ArtworkState | undefined;
   canAddToQueue: boolean;
   index: number;
@@ -409,13 +424,14 @@ type TrackRowProps = {
   isPlaylist: boolean;
   isSelected: boolean;
   isTabStop: boolean;
-  renderMenuItems?: (item: TrackListItem) => ReactNode;
+  renderMenuItems?: (item: TrackRow) => ReactNode;
   sourceEntryId: number;
   track: Track;
 };
 
 const TrackRow = memo(function TrackRow({
   actions,
+  addedToListAt,
   artworkState,
   canAddToQueue,
   index,
@@ -440,7 +456,7 @@ const TrackRow = memo(function TrackRow({
       }}
       onCreatePlaylist={() => actions.createPlaylist(track)}
     >
-      {renderMenuItems?.({ sourceEntryId, track })}
+      {renderMenuItems?.({ sourceEntryId, track, addedToListAt })}
     </TrackRowMenuItems>
   );
 
@@ -532,7 +548,7 @@ const TrackRow = memo(function TrackRow({
           </p>
         </td>
         <td className={cn("hidden truncate pl-4 text-meta @3xl:table-cell", metadataColor)}>
-          {formatAddedDate(track.addedAt)}
+          {formatAddedDate(addedToListAt)}
         </td>
         <td
           className="pl-4"
@@ -562,7 +578,15 @@ const TrackRow = memo(function TrackRow({
   );
 });
 
-function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
+function TrackListHead({
+  isPlaylist,
+  onStepSort,
+  sort,
+}: {
+  isPlaylist: boolean;
+  onStepSort?: (field: SortField) => void;
+  sort: TrackSort;
+}) {
   return (
     <thead className="sticky top-0 z-10 text-left font-mono text-meta text-secondary">
       <tr
@@ -574,32 +598,73 @@ function TrackListHead({ isPlaylist }: { isPlaylist: boolean }) {
             #
           </th>
         )}
-        <th className="h-8 border-b border-separator pl-14 font-normal" scope="col">
-          Title
-        </th>
-        <th
-          className="hidden h-8 w-[30%] border-b border-separator pl-4 font-normal @3xl:table-cell @6xl:w-100"
-          scope="col"
-        >
-          Album
-        </th>
-        <th
-          className="hidden h-8 w-28 border-b border-separator pl-4 font-normal @3xl:table-cell"
-          scope="col"
-        >
-          Added
-        </th>
+        <SortableHeader buttonClassName="pl-14" field="title" onStepSort={onStepSort} sort={sort} />
+        <SortableHeader
+          buttonClassName="pl-4"
+          className="hidden w-[30%] @3xl:table-cell @6xl:w-100"
+          field="album"
+          onStepSort={onStepSort}
+          sort={sort}
+        />
+        <SortableHeader
+          buttonClassName="pl-4"
+          className="hidden w-36 @3xl:table-cell"
+          field="added"
+          onStepSort={onStepSort}
+          sort={sort}
+        />
         <th className="h-8 w-8 border-b border-separator font-normal" scope="col">
           <span className="sr-only">Like</span>
         </th>
-        <th
-          className="h-8 w-22 border-b border-separator pr-4 pl-4 text-right font-normal"
-          scope="col"
-        >
-          Time
-        </th>
+        <SortableHeader
+          buttonClassName="flex-row-reverse px-4"
+          className="w-28"
+          field="duration"
+          onStepSort={onStepSort}
+          sort={sort}
+        />
       </tr>
     </thead>
+  );
+}
+
+function SortableHeader({
+  buttonClassName,
+  className,
+  field,
+  onStepSort,
+  sort,
+}: {
+  buttonClassName: string;
+  className?: string;
+  field: SortField;
+  onStepSort?: (field: SortField) => void;
+  sort: TrackSort;
+}) {
+  const direction = sort.field === field ? sort.direction : null;
+
+  return (
+    <th
+      aria-sort={direction === null ? undefined : direction === "asc" ? "ascending" : "descending"}
+      className={cn("h-8 border-b border-separator p-0 font-normal", className)}
+      scope="col"
+    >
+      <button
+        aria-label={sortName(sort, field)}
+        className={cn(
+          "group/sort flex h-8 w-full cursor-pointer items-center gap-1 focus-visible:-outline-offset-2",
+          direction === null
+            ? "text-secondary hover:text-primary focus-visible:text-primary"
+            : "text-primary",
+          buttonClassName,
+        )}
+        onClick={() => onStepSort?.(field)}
+        type="button"
+      >
+        {sortFieldInfo(field).label}
+        <SortArrow direction={direction} />
+      </button>
+    </th>
   );
 }
 
@@ -612,11 +677,11 @@ const skeletonRows = [
   [128, 96, 120, 0.15],
 ];
 
-export function TrackListSkeleton({ isPlaylist }: { isPlaylist: boolean }) {
+export function TrackListSkeleton({ isPlaylist, sort }: { isPlaylist: boolean; sort: TrackSort }) {
   return (
-    <div aria-hidden="true" className="@container">
+    <div aria-hidden="true" className="@container" inert>
       <table className="w-full table-fixed border-separate border-spacing-0 px-2 select-none">
-        <TrackListHead isPlaylist={isPlaylist} />
+        <TrackListHead isPlaylist={isPlaylist} sort={sort} />
         <tbody className="before:table-row before:h-1">
           {skeletonRows.map(([title, artist, album, opacity], index) => (
             <tr className="*:h-10" key={index} style={{ opacity }}>

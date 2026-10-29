@@ -8,23 +8,17 @@ function followsSource(state: QueueState) {
   return state.filter === null;
 }
 
-export function addSourceEntry(
+export function appendSourceEntry(
   state: QueueState,
-  { playlistId, entry, canonicalIndex = state.sourceEntries.length }: CommandOf<"sourceEntryAdded">,
+  { playlistId, entry }: CommandOf<"sourceEntryAdded">,
   random: QueueRandom,
 ): QueueState {
   if (
     !followsSource(state) ||
     !isActivePlaylist(state, playlistId) ||
-    state.sourceEntries.some((existing) => existing.sourceEntryId === entry.sourceEntryId) ||
-    !Number.isInteger(canonicalIndex) ||
-    canonicalIndex < 0 ||
-    canonicalIndex > state.sourceEntries.length
+    state.sourceEntries.some((existing) => existing.sourceEntryId === entry.sourceEntryId)
   )
     return state;
-
-  const sourceEntries = [...state.sourceEntries];
-  sourceEntries.splice(canonicalIndex, 0, entry);
 
   const sourceQueue = [...state.sourceQueue];
   sourceQueue.splice(
@@ -35,12 +29,8 @@ export function addSourceEntry(
 
   return {
     ...state,
-    sourceEntries,
+    sourceEntries: [...state.sourceEntries, entry],
     sourceQueue,
-    sourcePosition:
-      state.sourcePosition?.kind === "boundary" && canonicalIndex < state.sourcePosition.index
-        ? { kind: "boundary", index: state.sourcePosition.index + 1 }
-        : state.sourcePosition,
   };
 }
 
