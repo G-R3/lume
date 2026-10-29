@@ -1,4 +1,4 @@
-import { useDeferredValue, useLayoutEffect, useRef, useState } from "react";
+import { useDeferredValue, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { TrackCount } from "@/pages/tracks/track-count";
 import { useFirstScan } from "@/hooks/use-first-scan";
 import { CaretDownIcon } from "@phosphor-icons/react";
@@ -19,7 +19,16 @@ import { formatTotalDuration } from "@/lib/format-duration";
 import { useLibraryMutation } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
-import { setTrackSort, sortTracks, trackSorts, useTrackSort } from "@/lib/track-sort";
+import {
+  getTrackSort,
+  libraryRows,
+  setTrackSort,
+  sortFieldInfo,
+  sortFields,
+  sortRows,
+  subscribeTrackSort,
+  type SortField,
+} from "@/lib/track-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
 import { TrackList } from "@/pages/tracks/track-list";
 
@@ -27,7 +36,7 @@ const allTracks = { kind: "all-tracks" } as const;
 
 export function TracksPage() {
   const library = useMusicLibrary();
-  const sort = useTrackSort();
+  const sort = useSyncExternalStore(subscribeTrackSort, getTrackSort);
   const firstScan = useFirstScan();
   const onListReady = firstScan.onListReady;
   const [filterText, setFilterText] = useState("");
@@ -44,11 +53,10 @@ export function TracksPage() {
 
   if (isEmpty) return <EmptyLibrary library={library} />;
 
-  const sorted = sortTracks(library.tracks, sort);
-  const shown = filter ? sorted.filter((track) => matchesTrackFilter(track, filter)) : sorted;
-  const items = shown.map((track) => ({ sourceEntryId: track.id, track }));
-  const unavailableCount = shown.filter((track) => !track.available).length;
-  const totalDuration = shown.reduce((total, track) => total + (track.duration ?? 0), 0);
+  const sorted = sortRows(allTracks, libraryRows(library.tracks), sort);
+  const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
+  const unavailableCount = items.filter((row) => !row.track.available).length;
+  const totalDuration = items.reduce((total, row) => total + (row.track.duration ?? 0), 0);
 
   const unavailableText =
     unavailableCount > 0 ? ` · ${unavailableCount.toLocaleString()} unavailable` : "";
@@ -72,7 +80,7 @@ export function TracksPage() {
           <p className="truncate text-meta text-secondary tabular-nums">
             {filter ? (
               <>
-                {shown.length.toLocaleString()} {shown.length === 1 ? "track" : "tracks"}
+                {items.length.toLocaleString()} {items.length === 1 ? "track" : "tracks"}
                 {" · "}
                 {formatTotalDuration(totalDuration)}
                 {unavailableText}
@@ -116,8 +124,8 @@ export function TracksPage() {
 }
 
 function SortMenu() {
-  const sort = useTrackSort();
-  const label = trackSorts.find((option) => option.value === sort)?.label;
+  const sort = useSyncExternalStore(subscribeTrackSort, getTrackSort);
+  const label = sortFieldInfo(sort.field).label;
 
   return (
     <DropdownMenu>
@@ -134,13 +142,16 @@ function SortMenu() {
         <CaretDownIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" finalFocus>
-        <DropdownMenuRadioGroup onValueChange={setTrackSort} value={sort}>
-          {trackSorts.map((option) => (
+        <DropdownMenuRadioGroup
+          onValueChange={(field: SortField) => setTrackSort(field)}
+          value={sort.field}
+        >
+          {sortFields.map((option) => (
             <DropdownMenuRadioItem
               className="pr-10"
               closeOnClick
-              key={option.value}
-              value={option.value}
+              key={option.field}
+              value={option.field}
             >
               {option.label}
             </DropdownMenuRadioItem>

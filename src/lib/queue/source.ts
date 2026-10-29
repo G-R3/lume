@@ -1,5 +1,5 @@
 import type { MusicLibrary } from "../../../shared/lib";
-import { getTrackSort, sortTracks } from "../track-sort";
+import { getTrackSort, libraryRows, sortRows } from "../track-sort";
 import type { PlayableSource, SessionSource } from "./commands";
 import type { SourceEntry, SourceIdentity } from "./model";
 
@@ -24,8 +24,7 @@ export function sessionSource(
 }
 
 export function libraryEntries(library: MusicLibrary): SourceEntry[] {
-  return sortTracks(library.tracks, getTrackSort()).map((track) => ({
-    sourceEntryId: track.id,
-    trackId: track.id,
-  }));
+  return sortRows({ kind: "all-tracks" }, libraryRows(library.tracks), getTrackSort()).map(
+    (row) => ({ sourceEntryId: row.sourceEntryId, trackId: row.track.id }),
+  );
 }
