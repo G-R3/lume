@@ -101,6 +101,7 @@ export function libraryRows(tracks: readonly Track[]): readonly TrackRow[] {
     track,
     addedToListAt: track.addedAt,
   }));
+
   libraryRowCache.set(tracks, rows);
 
   return rows;
