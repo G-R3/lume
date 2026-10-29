@@ -7,6 +7,7 @@ import {
 import { type ReactNode, useRef, useState } from "react";
 import type { PlaylistDetails } from "../../../shared/lib";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
+import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,19 +18,20 @@ import {
 import { usePlayback } from "@/hooks/use-playback";
 import { formatTotalDuration } from "@/lib/format-duration";
 import { sessionSource } from "@/lib/queue/source";
-import type { TrackSort } from "@/lib/track-sort";
-import type { TrackListItem } from "@/pages/tracks/track-list";
+import type { SortField, TrackRow, TrackSort } from "@/lib/track-sort";
 
 export function PlaylistHeader({
   filter,
   filterField,
   items,
+  onSort,
   playlist,
   sort,
 }: {
   filter: string | null;
   filterField: ReactNode;
-  items: readonly TrackListItem[];
+  items: readonly TrackRow[];
+  onSort: (field: SortField) => void;
   playlist: PlaylistDetails;
   sort: TrackSort;
 }) {
@@ -63,6 +65,7 @@ export function PlaylistHeader({
         )}
         <div className="col-start-2 row-start-1 flex translate-y-0.75 items-center gap-2">
           {filterField}
+          {playlist.tracks.length > 0 && <SortMenu onSort={onSort} sort={sort} />}
           <div aria-label="Playback actions" className="flex items-center gap-2" role="group">
             <Button
               disabled={!canPlay}

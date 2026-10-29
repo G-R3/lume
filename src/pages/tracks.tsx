@@ -1,32 +1,18 @@
 import { useDeferredValue, useLayoutEffect, useRef, useState } from "react";
 import { TrackCount } from "@/pages/tracks/track-count";
 import { useFirstScan } from "@/hooks/use-first-scan";
-import { CaretDownIcon } from "@phosphor-icons/react";
 import type { MusicLibrary } from "../../shared/lib";
 import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
 import { FilterNoResults } from "@/components/filter-no-results";
 import { LibraryOnboarding } from "@/components/library-onboarding";
+import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatTotalDuration } from "@/lib/format-duration";
 import { useLibraryMutation } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
-import {
-  libraryRows,
-  sortFieldInfo,
-  sortFields,
-  sortRows,
-  type SortField,
-  type TrackSort,
-} from "@/lib/track-sort";
+import { libraryRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
 import { TrackList } from "@/pages/tracks/track-list";
@@ -111,6 +97,7 @@ export function TracksPage() {
             filter={filter?.normalizedText ?? null}
             items={items}
             onReady={onListReady}
+            onSort={sortBy}
             sort={sort}
             source={allTracks}
           />
@@ -120,44 +107,6 @@ export function TracksPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function SortMenu({ onSort, sort }: { onSort: (field: SortField) => void; sort: TrackSort }) {
-  const label = sortFieldInfo(sort.field).label;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={`Sort: ${label}`}
-            className="gap-1 pr-1.5 pl-2 font-normal"
-            variant="ghost"
-          />
-        }
-      >
-        {label}
-        <CaretDownIcon aria-hidden="true" className="size-3" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" finalFocus>
-        <DropdownMenuRadioGroup
-          onValueChange={(field: SortField) => onSort(field)}
-          value={sort.field}
-        >
-          {sortFields.map((option) => (
-            <DropdownMenuRadioItem
-              className="pr-10"
-              closeOnClick
-              key={option.field}
-              value={option.field}
-            >
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

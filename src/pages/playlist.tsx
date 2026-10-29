@@ -12,9 +12,10 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useRemovePlaylistTrackMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
-import { defaultSort } from "@/lib/track-sort";
+import { playlistRows, sortRows, type TrackRow } from "@/lib/track-sort";
+import { useViewSort } from "@/lib/view-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
-import { TrackList, type TrackListItem, TrackListSkeleton } from "@/pages/tracks/track-list";
+import { TrackList, TrackListSkeleton } from "@/pages/tracks/track-list";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function PlaylistPage() {
     void navigate({ replace: true, to: "/" });
   }, [navigate, playlist.data, playlist.error]);
 
-  if (playlist.data === undefined) return <PlaylistPageSkeleton />;
+  if (playlist.data === undefined) return <PlaylistPageSkeleton playlistId={playlistId} />;
 
   if (playlist.data === null) return null;
 
@@ -58,16 +59,9 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const filterRef = useRef<FilterFieldHandle>(null);
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
   const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
-
-  const allItems = playlist.tracks.flatMap((playlistTrack) => {
-    const track = tracksById.get(playlistTrack.trackId);
-
-    return track ? [{ sourceEntryId: playlistTrack.id, track }] : [];
-  });
-
-  const items = filter
-    ? allItems.filter((item) => matchesTrackFilter(item.track, filter))
-    : allItems;
+  const [sort, sortBy] = useViewSort(source);
+  const sorted = sortRows(source, playlistRows(playlist, tracksById), sort);
+  const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
 
   const clearFilter = () => {
     setFilterText("");
@@ -95,7 +89,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
 
   // The compiler caches an inline callback with the JSX around it, and that JSX reads `items`.
   // Inline, a like would re-render every playlist row.
-  const renderMenuItems = (item: TrackListItem) => (
+  const renderMenuItems = (item: TrackRow) => (
     <DropdownMenuItem
       disabled={isRemovingTrack}
       onClick={() => handleRemove(item.sourceEntryId)}
@@ -128,8 +122,9 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           )
         }
         items={items}
+        onSort={sortBy}
         playlist={playlist}
-        sort={defaultSort}
+        sort={sort}
       />
       {playlist.tracks.length === 0 ? (
         <div className="flex flex-1 justify-center border-t border-separator px-6 pt-24">
@@ -151,8 +146,9 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
             caption={playlist.title}
             filter={filter?.normalizedText ?? null}
             items={items}
+            onSort={sortBy}
             renderMenuItems={renderMenuItems}
-            sort={defaultSort}
+            sort={sort}
             source={source}
           />
           {filter && items.length === 0 && (
@@ -164,7 +160,9 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   );
 }
 
-export function PlaylistPageSkeleton() {
+export function PlaylistPageSkeleton({ playlistId }: { playlistId: number }) {
+  const [sort] = useViewSort({ kind: "playlist", playlistId });
+
   return (
     <main aria-busy="true" aria-label="Loading playlist" className="flex min-h-0 flex-1 flex-col">
       <header aria-hidden="true" className="flex h-22 shrink-0 items-center gap-4 pr-4 pl-6">
@@ -177,7 +175,7 @@ export function PlaylistPageSkeleton() {
           <span className="col-start-1 my-1 h-2 w-80 rounded-xs bg-raised" />
         </span>
       </header>
-      <TrackListSkeleton isPlaylist />
+      <TrackListSkeleton isPlaylist sort={sort} />
     </main>
   );
 }
