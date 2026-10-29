@@ -1,4 +1,4 @@
-import { useDeferredValue, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useDeferredValue, useLayoutEffect, useRef, useState } from "react";
 import { TrackCount } from "@/pages/tracks/track-count";
 import { useFirstScan } from "@/hooks/use-first-scan";
 import { CaretDownIcon } from "@phosphor-icons/react";
@@ -20,15 +20,14 @@ import { useLibraryMutation } from "@/lib/library-query";
 import { getSourceName } from "@/lib/source-name";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import {
-  getTrackSort,
   libraryRows,
-  setTrackSort,
   sortFieldInfo,
   sortFields,
   sortRows,
-  subscribeTrackSort,
   type SortField,
+  type TrackSort,
 } from "@/lib/track-sort";
+import { useViewSort } from "@/lib/view-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
 import { TrackList } from "@/pages/tracks/track-list";
 
@@ -36,7 +35,7 @@ const allTracks = { kind: "all-tracks" } as const;
 
 export function TracksPage() {
   const library = useMusicLibrary();
-  const sort = useSyncExternalStore(subscribeTrackSort, getTrackSort);
+  const [sort, sortBy] = useViewSort(allTracks);
   const firstScan = useFirstScan();
   const onListReady = firstScan.onListReady;
   const [filterText, setFilterText] = useState("");
@@ -102,7 +101,7 @@ export function TracksPage() {
           ref={filterRef}
           value={filterText}
         />
-        <SortMenu />
+        <SortMenu onSort={sortBy} sort={sort} />
       </header>
       <LibraryStatus library={library} />
       {(items.length > 0 || filter) && (
@@ -123,8 +122,7 @@ export function TracksPage() {
   );
 }
 
-function SortMenu() {
-  const sort = useSyncExternalStore(subscribeTrackSort, getTrackSort);
+function SortMenu({ onSort, sort }: { onSort: (field: SortField) => void; sort: TrackSort }) {
   const label = sortFieldInfo(sort.field).label;
 
   return (
@@ -143,7 +141,7 @@ function SortMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" finalFocus>
         <DropdownMenuRadioGroup
-          onValueChange={(field: SortField) => setTrackSort(field)}
+          onValueChange={(field: SortField) => onSort(field)}
           value={sort.field}
         >
           {sortFields.map((option) => (

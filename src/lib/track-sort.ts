@@ -307,24 +307,3 @@ export function dropSortSlots(view: SourceIdentity) {
 
   for (const key of sortSlots.keys()) if (key.startsWith(prefix)) sortSlots.delete(key);
 }
-
-// Temporary global store, replaced by per-view sorts.
-let legacySort = parseTrackSort(`${globalThis.localStorage?.getItem("lume:track-sort") ?? ""}:asc`);
-
-const legacyListeners = new Set<() => void>();
-
-export function getTrackSort() {
-  return legacySort;
-}
-
-export function setTrackSort(field: SortField) {
-  legacySort = nextSort(legacySort, field);
-
-  for (const listener of legacyListeners) listener();
-}
-
-export function subscribeTrackSort(listener: () => void) {
-  legacyListeners.add(listener);
-
-  return () => legacyListeners.delete(listener);
-}

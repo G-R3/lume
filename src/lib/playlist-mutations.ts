@@ -9,6 +9,7 @@ import {
 import { usePlayback } from "@/hooks/use-playback";
 import { libraryMutationOptions, libraryQueryOptions } from "@/lib/library-query";
 import { playlistQueryOptions } from "@/lib/playlist-query";
+import { forgetViewSort } from "@/lib/view-sort";
 
 export function useCreatePlaylistMutation() {
   const queryClient = useQueryClient();
@@ -20,7 +21,10 @@ export function useCreatePlaylistMutation() {
 
       return { library: parseLibrarySnapshot(result.library), playlist: result.playlist };
     },
-    onSuccess: (result) => queryClient.setQueryData(libraryQueryOptions.queryKey, result.library),
+    onSuccess: (result) => {
+      forgetViewSort({ kind: "playlist", playlistId: result.playlist.id });
+      queryClient.setQueryData(libraryQueryOptions.queryKey, result.library);
+    },
   });
 }
 
@@ -33,6 +37,7 @@ export function useDeletePlaylistMutation() {
     mutationFn: async (playlistId: number) =>
       parseLibrarySnapshot(await window.lume.deletePlaylist(playlistId)),
     onSuccess: (library, playlistId) => {
+      forgetViewSort({ kind: "playlist", playlistId });
       commitPlaylistDeletion(queryClient, playlistId);
       playback.applySourceChange({ type: "sourceDeleted", playlistId });
       queryClient.setQueryData(libraryQueryOptions.queryKey, library);
@@ -91,6 +96,7 @@ export function useCreatePlaylistFromTrackMutation() {
     ...libraryMutationOptions,
     mutationFn: window.lume.createPlaylistFromTrack,
     onSuccess: (playlist) => {
+      forgetViewSort({ kind: "playlist", playlistId: playlist.id });
       queryClient.setQueryData(playlistQueryOptions(playlist.id).queryKey, playlist);
 
       return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
