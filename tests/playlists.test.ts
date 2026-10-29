@@ -208,6 +208,31 @@ describe("playlist behavior", () => {
     ]);
   });
 
+  it("returns each entry's membership time as addedAt", async () => {
+    const database = await openTestDatabase();
+    const first = await addTrack("Early");
+    const second = await addTrack("Late");
+    const playlist = createPlaylistFromTrack(first.id);
+    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: second.id });
+
+    if (addition.kind !== "added") throw new Error("Expected Late to be added");
+
+    const membershipTimes = () =>
+      database.$client
+        .prepare("SELECT id, created_at AS addedAt FROM playlist_entries ORDER BY position")
+        .all();
+
+    expect(
+      [playlist.tracks[0], addition.track].map(({ id, addedAt }) => ({ id, addedAt })),
+    ).toEqual(membershipTimes());
+
+    database.$client.prepare("UPDATE playlist_entries SET created_at = id * 1000").run();
+
+    expect(getPlaylist(playlist.id)?.tracks.map(({ id, addedAt }) => ({ id, addedAt }))).toEqual(
+      membershipTimes(),
+    );
+  });
+
   it("validates membership and scopes track removal to its playlist", async () => {
     await openTestDatabase();
     const track = await addTrack("Belonging");

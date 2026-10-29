@@ -28,7 +28,12 @@ it.each([
       description: null,
       tracks: tracks
         .slice(0, 3)
-        .map((item, position) => ({ id: item.id + 10, trackId: item.id, position })),
+        .map((item, position) => ({
+          id: item.id + 10,
+          trackId: item.id,
+          position,
+          addedAt: position,
+        })),
     } satisfies PlaylistDetails;
 
     const playback = createTestPlayback({ loadPlaylist: () => Promise.resolve(playlist) });
@@ -101,7 +106,7 @@ it("does not replace a new selection when the finished playlist read resolves", 
     id: 1,
     title: "Source",
     description: null,
-    tracks: [{ id: 10, trackId: 1, position: 0 }],
+    tracks: [{ id: 10, trackId: 1, position: 0, addedAt: 0 }],
   } satisfies PlaylistDetails;
 
   const playback = createTestPlayback({ loadPlaylist: () => pending });
@@ -162,7 +167,12 @@ it("keeps the active source in order through playlist edits", async () => {
     id: 1,
     title: "Source",
     description: null,
-    tracks: [1, 2, 3].map((trackId, position) => ({ id: trackId, trackId, position })),
+    tracks: [1, 2, 3].map((trackId, position) => ({
+      id: trackId,
+      trackId,
+      position,
+      addedAt: position,
+    })),
   } satisfies PlaylistDetails;
 
   const controller = createTestPlayback({
@@ -297,8 +307,8 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
     title: "Source",
     description: null,
     tracks: [
-      { id: 11, trackId: 1, position: 0 },
-      { id: 12, trackId: 2, position: 1 },
+      { id: 11, trackId: 1, position: 0, addedAt: 0 },
+      { id: 12, trackId: 2, position: 1, addedAt: 1 },
     ],
   } satisfies PlaylistDetails;
 
@@ -427,12 +437,12 @@ it("refreshes a late playlist read after a committed edit before restarting at q
     title: "Source",
     description: null,
     tracks: [
-      { id: 11, trackId: 1, position: 0 },
-      { id: 12, trackId: 2, position: 1 },
+      { id: 11, trackId: 1, position: 0, addedAt: 0 },
+      { id: 12, trackId: 2, position: 1, addedAt: 1 },
     ],
   } satisfies PlaylistDetails;
 
-  const updated = { ...original, tracks: [{ id: 12, trackId: 2, position: 0 }] };
+  const updated = { ...original, tracks: [{ id: 12, trackId: 2, position: 0, addedAt: 0 }] };
 
   const playback = createTestPlayback({
     loadPlaylist: () => (finishRead ? pending : Promise.resolve(updated)),
@@ -651,7 +661,12 @@ it("rebuilds a shuffled queue from another source and keeps the manual queue", a
     id: 1,
     title: "Source",
     description: null,
-    tracks: [1, 2, 3].map((trackId, position) => ({ id: trackId + 10, trackId, position })),
+    tracks: [1, 2, 3].map((trackId, position) => ({
+      id: trackId + 10,
+      trackId,
+      position,
+      addedAt: position,
+    })),
   } satisfies PlaylistDetails;
 
   const playback = createTestPlayback({ loadPlaylist: () => Promise.resolve(playlist) });

@@ -17,6 +17,7 @@ const playlistColumns = {
 };
 
 const playlistTrackColumns = {
+  addedAt: playlistTracks.createdAt,
   id: playlistTracks.id,
   position: playlistTracks.position,
   trackId: playlistTracks.trackId,
