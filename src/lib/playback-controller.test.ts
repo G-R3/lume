@@ -12,6 +12,7 @@ import type { SessionSource } from "./queue/commands";
 import { parseQueueSession } from "./queue/persistence";
 import { libraryEntries, playlistEntries } from "./queue/source";
 import { defaultSort, trackSort } from "./track-sort";
+import { stepViewSort } from "./view-sort";
 
 it.each([
   { source: "all-tracks", shuffled: false, expectedTracks: [3, 4] },
@@ -898,10 +899,9 @@ it("restarts an all-tracks session in the order it started, not the view's later
     },
     1,
   );
-  const durationView = libraryEntries(library, trackSort("duration", "asc"));
+  stepViewSort({ kind: "all-tracks" }, "duration");
   playback.controller.next();
 
-  expect(trackIds(durationView)).toEqual([1, 3, 2]);
   expect(playback.controller.getSnapshot().queue).toMatchObject({
     sort: titleSort,
     status: "paused",

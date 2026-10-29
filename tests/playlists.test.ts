@@ -231,7 +231,7 @@ describe("playlist behavior", () => {
     database.$client.prepare("UPDATE playlist_entries SET created_at = id * 1000").run();
 
     expect(getPlaylist(playlist.id)?.tracks.map(({ id, addedAt }) => ({ id, addedAt }))).toEqual(
-      membershipTimes(),
+      [playlist.tracks[0].id, addition.track.id].map((id) => ({ id, addedAt: id * 1000 })),
     );
   });
 
