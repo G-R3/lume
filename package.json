@@ -10,6 +10,7 @@
     "db:studio": "drizzle-kit studio",
     "db:drop": "node scripts/drop-dev-database.mjs && pnpm dev",
     "build": "tsc -b && electron-vite build",
+    "check": "tsc -b && vp lint && vitest run",
     "format": "vp fmt",
     "lint": "vp lint",
     "preview": "electron-vite preview",
