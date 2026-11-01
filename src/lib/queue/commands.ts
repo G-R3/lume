@@ -49,12 +49,8 @@ export type QueueCommand =
   | { type: "previous" }
   | { type: "playbackStarted" }
   | { type: "playbackPaused" }
-  | {
-      type: "sourceEntryAdded";
-      playlistId: number;
-      entry: SourceEntry;
-    }
-  | { type: "sourceEntryRemoved"; playlistId: number; sourceEntryId: number }
+  | { type: "sourceEntriesAdded"; playlistId: number; entries: readonly SourceEntry[] }
+  | { type: "sourceEntriesRemoved"; playlistId: number; sourceEntryIds: readonly number[] }
   | {
       type: "sourceEntryMoved";
       playlistId: number;

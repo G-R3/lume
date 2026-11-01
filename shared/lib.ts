@@ -28,9 +28,9 @@ export type Track = TrackMetadata & {
   likedAt: number | null;
 };
 
-export type TrackLikeInput = {
+export type SetTracksLikedInput = {
   liked: boolean;
-  trackId: Track["id"];
+  trackIds: readonly Track["id"][];
 };
 
 export type TrackLikeResult = {
@@ -57,16 +57,19 @@ export type PlaylistSummary = {
 export type PlaylistCreationInput = {
   description: string | null;
   title: string;
+  trackIds: readonly Track["id"][];
 };
 
-export type PlaylistTrackInput = {
+export type AddTracksToPlaylistInput = {
+  duplicates: "check" | "confirmed";
   playlistId: number;
-  trackId: number;
+  /** One entry per new membership, in order. A repeated ID adds that track again. */
+  trackIds: readonly Track["id"][];
 };
 
-export type PlaylistTrackRemovalInput = {
+export type RemovePlaylistTracksInput = {
   playlistId: number;
-  playlistTrackId: number;
+  playlistTrackIds: readonly number[];
 };
 
 export type PlaylistTrack = {
@@ -84,9 +87,9 @@ export type PlaylistDetails = {
   title: string;
 };
 
-export type AddTrackToPlaylistResult =
-  | { kind: "added"; track: PlaylistTrack }
-  | { kind: "duplicate" };
+export type AddTracksToPlaylistResult =
+  | { kind: "added"; tracks: PlaylistTrack[] }
+  | { kind: "duplicate"; alreadyInPlaylist: number };
 
 export type MusicLibrary = {
   kind: "library";
@@ -295,15 +298,13 @@ export type SavedPlaybackSession = {
 
 export type PlaylistCreationResult = {
   library: LibrarySnapshotJson;
-  playlist: PlaylistSummary;
+  playlist: PlaylistDetails;
 };
 
 export type LumeInvokeApi = {
-  addTrackToPlaylist: (input: PlaylistTrackInput) => Promise<AddTrackToPlaylistResult>;
   addSource: () => Promise<LibrarySnapshotJson>;
-  confirmAddTrackToPlaylist: (input: PlaylistTrackInput) => Promise<PlaylistTrack>;
+  addTracksToPlaylist: (input: AddTracksToPlaylistInput) => Promise<AddTracksToPlaylistResult>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
-  createPlaylistFromTrack: (trackId: number) => Promise<PlaylistDetails>;
   deletePlaylist: (playlistId: number) => Promise<LibrarySnapshotJson>;
   disableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   enableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
@@ -312,12 +313,12 @@ export type LumeInvokeApi = {
   loadPlaybackSession: () => Promise<SavedPlaybackSession | null>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
   openDataFolder: () => Promise<void>;
-  removePlaylistTrack: (input: PlaylistTrackRemovalInput) => Promise<void>;
+  removePlaylistTracks: (input: RemovePlaylistTracksInput) => Promise<void>;
   rescanSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   rescanSources: () => Promise<LibrarySnapshotJson>;
   savePlaybackPosition: (position: number) => Promise<void>;
   savePlaybackSession: (session: SavedPlaybackSession) => Promise<void>;
-  setTrackLiked: (input: TrackLikeInput) => Promise<TrackLikeResult>;
+  setTracksLiked: (input: SetTracksLikedInput) => Promise<TrackLikeResult[]>;
 };
 
 type PlaybackSessionMethod = "loadPlaybackSession" | "savePlaybackPosition" | "savePlaybackSession";
@@ -335,11 +336,9 @@ export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
 
 // Electron includes the channel name in the error text the renderer shows for a failed call.
 export const lumeChannels = {
-  addTrackToPlaylist: "lume:add-track-to-playlist",
   addSource: "lume:add-source",
-  confirmAddTrackToPlaylist: "lume:confirm-add-track-to-playlist",
+  addTracksToPlaylist: "lume:add-tracks-to-playlist",
   createPlaylist: "lume:create-playlist",
-  createPlaylistFromTrack: "lume:create-playlist-from-track",
   deletePlaylist: "lume:delete-playlist",
   disableSource: "lume:disable-source",
   enableSource: "lume:enable-source",
@@ -348,12 +347,12 @@ export const lumeChannels = {
   loadPlaybackSession: "lume:load-playback-session",
   loadPlaylist: "lume:load-playlist",
   openDataFolder: "lume:open-data-folder",
-  removePlaylistTrack: "lume:remove-playlist-track",
+  removePlaylistTracks: "lume:remove-playlist-tracks",
   rescanSource: "lume:rescan-source",
   rescanSources: "lume:rescan-sources",
   savePlaybackPosition: "lume:save-playback-position",
   savePlaybackSession: "lume:save-playback-session",
-  setTrackLiked: "lume:set-track-liked",
+  setTracksLiked: "lume:set-tracks-liked",
 } as const satisfies Record<keyof LumeInvokeApi, `lume:${string}`>;
 
 export const lumeEventChannels = {

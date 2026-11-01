@@ -1,5 +1,11 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
-import { DotsThreeIcon, GearIcon, MusicNotesIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  DotsThreeIcon,
+  GearIcon,
+  MusicNotesIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { type Ref, type RefObject, useRef, useState } from "react";
@@ -36,6 +42,7 @@ export function AppSidebar() {
   const matchRoute = useMatchRoute();
   const isTracks = Boolean(matchRoute({ to: "/" }));
   const createTriggerRef = useRef<HTMLButtonElement>(null);
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
 
   return (
     <Sidebar className="border-separator bg-raised surface-raised md:absolute! md:h-auto!">
@@ -59,7 +66,21 @@ export function AppSidebar() {
         <SidebarGroup className="px-2 pt-6 pb-0">
           <div className="flex items-center justify-between pr-1">
             <SidebarGroupLabel render={<h2 />}>Playlists</SidebarGroupLabel>
-            <CreatePlaylistDialog triggerRef={createTriggerRef} />
+            <Button
+              aria-label="Create playlist"
+              onClick={() => setIsCreatingPlaylist(true)}
+              ref={createTriggerRef}
+              size="icon-sm"
+              variant="ghost"
+            >
+              <PlusIcon aria-hidden="true" />
+            </Button>
+            <CreatePlaylistDialog
+              draft={{ title: "", trackIds: [] }}
+              finalFocus={createTriggerRef}
+              onOpenChange={setIsCreatingPlaylist}
+              open={isCreatingPlaylist}
+            />
           </div>
           <SidebarGroupContent>
             <SidebarMenu className="relative">

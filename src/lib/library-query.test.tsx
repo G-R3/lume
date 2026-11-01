@@ -1,6 +1,11 @@
 // @vitest-environment happy-dom
 
-import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
+import {
+  MutationObserver,
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+} from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -23,11 +28,13 @@ import {
   stringifyLibrary,
   getTrackUrl,
   stringifyFirstRunLibrary,
+  type SetTracksLikedInput,
   type Track,
+  type TrackLikeResult,
 } from "../../shared/lib";
 import { AppRoot } from "@/App";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { applyLibraryUpdate, libraryQueryOptions } from "./library-query";
+import { applyLibraryUpdate, libraryQueryOptions, setTracksLikedMutation } from "./library-query";
 
 const libraryKey = libraryQueryOptions.queryKey;
 
@@ -124,6 +131,98 @@ describe("library updates", () => {
     expect(libraryOf(client).sources).toEqual([source(2)]);
   });
 });
+
+describe("track likes", () => {
+  it("rolls back only the tracks a failed write still owns, then rereads the library", async () => {
+    const { client, lume, writes } = await likedLibrary([liked(1, 5), liked(2, 5)]);
+
+    const unlikeBoth = like(client, { liked: false, trackIds: [1, 2] });
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    void like(client, { liked: true, trackIds: [2] });
+    await vi.waitFor(() => expect(likedAtOf(client, 2)).not.toBeNull());
+    const newerIntent = likedAtOf(client, 2);
+
+    writes[0].reject(new Error("write failed"));
+    await expect(unlikeBoth).rejects.toThrow("write failed");
+
+    expect(likedAtOf(client, 1)).toBe(5);
+    expect(likedAtOf(client, 2)).toBe(newerIntent);
+    expect(lume.loads).toHaveLength(2);
+  });
+
+  it("keeps a newer intent for the same track when an older write succeeds", async () => {
+    const { client, writes } = await likedLibrary([track(1)]);
+
+    const likeTrack = like(client, { liked: true, trackIds: [1] });
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    const unlikeTrack = like(client, { liked: false, trackIds: [1] });
+    await vi.waitFor(() => expect(likedAtOf(client, 1)).toBeNull());
+
+    writes[0].resolve([{ likedAt: 100, trackId: 1 }]);
+    await likeTrack;
+    expect(likedAtOf(client, 1)).toBeNull();
+
+    await vi.waitFor(() => expect(writes).toHaveLength(2));
+    writes[1].resolve([{ likedAt: null, trackId: 1 }]);
+    await unlikeTrack;
+    expect(likedAtOf(client, 1)).toBeNull();
+  });
+
+  it("applies the stored time without bringing back a track removed meanwhile", async () => {
+    const { client, writes } = await likedLibrary([track(1), track(2), track(3)]);
+
+    const likeTracks = like(client, { liked: true, trackIds: [1, 2] });
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    const [first, , third] = libraryOf(client).tracks;
+    applyLibraryUpdate(client, {
+      kind: "snapshot",
+      library: json({ ...library([source(1)]), tracks: [first, third] }),
+    });
+
+    writes[0].resolve([
+      { likedAt: 100, trackId: 1 },
+      { likedAt: 100, trackId: 2 },
+    ]);
+    await likeTracks;
+
+    expect(libraryOf(client).tracks.map(({ id, likedAt }) => ({ id, likedAt }))).toEqual([
+      { id: 1, likedAt: 100 },
+      { id: 3, likedAt: null },
+    ]);
+  });
+});
+
+async function likedLibrary(tracks: Track[]) {
+  const lume = createLume();
+  const writes: ReturnType<typeof createDeferred<TrackLikeResult[]>>[] = [];
+
+  Object.assign(window.lume, {
+    setTracksLiked: () => {
+      const write = createDeferred<TrackLikeResult[]>();
+      writes.push(write);
+
+      return write.promise;
+    },
+  });
+
+  const client = observedClient();
+  lume.respond(0, { ...library([source(1)]), tracks });
+  await settle(client);
+
+  return { client, lume, writes };
+}
+
+function like(client: QueryClient, input: SetTracksLikedInput) {
+  return new MutationObserver(client, setTracksLikedMutation(client)).mutate(input);
+}
+
+function likedAtOf(client: QueryClient, trackId: number) {
+  return libraryOf(client).tracks.find((entry) => entry.id === trackId)?.likedAt;
+}
+
+function liked(id: number, likedAt: number): Track {
+  return { ...track(id), likedAt };
+}
 
 describe("app startup order", () => {
   it.each([{ strict: false }, { strict: true }])(

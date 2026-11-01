@@ -1,6 +1,5 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { DotsThreeIcon, ListPlusIcon, PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import {
   type KeyboardEvent,
@@ -19,6 +18,7 @@ import type { PlayableSource } from "@/lib/queue/commands";
 import { sessionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
+import { CreatePlaylistDialog, type PlaylistDraft } from "@/components/create-playlist-dialog";
 import { LikeButton } from "@/components/like-button";
 import { SortArrow } from "@/components/sort-arrow";
 import { type ArtworkState, TrackArtwork } from "@/components/track-artwork";
@@ -35,8 +35,7 @@ import { toast } from "@/components/ui/toast";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
 import { showTruncatedText } from "@/lib/show-truncated-text";
-import { useSetTrackLiked } from "@/lib/library-query";
-import { useCreatePlaylistFromTrackMutation } from "@/lib/playlist-mutations";
+import { useSetTracksLiked } from "@/lib/library-query";
 import {
   sortFieldInfo,
   sortName,
@@ -45,7 +44,12 @@ import {
   type TrackSort,
 } from "@/lib/track-sort";
 import { cn } from "@/lib/utils";
-import { type NavigationKey, useTrackSelection } from "@/pages/tracks/track-selection";
+import {
+  type ActionTarget,
+  type NavigationKey,
+  type TargetEntry,
+  useTrackSelection,
+} from "@/pages/tracks/track-selection";
 
 export type TrackListHandle = { clearSelection: () => void };
 
@@ -60,6 +64,8 @@ type TrackListProps = {
   ref?: Ref<TrackListHandle>;
   renderMenuItems?: (item: TrackRow) => ReactNode;
 };
+
+type TrackAction = { kind: "like"; target: ActionTarget };
 
 const navigationKeys: ReadonlySet<string> = new Set<NavigationKey>([
   "ArrowDown",
@@ -106,15 +112,12 @@ export function TrackList({
 
   const canAddToQueue = queue !== null;
 
-  const navigate = useNavigate();
-
-  const { isPending: isCreatingPlaylist, mutate: createPlaylistFromTrack } =
-    useCreatePlaylistFromTrackMutation();
-
-  const { mutate: setTrackLiked } = useSetTrackLiked();
-  const addToPlaylistTriggerRef = useRef<HTMLElement | null>(null);
+  const { mutate: setTracksLiked } = useSetTracksLiked();
+  const dialogReturnFocusRef = useRef<HTMLElement | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
+  const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
+  const [playlistDraft, setPlaylistDraft] = useState<PlaylistDraft | null>(null);
   const [selection, dispatchSelection] = useTrackSelection({ context: source, rows: items });
   const bodyRef = useRef<TrackListBodyHandle>(null);
   const regionRef = useRef<HTMLDivElement>(null);
@@ -127,44 +130,41 @@ export function TrackList({
   }, [sort]);
 
   const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
-    addToPlaylistTriggerRef.current = trigger;
+    dialogReturnFocusRef.current = trigger;
     setTrackToAdd(track);
     setIsAddToPlaylistOpen(true);
   };
 
-  const createPlaylistWithTrack = (track: Track) => {
-    createPlaylistFromTrack(track.id, {
-      onError: (error) => {
-        toast.add({
-          description: error.message,
-          priority: "high",
-          title: "Could not create playlist",
-          type: "error",
-        });
-      },
-      onSuccess: (playlist) => {
-        void navigate({
-          params: { playlistId: playlist.id },
-          to: "/playlists/$playlistId",
-        });
-      },
-    });
+  const openCreatePlaylist = (track: Track) => {
+    setPlaylistDraft({ title: track.title.trim().slice(0, 100), trackIds: [track.id] });
+    setIsCreatePlaylistOpen(true);
   };
 
-  const toggleTrackLiked = (track: Track) => {
-    setTrackLiked(
-      { liked: track.likedAt === null, trackId: track.id },
-      {
-        onError: (error) => {
-          toast.add({
-            description: error.message,
-            priority: "high",
-            title: "Could not update like",
-            type: "error",
-          });
-        },
-      },
-    );
+  const openCreatePlaylistFromMenu = (track: Track, trigger: HTMLButtonElement) => {
+    dialogReturnFocusRef.current = trigger;
+    openCreatePlaylist(track);
+  };
+
+  const run = (action: TrackAction) => {
+    switch (action.kind) {
+      case "like":
+        setTracksLiked(
+          {
+            liked: action.target.entries.some((entry) => !entry.liked),
+            trackIds: action.target.entries.map((entry) => entry.trackId),
+          },
+          {
+            onError: (error) => {
+              toast.add({
+                description: error.message,
+                priority: "high",
+                title: "Could not update like",
+                type: "error",
+              });
+            },
+          },
+        );
+    }
   };
 
   const playRowAt = (index: number) => {
@@ -298,8 +298,8 @@ export function TrackList({
   const rowActions: TrackRowActions = {
     addToPlaylist: openAddToPlaylist,
     addToQueue: enqueueTrack,
-    createPlaylist: createPlaylistWithTrack,
-    toggleLike: toggleTrackLiked,
+    createPlaylist: openCreatePlaylistFromMenu,
+    toggleLike: (entry) => run({ kind: "like", target: { context: source, entries: [entry] } }),
   };
 
   function renderTrackRow(index: number) {
@@ -317,7 +317,6 @@ export function TrackList({
         canAddToQueue={canAddToQueue}
         index={index}
         isActive={isActive}
-        isCreatingPlaylist={isCreatingPlaylist}
         isPlaylist={isPlaylist}
         isSelected={isSelected}
         isSelectionEnd={isSelected && !isSelectedAt(index + 1)}
@@ -369,11 +368,19 @@ export function TrackList({
       </table>
       {trackToAdd && (
         <AddToPlaylistDialog
-          finalFocus={addToPlaylistTriggerRef}
-          onCreatePlaylist={createPlaylistWithTrack}
+          finalFocus={dialogReturnFocusRef}
+          onCreatePlaylist={openCreatePlaylist}
           onOpenChange={setIsAddToPlaylistOpen}
           open={isAddToPlaylistOpen}
           track={trackToAdd}
+        />
+      )}
+      {playlistDraft && (
+        <CreatePlaylistDialog
+          draft={playlistDraft}
+          finalFocus={dialogReturnFocusRef}
+          onOpenChange={setIsCreatePlaylistOpen}
+          open={isCreatePlaylistOpen}
         />
       )}
     </div>
@@ -512,8 +519,8 @@ function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackLis
 type TrackRowActions = {
   addToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   addToQueue: (trackId: number) => void;
-  createPlaylist: (track: Track) => void;
-  toggleLike: (track: Track) => void;
+  createPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
+  toggleLike: (entry: TargetEntry) => void;
 };
 
 type TrackRowProps = {
@@ -523,7 +530,6 @@ type TrackRowProps = {
   canAddToQueue: boolean;
   index: number;
   isActive: boolean;
-  isCreatingPlaylist: boolean;
   isPlaylist: boolean;
   isSelected: boolean;
   isSelectionEnd: boolean;
@@ -541,7 +547,6 @@ const TrackRow = memo(function TrackRow({
   canAddToQueue,
   index,
   isActive,
-  isCreatingPlaylist,
   isPlaylist,
   isSelected,
   isSelectionEnd,
@@ -556,12 +561,13 @@ const TrackRow = memo(function TrackRow({
   const menuItems = (
     <TrackRowMenuItems
       canAddToQueue={canAddToQueue}
-      isCreatingPlaylist={isCreatingPlaylist}
       onAddToQueue={() => actions.addToQueue(track.id)}
       onAddToPlaylist={() => {
         if (menuTriggerRef.current) actions.addToPlaylist(track, menuTriggerRef.current);
       }}
-      onCreatePlaylist={() => actions.createPlaylist(track)}
+      onCreatePlaylist={() => {
+        if (menuTriggerRef.current) actions.createPlaylist(track, menuTriggerRef.current);
+      }}
     >
       {renderMenuItems?.({ sourceEntryId, track, addedToListAt })}
     </TrackRowMenuItems>
@@ -673,7 +679,14 @@ const TrackRow = memo(function TrackRow({
             )}
             label={track.likedAt === null ? `Like ${track.title}` : `Unlike ${track.title}`}
             liked={track.likedAt !== null}
-            onToggle={() => actions.toggleLike(track)}
+            onToggle={() =>
+              actions.toggleLike({
+                liked: track.likedAt !== null,
+                sourceEntryId,
+                title: track.title,
+                trackId: track.id,
+              })
+            }
             tabIndex={isTabStop ? 0 : -1}
           />
         </td>
@@ -824,14 +837,12 @@ export function TrackListSkeleton({ isPlaylist, sort }: { isPlaylist: boolean; s
 function TrackRowMenuItems({
   canAddToQueue,
   children,
-  isCreatingPlaylist,
   onAddToQueue,
   onAddToPlaylist,
   onCreatePlaylist,
 }: {
   canAddToQueue: boolean;
   children?: ReactNode;
-  isCreatingPlaylist: boolean;
   onAddToQueue: () => void;
   onAddToPlaylist: () => void;
   onCreatePlaylist: () => void;
@@ -857,9 +868,9 @@ function TrackRowMenuItems({
           P
         </DropdownMenuShortcut>
       </DropdownMenuItem>
-      <DropdownMenuItem disabled={isCreatingPlaylist} onClick={onCreatePlaylist}>
+      <DropdownMenuItem onClick={onCreatePlaylist}>
         <PlusIcon aria-hidden="true" />
-        New playlist from track
+        New playlist from track…
       </DropdownMenuItem>
       {children && (
         <>

@@ -10,12 +10,12 @@ import { z } from "zod";
 import {
   lumeChannels,
   lumeEventChannels,
+  type AddTracksToPlaylistInput,
   type LumeInvokeApi,
   type PlaylistCreationInput,
-  type PlaylistTrackInput,
-  type PlaylistTrackRemovalInput,
+  type RemovePlaylistTracksInput,
   type SavedPlaybackSession,
-  type TrackLikeInput,
+  type SetTracksLikedInput,
 } from "../shared/lib";
 import {
   disableSource,
@@ -26,44 +26,46 @@ import {
   saveSource,
   scanEnabledSources,
   scanSource,
-  setTrackLiked,
+  setTracksLiked,
 } from "./library";
 import {
-  addTrackToPlaylist,
-  confirmAddTrackToPlaylist,
+  addTracksToPlaylist,
   createPlaylist,
-  createPlaylistFromTrack,
   deletePlaylist,
   getPlaylist,
-  removePlaylistTrack,
+  removePlaylistTracks,
 } from "./playlists";
 import { loadPlaybackSession, savePlaybackPosition, savePlaybackSession } from "./playback-session";
 import { isTrustedRendererEvent } from "./protocol";
 
 const rowIdSchema = z.number("Invalid database ID").int().positive().safe();
 
+const rowIdsSchema = z.array(rowIdSchema, "Invalid database IDs");
+
 const playlistCreationSchema = z.object(
   {
     description: z.string("Invalid playlist creation input").nullable(),
     title: z.string("Invalid playlist creation input"),
+    trackIds: rowIdsSchema,
   },
   "Invalid playlist creation input",
 ) satisfies z.ZodType<PlaylistCreationInput>;
 
-const playlistTrackInputSchema = z.object({
+const addTracksToPlaylistSchema = z.object({
+  duplicates: z.enum(["check", "confirmed"]),
   playlistId: rowIdSchema,
-  trackId: rowIdSchema,
-}) satisfies z.ZodType<PlaylistTrackInput>;
+  trackIds: rowIdsSchema.min(1),
+}) satisfies z.ZodType<AddTracksToPlaylistInput>;
 
-const playlistTrackRemovalSchema = z.object({
-  playlistTrackId: rowIdSchema,
+const removePlaylistTracksSchema = z.object({
+  playlistTrackIds: rowIdsSchema.min(1),
   playlistId: rowIdSchema,
-}) satisfies z.ZodType<PlaylistTrackRemovalInput>;
+}) satisfies z.ZodType<RemovePlaylistTracksInput>;
 
-const trackLikeInputSchema = z.object({
+const setTracksLikedSchema = z.object({
   liked: z.boolean("Invalid track like input"),
-  trackId: rowIdSchema,
-}) satisfies z.ZodType<TrackLikeInput>;
+  trackIds: rowIdsSchema.min(1),
+}) satisfies z.ZodType<SetTracksLikedInput>;
 
 const playbackPositionSchema = z.number().finite().nonnegative();
 
@@ -98,17 +100,13 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
       return getLibrarySnapshotJson();
     },
-    addTrackToPlaylist: (_window, input) =>
-      addTrackToPlaylist(playlistTrackInputSchema.parse(input)),
-    confirmAddTrackToPlaylist: (_window, input) =>
-      confirmAddTrackToPlaylist(playlistTrackInputSchema.parse(input)),
+    addTracksToPlaylist: (_window, input) =>
+      addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
     createPlaylist: (_window, input) => {
       const playlist = createPlaylist(playlistCreationSchema.parse(input));
 
       return { library: getLibrarySnapshotJson(), playlist };
     },
-    createPlaylistFromTrack: (_window, trackId) =>
-      createPlaylistFromTrack(rowIdSchema.parse(trackId)),
     deletePlaylist: (_window, playlistId) => {
       deletePlaylist(rowIdSchema.parse(playlistId));
 
@@ -139,8 +137,8 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
       if (errorMessage) throw new Error(errorMessage);
     },
-    removePlaylistTrack: (_window, input) => {
-      removePlaylistTrack(playlistTrackRemovalSchema.parse(input));
+    removePlaylistTracks: (_window, input) => {
+      removePlaylistTracks(removePlaylistTracksSchema.parse(input));
     },
     rescanSource: async (_window, input) => {
       await scanSource(rowIdSchema.parse(input));
@@ -158,7 +156,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     savePlaybackSession: (_window, session) => {
       savePlaybackSession(playbackSessionSchema.parse(session));
     },
-    setTrackLiked: (_window, input) => setTrackLiked(trackLikeInputSchema.parse(input)),
+    setTracksLiked: (_window, input) => setTracksLiked(setTracksLikedSchema.parse(input)),
   } satisfies LumeHandlers;
 
   for (const [method, channel] of Object.entries(lumeChannels)) {

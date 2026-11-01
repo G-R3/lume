@@ -18,7 +18,9 @@ type Snapshot = {
 
 type SourceChange = Extract<
   QueueCommand,
-  { type: "sourceEntryAdded" | "sourceEntryRemoved" | "sourceEntryMoved" | "sourceDeleted" }
+  {
+    type: "sourceEntriesAdded" | "sourceEntriesRemoved" | "sourceEntryMoved" | "sourceDeleted";
+  }
 >;
 
 type SessionRequest = Pick<

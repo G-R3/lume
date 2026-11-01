@@ -15,10 +15,7 @@ import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import {
-  useAddTrackToPlaylistMutation,
-  useConfirmAddTrackToPlaylistMutation,
-} from "@/lib/playlist-mutations";
+import { useAddTracksToPlaylistMutation } from "@/lib/playlist-mutations";
 
 type PaletteItem = { kind: "create" } | { kind: "playlist"; playlist: PlaylistSummary };
 
@@ -42,12 +39,11 @@ export function AddToPlaylistDialog({
   track,
 }: AddToPlaylistDialogProps) {
   const library = useMusicLibrary();
-  const addTrack = useAddTrackToPlaylistMutation();
-  const confirmAddTrack = useConfirmAddTrackToPlaylistMutation();
+  const addTracks = useAddTracksToPlaylistMutation();
   const [alreadyAddedId, setAlreadyAddedId] = useState<number | null>(null);
   const [highlighted, setHighlighted] = useState<PaletteItem | undefined>();
   const [search, setSearch] = useState("");
-  const isPending = addTrack.isPending || confirmAddTrack.isPending;
+  const isPending = addTracks.isPending;
 
   const groups: PaletteGroup[] = [
     {
@@ -65,8 +61,7 @@ export function AddToPlaylistDialog({
   const handleOpenChangeComplete = (nextOpen: boolean) => {
     if (nextOpen) return;
 
-    addTrack.reset();
-    confirmAddTrack.reset();
+    addTracks.reset();
     setAlreadyAddedId(null);
     setSearch("");
   };
@@ -87,15 +82,14 @@ export function AddToPlaylistDialog({
     }
 
     const { playlist } = item;
-    const input = { playlistId: playlist.id, trackId: track.id };
 
-    if (alreadyAddedId === playlist.id) {
-      confirmAddTrack.mutate(input, { onSuccess: () => handleAdded(playlist) });
+    const input = {
+      duplicates: alreadyAddedId === playlist.id ? "confirmed" : "check",
+      playlistId: playlist.id,
+      trackIds: [track.id],
+    } as const;
 
-      return;
-    }
-
-    addTrack.mutate(input, {
+    addTracks.mutate(input, {
       onSuccess: (result) => {
         if (result.kind === "duplicate") {
           setAlreadyAddedId(playlist.id);
@@ -115,7 +109,7 @@ export function AddToPlaylistDialog({
         ? "add again"
         : "add";
 
-  const error = addTrack.error ?? confirmAddTrack.error;
+  const error = addTracks.error;
 
   const alreadyAddedTitle = library.playlists.find(
     (playlist) => playlist.id === alreadyAddedId,

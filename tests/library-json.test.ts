@@ -7,10 +7,10 @@ import {
   disableSource,
   getLibrarySnapshotJson,
   saveSource,
-  setTrackLiked,
+  setTracksLiked,
 } from "../electron/library";
 import type { ScannedTrack } from "../electron/library-files";
-import { addTrackToPlaylist, createPlaylist } from "../electron/playlists";
+import { createPlaylist } from "../electron/playlists";
 import { parseLibrarySnapshot } from "../shared/lib";
 
 describe("library transport from stored rows", () => {
@@ -110,11 +110,15 @@ describe("library transport from stored rows", () => {
     const bare = trackTitled("bare");
     const gone = trackTitled("gone");
     const tagged = trackTitled("tagged");
-    setTrackLiked({ liked: true, trackId: tagged.id });
-    const playlist = createPlaylist({ description: null, title: "Mix" });
-    const empty = createPlaylist({ description: "Notes", title: "Empty" });
-    addTrackToPlaylist({ playlistId: playlist.id, trackId: bare.id });
-    addTrackToPlaylist({ playlistId: playlist.id, trackId: tagged.id });
+    setTracksLiked({ liked: true, trackIds: [tagged.id] });
+
+    const playlist = createPlaylist({
+      description: null,
+      title: "Mix",
+      trackIds: [bare.id, tagged.id],
+    });
+
+    const empty = createPlaylist({ description: "Notes", title: "Empty", trackIds: [] });
 
     const library = readLibrary();
 

@@ -111,7 +111,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const removedAnchor = transition(
     manual,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 
@@ -119,7 +119,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const appended = transition(
     removedAnchor,
-    { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 7, trackId: 7 } },
+    { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 7, trackId: 7 }] },
     insertAt(0),
   );
 
@@ -127,7 +127,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const removedBefore = transition(
     appended,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 1 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [1] },
     context,
   );
 
@@ -135,7 +135,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const appendedAgain = transition(
     removedBefore,
-    { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 8, trackId: 8 } },
+    { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 8, trackId: 8 }] },
     insertAt(1),
   );
 
@@ -163,7 +163,7 @@ it("stops after a manual song when the deleted source anchor was last", () => {
 
   const removed = transition(
     manual,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 5 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [5] },
     context,
   );
 
@@ -202,7 +202,7 @@ it("keeps a carried source item independent of the next session's occurrence", (
 
   const removedOccurrence = transition(
     shuffle(rebuilt, [5, 2, 4, 3]),
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 
@@ -313,9 +313,9 @@ it("keeps shuffle order through source edits and appends only the new occurrence
   const added = transition(
     moved,
     {
-      type: "sourceEntryAdded",
+      type: "sourceEntriesAdded",
       playlistId: 1,
-      entry: { sourceEntryId: 6, trackId: 6 },
+      entries: [{ sourceEntryId: 6, trackId: 6 }],
     },
     insertAt(2),
   );
@@ -324,7 +324,7 @@ it("keeps shuffle order through source edits and appends only the new occurrence
 
   const removed = transition(
     added,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 4 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [4] },
     context,
   );
 
@@ -402,7 +402,7 @@ it("restores a shuffled pass and lets Previous return through repeated visits", 
 it("rejects duplicate stored queue IDs and restores valid deleted-anchor continuation", () => {
   const removed = transition(
     playManualAfterShuffle(2, [5, 1, 4, 3]),
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 
@@ -471,7 +471,7 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
 
   const deletedCurrent = transition(
     shuffle(second, [5, 1, 3, 4]),
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 

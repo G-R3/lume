@@ -1,13 +1,18 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import type {
-  AddTrackToPlaylistResult,
+  AddTracksToPlaylistInput,
+  AddTracksToPlaylistResult,
   PlaylistCreationInput,
   PlaylistDetails,
   PlaylistSummary,
-  PlaylistTrackInput,
-  PlaylistTrackRemovalInput,
+  RemovePlaylistTracksInput,
 } from "../shared/lib";
-import { getDatabase, runImmediateTransaction, type LibraryTransaction } from "./database";
+import {
+  getDatabase,
+  parameterChunks,
+  runImmediateTransaction,
+  type LibraryTransaction,
+} from "./database";
 import { playlistTracks, playlists, tracks } from "./database/schema";
 
 const playlistColumns = {
@@ -58,7 +63,7 @@ export function getPlaylist(playlistId: number): PlaylistDetails | null {
   };
 }
 
-export function createPlaylist(input: PlaylistCreationInput) {
+export function createPlaylist(input: PlaylistCreationInput): PlaylistDetails {
   const title = input.title.trim();
   const description = input.description?.trim() || null;
 
@@ -70,33 +75,8 @@ export function createPlaylist(input: PlaylistCreationInput) {
     throw new Error("Playlist descriptions cannot exceed 300 characters");
   }
 
-  const now = Date.now();
-
-  const playlist = getDatabase()
-    .insert(playlists)
-    .values({
-      createdAt: now,
-      description,
-      title,
-      updatedAt: now,
-    })
-    .returning(playlistColumns)
-    .get();
-
-  return { ...playlist, trackCount: 0 } satisfies PlaylistSummary;
-}
-
-export function createPlaylistFromTrack(trackId: number) {
   return runImmediateTransaction(getDatabase(), (transaction) => {
-    const track = transaction
-      .select({ title: tracks.title })
-      .from(tracks)
-      .where(eq(tracks.id, trackId))
-      .get();
-
-    if (!track) throw new Error("Track does not exist");
-
-    const trackTitle = track.title.trim();
+    requireTracks(transaction, input.trackIds);
 
     const now = Date.now();
 
@@ -104,20 +84,17 @@ export function createPlaylistFromTrack(trackId: number) {
       .insert(playlists)
       .values({
         createdAt: now,
-        description: null,
-        title: trackTitle.length > 0 && trackTitle.length <= 100 ? trackTitle : "New Playlist",
+        description,
+        title,
         updatedAt: now,
       })
       .returning(playlistColumns)
       .get();
 
-    const playlistTrack = appendPlaylistTrack(
-      transaction,
-      { playlistId: playlist.id, trackId },
-      now,
-    );
-
-    return { ...playlist, tracks: [playlistTrack] } satisfies PlaylistDetails;
+    return {
+      ...playlist,
+      tracks: appendPlaylistTracks(transaction, playlist.id, input.trackIds, now),
+    };
   });
 }
 
@@ -131,57 +108,67 @@ export function deletePlaylist(playlistId: number) {
   if (!playlist) throw new Error("Playlist does not exist");
 }
 
-export function addTrackToPlaylist(input: PlaylistTrackInput): AddTrackToPlaylistResult {
+export function addTracksToPlaylist(input: AddTracksToPlaylistInput): AddTracksToPlaylistResult {
   return runImmediateTransaction(getDatabase(), (transaction) => {
     requirePlaylist(transaction, input.playlistId);
-    requireTrack(transaction, input.trackId);
+    requireTracks(transaction, input.trackIds);
 
-    const duplicate = transaction
-      .select({ id: playlistTracks.id })
-      .from(playlistTracks)
-      .where(
-        and(
-          eq(playlistTracks.playlistId, input.playlistId),
-          eq(playlistTracks.trackId, input.trackId),
+    if (input.duplicates === "check") {
+      const existingTrackIds = new Set(
+        parameterChunks([...new Set(input.trackIds)]).flatMap((trackIds) =>
+          transaction
+            .selectDistinct({ trackId: playlistTracks.trackId })
+            .from(playlistTracks)
+            .where(
+              and(
+                eq(playlistTracks.playlistId, input.playlistId),
+                inArray(playlistTracks.trackId, trackIds),
+              ),
+            )
+            .all()
+            .map((row) => row.trackId),
         ),
-      )
-      .get();
+      );
 
-    if (duplicate) return { kind: "duplicate" };
+      if (existingTrackIds.size > 0) {
+        return {
+          kind: "duplicate",
+          alreadyInPlaylist: input.trackIds.filter((trackId) => existingTrackIds.has(trackId))
+            .length,
+        };
+      }
+    }
 
-    const track = appendPlaylistTrack(transaction, input, Date.now());
-
-    return { kind: "added", track };
+    return {
+      kind: "added",
+      tracks: appendPlaylistTracks(transaction, input.playlistId, input.trackIds, Date.now()),
+    };
   });
 }
 
-export function confirmAddTrackToPlaylist(input: PlaylistTrackInput) {
-  return runImmediateTransaction(getDatabase(), (transaction) => {
-    requirePlaylist(transaction, input.playlistId);
-    requireTrack(transaction, input.trackId);
+export function removePlaylistTracks(input: RemovePlaylistTracksInput) {
+  const playlistTrackIds = [...new Set(input.playlistTrackIds)];
+  const chunks = parameterChunks(playlistTrackIds);
 
-    return appendPlaylistTrack(transaction, input, Date.now());
-  });
-}
+  const inPlaylist = (ids: readonly number[]) =>
+    and(eq(playlistTracks.playlistId, input.playlistId), inArray(playlistTracks.id, ids));
 
-export function removePlaylistTrack(input: PlaylistTrackRemovalInput) {
   runImmediateTransaction(getDatabase(), (transaction) => {
     requirePlaylist(transaction, input.playlistId);
 
-    const playlistTrack = transaction
-      .delete(playlistTracks)
-      .where(
-        and(
-          eq(playlistTracks.id, input.playlistTrackId),
-          eq(playlistTracks.playlistId, input.playlistId),
-        ),
-      )
-      .returning({ id: playlistTracks.id })
-      .get();
+    const ownedCount = chunks.reduce(
+      (total, ids) =>
+        total +
+        (transaction.select({ count: count() }).from(playlistTracks).where(inPlaylist(ids)).get()
+          ?.count ?? 0),
+      0,
+    );
 
-    if (!playlistTrack) {
+    if (ownedCount !== playlistTrackIds.length) {
       throw new Error("Playlist track does not exist in this playlist");
     }
+
+    for (const ids of chunks) transaction.delete(playlistTracks).where(inPlaylist(ids)).run();
 
     touchPlaylist(transaction, input.playlistId, Date.now());
   });
@@ -197,34 +184,49 @@ function requirePlaylist(database: LibraryTransaction, playlistId: number) {
   if (!playlist) throw new Error("Playlist does not exist");
 }
 
-function requireTrack(database: LibraryTransaction, trackId: number) {
-  const track = database.select({ id: tracks.id }).from(tracks).where(eq(tracks.id, trackId)).get();
+export function requireTracks(database: LibraryTransaction, trackIds: readonly number[]) {
+  const uniqueTrackIds = [...new Set(trackIds)];
 
-  if (!track) throw new Error("Track does not exist");
+  const foundCount = parameterChunks(uniqueTrackIds).reduce(
+    (total, ids) =>
+      total +
+      (database.select({ count: count() }).from(tracks).where(inArray(tracks.id, ids)).get()
+        ?.count ?? 0),
+    0,
+  );
+
+  if (foundCount !== uniqueTrackIds.length) throw new Error("Track does not exist");
 }
 
-function appendPlaylistTrack(database: LibraryTransaction, input: PlaylistTrackInput, now: number) {
-  const playlistTrack = database
-    .insert(playlistTracks)
-    .values({
-      createdAt: now,
-      playlistId: input.playlistId,
-      position:
-        database
-          .select({
-            position: sql<number | null>`MAX(${playlistTracks.position}) + 1`,
-          })
-          .from(playlistTracks)
-          .where(eq(playlistTracks.playlistId, input.playlistId))
-          .get()?.position ?? 0,
-      trackId: input.trackId,
-    })
-    .returning(playlistTrackColumns)
-    .get();
+function appendPlaylistTracks(
+  database: LibraryTransaction,
+  playlistId: number,
+  trackIds: readonly number[],
+  now: number,
+) {
+  if (trackIds.length === 0) return [];
 
-  touchPlaylist(database, input.playlistId, now);
+  const basePosition =
+    database
+      .select({ position: sql<number | null>`MAX(${playlistTracks.position}) + 1` })
+      .from(playlistTracks)
+      .where(eq(playlistTracks.playlistId, playlistId))
+      .get()?.position ?? 0;
 
-  return playlistTrack;
+  const rows = trackIds.map((trackId, index) => ({
+    createdAt: now,
+    playlistId,
+    position: basePosition + index,
+    trackId,
+  }));
+
+  const inserted = parameterChunks(rows, Object.keys(rows[0]).length).flatMap((chunk) =>
+    database.insert(playlistTracks).values(chunk).returning(playlistTrackColumns).all(),
+  );
+
+  touchPlaylist(database, playlistId, now);
+
+  return inserted.sort((left, right) => left.position - right.position);
 }
 
 function touchPlaylist(database: LibraryTransaction, playlistId: number, now: number) {

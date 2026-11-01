@@ -9,7 +9,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuShortcut } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { useRemovePlaylistTrackMutation } from "@/lib/playlist-mutations";
+import { useRemovePlaylistTracksMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { playlistRows, sortRows, type TrackRow } from "@/lib/track-sort";
@@ -51,8 +51,8 @@ export function PlaylistPage() {
 export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
 
-  const { isPending: isRemovingTrack, mutate: removePlaylistTrack } =
-    useRemovePlaylistTrackMutation();
+  const { isPending: isRemovingTrack, mutate: removePlaylistTracks } =
+    useRemovePlaylistTracksMutation();
 
   const [filterText, setFilterText] = useState("");
   const deferredFilterText = useDeferredValue(filterText);
@@ -71,8 +71,8 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   };
 
   const handleRemove = (playlistTrackId: number) => {
-    removePlaylistTrack(
-      { playlistTrackId, playlistId: playlist.id },
+    removePlaylistTracks(
+      { playlistTrackIds: [playlistTrackId], playlistId: playlist.id },
       {
         onError: (error) => {
           toast.add({

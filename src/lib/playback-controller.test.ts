@@ -252,13 +252,17 @@ it("keeps the active source in order through playlist edits", async () => {
   await expect.poll(() => controller.getSnapshot().isInitialized).toBe(true);
   controller.playSourceEntry(playlistView(playlist), 1);
 
-  controller.applySourceChange({ type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 });
+  controller.applySourceChange({
+    type: "sourceEntriesRemoved",
+    playlistId: 1,
+    sourceEntryIds: [2],
+  });
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([3]);
 
   controller.applySourceChange({
-    type: "sourceEntryAdded",
+    type: "sourceEntriesAdded",
     playlistId: 1,
-    entry: { sourceEntryId: 4, trackId: 4 },
+    entries: [{ sourceEntryId: 4, trackId: 4 }],
   });
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([3, 4]);
 
@@ -520,9 +524,9 @@ it("refreshes a late playlist read after a committed edit before restarting at q
   playback.controller.playSourceEntry(playlistView(original), 12);
   playback.controller.next();
   playback.controller.applySourceChange({
-    type: "sourceEntryRemoved",
+    type: "sourceEntriesRemoved",
     playlistId: 1,
-    sourceEntryId: 11,
+    sourceEntryIds: [11],
   });
   const resolve = finishRead;
 
@@ -1073,9 +1077,9 @@ it("appends a playlist addition to a sorted session", async () => {
     12,
   );
   playback.controller.applySourceChange({
-    type: "sourceEntryAdded",
+    type: "sourceEntriesAdded",
     playlistId: 1,
-    entry: { sourceEntryId: 14, trackId: 4 },
+    entries: [{ sourceEntryId: 14, trackId: 4 }],
   });
 
   const queue = playback.controller.getSnapshot().queue;

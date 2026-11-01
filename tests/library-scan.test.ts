@@ -13,10 +13,10 @@ import {
   saveSource,
   scanEnabledSources,
   scanSource,
-  setTrackLiked,
+  setTracksLiked,
 } from "../electron/library";
 import { scanAudioFiles, type ScannedTrack } from "../electron/library-files";
-import { addTrackToPlaylist, createPlaylist } from "../electron/playlists";
+import { createPlaylist } from "../electron/playlists";
 import type { LibraryDatabase } from "../electron/database";
 import { parseLibrarySnapshot } from "../shared/lib";
 
@@ -222,9 +222,8 @@ describe("startup scan update", () => {
     const source = await createSource(["first", "second"]);
     await scanEnabledSources();
     const [first, second] = libraryTracks();
-    setTrackLiked({ liked: true, trackId: second.id });
-    const playlist = createPlaylist({ description: null, title: "Mix" });
-    addTrackToPlaylist({ playlistId: playlist.id, trackId: first.id });
+    setTracksLiked({ liked: true, trackIds: [second.id] });
+    createPlaylist({ description: null, title: "Mix", trackIds: [first.id] });
     database.$client.exec("UPDATE library_sources SET last_scanned_at = 1");
     const before = readLibrary();
 

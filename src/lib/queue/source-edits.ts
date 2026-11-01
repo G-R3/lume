@@ -1,5 +1,5 @@
 import type { QueueCommand, QueueRandom } from "./commands";
-import { activeSourceEntryId, clearItemAnchor, createSourceItems, isActivePlaylist } from "./items";
+import { activeSourceEntryId, createSourceItems, isActivePlaylist } from "./items";
 import type { QueueItem, QueueState, SourceEntry } from "./model";
 
 type CommandOf<Type extends QueueCommand["type"]> = Extract<QueueCommand, { type: Type }>;
@@ -8,75 +8,93 @@ function followsSource(state: QueueState) {
   return state.filter === null;
 }
 
-export function appendSourceEntry(
+export function appendSourceEntries(
   state: QueueState,
-  { playlistId, entry }: CommandOf<"sourceEntryAdded">,
+  { playlistId, entries }: CommandOf<"sourceEntriesAdded">,
   random: QueueRandom,
 ): QueueState {
-  if (
-    !followsSource(state) ||
-    !isActivePlaylist(state, playlistId) ||
-    state.sourceEntries.some((existing) => existing.sourceEntryId === entry.sourceEntryId)
-  )
-    return state;
+  if (!followsSource(state) || !isActivePlaylist(state, playlistId)) return state;
+
+  const known = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
+
+  const added = entries.filter((entry) => {
+    if (known.has(entry.sourceEntryId)) return false;
+    known.add(entry.sourceEntryId);
+
+    return true;
+  });
+
+  if (added.length === 0) return state;
 
   const sourceQueue = [...state.sourceQueue];
-  sourceQueue.splice(
-    state.shuffleEnabled ? random.index(sourceQueue.length + 1) : sourceQueue.length,
-    0,
-    ...createSourceItems(state, [entry], state.sourceIdentity, state.sessionId),
-  );
+
+  for (const item of createSourceItems(state, added, state.sourceIdentity, state.sessionId)) {
+    sourceQueue.splice(
+      state.shuffleEnabled ? random.index(sourceQueue.length + 1) : sourceQueue.length,
+      0,
+      item,
+    );
+  }
 
   return {
     ...state,
-    sourceEntries: [...state.sourceEntries, entry],
+    sourceEntries: [...state.sourceEntries, ...added],
     sourceQueue,
   };
 }
 
-export function removeSourceEntry(
+export function removeSourceEntries(
   state: QueueState,
-  { playlistId, sourceEntryId }: CommandOf<"sourceEntryRemoved">,
+  { playlistId, sourceEntryIds }: CommandOf<"sourceEntriesRemoved">,
 ): QueueState {
   if (!isActivePlaylist(state, playlistId)) return state;
 
-  const isRemovedEntry = (item: QueueItem) => activeSourceEntryId(state, item) === sourceEntryId;
+  const removed = new Set(sourceEntryIds);
 
-  const removedIndex = state.sourceEntries.findIndex(
-    (entry) => entry.sourceEntryId === sourceEntryId,
-  );
+  const isRemovedEntry = (item: QueueItem) => {
+    const sourceEntryId = activeSourceEntryId(state, item);
+
+    return sourceEntryId !== null && removed.has(sourceEntryId);
+  };
+
+  const clearRemovedAnchor = (item: QueueItem) =>
+    item.anchor && removed.has(item.anchor.sourceEntryId) ? { ...item, anchor: undefined } : item;
+
+  const removedBefore = (index: number) =>
+    state.sourceEntries.slice(0, index).filter((entry) => removed.has(entry.sourceEntryId)).length;
+
+  const position = state.sourcePosition;
+
+  const removedPositionIndex =
+    position?.kind === "entry" && removed.has(position.sourceEntryId)
+      ? state.sourceEntries.findIndex((entry) => entry.sourceEntryId === position.sourceEntryId)
+      : -1;
 
   const currentRemoved =
     state.current?.participatesInSourceNavigation && isRemovedEntry(state.current.item);
 
   return {
     ...state,
-    sourceEntries: state.sourceEntries.filter((entry) => entry.sourceEntryId !== sourceEntryId),
+    sourceEntries: state.sourceEntries.filter((entry) => !removed.has(entry.sourceEntryId)),
     sourcePosition:
-      removedIndex === -1
-        ? state.sourcePosition
-        : state.sourcePosition?.kind === "entry" &&
-            state.sourcePosition.sourceEntryId === sourceEntryId
-          ? { kind: "boundary", index: removedIndex }
-          : state.sourcePosition?.kind === "boundary" && removedIndex < state.sourcePosition.index
-            ? { kind: "boundary", index: state.sourcePosition.index - 1 }
-            : state.sourcePosition,
+      removedPositionIndex !== -1
+        ? { kind: "boundary", index: removedPositionIndex - removedBefore(removedPositionIndex) }
+        : position?.kind === "boundary"
+          ? { kind: "boundary", index: position.index - removedBefore(position.index) }
+          : position,
     current: state.current && {
       ...state.current,
-      item: clearItemAnchor(state.current.item, sourceEntryId),
+      item: clearRemovedAnchor(state.current.item),
       participatesInSourceNavigation: currentRemoved
         ? false
         : state.current.participatesInSourceNavigation,
     },
-    lastSelectedItem:
-      state.lastSelectedItem && clearItemAnchor(state.lastSelectedItem, sourceEntryId),
+    lastSelectedItem: state.lastSelectedItem && clearRemovedAnchor(state.lastSelectedItem),
     previousSourceItems: state.previousSourceItems
       .filter((item) => !isRemovedEntry(item))
-      .map((item) => clearItemAnchor(item, sourceEntryId)),
-    sourceQueue: state.sourceQueue
-      .filter((item) => !isRemovedEntry(item))
-      .map((item) => clearItemAnchor(item, sourceEntryId)),
-    suppressedSourceEntryIds: state.suppressedSourceEntryIds.filter((id) => id !== sourceEntryId),
+      .map(clearRemovedAnchor),
+    sourceQueue: state.sourceQueue.filter((item) => !isRemovedEntry(item)).map(clearRemovedAnchor),
+    suppressedSourceEntryIds: state.suppressedSourceEntryIds.filter((id) => !removed.has(id)),
   };
 }
 

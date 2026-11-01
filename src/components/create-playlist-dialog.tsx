@@ -1,6 +1,6 @@
-import { ArrowElbowDownLeftIcon, PlusIcon } from "@phosphor-icons/react";
+import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, type Ref, useRef, useState } from "react";
+import { type KeyboardEvent, type RefObject, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogFooter,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -18,9 +17,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useCreatePlaylistMutation } from "@/lib/playlist-mutations";
 
-export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButtonElement> }) {
+export type PlaylistDraft = { title: string; trackIds: readonly number[] };
+
+export function CreatePlaylistDialog({
+  draft,
+  finalFocus,
+  onOpenChange,
+  open,
+}: {
+  draft: PlaylistDraft;
+  finalFocus?: RefObject<HTMLElement | null>;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -36,7 +46,7 @@ export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButt
       createPlaylist.reset();
     }
 
-    setOpen(nextOpen);
+    onOpenChange(nextOpen);
   };
 
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
@@ -56,11 +66,15 @@ export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButt
     setTitleError(null);
 
     createPlaylist.mutate(
-      { description: description.length > 0 ? description : null, title },
+      {
+        description: description.length > 0 ? description : null,
+        title,
+        trackIds: draft.trackIds,
+      },
       {
         onSuccess: (result) => {
           form.reset();
-          setOpen(false);
+          onOpenChange(false);
           void navigate({
             params: { playlistId: result.playlist.id },
             to: "/playlists/$playlistId",
@@ -79,14 +93,15 @@ export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButt
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          <Button aria-label="Create playlist" ref={triggerRef} size="icon-sm" variant="ghost" />
-        }
+      <DialogContent
+        finalFocus={finalFocus}
+        initialFocus={() => {
+          titleRef.current?.focus();
+          titleRef.current?.select();
+
+          return false;
+        }}
       >
-        <PlusIcon aria-hidden="true" />
-      </DialogTrigger>
-      <DialogContent>
         <DialogBody>
           <DialogTitle>New playlist</DialogTitle>
           <form id="create-playlist" noValidate onSubmit={handleSubmit} ref={formRef}>
@@ -96,7 +111,7 @@ export function CreatePlaylistDialog({ triggerRef }: { triggerRef?: Ref<HTMLButt
                 <Input
                   aria-describedby={titleError ? "title-error" : undefined}
                   aria-invalid={titleError ? true : undefined}
-                  autoFocus
+                  defaultValue={draft.title}
                   id="title"
                   maxLength={100}
                   name="title"

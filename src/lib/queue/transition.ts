@@ -10,11 +10,11 @@ import {
 import type { QueueItem, QueueLane, QueueState, SourceEntry, SourceIdentity } from "./model";
 import { selectSourceEntry, setShuffleEnabled } from "./shuffle";
 import {
-  appendSourceEntry,
+  appendSourceEntries,
   appendNewLibraryTracks,
   detachSource,
   moveSourceEntry,
-  removeSourceEntry,
+  removeSourceEntries,
 } from "./source-edits";
 
 export function transition(
@@ -49,10 +49,10 @@ export function transition(
       return state.current && state.status !== "playing" ? { ...state, status: "playing" } : state;
     case "playbackPaused":
       return state.current && state.status !== "paused" ? { ...state, status: "paused" } : state;
-    case "sourceEntryAdded":
-      return appendSourceEntry(state, command, context.random);
-    case "sourceEntryRemoved":
-      return removeSourceEntry(state, command);
+    case "sourceEntriesAdded":
+      return appendSourceEntries(state, command, context.random);
+    case "sourceEntriesRemoved":
+      return removeSourceEntries(state, command);
     case "sourceEntryMoved":
       return moveSourceEntry(state, command);
     case "sourceDeleted":
