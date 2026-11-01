@@ -94,6 +94,10 @@ const editableSelector =
 
 const buttonSelector = "button, [role='button']";
 
+export function isEditableElement(element: Element) {
+  return element.closest(editableSelector) !== null;
+}
+
 function eventTargetMatches(event: KeyboardEvent, selector: string) {
   return event
     .composedPath()

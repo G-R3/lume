@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { usePlayback } from "@/hooks/use-playback";
+import { isEditableElement } from "@/lib/keyboard-shortcuts";
 import type { PlayableSource } from "@/lib/queue/commands";
 import { sessionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
@@ -44,6 +45,9 @@ import {
   type TrackSort,
 } from "@/lib/track-sort";
 import { cn } from "@/lib/utils";
+import { type NavigationKey, useTrackSelection } from "@/pages/tracks/track-selection";
+
+export type TrackListHandle = { clearSelection: () => void };
 
 type TrackListProps = {
   caption: string;
@@ -53,8 +57,26 @@ type TrackListProps = {
   sort: TrackSort;
   onStepSort: (field: SortField) => void;
   onReady?: (list: HTMLElement) => void;
+  ref?: Ref<TrackListHandle>;
   renderMenuItems?: (item: TrackRow) => ReactNode;
 };
+
+const navigationKeys: ReadonlySet<string> = new Set<NavigationKey>([
+  "ArrowDown",
+  "ArrowUp",
+  "End",
+  "Home",
+  "PageDown",
+  "PageUp",
+]);
+
+function isNavigationKey(key: string): key is NavigationKey {
+  return navigationKeys.has(key);
+}
+
+function rowOf(target: EventTarget) {
+  return target instanceof Element ? target.closest("tr[data-entry-id]") : null;
+}
 
 const rowHeight = 40;
 
@@ -71,6 +93,7 @@ export function TrackList({
   onStepSort,
   renderMenuItems,
   onReady,
+  ref,
 }: TrackListProps) {
   const {
     activeSourceEntryId,
@@ -92,8 +115,10 @@ export function TrackList({
   const addToPlaylistTriggerRef = useRef<HTMLElement | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
-  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
+  const [selection, dispatchSelection] = useTrackSelection({ context: source, rows: items });
   const bodyRef = useRef<TrackListBodyHandle>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const listOwnsFocusRef = useRef(false);
   const playlistId = source.kind === "playlist" ? source.playlistId : null;
   const isPlaylist = playlistId !== null;
 
@@ -150,59 +175,122 @@ export function TrackList({
     playSourceEntry(sessionSource(source, items, filter, sort), item.sourceEntryId);
   };
 
-  const indexOfRow = (row: Element | null) =>
-    row instanceof HTMLTableRowElement
-      ? items.findIndex((item) => String(item.sourceEntryId) === row.dataset.entryId)
-      : -1;
-
-  const selectedIndex = items.findIndex((item) => item.sourceEntryId === selectedEntryId);
-  const tabStopIndex = items.length ? Math.max(0, selectedIndex) : -1;
+  const { indexById, selectedIds, focusedId } = selection;
+  const focusedIndex = focusedId === null ? -1 : (indexById.get(focusedId) ?? -1);
+  const tabStopIndex = items.length ? Math.max(0, focusedIndex) : -1;
   const tabStopEntryId = items[tabStopIndex]?.sourceEntryId;
 
-  const selectAndFocusRow = (index: number) => {
-    const target = Math.max(0, Math.min(items.length - 1, index));
-    const item = items[target];
+  useImperativeHandle(ref, () => ({
+    clearSelection: () => dispatchSelection({ type: "clear" }),
+  }));
 
-    if (!item) return;
+  useLayoutEffect(() => {
+    if (!listOwnsFocusRef.current || focusedId === null || focusedIndex < 0) return;
 
-    setSelectedEntryId(item.sourceEntryId);
-    bodyRef.current?.focusRow(target, item.sourceEntryId);
+    const active = document.activeElement;
+    const focusIsLost = !active || active === document.body;
+
+    const focusIsOnAnotherRow =
+      active instanceof HTMLTableRowElement &&
+      regionRef.current?.contains(active) &&
+      active.dataset.entryId !== String(focusedId);
+
+    if (focusIsLost || focusIsOnAnotherRow) bodyRef.current?.focusRow(focusedIndex, focusedId);
+  }, [focusedId, focusedIndex]);
+
+  const isSelectedAt = (index: number) => {
+    const item = items[index];
+
+    return item !== undefined && selectedIds.has(item.sourceEntryId);
   };
 
-  const handleGridKeyDown = (event: KeyboardEvent<HTMLTableElement>) => {
-    const index = indexOfRow(event.target instanceof Element ? event.target : null);
+  const entryIdOfRow = (row: Element | null, region: Element) => {
+    if (!(row instanceof HTMLTableRowElement) || !region.contains(row)) return null;
 
-    if (index < 0) return;
+    const entryId = Number(row.dataset.entryId);
 
-    const pageSize = bodyRef.current?.rowsPerPage() ?? 1;
+    return indexById.has(entryId) ? entryId : null;
+  };
 
-    const target = {
-      ArrowDown: index + 1,
-      ArrowUp: index - 1,
-      End: items.length - 1,
-      Home: 0,
-      PageDown: index + pageSize,
-      PageUp: index - pageSize,
-    }[event.key];
+  const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target;
 
-    if (target !== undefined) {
+    if (
+      event.defaultPrevented ||
+      event.nativeEvent.isComposing ||
+      !(target instanceof Element) ||
+      !event.currentTarget.contains(target)
+    ) {
+      return;
+    }
+
+    const isMac = window.lume.isMac;
+    const hasPrimary = isMac ? event.metaKey : event.ctrlKey;
+    const hasSecondary = isMac ? event.ctrlKey : event.metaKey;
+    const hasOnlyPrimary = hasPrimary && !hasSecondary && !event.shiftKey && !event.altKey;
+    const hasNoModifiers = !event.metaKey && !event.ctrlKey && !event.altKey;
+
+    if (event.key.toLowerCase() === "a" && hasOnlyPrimary && !isEditableElement(target)) {
       event.preventDefault();
-      selectAndFocusRow(target);
+      dispatchSelection({ type: "selectAll" });
 
       return;
     }
 
-    if (event.key === "Enter") {
+    if (event.key === "Escape" && hasNoModifiers && !event.shiftKey) {
+      if (isEditableElement(target) || selectedIds.size === 0) return;
+
       event.preventDefault();
-      playRowAt(index);
+      dispatchSelection({ type: "clear" });
+
+      return;
+    }
+
+    const entryId = entryIdOfRow(target, event.currentTarget);
+
+    if (entryId === null || !hasNoModifiers) return;
+
+    if (isNavigationKey(event.key)) {
+      event.preventDefault();
+      dispatchSelection({
+        extend: event.shiftKey,
+        fromEntryId: entryId,
+        key: event.key,
+        pageSize: bodyRef.current?.rowsPerPage() ?? 1,
+        type: "navigate",
+      });
+
+      return;
+    }
+
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      playRowAt(indexById.get(entryId) ?? -1);
     }
   };
 
-  const handleGridDoubleClick = (event: MouseEvent<HTMLTableElement>) => {
-    const row = event.target instanceof Element ? event.target.closest("tr[data-entry-id]") : null;
-    const index = indexOfRow(row);
+  const handleGridClick = (event: MouseEvent<HTMLTableElement>) => {
+    const entryId = entryIdOfRow(rowOf(event.target), event.currentTarget);
 
-    if (index >= 0) playRowAt(index);
+    if (entryId === null) return;
+
+    const isMac = window.lume.isMac;
+
+    if (isMac && event.ctrlKey && !event.metaKey) return;
+
+    const isToggle = isMac ? event.metaKey : event.ctrlKey;
+
+    dispatchSelection({
+      entryId,
+      intent: event.shiftKey ? "range" : isToggle ? "toggle" : "replace",
+      type: "click",
+    });
+  };
+
+  const handleGridDoubleClick = (event: MouseEvent<HTMLTableElement>) => {
+    const entryId = entryIdOfRow(rowOf(event.target), event.currentTarget);
+
+    if (entryId !== null) playRowAt(indexById.get(entryId) ?? -1);
   };
 
   // Every mounted row receives these actions and `renderMenuItems`. If either reads `items`, the
@@ -211,7 +299,6 @@ export function TrackList({
     addToPlaylist: openAddToPlaylist,
     addToQueue: enqueueTrack,
     createPlaylist: createPlaylistWithTrack,
-    select: setSelectedEntryId,
     toggleLike: toggleTrackLiked,
   };
 
@@ -221,7 +308,7 @@ export function TrackList({
     const isActive =
       activeSourceEntryId === item.sourceEntryId && activeSourcePlaylistId === playlistId;
 
-    const isSelected = item.sourceEntryId === selectedEntryId;
+    const isSelected = selectedIds.has(item.sourceEntryId);
 
     return (
       <TrackRow
@@ -233,6 +320,8 @@ export function TrackList({
         isCreatingPlaylist={isCreatingPlaylist}
         isPlaylist={isPlaylist}
         isSelected={isSelected}
+        isSelectionEnd={isSelected && !isSelectedAt(index + 1)}
+        isSelectionStart={isSelected && !isSelectedAt(index - 1)}
         isTabStop={item.sourceEntryId === tabStopEntryId}
         addedToListAt={item.addedToListAt}
         key={item.sourceEntryId}
@@ -244,12 +333,27 @@ export function TrackList({
   }
 
   return (
-    <div className="@container">
+    <div
+      className="@container"
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+
+        if (next instanceof Node && !event.currentTarget.contains(next)) {
+          listOwnsFocusRef.current = false;
+        }
+      }}
+      onFocus={(event) => {
+        if (event.currentTarget.contains(event.target)) listOwnsFocusRef.current = true;
+      }}
+      onKeyDown={handleListKeyDown}
+      ref={regionRef}
+    >
       <table
         className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
+        onClick={handleGridClick}
         onDoubleClick={handleGridDoubleClick}
-        onKeyDown={handleGridKeyDown}
         onPointerOver={showTruncatedText}
+        aria-multiselectable="true"
         aria-rowcount={items.length + 1}
         role="grid"
       >
@@ -409,7 +513,6 @@ type TrackRowActions = {
   addToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
   addToQueue: (trackId: number) => void;
   createPlaylist: (track: Track) => void;
-  select: (sourceEntryId: number) => void;
   toggleLike: (track: Track) => void;
 };
 
@@ -423,6 +526,8 @@ type TrackRowProps = {
   isCreatingPlaylist: boolean;
   isPlaylist: boolean;
   isSelected: boolean;
+  isSelectionEnd: boolean;
+  isSelectionStart: boolean;
   isTabStop: boolean;
   renderMenuItems?: (item: TrackRow) => ReactNode;
   sourceEntryId: number;
@@ -439,6 +544,8 @@ const TrackRow = memo(function TrackRow({
   isCreatingPlaylist,
   isPlaylist,
   isSelected,
+  isSelectionEnd,
+  isSelectionStart,
   isTabStop,
   renderMenuItems,
   sourceEntryId,
@@ -471,11 +578,14 @@ const TrackRow = memo(function TrackRow({
             aria-rowindex={index + 2}
             aria-selected={isSelected}
             className={cn(
-              "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10 *:first:rounded-l-md *:last:rounded-r-md",
-              isSelected ? "*:bg-selected" : "hover:*:bg-hover",
+              "group/track-row cursor-default rounded-md focus-visible:-outline-offset-2 *:h-10",
+              isSelected
+                ? "*:bg-selected"
+                : "hover:*:bg-hover *:first:rounded-l-md *:last:rounded-r-md",
+              isSelectionStart && "*:first:rounded-tl-md *:last:rounded-tr-md",
+              isSelectionEnd && "*:first:rounded-bl-md *:last:rounded-br-md",
             )}
             data-entry-id={sourceEntryId}
-            onClick={() => actions.select(sourceEntryId)}
             onMouseDown={(event) => {
               if (event.detail > 1) event.preventDefault();
             }}

@@ -15,7 +15,8 @@ import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { playlistRows, sortRows, type TrackRow } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
-import { TrackList, TrackListSkeleton } from "@/pages/tracks/track-list";
+import { TrackList, type TrackListHandle, TrackListSkeleton } from "@/pages/tracks/track-list";
+import { isListBackgroundPointerDown } from "@/pages/tracks/list-background-pointer";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const deferredFilterText = useDeferredValue(filterText);
   const filter = playlist.tracks.length > 0 ? parseTrackFilter(deferredFilterText) : null;
   const filterRef = useRef<FilterFieldHandle>(null);
+  const trackListRef = useRef<TrackListHandle>(null);
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
   const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
   const [sort, stepSort] = useViewSort(source);
@@ -141,12 +143,19 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           </div>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto"
+          data-scroll-container
+          onPointerDown={(event) => {
+            if (isListBackgroundPointerDown(event)) trackListRef.current?.clearSelection();
+          }}
+        >
           <TrackList
             caption={playlist.title}
             filter={filter?.normalizedText ?? null}
             items={items}
             onStepSort={stepSort}
+            ref={trackListRef}
             renderMenuItems={renderMenuItems}
             sort={sort}
             source={source}

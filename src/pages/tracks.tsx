@@ -15,7 +15,8 @@ import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { libraryRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
-import { TrackList } from "@/pages/tracks/track-list";
+import { TrackList, type TrackListHandle } from "@/pages/tracks/track-list";
+import { isListBackgroundPointerDown } from "@/pages/tracks/list-background-pointer";
 
 const allTracks = { kind: "all-tracks" } as const;
 
@@ -27,6 +28,7 @@ export function TracksPage() {
   const [filterText, setFilterText] = useState("");
   const filter = parseTrackFilter(useDeferredValue(filterText));
   const filterRef = useRef<FilterFieldHandle>(null);
+  const trackListRef = useRef<TrackListHandle>(null);
 
   useLayoutEffect(() => {
     if (library.tracks.length === 0) onListReady(null);
@@ -91,13 +93,20 @@ export function TracksPage() {
       </header>
       <LibraryStatus library={library} />
       {(items.length > 0 || filter) && (
-        <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto"
+          data-scroll-container
+          onPointerDown={(event) => {
+            if (isListBackgroundPointerDown(event)) trackListRef.current?.clearSelection();
+          }}
+        >
           <TrackList
             caption="Tracks"
             filter={filter?.normalizedText ?? null}
             items={items}
             onReady={onListReady}
             onStepSort={stepSort}
+            ref={trackListRef}
             sort={sort}
             source={allTracks}
           />
