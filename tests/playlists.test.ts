@@ -295,7 +295,9 @@ describe("playlist behavior", () => {
 
     if (addition.kind !== "added") throw new Error("Expected every occurrence to be added");
 
-    expect(addition.tracks.map((entry) => entry.position)).toEqual(occurrences.map((_, index) => index));
+    expect(addition.tracks.map((entry) => entry.position)).toEqual(
+      occurrences.map((_, index) => index),
+    );
 
     removePlaylistTracks({
       playlistId: playlist.id,
