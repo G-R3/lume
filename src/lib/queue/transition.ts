@@ -31,8 +31,8 @@ export function transition(
       return setShuffleEnabled(state, command.enabled, context.random);
     case "selectSourceEntry":
       return selectSourceEntry(state, command, context.availableTrackIds);
-    case "enqueueTrack":
-      return enqueueTrack(state, command);
+    case "enqueueTracks":
+      return enqueueTracks(state, command);
     case "jumpTo":
       return jumpTo(state, command.queueItemId, context.availableTrackIds);
     case "moveQueueItem":
@@ -125,30 +125,42 @@ function reorderItems(
   return order.flatMap((entry) => itemsByEntry.get(entry.sourceEntryId) ?? []);
 }
 
-function enqueueTrack(
+function enqueueTracks(
   state: QueueState,
-  command: Extract<QueueCommand, { type: "enqueueTrack" }>,
+  command: Extract<QueueCommand, { type: "enqueueTracks" }>,
 ): QueueState {
-  if (
-    state.current?.item.queueItemId === command.queueItemId ||
-    state.lastSelectedItem?.queueItemId === command.queueItemId ||
-    state.manualQueue.some((item) => item.queueItemId === command.queueItemId) ||
-    state.sourceQueue.some((item) => item.queueItemId === command.queueItemId) ||
-    state.previousSourceItems.some((item) => item.queueItemId === command.queueItemId)
-  )
-    return state;
+  const usedIds = new Set(
+    [
+      state.current?.item,
+      state.lastSelectedItem,
+      ...state.manualQueue,
+      ...state.sourceQueue,
+      ...state.previousSourceItems,
+    ].map((item) => item?.queueItemId),
+  );
 
-  const item: QueueItem = {
-    queueItemId: command.queueItemId,
-    trackId: command.trackId,
-    origin: { kind: "manual" },
-  };
+  const items = command.items.flatMap(({ trackId, queueItemId }): QueueItem[] => {
+    if (usedIds.has(queueItemId)) return [];
+    usedIds.add(queueItemId);
+
+    return [{ queueItemId, trackId, origin: { kind: "manual" } }];
+  });
+
+  const [first, ...rest] = items;
+
+  if (!first) return state;
 
   if (!state.current && state.status === "stopped") {
-    return { ...state, current: playAs(item, "manual"), status: "playing", lastSelectedItem: item };
+    return {
+      ...state,
+      current: playAs(first, "manual"),
+      status: "playing",
+      lastSelectedItem: first,
+      manualQueue: [...state.manualQueue, ...rest],
+    };
   }
 
-  return { ...state, manualQueue: [...state.manualQueue, item] };
+  return { ...state, manualQueue: [...state.manualQueue, ...items] };
 }
 
 function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueState {

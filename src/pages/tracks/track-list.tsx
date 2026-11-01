@@ -104,7 +104,7 @@ export function TrackList({
   const {
     activeSourceEntryId,
     activeSourcePlaylistId,
-    enqueueTrack,
+    enqueueTracks,
     isPlaying,
     playSourceEntry,
     queue,
@@ -297,7 +297,7 @@ export function TrackList({
   // compiler rebuilds it on every library change and a like re-renders every row.
   const rowActions: TrackRowActions = {
     addToPlaylist: openAddToPlaylist,
-    addToQueue: enqueueTrack,
+    addToQueue: (trackId) => enqueueTracks([trackId]),
     createPlaylist: openCreatePlaylistFromMenu,
     toggleLike: (entry) => run({ kind: "like", target: { context: source, entries: [entry] } }),
   };

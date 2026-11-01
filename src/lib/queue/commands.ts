@@ -35,7 +35,10 @@ export type QueueCommand =
       filter: string | null;
       sourceEntryId: number;
     }
-  | { type: "enqueueTrack"; trackId: number; queueItemId: string }
+  | {
+      type: "enqueueTracks";
+      items: readonly { trackId: number; queueItemId: string }[];
+    }
   | { type: "jumpTo"; queueItemId: string }
   | {
       type: "moveQueueItem";

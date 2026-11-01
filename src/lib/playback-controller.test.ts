@@ -37,13 +37,13 @@ it.each([
     playback.controller.playSourceEntry(allTracks(playback.controller), 1);
 
     if (manualPlaying) {
-      playback.controller.enqueueTrack(2);
+      playback.controller.enqueueTracks([2]);
       playback.controller.next();
     }
 
     // Include duplicates, unavailable tracks, and more than the panel's 50 visible rows.
     Array.from({ length: 60 }, (_, index) => (index % 2 === 0 ? 2 : 3)).forEach((trackId) => {
-      playback.controller.enqueueTrack(trackId);
+      playback.controller.enqueueTracks([trackId]);
     });
     playback.controller.seek(19);
 
@@ -116,7 +116,7 @@ it.each([
       });
     }
 
-    playback.controller.enqueueTrack(4);
+    playback.controller.enqueueTracks([4]);
 
     expect(
       playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId),
@@ -391,7 +391,7 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
   });
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(playlistView(playlist), 11);
-  playback.controller.enqueueTrack(3);
+  playback.controller.enqueueTracks([3]);
   playback.controller.shufflePlay(playlistView(playlist));
   const first = playback.controller.getSnapshot().queue;
   expect(first?.current?.item.trackId).toBe(2);
@@ -439,7 +439,7 @@ it("restores a shuffled queue and position exactly, paused without new randomnes
   await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
   original.controller.playSourceEntry(allTracks(original.controller), 2);
   original.controller.setShuffleEnabled(true);
-  original.controller.enqueueTrack(4);
+  original.controller.enqueueTracks([4]);
 
   const suppressed = original.controller
     .getSnapshot()
@@ -636,7 +636,7 @@ it("saves only the latest pending queue and flushes the final position before cl
   playback.controller.playSourceEntry(allTracks(playback.controller), 2);
   await expect.poll(() => describeWrites(playback.writes, library)).toEqual(["queue 2 at 0"]);
   playback.controller.setShuffleEnabled(true);
-  playback.controller.enqueueTrack(3);
+  playback.controller.enqueueTracks([3]);
   playback.controller.seek(7);
   playback.controller.seek(19);
   holdSave = false;
@@ -746,7 +746,7 @@ it("rebuilds a shuffled queue from another source and keeps the manual queue", a
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(allTracks(playback.controller), 2);
   playback.controller.setShuffleEnabled(true);
-  playback.controller.enqueueTrack(4);
+  playback.controller.enqueueTracks([4]);
   playback.controller.playSourceEntry(playlistView(playlist), 11);
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
@@ -1153,6 +1153,82 @@ it("restores no queue and shows no error for a version 5 session", async () => {
 
   expect(restored.controller.getSnapshot()).toMatchObject({ queue: null, errorMessage: null });
   expect(restored.requests).toEqual([]);
+});
+
+it("queues tracks in submitted order, repeats included, with one publication and no reload", async () => {
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary(libraryOf([1, 2, 3]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.seek(12);
+  const requestCount = playback.requests.length;
+  let publications = 0;
+  playback.controller.subscribe(() => publications++);
+
+  playback.controller.enqueueTracks([3, 2, 3]);
+
+  const queue = playback.controller.getSnapshot().queue;
+  expect(queue?.manualQueue.map((item) => item.trackId)).toEqual([3, 2, 3]);
+  expect(new Set(queue?.manualQueue.map((item) => item.queueItemId)).size).toBe(3);
+  expect(queue?.current?.item.trackId).toBe(1);
+  expect(publications).toBe(1);
+  expect(playback.requests).toHaveLength(requestCount);
+  expect(playback.audioState).toMatchObject({ position: 12, playing: true });
+});
+
+it("ignores an enqueue when there is no playback session", async () => {
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  let publications = 0;
+  playback.controller.subscribe(() => publications++);
+
+  playback.controller.enqueueTracks([1, 2]);
+
+  expect(playback.controller.getSnapshot().queue).toBeNull();
+  expect(publications).toBe(0);
+  expect(playback.requests).toEqual([]);
+});
+
+it("starts the first queued track of a stopped session and clears the error in one publication", async () => {
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary(libraryOf([1]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.syncLibrary({
+    ...libraryOf([1]),
+    tracks: [{ ...track(1), available: false }],
+  });
+  playback.controller.next();
+  playback.controller.syncLibrary({
+    ...libraryOf([2, 3]),
+    tracks: [{ ...track(1), available: false }, track(2), track(3)],
+  });
+  playback.controller.setError("This track is unavailable");
+  expect(playback.controller.getSnapshot().queue).toMatchObject({
+    status: "stopped",
+    current: null,
+  });
+  const published: { errorMessage: string | null; current: number | undefined }[] = [];
+  playback.controller.subscribe(() => {
+    const snapshot = playback.controller.getSnapshot();
+    published.push({
+      errorMessage: snapshot.errorMessage,
+      current: snapshot.queue?.current?.item.trackId,
+    });
+  });
+
+  playback.controller.enqueueTracks([3, 2, 3]);
+
+  expect(published).toEqual([{ errorMessage: null, current: 3 }]);
+  expect(playback.controller.getSnapshot().queue).toMatchObject({
+    status: "playing",
+    current: { lane: "manual", item: { trackId: 3 } },
+  });
+  expect(playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId)).toEqual([
+    2, 3,
+  ]);
+  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/3", shouldPlay: true });
 });
 
 function libraryOf(ids: readonly number[]): MusicLibrary {
