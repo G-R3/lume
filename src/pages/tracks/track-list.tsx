@@ -487,7 +487,12 @@ export function TrackList({
 
       dispatchSelection({ entryId, trigger, type: "closeMenu" });
     },
-    menuFinalFocus: (entryId) => (menuReturnsFocusRef.current ? returnFocusTo(entryId)() : false),
+    menuFinalFocus: (entryId) => {
+      const active = document.activeElement;
+      const focusMovedOn = active && active !== document.body && !active.closest("[role='menu']");
+
+      return menuReturnsFocusRef.current && !focusMovedOn ? returnFocusTo(entryId)() : false;
+    },
     openMenu,
     run,
     toggleLike: (entry) => run({ kind: "like", target: { context: source, entries: [entry] } }),
