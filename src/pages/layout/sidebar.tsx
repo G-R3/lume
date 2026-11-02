@@ -48,7 +48,7 @@ export function AppSidebar() {
     <Sidebar className="border-separator bg-raised surface-raised md:absolute! md:h-auto!">
       <SidebarHeader className="h-12 shrink-0 p-0 [-webkit-app-region:drag]" />
 
-      <SidebarContent className="pb-2">
+      <SidebarContent className="pb-2 scroll-area-scrollbar [scrollbar-width:auto]! [&::-webkit-scrollbar]:block!">
         <SidebarGroup className="px-2 pt-2 pb-0">
           <SidebarGroupContent>
             <SidebarMenu>

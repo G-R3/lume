@@ -35,7 +35,7 @@ export function AppLayout() {
           <div className="flex min-w-0 flex-1 flex-col">
             <AudioPlayerControls queueOpen={queueOpen} toggleQueue={toggleQueue} />
             <div className="relative flex min-h-0 flex-1">
-              <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page">
+              <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page scroll-area-scrollbar">
                 <div className="flex min-h-0 flex-1 flex-col">
                   {playback.errorMessage && (
                     <p className="px-6 pt-4 text-meta text-danger" role="alert">

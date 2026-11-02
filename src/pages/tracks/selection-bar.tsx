@@ -89,7 +89,7 @@ export function FloatingSelectionBar({
       {shown && (
         <motion.div
           animate="shown"
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24"
+          className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center"
           custom={barMotion}
           data-selection-bar
           exit="hidden"
@@ -97,16 +97,13 @@ export function FloatingSelectionBar({
           key="selection-bar"
           variants={barFadeVariants}
         >
-          <div className="absolute inset-0 bg-linear-to-t from-page from-35% to-transparent" />
-          <div className="absolute inset-x-0 bottom-6 flex justify-center">
-            <motion.div
-              className="pointer-events-auto origin-bottom"
-              custom={barMotion}
-              variants={barRiseVariants}
-            >
-              <SelectionBar {...barProps} />
-            </motion.div>
-          </div>
+          <motion.div
+            className="pointer-events-auto origin-bottom"
+            custom={barMotion}
+            variants={barRiseVariants}
+          >
+            <SelectionBar {...barProps} />
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -153,7 +150,11 @@ function SelectionBar({
         <span className="text-body font-medium text-primary">{countLabel}</span>
         <span className="font-mono text-meta text-secondary">{formatDuration(duration)}</span>
       </div>
-      <div aria-orientation="vertical" className="h-4 w-px shrink-0 bg-separator" role="separator" />
+      <div
+        aria-orientation="vertical"
+        className="h-4 w-px shrink-0 bg-separator"
+        role="separator"
+      />
       <Button
         className="rounded-lg text-primary hover:not-data-disabled:text-primary focus-visible:-outline-offset-2 [&_svg]:text-secondary"
         data-bar-action="addToPlaylist"
@@ -226,7 +227,11 @@ function SelectionBar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <div aria-orientation="vertical" className="h-4 w-px shrink-0 bg-separator" role="separator" />
+      <div
+        aria-orientation="vertical"
+        className="h-4 w-px shrink-0 bg-separator"
+        role="separator"
+      />
       <Button
         aria-keyshortcuts="Escape"
         aria-label="Clear selection"
@@ -249,5 +254,7 @@ function moveFocusWithArrows(event: KeyboardEvent<HTMLDivElement>) {
   if (index < 0) return;
 
   event.preventDefault();
-  buttons[(index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length].focus();
+  buttons[
+    (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length
+  ].focus();
 }

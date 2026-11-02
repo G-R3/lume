@@ -12,9 +12,8 @@ import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { playlistRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
-import { TrackList, type TrackListHandle } from "@/pages/tracks/track-list";
+import { TrackList } from "@/pages/tracks/track-list";
 import { TrackListSkeleton } from "@/pages/tracks/track-list-skeleton";
-import { isListBackgroundPointerDown } from "@/pages/tracks/list-background-pointer";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -53,7 +52,6 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const deferredFilterText = useDeferredValue(filterText);
   const filter = playlist.tracks.length > 0 ? parseTrackFilter(deferredFilterText) : null;
   const filterRef = useRef<FilterFieldHandle>(null);
-  const trackListRef = useRef<TrackListHandle>(null);
   const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
   const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
   const [sort, stepSort] = useViewSort(source);
@@ -101,26 +99,18 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           </div>
         </div>
       ) : (
-        <div
-          className="min-h-0 flex-1 overflow-y-auto has-data-[selection-bar]:scroll-pb-24"
-          data-scroll-container
-          onPointerDown={(event) => {
-            if (isListBackgroundPointerDown(event)) trackListRef.current?.clearSelection();
-          }}
+        <TrackList
+          caption={playlist.title}
+          filter={filter?.normalizedText ?? null}
+          items={items}
+          onStepSort={stepSort}
+          sort={sort}
+          source={source}
         >
-          <TrackList
-            caption={playlist.title}
-            filter={filter?.normalizedText ?? null}
-            items={items}
-            onStepSort={stepSort}
-            ref={trackListRef}
-            sort={sort}
-            source={source}
-          />
           {filter && items.length === 0 && (
             <FilterNoResults filterText={filter.text} onClear={clearFilter} />
           )}
-        </div>
+        </TrackList>
       )}
     </main>
   );

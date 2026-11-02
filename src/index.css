@@ -281,3 +281,119 @@
   --color-bg-selected: var(--color-bg-overlay-selected);
   --color-border-separator: var(--color-border-overlay-separator);
 }
+
+@property --scroll-area-scrollbar-repaint {
+  syntax: "*";
+  inherits: false;
+}
+
+@utility scroll-area-scrollbar {
+  @media (hover: hover) and (pointer: fine) and (forced-colors: none) {
+    &::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    @supports selector(::-webkit-scrollbar-thumb) {
+      &::-webkit-scrollbar {
+        background-color: transparent;
+        cursor: pointer;
+      }
+      &::-webkit-scrollbar-track {
+        background-color: transparent;
+        cursor: pointer;
+      }
+      &::-webkit-scrollbar-track:vertical {
+        margin: 8px 0;
+      }
+      &::-webkit-scrollbar-track:horizontal {
+        margin: 0 8px;
+      }
+      &::-webkit-scrollbar-corner,
+      &::-webkit-scrollbar-resizer {
+        background-color: transparent;
+      }
+      &::-webkit-scrollbar-thumb {
+        cursor: pointer;
+        border: 3.5px solid transparent;
+        border-radius: calc(infinity * 1px);
+        background-clip: padding-box;
+        background-color: transparent;
+      }
+      &:hover::-webkit-scrollbar-thumb {
+        background-color: var(--color-text-secondary);
+      }
+      &::-webkit-scrollbar-thumb:hover {
+        background-color: var(--color-text-primary);
+      }
+      &::-webkit-scrollbar-thumb:active {
+        background-color: var(--color-text-primary);
+      }
+      &:hover {
+        --scroll-area-scrollbar-repaint: ;
+      }
+    }
+
+    @supports not selector(::-webkit-scrollbar-thumb) {
+      scrollbar-width: thin;
+      scrollbar-color: transparent transparent;
+      transition: scrollbar-color --theme(--default-transition-duration)
+        --theme(--default-transition-timing-function);
+      &:hover {
+        scrollbar-color: var(--color-text-secondary) transparent;
+      }
+      & :where(*) {
+        scrollbar-color: auto;
+      }
+      @variant motion-reduce {
+        transition: none;
+      }
+    }
+  }
+}
+
+@property --scroll-mask-end-size {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-mask-end-shrink {
+  from {
+    --scroll-mask-end-size: 96px;
+  }
+  to {
+    --scroll-mask-end-size: 0px;
+  }
+}
+
+@utility scroll-mask-end {
+  mask-image:
+    linear-gradient(
+      to top,
+      transparent calc(var(--scroll-mask-end-size) * 0.25),
+      rgb(0 0 0 / 0.262) calc(var(--scroll-mask-end-size) * 0.393),
+      rgb(0 0 0 / 0.459) calc(var(--scroll-mask-end-size) * 0.505),
+      rgb(0 0 0 / 0.618) calc(var(--scroll-mask-end-size) * 0.603),
+      rgb(0 0 0 / 0.722) calc(var(--scroll-mask-end-size) * 0.674),
+      rgb(0 0 0 / 0.806) calc(var(--scroll-mask-end-size) * 0.738),
+      rgb(0 0 0 / 0.874) calc(var(--scroll-mask-end-size) * 0.798),
+      rgb(0 0 0 / 0.925) calc(var(--scroll-mask-end-size) * 0.852),
+      rgb(0 0 0 / 0.958) calc(var(--scroll-mask-end-size) * 0.896),
+      rgb(0 0 0 / 0.979) calc(var(--scroll-mask-end-size) * 0.933),
+      rgb(0 0 0 / 0.992) calc(var(--scroll-mask-end-size) * 0.964),
+      rgb(0 0 0 / 0.998) calc(var(--scroll-mask-end-size) * 0.987),
+      #000 var(--scroll-mask-end-size)
+    ),
+    linear-gradient(#000, #000);
+  mask-position:
+    left top,
+    right top;
+  mask-repeat: no-repeat;
+  mask-size:
+    calc(100% - 10px) 100%,
+    10px 100%;
+  animation: scroll-mask-end-shrink linear both;
+  animation-timeline: scroll(self);
+  animation-range: calc(100% - 96px) 100%;
+}

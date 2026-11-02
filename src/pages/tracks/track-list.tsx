@@ -1,8 +1,7 @@
 import {
   type KeyboardEvent,
   type MouseEvent,
-  type Ref,
-  useImperativeHandle,
+  type ReactNode,
   useLayoutEffect,
   useRef,
   useState,
@@ -13,7 +12,7 @@ import type { PlayableSource } from "@/lib/queue/commands";
 import { sessionSource } from "@/lib/queue/source";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import type { SortField, TrackRow as TrackListItem, TrackSort } from "@/lib/track-sort";
-import { cn } from "@/lib/utils";
+import { isListBackgroundPointerDown } from "@/pages/tracks/list-background-pointer";
 import { FloatingSelectionBar, type SelectionBarAction } from "@/pages/tracks/selection-bar";
 import { focusReturnTarget, type TrackAction, useTrackActions } from "@/pages/tracks/track-actions";
 import { TrackListBody, type TrackListBodyHandle } from "@/pages/tracks/track-list-body";
@@ -27,8 +26,6 @@ import {
   useTrackSelection,
 } from "@/pages/tracks/track-selection";
 
-export type TrackListHandle = { clearSelection: () => void };
-
 type TrackListProps = {
   caption: string;
   items: readonly TrackListItem[];
@@ -37,7 +34,7 @@ type TrackListProps = {
   sort: TrackSort;
   onStepSort: (field: SortField) => void;
   onReady?: (list: HTMLElement) => void;
-  ref?: Ref<TrackListHandle>;
+  children?: ReactNode;
 };
 
 const navigationKeys: ReadonlySet<string> = new Set<NavigationKey>([
@@ -65,7 +62,7 @@ export function TrackList({
   sort,
   onStepSort,
   onReady,
-  ref,
+  children,
 }: TrackListProps) {
   const { activeSourceEntryId, activeSourcePlaylistId, isPlaying, playSourceEntry, queue } =
     usePlayback();
@@ -121,10 +118,6 @@ export function TrackList({
   const summary = summarizeSelection(selection);
   const showsBar = summary.count >= 2;
   const [lastInput, setLastInput] = useState<"keyboard" | "pointer">("pointer");
-
-  useImperativeHandle(ref, () => ({
-    clearSelection: () => dispatchSelection({ type: "clear" }),
-  }));
 
   useLayoutEffect(() => {
     if (!listOwnsFocusRef.current || focusedId === null || focusedIndex < 0) return;
@@ -332,7 +325,7 @@ export function TrackList({
 
   return (
     <div
-      className={cn("@container", showsBar && "pb-24")}
+      className="relative flex min-h-0 flex-1 flex-col"
       onBlur={(event) => {
         const next = event.relatedTarget;
 
@@ -348,25 +341,36 @@ export function TrackList({
       onPointerDownCapture={() => setLastInput("pointer")}
       ref={regionRef}
     >
-      <table
-        className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
-        onClick={handleGridClick}
-        onDoubleClick={handleGridDoubleClick}
-        onPointerOver={showTruncatedText}
-        aria-multiselectable="true"
-        aria-rowcount={items.length + 1}
-        role="grid"
+      <div
+        className="min-h-0 flex-1 scroll-pb-24 overflow-y-auto scroll-area-scrollbar scroll-mask-end"
+        data-scroll-container
+        onPointerDown={(event) => {
+          if (isListBackgroundPointerDown(event)) dispatchSelection({ type: "clear" });
+        }}
       >
-        <caption className="sr-only">{caption}</caption>
-        <TrackListHead isPlaylist={isPlaylist} onStepSort={onStepSort} sort={sort} />
-        <TrackListBody
-          count={items.length}
-          onReady={onReady}
-          pinnedIndex={tabStopIndex}
-          ref={bodyRef}
-          renderRow={renderTrackRow}
-        />
-      </table>
+        <div className="@container pb-24">
+          <table
+            className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
+            onClick={handleGridClick}
+            onDoubleClick={handleGridDoubleClick}
+            onPointerOver={showTruncatedText}
+            aria-multiselectable="true"
+            aria-rowcount={items.length + 1}
+            role="grid"
+          >
+            <caption className="sr-only">{caption}</caption>
+            <TrackListHead isPlaylist={isPlaylist} onStepSort={onStepSort} sort={sort} />
+            <TrackListBody
+              count={items.length}
+              onReady={onReady}
+              pinnedIndex={tabStopIndex}
+              ref={bodyRef}
+              renderRow={renderTrackRow}
+            />
+          </table>
+          {children}
+        </div>
+      </div>
       <FloatingSelectionBar
         allLiked={summary.allLiked}
         canAddToQueue={canAddToQueue}

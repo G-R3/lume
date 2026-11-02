@@ -137,7 +137,7 @@ export function AddToPlaylistDialog({
                 placeholder="Add to playlist…"
               />
             </div>
-            <Autocomplete.List className="flex max-h-[min(400px,50vh)] scroll-py-2 flex-col overflow-y-auto overscroll-contain p-2">
+            <Autocomplete.List className="flex max-h-[min(400px,50vh)] scroll-py-2 flex-col overflow-y-auto overscroll-contain p-2 scroll-area-scrollbar">
               {(group: PaletteGroup) => (
                 <Autocomplete.Group items={group.items} key={group.value}>
                   {group.value === "playlists" && (
