@@ -12,9 +12,14 @@ export type SelectionState = {
   readonly view: CompleteSelectionView;
   readonly indexById: ReadonlyMap<number, number>;
   readonly selectedIds: ReadonlySet<number>;
-  readonly anchorId: number | null;
+  readonly anchor: SelectionAnchor | null;
   readonly focusedId: number | null;
   readonly menu: RowMenu | null;
+};
+
+export type SelectionAnchor = {
+  readonly id: number;
+  readonly base: ReadonlySet<number>;
 };
 
 export type RowMenuTrigger = "context" | "overflow";
@@ -60,7 +65,7 @@ export type ActionTarget = {
 
 export function createSelection(view: CompleteSelectionView): SelectionState {
   return {
-    anchorId: null,
+    anchor: null,
     focusedId: null,
     indexById: indexRows(view.rows),
     menu: null,
@@ -101,20 +106,25 @@ export function reduceSelection(state: SelectionState, event: SelectionEvent): S
       const entryId = rows[Math.max(0, Math.min(rows.length - 1, target))].sourceEntryId;
 
       return event.extend
-        ? extendTo({ ...state, anchorId: state.anchorId ?? event.fromEntryId }, entryId)
+        ? extendTo(state, entryId, event.fromEntryId)
         : selectOnly(state, entryId);
     }
 
-    case "selectAll":
+    case "selectAll": {
+      const anchorId =
+        state.anchor?.id ?? state.focusedId ?? state.view.rows[0]?.sourceEntryId ?? null;
+
       return {
         ...state,
-        anchorId: state.anchorId ?? state.focusedId ?? state.view.rows[0]?.sourceEntryId ?? null,
+        anchor: anchorAt(anchorId),
         selectedIds: new Set(state.view.rows.map((row) => row.sourceEntryId)),
       };
+    }
+
     case "clear":
       if (state.selectedIds.size === 0) return state;
 
-      return { ...state, anchorId: state.focusedId, selectedIds: new Set() };
+      return { ...state, anchor: anchorAt(state.focusedId), selectedIds: new Set() };
     case "openMenu": {
       const index = state.indexById.get(event.entryId);
 
@@ -211,8 +221,17 @@ function indexRows(rows: readonly TrackRow[]) {
   return new Map(rows.map((row, index) => [row.sourceEntryId, index]));
 }
 
+function anchorAt(id: number | null, base: ReadonlySet<number> = new Set()) {
+  return id === null ? null : { base, id };
+}
+
 function selectOnly(state: SelectionState, entryId: number): SelectionState {
-  return { ...state, anchorId: entryId, focusedId: entryId, selectedIds: new Set([entryId]) };
+  return {
+    ...state,
+    anchor: anchorAt(entryId),
+    focusedId: entryId,
+    selectedIds: new Set([entryId]),
+  };
 }
 
 function toggle(state: SelectionState, entryId: number): SelectionState {
@@ -220,20 +239,28 @@ function toggle(state: SelectionState, entryId: number): SelectionState {
 
   if (!selectedIds.delete(entryId)) selectedIds.add(entryId);
 
-  return { ...state, anchorId: entryId, focusedId: entryId, selectedIds };
+  return { ...state, anchor: anchorAt(entryId, selectedIds), focusedId: entryId, selectedIds };
 }
 
-function extendTo(state: SelectionState, entryId: number): SelectionState {
-  const anchorId = state.anchorId ?? state.focusedId ?? entryId;
-  const anchor = state.indexById.get(anchorId) ?? 0;
-  const target = state.indexById.get(entryId) ?? anchor;
-  const range = state.view.rows.slice(Math.min(anchor, target), Math.max(anchor, target) + 1);
+function extendTo(
+  state: SelectionState,
+  entryId: number,
+  fallbackAnchorId: number | null = null,
+): SelectionState {
+  const anchor = state.anchor ?? {
+    base: new Set<number>(),
+    id: fallbackAnchorId ?? state.focusedId ?? entryId,
+  };
+
+  const from = state.indexById.get(anchor.id) ?? 0;
+  const to = state.indexById.get(entryId) ?? from;
+  const range = state.view.rows.slice(Math.min(from, to), Math.max(from, to) + 1);
 
   return {
     ...state,
-    anchorId,
+    anchor,
     focusedId: entryId,
-    selectedIds: new Set(range.map((row) => row.sourceEntryId)),
+    selectedIds: new Set([...anchor.base, ...range.map((row) => row.sourceEntryId)]),
   };
 }
 
@@ -241,9 +268,13 @@ function changeView(state: SelectionState, view: CompleteSelectionView): Selecti
   const indexById = indexRows(view.rows);
   const selectedIds = new Set([...state.selectedIds].filter((id) => indexById.has(id)));
   const keep = (id: number | null) => (id !== null && indexById.has(id) ? id : null);
+  const anchor = state.anchor && indexById.has(state.anchor.id) ? state.anchor : null;
 
   return {
-    anchorId: keep(state.anchorId),
+    anchor: anchor && {
+      base: new Set([...anchor.base].filter((id) => indexById.has(id))),
+      id: anchor.id,
+    },
     focusedId: keep(state.focusedId) ?? survivorOf(state, indexById, view),
     indexById,
     menu: state.menu && indexById.has(state.menu.entryId) ? state.menu : null,

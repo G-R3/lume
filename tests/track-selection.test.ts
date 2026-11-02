@@ -65,8 +65,90 @@ it("selects the range between the anchor and each shift-click, not the previous 
   );
 
   expect(selected(state)).toEqual([2, 3]);
-  expect(state.anchorId).toBe(3);
   expect(state.focusedId).toBe(2);
+});
+
+it("keeps earlier selections when a shift-click extends from a command-clicked anchor", () => {
+  const view = { context: allTracks, rows: rows(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) };
+  const ranged = run(createSelection(view), click(9), click(7, "range"));
+
+  expect(selected(ranged)).toEqual([7, 8, 9]);
+
+  const added = reduceSelection(ranged, click(5, "toggle"));
+
+  expect(selected(added)).toEqual([5, 7, 8, 9]);
+
+  const second = reduceSelection(added, click(2, "range"));
+
+  expect(selected(second)).toEqual([2, 3, 4, 5, 7, 8, 9]);
+
+  const shrunk = reduceSelection(second, click(4, "range"));
+
+  expect(selected(shrunk)).toEqual([4, 5, 7, 8, 9]);
+  expect(selected(reduceSelection(shrunk, click(10, "range")))).toEqual([5, 6, 7, 8, 9, 10]);
+});
+
+it("extends with shift and arrows from a command-clicked anchor without touching earlier ranges", () => {
+  const up = (fromEntryId: number) =>
+    ({ extend: true, fromEntryId, key: "ArrowUp", pageSize: 10, type: "navigate" }) as const;
+
+  const down = (fromEntryId: number) =>
+    ({ extend: true, fromEntryId, key: "ArrowDown", pageSize: 10, type: "navigate" }) as const;
+
+  const view = { context: allTracks, rows: rows(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) };
+  const start = run(createSelection(view), click(9), click(7, "range"), click(5, "toggle"));
+  const extended = run(start, up(5), up(4), up(3));
+
+  expect(selected(extended)).toEqual([2, 3, 4, 5, 7, 8, 9]);
+  expect(extended.focusedId).toBe(2);
+
+  const shrunk = run(extended, down(2), down(3));
+
+  expect(selected(shrunk)).toEqual([4, 5, 7, 8, 9]);
+});
+
+it("selects the anchor again when a range starts from a command-click that deselected it", () => {
+  const state = run(
+    createSelection({ context: allTracks, rows: rows(1, 2, 3, 4, 5, 6) }),
+    click(1),
+    click(3, "toggle"),
+    click(3, "toggle"),
+    click(5, "range"),
+  );
+
+  expect(selected(state)).toEqual([1, 3, 4, 5]);
+});
+
+it("forgets earlier ranges after a plain click, select all or clear", () => {
+  const view = { context: allTracks, rows: rows(1, 2, 3, 4, 5, 6, 7, 8) };
+  const multi = run(createSelection(view), click(7), click(8, "range"), click(2, "toggle"));
+
+  expect(selected(reduceSelection(multi, click(3, "range")))).toEqual([2, 3, 7, 8]);
+  expect(selected(run(multi, click(4), click(5, "range")))).toEqual([4, 5]);
+
+  const afterAll = run(multi, { type: "selectAll" }, click(3, "range"));
+
+  expect(selected(afterAll)).toEqual([2, 3]);
+
+  const afterClear = run(multi, { type: "clear" }, click(4, "range"));
+
+  expect(selected(afterClear)).toEqual([2, 3, 4]);
+});
+
+it("drops hidden rows from an anchor's earlier selection when the view changes", () => {
+  const all = rows(1, 2, 3, 4, 5, 6);
+
+  const state = run(
+    createSelection({ context: allTracks, rows: all }),
+    click(1),
+    click(2, "range"),
+    click(5, "toggle"),
+    { type: "viewChanged", view: { context: allTracks, rows: rows(2, 3, 4, 5, 6) } },
+    { type: "viewChanged", view: { context: allTracks, rows: all } },
+    click(6, "range"),
+  );
+
+  expect(selected(state)).toEqual([2, 5, 6]);
 });
 
 it("toggles entries in and out and moves the anchor to the toggled entry", () => {
@@ -78,9 +160,8 @@ it("toggles entries in and out and moves the anchor to the toggled entry", () =>
   );
 
   expect(selected(state)).toEqual([4]);
-  expect(state.anchorId).toBe(1);
 
-  expect(selected(reduceSelection(state, click(3, "range")))).toEqual([1, 2, 3]);
+  expect(selected(reduceSelection(state, click(3, "range")))).toEqual([1, 2, 3, 4]);
 });
 
 it("moves focus with arrows, selecting one row, and extends from the anchor with shift", () => {
@@ -101,7 +182,7 @@ it("moves focus with arrows, selecting one row, and extends from the anchor with
   const reversed = run(extended, navigate(4, "ArrowUp", true), navigate(3, "ArrowUp", true));
 
   expect(selected(reversed)).toEqual([2, 3]);
-  expect(reversed.anchorId).toBe(3);
+  expect(reversed.focusedId).toBe(2);
 });
 
 it("selects every row of a large list, including rows far outside any mounted window", () => {
@@ -142,7 +223,6 @@ it("keeps the selection and anchor across a sort, and ranges follow the new orde
   );
 
   expect(selected(state)).toEqual([2, 3]);
-  expect(state.anchorId).toBe(2);
 
   expect(selected(reduceSelection(state, click(4, "range")))).toEqual([2, 3, 4]);
 });
@@ -185,7 +265,7 @@ it("starts empty when the list context changes, even when entry ids collide", ()
 
   expect(selected(state)).toEqual([]);
   expect(state.focusedId).toBeNull();
-  expect(state.anchorId).toBeNull();
+  expect(selected(reduceSelection(state, click(2, "range")))).toEqual([2]);
 });
 
 it("captures the selection in displayed order with repeated tracks kept as separate entries", () => {
