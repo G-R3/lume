@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { type KeyboardEvent, useLayoutEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
   ArrowFatUpIcon,
@@ -84,12 +84,48 @@ export function FloatingSelectionBar({
   const barMotion: BarMotion =
     lastInput === "keyboard" ? "instant" : prefersReducedMotion ? "reduced" : "spring";
 
+  const [toastLiftWhileShown, setToastLiftWhileShown] = useState<number | null>(null);
+  const toastLift = shown ? toastLiftWhileShown : null;
+
+  useLayoutEffect(() => {
+    if (toastLift === null) return;
+
+    const root = document.documentElement;
+
+    root.style.setProperty("--toast-lift", `${toastLift}px`);
+    root.dataset.toastsLifted = "";
+
+    return () => {
+      root.style.removeProperty("--toast-lift");
+      delete root.dataset.toastsLifted;
+    };
+  }, [toastLift]);
+
+  const observeBar = (bar: HTMLDivElement | null) => {
+    if (!bar) return;
+
+    const measure = () => setToastLiftWhileShown(toastLiftFor(bar));
+    const observer = new ResizeObserver(measure);
+
+    measure();
+    observer.observe(bar);
+
+    if (bar.offsetParent) observer.observe(bar.offsetParent);
+
+    window.addEventListener("resize", measure);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  };
+
   return (
     <AnimatePresence custom={barMotion}>
       {shown && (
         <motion.div
           animate="shown"
-          className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center"
+          className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center"
           custom={barMotion}
           data-selection-bar
           exit="hidden"
@@ -100,6 +136,7 @@ export function FloatingSelectionBar({
           <motion.div
             className="pointer-events-auto origin-bottom"
             custom={barMotion}
+            ref={observeBar}
             variants={barRiseVariants}
           >
             <SelectionBar {...barProps} />
@@ -108,6 +145,22 @@ export function FloatingSelectionBar({
       )}
     </AnimatePresence>
   );
+}
+
+// Layout offsets, not the bar's rect, so the rise animation's transform never skews the measurement.
+function toastLiftFor(bar: HTMLElement) {
+  const lane = bar.offsetParent;
+  const toasts = document.querySelector("[data-slot='toast-viewport']")?.getBoundingClientRect();
+
+  if (!lane || !toasts) return null;
+
+  const laneBox = lane.getBoundingClientRect();
+  const left = laneBox.left + bar.offsetLeft;
+  const collides = left < toasts.right && left + bar.offsetWidth > toasts.left;
+
+  // The toast viewport already sits 16px above the window bottom, so lifting it by the bar's
+  // top above that edge leaves the same 16px between the toasts and the bar.
+  return collides ? window.innerHeight - (laneBox.top + bar.offsetTop) : null;
 }
 
 export function NewPlaylistShortcut() {

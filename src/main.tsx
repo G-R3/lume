@@ -29,7 +29,7 @@ createRoot(document.getElementById("root")!).render(
           <RouterProvider router={router} />
           <ToastProvider toastManager={toast}>
             <ToastPortal>
-              <ToastViewport className="transition-transform duration-200 ease-spring-exit motion-reduce:transition-none [:root:has([data-selection-bar])_&]:-translate-y-20 [:root:has([data-selection-bar])_&]:duration-300 [:root:has([data-selection-bar])_&]:ease-spring-ui">
+              <ToastViewport className="transition-transform duration-200 ease-spring-exit motion-reduce:transition-none [&:not(:has([data-slot=toast]))]:transition-none [:root[data-toasts-lifted]_&]:-translate-y-(--toast-lift) [:root[data-toasts-lifted]_&]:duration-300 [:root[data-toasts-lifted]_&]:ease-spring-ui">
                 <ToastList />
               </ToastViewport>
             </ToastPortal>

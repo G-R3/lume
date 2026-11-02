@@ -11,7 +11,6 @@ import { isEditableElement } from "@/lib/keyboard-shortcuts";
 import type { PlayableSource } from "@/lib/queue/commands";
 import { sessionSource } from "@/lib/queue/source";
 import { showTruncatedText } from "@/lib/show-truncated-text";
-import { cn } from "@/lib/utils";
 import type { SortField, TrackRow as TrackListItem, TrackSort } from "@/lib/track-sort";
 import { isListBackgroundPointerDown } from "@/pages/tracks/list-background-pointer";
 import { FloatingSelectionBar, type SelectionBarAction } from "@/pages/tracks/selection-bar";
@@ -37,9 +36,6 @@ type TrackListProps = {
   onReady?: (list: HTMLElement) => void;
   children?: ReactNode;
 };
-
-// pb-24 while the bar zone is reserved, minus the pb-3 base end space.
-const barZoneExtra = 84;
 
 const navigationKeys: ReadonlySet<string> = new Set<NavigationKey>([
   "ArrowDown",
@@ -122,26 +118,6 @@ export function TrackList({
   const summary = summarizeSelection(selection);
   const showsBar = summary.count >= 2;
   const [lastInput, setLastInput] = useState<"keyboard" | "pointer">("pointer");
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const [reservesBarZone, setReservesBarZone] = useState(showsBar);
-
-  if (showsBar && !reservesBarZone) setReservesBarZone(true);
-
-  // The reserve outlives the bar until dropping it would pull rows down: its extra space must
-  // already be below the viewport, or the scroller would clamp scrollTop and shift every row.
-  const releaseBarZoneIfOffscreen = () => {
-    const scroller = scrollerRef.current;
-
-    if (showsBar || !reservesBarZone || !scroller) return;
-
-    const bottom = scroller.scrollTop + scroller.clientHeight;
-
-    if (bottom <= Math.max(scroller.clientHeight, scroller.scrollHeight - barZoneExtra)) {
-      setReservesBarZone(false);
-    }
-  };
-
-  useLayoutEffect(releaseBarZoneIfOffscreen);
 
   useLayoutEffect(() => {
     if (!listOwnsFocusRef.current || focusedId === null || focusedIndex < 0) return;
@@ -366,18 +342,13 @@ export function TrackList({
       ref={regionRef}
     >
       <div
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto scroll-area-scrollbar scroll-mask-end",
-          showsBar && "scroll-pb-24",
-        )}
+        className="min-h-0 flex-1 scroll-pb-18 overflow-y-auto scroll-area-scrollbar scroll-mask-end"
         data-scroll-container
-        onScroll={releaseBarZoneIfOffscreen}
-        ref={scrollerRef}
         onPointerDown={(event) => {
           if (isListBackgroundPointerDown(event)) dispatchSelection({ type: "clear" });
         }}
       >
-        <div className={cn("@container", reservesBarZone ? "pb-24" : "pb-3")}>
+        <div className="@container pb-18">
           <table
             className="w-full table-fixed border-separate border-spacing-0 px-2 select-none"
             onClick={handleGridClick}
