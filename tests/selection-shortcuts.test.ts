@@ -3,7 +3,7 @@ import {
   matchSelectionShortcut,
   type SelectionCapabilities,
   selectionKeyShortcuts,
-} from "../src/pages/tracks/selection-shortcuts";
+} from "../src/components/track-list/selection/selection-shortcuts";
 
 type Press = { key: string; alt?: boolean; ctrl?: boolean; meta?: boolean; shift?: boolean };
 

@@ -15,7 +15,7 @@ import {
   type ConfirmationPhase,
   describeDuplicates,
   type DuplicateMode,
-} from "@/pages/tracks/add-to-playlist-flow";
+} from "@/components/track-list/actions/add-to-playlist-flow";
 
 type DuplicateTracksDialogProps = {
   addingMode: DuplicateMode | null;

@@ -15,7 +15,7 @@ import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { libraryRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
-import { TrackList } from "@/pages/tracks/track-list";
+import { TrackList } from "@/components/track-list/track-list";
 
 const allTracks = { kind: "all-tracks" } as const;
 

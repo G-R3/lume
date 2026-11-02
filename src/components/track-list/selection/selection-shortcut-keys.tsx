@@ -1,6 +1,10 @@
 import { ArrowFatUpIcon, CommandIcon, OptionIcon } from "@phosphor-icons/react";
 import { DropdownMenuShortcut } from "@/components/ui/dropdown-menu";
-import { keyName, type SelectionAction, selectionChord } from "@/pages/tracks/selection-shortcuts";
+import {
+  keyName,
+  type SelectionAction,
+  selectionChord,
+} from "@/components/track-list/selection/selection-shortcuts";
 
 export function SelectionShortcutKeys({ action }: { action: SelectionAction }) {
   const isMac = window.lume.isMac;

@@ -12,25 +12,29 @@ import type { PlayableSource } from "@/lib/queue/commands";
 import { sessionSource } from "@/lib/queue/source";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import type { SortField, TrackRow as TrackListItem, TrackSort } from "@/lib/track-sort";
-import { isListBackgroundPointerDown } from "@/pages/tracks/list-background-pointer";
-import { FloatingSelectionBar } from "@/pages/tracks/selection-bar";
+import { isListBackgroundPointerDown } from "@/components/track-list/list-background-pointer";
+import { FloatingSelectionBar } from "@/components/track-list/selection/selection-bar";
 import {
   isSelectionAction,
   matchSelectionShortcut,
   type SelectionAction,
-} from "@/pages/tracks/selection-shortcuts";
-import type { FocusReturn } from "@/pages/tracks/add-to-playlist-flow";
-import { focusReturnTarget, type TrackAction, useTrackActions } from "@/pages/tracks/track-actions";
-import { TrackListBody, type TrackListBodyHandle } from "@/pages/tracks/track-list-body";
-import { TrackListHead } from "@/pages/tracks/track-list-head";
-import { TrackRow, type TrackRowActions } from "@/pages/tracks/track-row";
+} from "@/components/track-list/selection/selection-shortcuts";
+import type { FocusReturn } from "@/components/track-list/actions/add-to-playlist-flow";
+import {
+  focusReturnTarget,
+  type TrackAction,
+  useTrackActions,
+} from "@/components/track-list/actions/track-actions";
+import { TrackListBody, type TrackListBodyHandle } from "@/components/track-list/track-list-body";
+import { TrackListHead } from "@/components/track-list/track-list-head";
+import { TrackRow, type TrackRowActions } from "@/components/track-list/track-row";
 import {
   captureSelectionInDisplayedOrder,
   type NavigationKey,
   type RowMenuTrigger,
   summarizeSelection,
   useTrackSelection,
-} from "@/pages/tracks/track-selection";
+} from "@/components/track-list/selection/track-selection";
 
 type TrackListProps = {
   caption: string;

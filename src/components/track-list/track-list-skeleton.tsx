@@ -1,5 +1,5 @@
 import type { TrackSort } from "@/lib/track-sort";
-import { TrackListHead } from "@/pages/tracks/track-list-head";
+import { TrackListHead } from "@/components/track-list/track-list-head";
 
 const skeletonRows = [
   [144, 88, 120, 1],

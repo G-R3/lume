@@ -29,8 +29,11 @@ import { duration as motionDuration, ease, spring } from "@/lib/motion";
 import {
   SelectionMenuShortcut,
   SelectionShortcutKeys,
-} from "@/pages/tracks/selection-shortcut-keys";
-import { type SelectionAction, selectionKeyShortcuts } from "@/pages/tracks/selection-shortcuts";
+} from "@/components/track-list/selection/selection-shortcut-keys";
+import {
+  type SelectionAction,
+  selectionKeyShortcuts,
+} from "@/components/track-list/selection/selection-shortcuts";
 
 type SelectionBarProps = {
   allLiked: boolean;

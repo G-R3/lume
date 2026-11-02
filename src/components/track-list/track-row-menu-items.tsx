@@ -12,10 +12,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { SelectionMenuShortcut } from "@/pages/tracks/selection-shortcut-keys";
-import { type SelectionAction, selectionKeyShortcuts } from "@/pages/tracks/selection-shortcuts";
-import type { TrackAction } from "@/pages/tracks/track-actions";
-import type { RowMenu } from "@/pages/tracks/track-selection";
+import { SelectionMenuShortcut } from "@/components/track-list/selection/selection-shortcut-keys";
+import {
+  type SelectionAction,
+  selectionKeyShortcuts,
+} from "@/components/track-list/selection/selection-shortcuts";
+import type { TrackAction } from "@/components/track-list/actions/track-actions";
+import type { RowMenu } from "@/components/track-list/selection/track-selection";
 
 export function TrackRowMenuItems({
   canAddToQueue,

@@ -7,8 +7,11 @@ import {
   idleFlow,
   reduceAddToPlaylist,
   requestOf,
-} from "../src/pages/tracks/add-to-playlist-flow";
-import type { ActionTarget, TargetEntry } from "../src/pages/tracks/track-selection";
+} from "../src/components/track-list/actions/add-to-playlist-flow";
+import type {
+  ActionTarget,
+  TargetEntry,
+} from "../src/components/track-list/selection/track-selection";
 
 function entry(sourceEntryId: number, trackId = sourceEntryId): TargetEntry {
   return { artworkUrl: null, liked: false, sourceEntryId, title: `Track ${trackId}`, trackId };

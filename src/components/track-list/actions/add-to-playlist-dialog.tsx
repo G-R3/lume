@@ -8,14 +8,14 @@ import {
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
-import type { PlaylistSummary } from "../../shared/lib";
+import type { PlaylistSummary } from "../../../../shared/lib";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import type { ActionTarget } from "@/pages/tracks/track-selection";
+import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
 type PaletteItem = { kind: "create" } | { kind: "playlist"; playlist: PlaylistSummary };
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { SourceIdentity } from "../../lib/queue/model";
-import { sameSource } from "../../lib/queue/source";
-import type { TrackRow } from "../../lib/track-sort";
+import type { SourceIdentity } from "../../../lib/queue/model";
+import { sameSource } from "../../../lib/queue/source";
+import type { TrackRow } from "../../../lib/track-sort";
 
 export type CompleteSelectionView = {
   readonly context: SourceIdentity;

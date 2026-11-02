@@ -12,8 +12,8 @@ import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { playlistRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
-import { TrackList } from "@/pages/tracks/track-list";
-import { TrackListSkeleton } from "@/pages/tracks/track-list-skeleton";
+import { TrackList } from "@/components/track-list/track-list";
+import { TrackListSkeleton } from "@/components/track-list/track-list-skeleton";
 
 export function PlaylistPage() {
   const navigate = useNavigate();

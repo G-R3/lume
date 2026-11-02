@@ -16,7 +16,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useCreatePlaylistMutation } from "@/lib/playlist-mutations";
-import type { ActionTarget } from "@/pages/tracks/track-selection";
+import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
 export type PlaylistCreationRequest = {
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];

@@ -1,6 +1,6 @@
 import { type RefObject, useRef, useState } from "react";
-import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
-import { DuplicateTracksDialog } from "@/components/duplicate-tracks-dialog";
+import { AddToPlaylistDialog } from "@/components/track-list/actions/add-to-playlist-dialog";
+import { DuplicateTracksDialog } from "@/components/track-list/actions/duplicate-tracks-dialog";
 import { toast } from "@/components/ui/toast";
 import { usePlayback } from "@/hooks/use-playback";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
@@ -19,9 +19,9 @@ import {
   idleFlow,
   reduceAddToPlaylist,
   requestOf,
-} from "@/pages/tracks/add-to-playlist-flow";
-import { isSelectionAction } from "@/pages/tracks/selection-shortcuts";
-import type { ActionTarget } from "@/pages/tracks/track-selection";
+} from "@/components/track-list/actions/add-to-playlist-flow";
+import { isSelectionAction } from "@/components/track-list/selection/selection-shortcuts";
+import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
 export type TrackAction =
   | { kind: "queue"; target: ActionTarget }

@@ -1,6 +1,6 @@
-import type { AddTracksToPlaylistResult } from "../../../shared/lib";
-import type { SelectionAction } from "./selection-shortcuts";
-import type { ActionTarget } from "./track-selection";
+import type { AddTracksToPlaylistResult } from "../../../../shared/lib";
+import type { SelectionAction } from "../selection/selection-shortcuts";
+import type { ActionTarget } from "../selection/track-selection";
 
 export type FocusReturn = number | SelectionAction | null;
 

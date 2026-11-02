@@ -8,7 +8,7 @@ import {
   type SelectionEvent,
   type SelectionState,
   summarizeSelection,
-} from "../src/pages/tracks/track-selection";
+} from "../src/components/track-list/selection/track-selection";
 
 const allTracks = { kind: "all-tracks" } as const;
 

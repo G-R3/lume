@@ -13,9 +13,13 @@ import {
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
-import type { TrackAction } from "@/pages/tracks/track-actions";
-import { TrackRowMenuItems } from "@/pages/tracks/track-row-menu-items";
-import type { RowMenu, RowMenuTrigger, TargetEntry } from "@/pages/tracks/track-selection";
+import type { TrackAction } from "@/components/track-list/actions/track-actions";
+import { TrackRowMenuItems } from "@/components/track-list/track-row-menu-items";
+import type {
+  RowMenu,
+  RowMenuTrigger,
+  TargetEntry,
+} from "@/components/track-list/selection/track-selection";
 
 export type MenuCloseReason = Parameters<
   NonNullable<ContextMenu.Root.Props["onOpenChange"]>
