@@ -65,7 +65,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   };
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col">
+    <main className="relative flex min-h-0 flex-1 flex-col">
       <PlaylistHeader
         filter={filter?.normalizedText ?? null}
         filterField={
@@ -101,7 +101,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
         </div>
       ) : (
         <div
-          className="min-h-0 flex-1 overflow-y-auto"
+          className="min-h-0 flex-1 overflow-y-auto has-data-[selection-bar]:scroll-pb-24"
           data-scroll-container
           onPointerDown={(event) => {
             if (isListBackgroundPointerDown(event)) trackListRef.current?.clearSelection();

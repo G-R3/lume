@@ -7,6 +7,7 @@ import {
   reduceSelection,
   type SelectionEvent,
   type SelectionState,
+  summarizeSelection,
 } from "../src/pages/tracks/track-selection";
 
 const allTracks = { kind: "all-tracks" } as const;
@@ -295,4 +296,32 @@ it("closes only the menu that is open, and forgets it when its row leaves the li
   });
 
   expect(removed.menu).toBeNull();
+});
+
+it("summarizes the count, total duration and liked state of the selected rows only", () => {
+  const view = {
+    context: allTracks,
+    rows: [
+      { addedToListAt: 1, sourceEntryId: 1, track: { ...track(1, 10), duration: 61.5 } },
+      { addedToListAt: 2, sourceEntryId: 2, track: { ...track(2, 20), duration: 120 } },
+      { addedToListAt: 3, sourceEntryId: 3, track: { ...track(3), duration: null } },
+      { addedToListAt: 4, sourceEntryId: 4, track: { ...track(4), duration: 999 } },
+    ],
+  };
+
+  const likedPair = run(createSelection(view), click(1), click(2, "range"));
+
+  expect(summarizeSelection(likedPair)).toEqual({ allLiked: true, count: 2, duration: 181.5 });
+
+  expect(summarizeSelection(run(likedPair, click(3, "toggle")))).toEqual({
+    allLiked: false,
+    count: 3,
+    duration: 181.5,
+  });
+
+  expect(summarizeSelection(createSelection(view))).toEqual({
+    allLiked: true,
+    count: 0,
+    duration: 0,
+  });
 });

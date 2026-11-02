@@ -54,7 +54,7 @@ export function TracksPage() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center gap-4 pr-4 pl-6" data-slot="page-header">
         <div className="flex min-w-0 flex-1 items-baseline gap-3">
           <h1
@@ -94,7 +94,7 @@ export function TracksPage() {
       <LibraryStatus library={library} />
       {(items.length > 0 || filter) && (
         <div
-          className="min-h-0 flex-1 overflow-y-auto"
+          className="min-h-0 flex-1 overflow-y-auto has-data-[selection-bar]:scroll-pb-24"
           data-scroll-container
           onPointerDown={(event) => {
             if (isListBackgroundPointerDown(event)) trackListRef.current?.clearSelection();

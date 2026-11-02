@@ -10,5 +10,5 @@ export function isListBackgroundPointerDown(event: PointerEvent<HTMLElement>) {
 
   if (target === container) return event.nativeEvent.offsetX < container.clientWidth;
 
-  return !target.closest("tr[data-entry-id], thead, a, button, input");
+  return !target.closest("tr[data-entry-id], thead, a, button, input, [role='toolbar']");
 }

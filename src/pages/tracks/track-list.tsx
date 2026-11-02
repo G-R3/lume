@@ -1,7 +1,5 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import {
-  ArrowFatUpIcon,
-  CommandIcon,
   DotsThreeIcon,
   HeartBreakIcon,
   HeartIcon,
@@ -11,6 +9,7 @@ import {
   PlusIcon,
 } from "@phosphor-icons/react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
   type KeyboardEvent,
   memo,
@@ -39,12 +38,12 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
+import { duration, ease, spring } from "@/lib/motion";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { useSetTracksLiked } from "@/lib/library-query";
@@ -63,9 +62,15 @@ import {
   type NavigationKey,
   type RowMenu,
   type RowMenuTrigger,
+  summarizeSelection,
   type TargetEntry,
   useTrackSelection,
 } from "@/pages/tracks/track-selection";
+import {
+  NewPlaylistShortcut,
+  SelectionBar,
+  type SelectionBarAction,
+} from "@/pages/tracks/selection-bar";
 
 export type TrackListHandle = { clearSelection: () => void };
 
@@ -80,12 +85,49 @@ type TrackListProps = {
   ref?: Ref<TrackListHandle>;
 };
 
+type FocusReturn = number | "toolbar" | null;
+
 type TrackAction =
   | { kind: "queue"; target: ActionTarget }
   | { kind: "like"; target: ActionTarget }
-  | { kind: "addToPlaylist"; target: ActionTarget; returnTo: number | null }
-  | { kind: "createPlaylist"; target: ActionTarget; returnTo: number | null }
+  | { kind: "addToPlaylist"; target: ActionTarget; returnTo: FocusReturn }
+  | { kind: "createPlaylist"; target: ActionTarget; returnTo: FocusReturn }
   | { kind: "removeFromPlaylist"; target: ActionTarget };
+
+type BarMotion = "instant" | "spring" | "reduced";
+
+const barFadeVariants: Variants = {
+  hidden: (mode: BarMotion) => ({
+    opacity: 0,
+    transition:
+      mode === "instant"
+        ? { duration: 0 }
+        : mode === "reduced"
+          ? { duration: duration.exit, ease: ease.out }
+          : spring.exit,
+  }),
+  shown: (mode: BarMotion) => ({
+    opacity: 1,
+    transition:
+      mode === "instant"
+        ? { duration: 0 }
+        : mode === "reduced"
+          ? { duration: 0.14, ease: ease.out }
+          : spring.ui,
+  }),
+};
+
+const barRiseVariants: Variants = {
+  hidden: (mode: BarMotion) =>
+    mode === "spring"
+      ? { scale: 0.975, transition: spring.exit, y: 8 }
+      : { scale: 1, transition: { duration: 0 }, y: 0 },
+  shown: (mode: BarMotion) => ({
+    scale: 1,
+    transition: mode === "spring" ? spring.ui : { duration: 0 },
+    y: 0,
+  }),
+};
 
 type MenuCloseReason = Parameters<NonNullable<ContextMenu.Root.Props["onOpenChange"]>>[1]["reason"];
 
@@ -139,7 +181,7 @@ export function TrackList({
 
   const [picker, setPicker] = useState<{
     open: boolean;
-    returnTo: number | null;
+    returnTo: FocusReturn;
     target: ActionTarget;
   } | null>(null);
 
@@ -157,19 +199,21 @@ export function TrackList({
     bodyRef.current?.scrollToTop();
   }, [sort]);
 
-  const returnFocusTo = (entryId: number | null) => () => {
+  const returnFocusTo = (to: FocusReturn) => () => {
     const region = regionRef.current;
 
     if (!region?.isConnected) return false;
 
     return (
-      region.querySelector<HTMLElement>(`tr[data-entry-id="${entryId}"]`) ??
+      region.querySelector<HTMLElement>(
+        to === "toolbar" ? "[role='toolbar'] [tabindex='0']" : `tr[data-entry-id="${to}"]`,
+      ) ??
       region.querySelector<HTMLElement>("tr[data-entry-id][tabindex='0']") ??
       false
     );
   };
 
-  const openCreation = (target: ActionTarget, returnTo: number | null) =>
+  const openCreation = (target: ActionTarget, returnTo: FocusReturn) =>
     openPlaylistCreation({ finalFocus: returnFocusTo(returnTo), target });
 
   const run = (action: TrackAction) => {
@@ -246,6 +290,18 @@ export function TrackList({
     }
   };
 
+  const runOnSelection = (kind: SelectionBarAction) => {
+    const target = captureSelectionInDisplayedOrder(selection);
+
+    if (!target) return;
+
+    if (kind === "addToPlaylist" || kind === "createPlaylist") {
+      run({ kind, returnTo: "toolbar", target });
+    } else {
+      run({ kind, target });
+    }
+  };
+
   const playRowAt = (index: number) => {
     const item = items[index];
 
@@ -258,6 +314,13 @@ export function TrackList({
   const focusedIndex = focusedId === null ? -1 : (indexById.get(focusedId) ?? -1);
   const tabStopIndex = items.length ? Math.max(0, focusedIndex) : -1;
   const tabStopEntryId = items[tabStopIndex]?.sourceEntryId;
+  const summary = summarizeSelection(selection);
+  const showsBar = summary.count >= 2;
+  const [lastInput, setLastInput] = useState<"keyboard" | "pointer">("pointer");
+  const prefersReducedMotion = useReducedMotion();
+
+  const barMotion: BarMotion =
+    lastInput === "keyboard" ? "instant" : prefersReducedMotion ? "reduced" : "spring";
 
   useImperativeHandle(ref, () => ({
     clearSelection: () => dispatchSelection({ type: "clear" }),
@@ -276,6 +339,17 @@ export function TrackList({
 
     if (focusIsLost || focusIsOnAnotherRow) bodyRef.current?.focusRow(focusedIndex, focusedId);
   }, [focusedId, focusedIndex, items]);
+
+  useLayoutEffect(() => {
+    if (showsBar || !listOwnsFocusRef.current || tabStopEntryId === undefined) return;
+
+    const active = document.activeElement;
+    const toolbar = regionRef.current?.querySelector("[role='toolbar']");
+
+    if (!active || active === document.body || toolbar?.contains(active)) {
+      bodyRef.current?.focusRow(tabStopIndex, tabStopEntryId);
+    }
+  }, [showsBar, tabStopEntryId, tabStopIndex]);
 
   const isSelectedAt = (index: number) => {
     const item = items[index];
@@ -451,7 +525,7 @@ export function TrackList({
 
   return (
     <div
-      className="@container"
+      className={cn("@container", showsBar && "pb-24")}
       onBlur={(event) => {
         const next = event.relatedTarget;
 
@@ -463,6 +537,8 @@ export function TrackList({
         if (event.currentTarget.contains(event.target)) listOwnsFocusRef.current = true;
       }}
       onKeyDown={handleListKeyDown}
+      onKeyDownCapture={() => setLastInput("keyboard")}
+      onPointerDownCapture={() => setLastInput("pointer")}
       ref={regionRef}
     >
       <table
@@ -484,6 +560,39 @@ export function TrackList({
           renderRow={renderTrackRow}
         />
       </table>
+      <AnimatePresence custom={barMotion}>
+        {showsBar && (
+          <motion.div
+            animate="shown"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24"
+            custom={barMotion}
+            data-selection-bar
+            exit="hidden"
+            initial={barMotion === "instant" ? false : "hidden"}
+            key="selection-bar"
+            variants={barFadeVariants}
+          >
+            <div className="absolute inset-0 bg-linear-to-t from-page from-35% to-transparent" />
+            <div className="absolute inset-x-0 bottom-6 flex justify-center">
+              <motion.div
+                className="pointer-events-auto origin-bottom"
+                custom={barMotion}
+                variants={barRiseVariants}
+              >
+                <SelectionBar
+                  allLiked={summary.allLiked}
+                  canAddToQueue={canAddToQueue}
+                  canRemove={isPlaylist}
+                  count={summary.count}
+                  duration={summary.duration}
+                  onAction={runOnSelection}
+                  onClear={() => dispatchSelection({ type: "clear" })}
+                />
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {picker && (
         <AddToPlaylistDialog
           finalFocus={() => (pickerHandedOffRef.current ? false : returnFocusTo(picker.returnTo)())}
@@ -586,6 +695,7 @@ function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackLis
 
     pendingFocusEntryId.current = null;
     row.focus({ preventScroll: true });
+    row.scrollIntoView({ block: "nearest" });
   };
 
   useImperativeHandle(ref, () => ({
@@ -998,18 +1108,7 @@ function TrackRowMenuItems({
       >
         <PlusIcon aria-hidden="true" />
         {count === 1 ? "New playlist from track…" : "New playlist from selection…"}
-        {targetsSelection && (
-          <DropdownMenuShortcut aria-hidden="true" className="flex items-center pl-2">
-            {window.lume.isMac ? (
-              <>
-                <CommandIcon className="size-3" weight="bold" />
-                <ArrowFatUpIcon className="size-3" weight="bold" />N
-              </>
-            ) : (
-              "Ctrl+Shift+N"
-            )}
-          </DropdownMenuShortcut>
-        )}
+        {targetsSelection && <NewPlaylistShortcut />}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onClick={() => run({ kind: "like", target })}>

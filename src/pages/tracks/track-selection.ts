@@ -181,6 +181,22 @@ export function captureSelectionInDisplayedOrder(state: SelectionState): ActionT
   return first ? Object.freeze({ context: state.view.context, entries: [first, ...rest] }) : null;
 }
 
+export function summarizeSelection(state: SelectionState) {
+  let duration = 0;
+  let allLiked = true;
+
+  for (const entryId of state.selectedIds) {
+    const track = state.view.rows[state.indexById.get(entryId) ?? -1]?.track;
+
+    if (!track) continue;
+
+    duration += track.duration ?? 0;
+    allLiked &&= track.likedAt !== null;
+  }
+
+  return { allLiked, count: state.selectedIds.size, duration };
+}
+
 function targetEntryOf(row: TrackRow): TargetEntry {
   return {
     artworkUrl: row.track.artworkUrl,
