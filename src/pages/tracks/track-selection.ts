@@ -86,7 +86,7 @@ export function reduceSelection(state: SelectionState, event: SelectionEvent): S
 
       if (event.intent === "toggle") return toggle(state, event.entryId);
 
-      if (event.intent === "range") return extendTo(state, event.entryId);
+      if (event.intent === "range") return extendTo(state, event.entryId, event.entryId);
 
       return selectOnly(state, event.entryId);
     case "navigate": {
@@ -125,7 +125,7 @@ export function reduceSelection(state: SelectionState, event: SelectionEvent): S
     case "clear":
       if (state.selectedIds.size === 0) return state;
 
-      return { ...state, anchor: anchorAt(state.focusedId), selectedIds: new Set() };
+      return { ...state, anchor: null, selectedIds: new Set() };
     case "openMenu": {
       const index = state.indexById.get(event.entryId);
 
@@ -241,17 +241,22 @@ function toggle(state: SelectionState, entryId: number): SelectionState {
 
   if (!selectedIds.delete(entryId)) selectedIds.add(entryId);
 
-  return { ...state, anchor: anchorAt(entryId, selectedIds), focusedId: entryId, selectedIds };
+  return {
+    ...state,
+    anchor: selectedIds.size > 0 ? anchorAt(entryId, selectedIds) : null,
+    focusedId: entryId,
+    selectedIds,
+  };
 }
 
 function extendTo(
   state: SelectionState,
   entryId: number,
-  fallbackAnchorId: number | null = null,
+  fallbackAnchorId: number,
 ): SelectionState {
   const anchor = state.anchor ?? {
     base: new Set<number>(),
-    id: fallbackAnchorId ?? state.focusedId ?? entryId,
+    id: fallbackAnchorId,
   };
 
   const rows = state.view.rows;

@@ -180,7 +180,18 @@ it("forgets earlier ranges after a plain click, select all or clear", () => {
 
   const afterClear = run(multi, { type: "clear" }, click(4, "range"));
 
-  expect(selected(afterClear)).toEqual([2, 3, 4]);
+  expect(selected(afterClear)).toEqual([4]);
+});
+
+it("starts a Shift-click from the clicked row once nothing is selected", () => {
+  const view = { context: allTracks, rows: rows(1, 2, 3, 4, 5, 6) };
+  const cleared = run(createSelection(view), click(2), { type: "clear" }, click(5, "range"));
+
+  expect(selected(cleared)).toEqual([5]);
+
+  const toggledOff = run(createSelection(view), click(2), click(2, "toggle"), click(5, "range"));
+
+  expect(selected(toggledOff)).toEqual([5]);
 });
 
 it("drops hidden rows from an anchor's earlier selection when the view changes", () => {
