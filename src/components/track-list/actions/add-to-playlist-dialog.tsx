@@ -134,7 +134,7 @@ export function AddToPlaylistDialog({
                   event.preventDefault();
                   handleSelect(createItem);
                 }}
-                placeholder="Add to playlist…"
+                placeholder="Add to playlist"
               />
             </div>
             <Autocomplete.List className="flex max-h-[min(400px,50vh)] scroll-py-2 flex-col overflow-y-auto overscroll-contain p-2 scroll-area-scrollbar">

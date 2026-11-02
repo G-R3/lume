@@ -53,7 +53,7 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
           {!isAdding && (
             <PlusIcon aria-hidden="true" className="size-3.5" data-icon="inline-start" />
           )}
-          Add folder…
+          Add folder
         </Button>
       </header>
 

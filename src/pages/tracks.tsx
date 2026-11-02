@@ -131,7 +131,7 @@ function EmptyLibrary({ library }: { library: MusicLibrary }) {
         <LibraryOnboarding
           actions={
             <>
-              {chooseFolderButton("Choose another folder…")}
+              {chooseFolderButton("Choose another folder")}
               <Button
                 busy={libraryMutation.isPending && libraryMutation.variables?.kind !== "add-source"}
                 disabled={libraryMutation.isPending}
@@ -151,7 +151,7 @@ function EmptyLibrary({ library }: { library: MusicLibrary }) {
         />
       ) : (
         <LibraryOnboarding
-          actions={chooseFolderButton("Choose folder…")}
+          actions={chooseFolderButton("Choose folder")}
           busy={libraryMutation.isPending}
           description="Choose a folder of audio files. Lume plays them where they are."
           errorMessage={libraryMutation.error?.message}

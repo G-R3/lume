@@ -126,7 +126,7 @@ export function FirstRunScreen({
         <LibraryOnboarding
           actions={
             <Button busy={isLoading} onClick={onAddSource} type="button" variant="primary">
-              Choose folder…
+              Choose folder
             </Button>
           }
           busy={isLoading}
