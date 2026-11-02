@@ -341,7 +341,7 @@ it("captures the selection in displayed order with repeated tracks kept as separ
 });
 
 const openMenu = (entryId: number, trigger: "context" | "overflow" = "context") =>
-  ({ entryId, trigger, type: "openMenu" }) as const;
+  ({ entryId, focusToken: Symbol("row menu"), trigger, type: "openMenu" }) as const;
 
 const targetIds = (state: SelectionState) =>
   state.menu?.target.entries.map((entry) => entry.sourceEntryId);

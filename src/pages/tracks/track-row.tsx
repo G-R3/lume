@@ -22,8 +22,13 @@ export type MenuCloseReason = Parameters<
 >[1]["reason"];
 
 export type TrackRowActions = {
-  closeMenu: (entryId: number, trigger: RowMenuTrigger, reason: MenuCloseReason) => void;
-  menuFinalFocus: (entryId: number) => HTMLElement | false;
+  closeMenu: (
+    entryId: number,
+    trigger: RowMenuTrigger,
+    reason: MenuCloseReason,
+    focusToken: symbol | null,
+  ) => void;
+  menuFinalFocus: (entryId: number, focusToken: symbol | null) => HTMLElement | false;
   openMenu: (entryId: number, trigger: RowMenuTrigger) => void;
   run: (action: TrackAction) => void;
   toggleLike: (entry: TargetEntry) => void;
@@ -73,15 +78,17 @@ export const TrackRow = memo(function TrackRow({
     />
   );
 
+  const focusToken = menuTarget?.focusToken ?? null;
+
   const menuProps = (trigger: RowMenuTrigger) => ({
     onOpenChange: (open: boolean, details: { reason: MenuCloseReason }) => {
       if (open) actions.openMenu(sourceEntryId, trigger);
-      else actions.closeMenu(sourceEntryId, trigger, details.reason);
+      else actions.closeMenu(sourceEntryId, trigger, details.reason, focusToken);
     },
     open: menuTarget?.open === true && menuTarget.trigger === trigger,
   });
 
-  const menuFinalFocus = () => actions.menuFinalFocus(sourceEntryId);
+  const menuFinalFocus = () => actions.menuFinalFocus(sourceEntryId, focusToken);
 
   const metadataColor = track.available ? "text-secondary" : "text-disabled";
 

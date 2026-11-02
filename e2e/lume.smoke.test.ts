@@ -251,6 +251,51 @@ it("moves the track selection with the keyboard and plays it with Enter", async 
   expect(await firstRow.getAttribute("aria-current")).toBe("true");
 });
 
+it("returns focus to the row whose menu opened last while an earlier menu is still closing", async () => {
+  const profile = await createTemporaryFolder("lume-electron-menu-focus-");
+  const sourceDirectory = join(profile, "music");
+  const titles = ["alpha", "bravo", "charlie", "delta", "echo"];
+  await mkdir(sourceDirectory);
+  await Promise.all(
+    titles.map((title) => writeFile(join(sourceDirectory, `${title}.wav`), createWaveAudio(5))),
+  );
+
+  await initializeDatabase({
+    location: join(profile, "lume-dev.sqlite"),
+    migrationsFolder: join(process.cwd(), "drizzle"),
+  });
+  await scanSource((await saveSource(sourceDirectory)).id);
+  closeDatabase();
+
+  const application = await launchLume(profile);
+  launchedApplications.push(application);
+  const window = await application.firstWindow();
+  const grid = window.getByRole("grid", { name: "Tracks" });
+  const row = (title: string) => grid.getByRole("row", { name: new RegExp(`\\b${title}\\b`) });
+  const focusedRow = grid.locator("tr[data-entry-id]:focus-within");
+
+  const focusedTitle = async () =>
+    (await focusedRow.count()) === 0 ? null : focusedRow.locator("p").first().textContent();
+
+  await row("echo").waitFor();
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await row("alpha").click();
+    await row("bravo").click({ modifiers: ["Shift"] });
+    await row("alpha").click({ button: "right" });
+    await window.getByRole("menuitem", { name: /^(Like|Unlike)$/ }).click();
+    await row("charlie").click();
+    await window.keyboard.press("Meta+a");
+    await window.keyboard.press("Shift+F10");
+    await window.getByRole("menu").getByText("5 tracks", { exact: true }).waitFor();
+    await window.waitForTimeout(400);
+    expect(await focusedTitle()).not.toBe("alpha");
+    await window.keyboard.press("Escape");
+    await window.getByRole("menu").waitFor({ state: "detached" });
+    expect(await focusedTitle()).toBe("charlie");
+  }
+});
+
 function launchLume(profile: string) {
   return electron.launch({
     args: [".", `--user-data-dir=${profile}`],

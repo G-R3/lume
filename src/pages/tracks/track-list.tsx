@@ -68,7 +68,7 @@ export function TrackList({
     usePlayback();
 
   const canAddToQueue = queue !== null;
-  const menuReturnsFocusRef = useRef(false);
+  const focusReturnOwnerRef = useRef<symbol | null>(null);
   const [selection, dispatchSelection] = useTrackSelection({ context: source, rows: items });
   const bodyRef = useRef<TrackListBodyHandle>(null);
   const regionRef = useRef<HTMLDivElement>(null);
@@ -85,7 +85,7 @@ export function TrackList({
   const run = (action: TrackAction) => {
     // The dialog takes focus next, so the closing row menu must not pull focus back to its row.
     if (action.kind === "addToPlaylist" || action.kind === "createPlaylist") {
-      menuReturnsFocusRef.current = false;
+      focusReturnOwnerRef.current = null;
     }
 
     runAction(action);
@@ -159,8 +159,10 @@ export function TrackList({
   };
 
   const openMenu = (entryId: number, trigger: RowMenuTrigger) => {
-    menuReturnsFocusRef.current = true;
-    dispatchSelection({ entryId, trigger, type: "openMenu" });
+    const focusToken = Symbol("row menu");
+
+    focusReturnOwnerRef.current = focusToken;
+    dispatchSelection({ entryId, focusToken, trigger, type: "openMenu" });
   };
 
   const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -275,16 +277,22 @@ export function TrackList({
   // Every mounted row receives these actions. If they read `items`, the compiler rebuilds them on
   // every library change and a like re-renders every row.
   const rowActions: TrackRowActions = {
-    closeMenu: (entryId, trigger, reason) => {
-      if (reason === "outside-press" || reason === "focus-out") menuReturnsFocusRef.current = false;
+    closeMenu: (entryId, trigger, reason, focusToken) => {
+      const ownsFocusReturn = focusReturnOwnerRef.current === focusToken;
+
+      if (ownsFocusReturn && (reason === "outside-press" || reason === "focus-out")) {
+        focusReturnOwnerRef.current = null;
+      }
 
       dispatchSelection({ entryId, trigger, type: "closeMenu" });
     },
-    menuFinalFocus: (entryId) => {
+    // A menu still fading out can resolve its final focus after another row's menu opened, so
+    // only the most recent opening may pull focus back to its row.
+    menuFinalFocus: (entryId, focusToken) => {
       const active = document.activeElement;
       const focusMovedOn = active && active !== document.body && !active.closest("[role='menu']");
 
-      return menuReturnsFocusRef.current && !focusMovedOn
+      return focusToken !== null && focusReturnOwnerRef.current === focusToken && !focusMovedOn
         ? focusReturnTarget(regionRef.current, entryId)
         : false;
     },
