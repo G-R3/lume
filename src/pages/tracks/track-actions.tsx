@@ -8,7 +8,7 @@ import { useRemovePlaylistTracksMutation } from "@/lib/playlist-mutations";
 import type { PlayableSource } from "@/lib/queue/commands";
 import type { ActionTarget } from "@/pages/tracks/track-selection";
 
-export type FocusReturn = number | "toolbar" | null;
+export type FocusReturn = number | "addToPlaylist" | "createPlaylist" | null;
 
 export type TrackAction =
   | { kind: "queue"; target: ActionTarget }
@@ -22,7 +22,9 @@ export function focusReturnTarget(region: HTMLElement | null, to: FocusReturn) {
 
   return (
     region.querySelector<HTMLElement>(
-      to === "toolbar" ? "[role='toolbar'] [tabindex='0']" : `tr[data-entry-id="${to}"]`,
+      to === "addToPlaylist" || to === "createPlaylist"
+        ? `[role='toolbar'] [data-bar-action="${to}"]`
+        : `tr[data-entry-id="${to}"]`,
     ) ??
     region.querySelector<HTMLElement>("tr[data-entry-id][tabindex='0']") ??
     false

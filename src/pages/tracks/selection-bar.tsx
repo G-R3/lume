@@ -1,4 +1,4 @@
-import { Toolbar } from "@base-ui/react/toolbar";
+import type { KeyboardEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
   ArrowFatUpIcon,
@@ -115,7 +115,10 @@ export function FloatingSelectionBar({
 
 export function NewPlaylistShortcut() {
   return (
-    <DropdownMenuShortcut aria-hidden="true" className="flex items-center pl-2">
+    <DropdownMenuShortcut
+      aria-hidden="true"
+      className="flex items-center pl-2 group-data-highlighted/dropdown-menu-item:text-primary"
+    >
       {window.lume.isMac ? (
         <>
           <CommandIcon className="size-3" weight="bold" />
@@ -140,49 +143,40 @@ function SelectionBar({
   const countLabel = `${count.toLocaleString()} selected`;
 
   return (
-    <Toolbar.Root
+    <div
       aria-label={countLabel}
       className="flex items-center gap-0.5 rounded-xl bg-overlay p-1 shadow-menu inset-ring inset-ring-strong surface-overlay"
+      onKeyDown={moveFocusWithArrows}
+      role="toolbar"
     >
       <div className="flex h-8 min-w-34 items-center gap-2 pr-2.5 pl-3 tabular-nums">
         <span className="text-body font-medium text-primary">{countLabel}</span>
         <span className="font-mono text-meta text-secondary">{formatDuration(duration)}</span>
       </div>
-      <Toolbar.Separator className="h-4 w-px shrink-0 bg-separator" />
-      <Toolbar.Button
+      <div aria-orientation="vertical" className="h-4 w-px shrink-0 bg-separator" role="separator" />
+      <Button
+        className="rounded-lg text-primary hover:not-data-disabled:text-primary focus-visible:-outline-offset-2 [&_svg]:text-secondary"
+        data-bar-action="addToPlaylist"
         onClick={() => onAction("addToPlaylist")}
-        render={
-          <Button
-            className="rounded-lg text-primary hover:not-data-disabled:text-primary [&_svg]:text-secondary"
-            variant="ghost"
-          />
-        }
+        variant="ghost"
       >
         <PlaylistIcon aria-hidden="true" data-icon="inline-start" />
         Add to playlist…
-      </Toolbar.Button>
+      </Button>
       {canAddToQueue && (
-        <Toolbar.Button
+        <Button
+          className="rounded-lg text-primary hover:not-data-disabled:text-primary focus-visible:-outline-offset-2 [&_svg]:text-secondary"
           onClick={() => onAction("queue")}
-          render={
-            <Button
-              className="rounded-lg text-primary hover:not-data-disabled:text-primary [&_svg]:text-secondary"
-              variant="ghost"
-            />
-          }
+          variant="ghost"
         >
           <ListPlusIcon aria-hidden="true" data-icon="inline-start" />
           Add to queue
-        </Toolbar.Button>
+        </Button>
       )}
-      <Toolbar.Button
+      <Button
+        className="rounded-lg text-primary hover:not-data-disabled:text-primary focus-visible:-outline-offset-2 [&_svg]:text-secondary"
         onClick={() => onAction("like")}
-        render={
-          <Button
-            className="rounded-lg text-primary hover:not-data-disabled:text-primary [&_svg]:text-secondary"
-            variant="ghost"
-          />
-        }
+        variant="ghost"
       >
         {allLiked ? (
           <HeartBreakIcon aria-hidden="true" data-icon="inline-start" />
@@ -195,35 +189,35 @@ function SelectionBar({
             Unlike
           </span>
         </span>
-      </Toolbar.Button>
+      </Button>
       {canRemove && (
-        <Toolbar.Button
+        <Button
+          className="rounded-lg text-danger hover:not-data-disabled:bg-danger-subtle hover:not-data-disabled:text-danger focus-visible:text-danger focus-visible:-outline-offset-2 [&_svg]:fill-danger"
           onClick={() => onAction("removeFromPlaylist")}
-          render={
-            <Button
-              className="rounded-lg text-danger hover:not-data-disabled:bg-danger-subtle hover:not-data-disabled:text-danger focus-visible:text-danger [&_svg]:fill-danger"
-              variant="ghost"
-            />
-          }
+          variant="ghost"
         >
           <MinusCircleIcon aria-hidden="true" data-icon="inline-start" />
           Remove
-        </Toolbar.Button>
+        </Button>
       )}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Toolbar.Button
+            <Button
               aria-label="More actions for the selection"
-              render={<Button className="rounded-lg" size="icon" variant="ghost" />}
+              className="rounded-lg focus-visible:-outline-offset-2"
+              data-bar-action="createPlaylist"
+              size="icon"
+              variant="ghost"
             />
           }
         >
           <DotsThreeIcon aria-hidden="true" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="top" sideOffset={8}>
+        <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
           <DropdownMenuItem
             aria-keyshortcuts={window.lume.isMac ? "Meta+Shift+N" : "Control+Shift+N"}
+            className="whitespace-nowrap"
             onClick={() => onAction("createPlaylist")}
           >
             <PlusIcon aria-hidden="true" />
@@ -232,15 +226,28 @@ function SelectionBar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Toolbar.Separator className="h-4 w-px shrink-0 bg-separator" />
-      <Toolbar.Button
+      <div aria-orientation="vertical" className="h-4 w-px shrink-0 bg-separator" role="separator" />
+      <Button
         aria-keyshortcuts="Escape"
         aria-label="Clear selection"
+        className="rounded-lg px-2.5 font-mono text-meta focus-visible:-outline-offset-2"
         onClick={onClear}
-        render={<Button className="rounded-lg px-2.5 font-mono text-meta" variant="ghost" />}
+        variant="ghost"
       >
         esc
-      </Toolbar.Button>
-    </Toolbar.Root>
+      </Button>
+    </div>
   );
+}
+
+function moveFocusWithArrows(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+  const buttons = [...event.currentTarget.querySelectorAll("button")];
+  const index = buttons.findIndex((button) => button === document.activeElement);
+
+  if (index < 0) return;
+
+  event.preventDefault();
+  buttons[(index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length].focus();
 }

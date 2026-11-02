@@ -100,7 +100,7 @@ export function TrackList({
     if (!target) return;
 
     if (kind === "addToPlaylist" || kind === "createPlaylist") {
-      run({ kind, returnTo: "toolbar", target });
+      run({ kind, returnTo: kind, target });
     } else {
       run({ kind, target });
     }

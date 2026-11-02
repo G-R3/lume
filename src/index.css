@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@custom-variant focus-visible (&:focus-visible:where(:not(:root[data-pointer-focus] *)));
+
 @font-face {
   font-family: "Berkeley Mono";
   font-style: normal;
@@ -260,9 +262,12 @@
     background-color: var(--color-bg-page);
     color: var(--color-text-primary);
   }
-  :focus-visible {
+  :focus-visible:where(:not(:root[data-pointer-focus] *)) {
     outline: 2px solid var(--color-border-focus);
     outline-offset: 2px;
+  }
+  :root[data-pointer-focus] :focus-visible {
+    outline: none;
   }
 }
 

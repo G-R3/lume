@@ -51,6 +51,7 @@ export function TrackRowMenuItems({
         aria-keyshortcuts={
           targetsSelection ? (window.lume.isMac ? "Meta+Shift+N" : "Control+Shift+N") : undefined
         }
+        className="whitespace-nowrap"
         onClick={() => run({ kind: "createPlaylist", returnTo, target })}
       >
         <PlusIcon aria-hidden="true" />
