@@ -209,7 +209,7 @@ function SelectionBar({
         role="separator"
       />
       <Button
-        className="rounded-lg text-primary hover:not-data-disabled:text-primary focus-visible:-outline-offset-2 [&_svg]:text-secondary"
+        className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
         data-bar-action="addToPlaylist"
         onClick={() => onAction("addToPlaylist")}
         variant="ghost"
@@ -219,7 +219,7 @@ function SelectionBar({
       </Button>
       {canAddToQueue && (
         <Button
-          className="rounded-lg text-primary hover:not-data-disabled:text-primary focus-visible:-outline-offset-2 [&_svg]:text-secondary"
+          className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
           onClick={() => onAction("queue")}
           variant="ghost"
         >
@@ -228,7 +228,7 @@ function SelectionBar({
         </Button>
       )}
       <Button
-        className="rounded-lg text-primary hover:not-data-disabled:text-primary focus-visible:-outline-offset-2 [&_svg]:text-secondary"
+        className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
         onClick={() => onAction("like")}
         variant="ghost"
       >
@@ -246,7 +246,7 @@ function SelectionBar({
       </Button>
       {canRemove && (
         <Button
-          className="rounded-lg text-danger hover:not-data-disabled:bg-danger-subtle hover:not-data-disabled:text-danger focus-visible:text-danger focus-visible:-outline-offset-2 [&_svg]:fill-danger"
+          className="rounded-lg px-2 text-danger has-data-[icon=inline-start]:pl-2 hover:not-data-disabled:bg-danger-subtle hover:not-data-disabled:text-danger focus-visible:text-danger focus-visible:-outline-offset-2 [&_svg]:fill-danger"
           onClick={() => onAction("removeFromPlaylist")}
           variant="ghost"
         >
@@ -275,7 +275,7 @@ function SelectionBar({
             onClick={() => onAction("createPlaylist")}
           >
             <PlusIcon aria-hidden="true" />
-            New playlist from selection…
+            New playlist…
             <NewPlaylistShortcut />
           </DropdownMenuItem>
         </DropdownMenuContent>
