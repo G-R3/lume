@@ -1,4 +1,5 @@
 import { Toolbar } from "@base-ui/react/toolbar";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
   ArrowFatUpIcon,
   CommandIcon,
@@ -19,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDuration } from "@/lib/format-duration";
+import { duration as motionDuration, ease, spring } from "@/lib/motion";
 
 export type SelectionBarAction =
   | "queue"
@@ -26,6 +28,90 @@ export type SelectionBarAction =
   | "addToPlaylist"
   | "createPlaylist"
   | "removeFromPlaylist";
+
+type SelectionBarProps = {
+  allLiked: boolean;
+  canAddToQueue: boolean;
+  canRemove: boolean;
+  count: number;
+  duration: number;
+  onAction: (action: SelectionBarAction) => void;
+  onClear: () => void;
+};
+
+type BarMotion = "instant" | "spring" | "reduced";
+
+const barFadeVariants: Variants = {
+  hidden: (mode: BarMotion) => ({
+    opacity: 0,
+    transition:
+      mode === "instant"
+        ? { duration: 0 }
+        : mode === "reduced"
+          ? { duration: motionDuration.exit, ease: ease.out }
+          : spring.exit,
+  }),
+  shown: (mode: BarMotion) => ({
+    opacity: 1,
+    transition:
+      mode === "instant"
+        ? { duration: 0 }
+        : mode === "reduced"
+          ? { duration: 0.14, ease: ease.out }
+          : spring.ui,
+  }),
+};
+
+const barRiseVariants: Variants = {
+  hidden: (mode: BarMotion) =>
+    mode === "spring"
+      ? { scale: 0.975, transition: spring.exit, y: 8 }
+      : { scale: 1, transition: { duration: 0 }, y: 0 },
+  shown: (mode: BarMotion) => ({
+    scale: 1,
+    transition: mode === "spring" ? spring.ui : { duration: 0 },
+    y: 0,
+  }),
+};
+
+export function FloatingSelectionBar({
+  lastInput,
+  shown,
+  ...barProps
+}: SelectionBarProps & { lastInput: "keyboard" | "pointer"; shown: boolean }) {
+  const prefersReducedMotion = useReducedMotion();
+
+  const barMotion: BarMotion =
+    lastInput === "keyboard" ? "instant" : prefersReducedMotion ? "reduced" : "spring";
+
+  return (
+    <AnimatePresence custom={barMotion}>
+      {shown && (
+        <motion.div
+          animate="shown"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24"
+          custom={barMotion}
+          data-selection-bar
+          exit="hidden"
+          initial={barMotion === "instant" ? false : "hidden"}
+          key="selection-bar"
+          variants={barFadeVariants}
+        >
+          <div className="absolute inset-0 bg-linear-to-t from-page from-35% to-transparent" />
+          <div className="absolute inset-x-0 bottom-6 flex justify-center">
+            <motion.div
+              className="pointer-events-auto origin-bottom"
+              custom={barMotion}
+              variants={barRiseVariants}
+            >
+              <SelectionBar {...barProps} />
+            </motion.div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 
 export function NewPlaylistShortcut() {
   return (
@@ -42,7 +128,7 @@ export function NewPlaylistShortcut() {
   );
 }
 
-export function SelectionBar({
+function SelectionBar({
   allLiked,
   canAddToQueue,
   canRemove,
@@ -50,15 +136,7 @@ export function SelectionBar({
   duration,
   onAction,
   onClear,
-}: {
-  allLiked: boolean;
-  canAddToQueue: boolean;
-  canRemove: boolean;
-  count: number;
-  duration: number;
-  onAction: (action: SelectionBarAction) => void;
-  onClear: () => void;
-}) {
+}: SelectionBarProps) {
   const countLabel = `${count.toLocaleString()} selected`;
 
   return (
