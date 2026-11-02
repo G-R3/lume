@@ -1,6 +1,6 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { BackspaceIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
-import { type ReactNode, type Ref, useMemo, useRef } from "react";
+import { type ReactNode, type Ref, useMemo, useRef, useState } from "react";
 import type { Track } from "../../../shared/lib";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ function QueuePanel() {
   const playback = usePlayback();
   const library = useMusicLibrary();
   const playButtons = useRef(new Map<string, HTMLButtonElement>());
+  const [queueNotice, setQueueNotice] = useState("");
 
   const laneHeadings = useRef<Record<QueueLane, HTMLHeadingElement | null>>({
     manual: null,
@@ -112,8 +113,21 @@ function QueuePanel() {
     });
   };
 
+  const clearManualQueue = () => {
+    playback.clearManualQueue();
+    setQueueNotice("");
+
+    requestAnimationFrame(() => {
+      (laneHeadings.current.source ?? currentHeading.current)?.focus();
+      setQueueNotice("Manual queue cleared");
+    });
+  };
+
   return (
     <>
+      <p className="sr-only" role="status">
+        {queueNotice}
+      </p>
       <SidebarHeader className="h-14 shrink-0 flex-row items-center gap-2 p-0 pr-2 pl-4">
         <h2 className="text-title font-semibold text-primary">Queue</h2>
         <p className="min-w-0 flex-1 truncate text-meta text-secondary">
@@ -164,11 +178,11 @@ function QueuePanel() {
             {lanes.map((lane) => (
               <SidebarGroup className="px-3 py-0" key={lane.name}>
                 <QueueSectionHeading
-                  count={lane.items.length}
                   headingRef={(element) => {
                     laneHeadings.current[lane.name] = element;
                   }}
                   id={`queue-${lane.name}`}
+                  onClear={lane.name === "manual" ? clearManualQueue : undefined}
                 >
                   {lane.title}
                 </QueueSectionHeading>
@@ -215,14 +229,14 @@ function QueuePanel() {
 
 function QueueSectionHeading({
   children,
-  count,
   headingRef,
   id,
+  onClear,
 }: {
   children: ReactNode;
-  count?: number;
   headingRef: Ref<HTMLHeadingElement>;
   id: string;
+  onClear?: () => void;
 }) {
   return (
     <div className="flex items-center gap-2 pr-1">
@@ -236,10 +250,15 @@ function QueueSectionHeading({
           {children}
         </span>
       </SidebarGroupLabel>
-      {count !== undefined && count > 0 && (
-        <span className="font-mono text-meta text-secondary tabular-nums">
-          {count.toLocaleString()}
-        </span>
+      {onClear && (
+        <button
+          aria-label="Clear manual queue"
+          className="h-6 shrink-0 cursor-pointer rounded-sm text-meta text-secondary"
+          onClick={onClear}
+          type="button"
+        >
+          Clear
+        </button>
       )}
     </div>
   );
