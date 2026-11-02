@@ -291,6 +291,11 @@ export function TrackList({
     return indexById.has(entryId) ? entryId : null;
   };
 
+  const openMenu = (entryId: number, trigger: RowMenuTrigger) => {
+    menuReturnsFocusRef.current = true;
+    dispatchSelection({ entryId, trigger, type: "openMenu" });
+  };
+
   const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target;
 
@@ -399,11 +404,6 @@ export function TrackList({
 
     if (entryId !== null) playRowAt(indexById.get(entryId) ?? -1);
   };
-
-  function openMenu(entryId: number, trigger: RowMenuTrigger) {
-    menuReturnsFocusRef.current = true;
-    dispatchSelection({ entryId, trigger, type: "openMenu" });
-  }
 
   // Every mounted row receives these actions. If they read `items`, the compiler rebuilds them on
   // every library change and a like re-renders every row.
