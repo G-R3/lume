@@ -44,6 +44,7 @@ export type QueueCommand =
       beforeQueueItemId?: string;
     }
   | { type: "removeQueueItem"; queueItemId: string }
+  | { type: "clearManualQueue" }
   | { type: "next" }
   | { type: "previous" }
   | { type: "playbackStarted" }

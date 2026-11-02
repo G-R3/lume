@@ -39,6 +39,8 @@ export function transition(
       return moveQueueItem(state, command);
     case "removeQueueItem":
       return removeQueueItem(state, command.queueItemId);
+    case "clearManualQueue":
+      return state.manualQueue.length > 0 ? { ...state, manualQueue: [] } : state;
     case "next":
       return next(state, context.availableTrackIds);
     case "previous":

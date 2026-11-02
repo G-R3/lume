@@ -15,6 +15,68 @@ import { defaultSort, trackSort } from "./track-sort";
 import { stepViewSort } from "./view-sort";
 
 it.each([
+  { manualPlaying: false, paused: false },
+  { manualPlaying: false, paused: true },
+  { manualPlaying: true, paused: false },
+  { manualPlaying: true, paused: true },
+])(
+  "clears all pending manual tracks without interrupting playback, manualPlaying=$manualPlaying, paused=$paused",
+  async ({ manualPlaying, paused }) => {
+    const playback = createTestPlayback();
+
+    const library = {
+      kind: "library",
+      playlists: [],
+      sources: [],
+      tracks: [track(1), track(2), { ...track(3), available: false }],
+    } satisfies MusicLibrary;
+
+    playback.controller.syncLibrary(library);
+    await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+    playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+
+    if (manualPlaying) {
+      playback.controller.enqueueTrack(2);
+      playback.controller.next();
+    }
+
+    // Include duplicates, unavailable tracks, and more than the panel's 50 visible rows.
+    Array.from({ length: 60 }, (_, index) => (index % 2 === 0 ? 2 : 3)).forEach((trackId) => {
+      playback.controller.enqueueTrack(trackId);
+    });
+    playback.controller.seek(19);
+
+    if (paused) playback.controller.pause();
+
+    const queue = playback.controller.getSnapshot().queue;
+    const request = playback.audioState.request;
+    expect(queue?.manualQueue).toHaveLength(60);
+
+    playback.controller.clearManualQueue();
+
+    expect(playback.controller.getSnapshot().queue).toEqual({ ...queue, manualQueue: [] });
+    expect(playback.audioState).toEqual({ request, position: 19, playing: !paused });
+    await expect
+      .poll(() => parseQueueSession(playback.stored(), library))
+      .toMatchObject({
+        state: { manualQueue: [] },
+        position: 19,
+      });
+
+    const cleared = playback.controller.getSnapshot().queue;
+    playback.controller.clearManualQueue();
+    expect(playback.controller.getSnapshot().queue).toBe(cleared);
+
+    playback.controller.next();
+    expect(playback.controller.getSnapshot().queue?.current).toMatchObject({
+      item: { trackId: 2 },
+      lane: "source",
+    });
+  },
+);
+
+it.each([
   { source: "all-tracks", shuffled: false, expectedTracks: [3, 4] },
   { source: "playlist", shuffled: false, expectedTracks: [3] },
   { source: "all-tracks", shuffled: true, expectedTracks: [3, 1, 4] },

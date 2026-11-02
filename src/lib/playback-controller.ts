@@ -399,6 +399,11 @@ export function createPlaybackController(dependencies: {
       playlistRevisions.set(change.playlistId, revisionOf(change.playlistId) + 1);
       dispatch(change);
     },
+    clearManualQueue: () => {
+      if (closing || !snapshot.isInitialized) return;
+      ++actionId;
+      dispatch({ type: "clearManualQueue" });
+    },
     enqueueTrack: (trackId: number) => {
       if (closing || !snapshot.isInitialized) return;
       ++actionId;
