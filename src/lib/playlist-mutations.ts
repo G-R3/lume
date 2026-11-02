@@ -54,7 +54,7 @@ export function useAddTracksToPlaylistMutation() {
     ...libraryMutationOptions,
     mutationFn: (input: AddTracksToPlaylistInput) => window.lume.addTracksToPlaylist(input),
     onSuccess: (result, input) => {
-      if (result.kind === "duplicate") return;
+      if (result.kind === "duplicate" || result.tracks.length === 0) return;
 
       commitPlaylistAddition(queryClient, input.playlistId, result.tracks);
       playback.applySourceChange({

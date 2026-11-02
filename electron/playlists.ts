@@ -113,35 +113,24 @@ export function addTracksToPlaylist(input: AddTracksToPlaylistInput): AddTracksT
     requirePlaylist(transaction, input.playlistId);
     requireTracks(transaction, input.trackIds);
 
-    if (input.duplicates === "check") {
-      const existingTrackIds = new Set(
-        parameterChunks([...new Set(input.trackIds)]).flatMap((trackIds) =>
-          transaction
-            .selectDistinct({ trackId: playlistTracks.trackId })
-            .from(playlistTracks)
-            .where(
-              and(
-                eq(playlistTracks.playlistId, input.playlistId),
-                inArray(playlistTracks.trackId, trackIds),
-              ),
-            )
-            .all()
-            .map((row) => row.trackId),
-        ),
-      );
+    const append = (trackIds: readonly number[]) => ({
+      kind: "added" as const,
+      tracks: appendPlaylistTracks(transaction, input.playlistId, trackIds, Date.now()),
+    });
 
-      if (existingTrackIds.size > 0) {
-        return {
-          kind: "duplicate",
-          alreadyInPlaylist: input.trackIds.filter((trackId) => existingTrackIds.has(trackId))
-            .length,
-        };
-      }
-    }
+    if (input.duplicates === "allow") return append(input.trackIds);
+
+    const existingTrackIds = trackIdsInPlaylist(transaction, input.playlistId, input.trackIds);
+    const newTrackIds = [...new Set(input.trackIds)].filter((id) => !existingTrackIds.has(id));
+
+    if (input.duplicates === "skip") return append(newTrackIds);
+
+    if (existingTrackIds.size === 0) return append(input.trackIds);
 
     return {
-      kind: "added",
-      tracks: appendPlaylistTracks(transaction, input.playlistId, input.trackIds, Date.now()),
+      kind: "duplicate",
+      alreadyInPlaylist: input.trackIds.filter((trackId) => existingTrackIds.has(trackId)).length,
+      newTrackCount: newTrackIds.length,
     };
   });
 }
@@ -196,6 +185,23 @@ export function requireTracks(database: LibraryTransaction, trackIds: readonly n
   );
 
   if (foundCount !== uniqueTrackIds.length) throw new Error("Track does not exist");
+}
+
+function trackIdsInPlaylist(
+  database: LibraryTransaction,
+  playlistId: number,
+  trackIds: readonly number[],
+) {
+  return new Set(
+    parameterChunks([...new Set(trackIds)]).flatMap((ids) =>
+      database
+        .selectDistinct({ trackId: playlistTracks.trackId })
+        .from(playlistTracks)
+        .where(and(eq(playlistTracks.playlistId, playlistId), inArray(playlistTracks.trackId, ids)))
+        .all()
+        .map((row) => row.trackId),
+    ),
+  );
 }
 
 function appendPlaylistTracks(

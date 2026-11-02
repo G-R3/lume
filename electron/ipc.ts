@@ -52,7 +52,7 @@ const playlistCreationSchema = z.object(
 ) satisfies z.ZodType<PlaylistCreationInput>;
 
 const addTracksToPlaylistSchema = z.object({
-  duplicates: z.enum(["check", "confirmed"]),
+  duplicates: z.enum(["check", "allow", "skip"]),
   playlistId: rowIdSchema,
   trackIds: rowIdsSchema.min(1),
 }) satisfies z.ZodType<AddTracksToPlaylistInput>;

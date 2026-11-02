@@ -61,7 +61,11 @@ export type PlaylistCreationInput = {
 };
 
 export type AddTracksToPlaylistInput = {
-  duplicates: "check" | "confirmed";
+  /**
+   * `check` writes nothing when any target is already in the playlist and reports the overlap.
+   * `allow` appends every target. `skip` appends each target not already there, once.
+   */
+  duplicates: "check" | "allow" | "skip";
   playlistId: number;
   /** One entry per new membership, in order. A repeated ID adds that track again. */
   trackIds: readonly Track["id"][];
@@ -89,7 +93,7 @@ export type PlaylistDetails = {
 
 export type AddTracksToPlaylistResult =
   | { kind: "added"; tracks: PlaylistTrack[] }
-  | { kind: "duplicate"; alreadyInPlaylist: number };
+  | { kind: "duplicate"; alreadyInPlaylist: number; newTrackCount: number };
 
 export type MusicLibrary = {
   kind: "library";

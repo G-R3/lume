@@ -1,14 +1,26 @@
 import { type RefObject, useRef, useState } from "react";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
+import { DuplicateTracksDialog } from "@/components/duplicate-tracks-dialog";
 import { toast } from "@/components/ui/toast";
 import { usePlayback } from "@/hooks/use-playback";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { useSetTracksLiked } from "@/lib/library-query";
-import { useRemovePlaylistTracksMutation } from "@/lib/playlist-mutations";
+import {
+  useAddTracksToPlaylistMutation,
+  useRemovePlaylistTracksMutation,
+} from "@/lib/playlist-mutations";
 import type { PlayableSource } from "@/lib/queue/commands";
+import {
+  type AddRequest,
+  type AddToPlaylistEvent,
+  type AddToPlaylistFlow,
+  describeAddition,
+  type FocusReturn,
+  idleFlow,
+  reduceAddToPlaylist,
+  requestOf,
+} from "@/pages/tracks/add-to-playlist-flow";
 import type { ActionTarget } from "@/pages/tracks/track-selection";
-
-export type FocusReturn = number | "addToPlaylist" | "createPlaylist" | null;
 
 export type TrackAction =
   | { kind: "queue"; target: ActionTarget }
@@ -35,15 +47,10 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
   const { enqueueTracks } = usePlayback();
   const { mutate: setTracksLiked } = useSetTracksLiked();
   const { mutateAsync: removePlaylistTracks } = useRemovePlaylistTracksMutation();
+  const { mutateAsync: addTracksToPlaylist } = useAddTracksToPlaylistMutation();
   const openPlaylistCreation = usePlaylistCreation();
-
-  const [picker, setPicker] = useState<{
-    open: boolean;
-    returnTo: FocusReturn;
-    target: ActionTarget;
-  } | null>(null);
-
-  const pickerHandedOffRef = useRef(false);
+  const [flow, setFlow] = useState<AddToPlaylistFlow>(idleFlow);
+  const flowRef = useRef(flow);
   const playlistTitle = source.kind === "playlist" ? source.title : null;
 
   const openCreation = (target: ActionTarget, returnTo: FocusReturn) =>
@@ -86,6 +93,47 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
     }
   };
 
+  const submitAddition = async (request: AddRequest) => {
+    try {
+      const result = await addTracksToPlaylist({
+        duplicates: request.duplicates,
+        playlistId: request.destination.playlistId,
+        trackIds: request.trackIds,
+      });
+
+      sendToFlow({ result, type: "settled" });
+
+      if (result.kind === "added") {
+        toast.add({
+          title: describeAddition(request, result.tracks.length),
+          type: "success",
+        });
+      }
+    } catch (error) {
+      sendToFlow({
+        message: error instanceof Error ? error.message : String(error),
+        type: "failed",
+      });
+    }
+  };
+
+  // Reducing against the ref, not render state, keeps a second click before re-render from submitting.
+  const sendToFlow = (event: AddToPlaylistEvent) => {
+    const previous = flowRef.current;
+    const next = reduceAddToPlaylist(previous, event);
+
+    if (next === previous) return false;
+
+    flowRef.current = next;
+    setFlow(next);
+
+    const request = requestOf(next);
+
+    if (request) void submitAddition(request);
+
+    return true;
+  };
+
   const run = (action: TrackAction) => {
     const { target } = action;
 
@@ -114,8 +162,7 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
 
         return;
       case "addToPlaylist":
-        pickerHandedOffRef.current = false;
-        setPicker({ open: true, returnTo: action.returnTo, target });
+        sendToFlow({ returnTo: action.returnTo, target, type: "open" });
 
         return;
       case "createPlaylist":
@@ -129,20 +176,44 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
     }
   };
 
-  const playlistPicker = picker && (
-    <AddToPlaylistDialog
-      finalFocus={() =>
-        pickerHandedOffRef.current ? false : focusReturnTarget(regionRef.current, picker.returnTo)
-      }
-      onCreatePlaylist={(target) => {
-        pickerHandedOffRef.current = true;
-        openCreation(target, picker.returnTo);
-      }}
-      onOpenChange={(open) => setPicker((current) => current && { ...current, open })}
-      open={picker.open}
-      target={picker.target}
-    />
-  );
+  const shown = flow.phase === "closed" ? flow.last : flow;
+
+  const finalFocus = () =>
+    flow.phase === "closed" &&
+    flow.returnFocus &&
+    focusReturnTarget(regionRef.current, flow.last.returnTo);
+
+  const playlistPicker =
+    shown.phase === "picking" || shown.phase === "checking" ? (
+      <AddToPlaylistDialog
+        error={shown.phase === "picking" ? shown.error : null}
+        finalFocus={finalFocus}
+        onCreatePlaylist={() => {
+          if (sendToFlow({ type: "createInstead" })) openCreation(shown.target, shown.returnTo);
+        }}
+        onDismiss={() => sendToFlow({ type: "dismiss" })}
+        onExited={() => sendToFlow({ type: "exited" })}
+        onPick={(playlist) =>
+          sendToFlow({
+            destination: { playlistId: playlist.id, title: playlist.title },
+            type: "pick",
+          })
+        }
+        open={flow.phase === "picking" || flow.phase === "checking"}
+        target={shown.target}
+      />
+    ) : shown.phase === "confirmingDuplicates" || shown.phase === "adding" ? (
+      <DuplicateTracksDialog
+        addingMode={flow.phase === "adding" ? flow.mode : null}
+        confirmation={shown}
+        error={shown.phase === "confirmingDuplicates" ? shown.error : null}
+        finalFocus={finalFocus}
+        onChoose={(mode) => sendToFlow({ mode, type: "choose" })}
+        onDismiss={() => sendToFlow({ type: "dismiss" })}
+        onExited={() => sendToFlow({ type: "exited" })}
+        open={flow.phase === "confirmingDuplicates" || flow.phase === "adding"}
+      />
+    ) : null;
 
   return { openCreation, playlistPicker, run };
 }
