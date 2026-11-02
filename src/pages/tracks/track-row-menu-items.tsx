@@ -12,7 +12,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { NewPlaylistShortcut } from "@/pages/tracks/selection-bar";
+import { SelectionMenuShortcut } from "@/pages/tracks/selection-shortcut-keys";
+import { type SelectionAction, selectionKeyShortcuts } from "@/pages/tracks/selection-shortcuts";
 import type { TrackAction } from "@/pages/tracks/track-actions";
 import type { RowMenu } from "@/pages/tracks/track-selection";
 
@@ -32,41 +33,62 @@ export function TrackRowMenuItems({
   const countLabel = count.toLocaleString();
   const likes = target.entries.some((entry) => !entry.liked);
 
+  const keyShortcuts = (action: SelectionAction) =>
+    targetsSelection ? selectionKeyShortcuts(action, window.lume.isMac) : undefined;
+
+  const shortcut = (action: SelectionAction) =>
+    targetsSelection && <SelectionMenuShortcut action={action} />;
+
   const items = (
     <>
       {canAddToQueue && (
         <>
-          <DropdownMenuItem onClick={() => run({ kind: "queue", target })}>
+          <DropdownMenuItem
+            aria-keyshortcuts={keyShortcuts("queue")}
+            className="whitespace-nowrap"
+            onClick={() => run({ kind: "queue", target })}
+          >
             <ListPlusIcon aria-hidden="true" />
             Add to queue
+            {shortcut("queue")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
         </>
       )}
-      <DropdownMenuItem onClick={() => run({ kind: "addToPlaylist", returnTo, target })}>
+      <DropdownMenuItem
+        aria-keyshortcuts={keyShortcuts("addToPlaylist")}
+        className="whitespace-nowrap"
+        onClick={() => run({ kind: "addToPlaylist", returnTo, target })}
+      >
         <PlaylistIcon aria-hidden="true" />
         Add to playlist…
+        {shortcut("addToPlaylist")}
       </DropdownMenuItem>
       <DropdownMenuItem
-        aria-keyshortcuts={
-          targetsSelection ? (window.lume.isMac ? "Meta+Shift+N" : "Control+Shift+N") : undefined
-        }
+        aria-keyshortcuts={keyShortcuts("createPlaylist")}
         className="whitespace-nowrap"
         onClick={() => run({ kind: "createPlaylist", returnTo, target })}
       >
         <PlusIcon aria-hidden="true" />
         New playlist…
-        {targetsSelection && <NewPlaylistShortcut />}
+        {shortcut("createPlaylist")}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onClick={() => run({ kind: "like", target })}>
+      <DropdownMenuItem
+        aria-keyshortcuts={keyShortcuts("like")}
+        className="whitespace-nowrap"
+        onClick={() => run({ kind: "like", target })}
+      >
         {likes ? <HeartIcon aria-hidden="true" /> : <HeartBreakIcon aria-hidden="true" />}
         {likes ? "Like" : "Unlike"}
+        {shortcut("like")}
       </DropdownMenuItem>
       {playlistTitle !== null && (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem
+            aria-keyshortcuts={keyShortcuts("removeFromPlaylist")}
+            className="whitespace-nowrap"
             onClick={() => run({ kind: "removeFromPlaylist", target })}
             variant="danger"
           >
@@ -74,6 +96,7 @@ export function TrackRowMenuItems({
             <span className="truncate" title={`Remove from ${playlistTitle}`}>
               {count === 1 ? "Remove" : `Remove ${countLabel}`} from {playlistTitle}
             </span>
+            {shortcut("removeFromPlaylist")}
           </DropdownMenuItem>
         </>
       )}

@@ -13,7 +13,13 @@ import { sessionSource } from "@/lib/queue/source";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import type { SortField, TrackRow as TrackListItem, TrackSort } from "@/lib/track-sort";
 import { isListBackgroundPointerDown } from "@/pages/tracks/list-background-pointer";
-import { FloatingSelectionBar, type SelectionBarAction } from "@/pages/tracks/selection-bar";
+import { FloatingSelectionBar } from "@/pages/tracks/selection-bar";
+import {
+  isSelectionAction,
+  matchSelectionShortcut,
+  type SelectionAction,
+} from "@/pages/tracks/selection-shortcuts";
+import type { FocusReturn } from "@/pages/tracks/add-to-playlist-flow";
 import { focusReturnTarget, type TrackAction, useTrackActions } from "@/pages/tracks/track-actions";
 import { TrackListBody, type TrackListBodyHandle } from "@/pages/tracks/track-list-body";
 import { TrackListHead } from "@/pages/tracks/track-list-head";
@@ -73,7 +79,7 @@ export function TrackList({
   const bodyRef = useRef<TrackListBodyHandle>(null);
   const regionRef = useRef<HTMLDivElement>(null);
   const listOwnsFocusRef = useRef(false);
-  const { openCreation, playlistPicker, run: runAction } = useTrackActions(source, regionRef);
+  const { playlistPicker, run: runAction } = useTrackActions(source, regionRef);
   const playlistId = source.kind === "playlist" ? source.playlistId : null;
   const playlistTitle = source.kind === "playlist" ? source.title : null;
   const isPlaylist = playlistId !== null;
@@ -91,16 +97,18 @@ export function TrackList({
     runAction(action);
   };
 
-  const runOnSelection = (kind: SelectionBarAction) => {
+  const runOnSelection = (kind: SelectionAction, returnTo: FocusReturn = kind) => {
     const target = captureSelectionInDisplayedOrder(selection);
 
-    if (!target) return;
+    if (!target) return false;
 
     if (kind === "addToPlaylist" || kind === "createPlaylist") {
-      run({ kind, returnTo: kind, target });
+      run({ kind, returnTo, target });
     } else {
       run({ kind, target });
     }
+
+    return true;
   };
 
   const playRowAt = (index: number) => {
@@ -190,20 +198,19 @@ export function TrackList({
       return;
     }
 
-    if (
-      event.key.toLowerCase() === "n" &&
-      hasPrimary &&
-      !hasSecondary &&
-      event.shiftKey &&
-      !event.altKey &&
-      !isEditableElement(target)
-    ) {
-      const selected = captureSelectionInDisplayedOrder(selection);
+    const shortcut = isEditableElement(target)
+      ? null
+      : matchSelectionShortcut(event, isMac, { playlist: isPlaylist, queue: canAddToQueue });
 
-      if (!selected) return;
+    if (shortcut) {
+      const barAction = target.closest<HTMLElement>("[data-bar-action]")?.dataset.barAction;
 
-      event.preventDefault();
-      openCreation(selected, entryIdOfRow(target, event.currentTarget) ?? focusedId);
+      const returnTo =
+        barAction !== undefined && isSelectionAction(barAction)
+          ? barAction
+          : (entryIdOfRow(target, event.currentTarget) ?? focusedId);
+
+      if (event.repeat || runOnSelection(shortcut, returnTo)) event.preventDefault();
 
       return;
     }

@@ -1,7 +1,8 @@
 import type { AddTracksToPlaylistResult } from "../../../shared/lib";
+import type { SelectionAction } from "./selection-shortcuts";
 import type { ActionTarget } from "./track-selection";
 
-export type FocusReturn = number | "addToPlaylist" | "createPlaylist" | null;
+export type FocusReturn = number | SelectionAction | null;
 
 export type Destination = { readonly playlistId: number; readonly title: string };
 

@@ -20,6 +20,7 @@ import {
   reduceAddToPlaylist,
   requestOf,
 } from "@/pages/tracks/add-to-playlist-flow";
+import { isSelectionAction } from "@/pages/tracks/selection-shortcuts";
 import type { ActionTarget } from "@/pages/tracks/track-selection";
 
 export type TrackAction =
@@ -34,7 +35,7 @@ export function focusReturnTarget(region: HTMLElement | null, to: FocusReturn) {
 
   return (
     region.querySelector<HTMLElement>(
-      to === "addToPlaylist" || to === "createPlaylist"
+      to !== null && isSelectionAction(to)
         ? `[role='toolbar'] [data-bar-action="${to}"]`
         : `tr[data-entry-id="${to}"]`,
     ) ??
@@ -215,5 +216,5 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
       />
     ) : null;
 
-  return { openCreation, playlistPicker, run };
+  return { playlistPicker, run };
 }

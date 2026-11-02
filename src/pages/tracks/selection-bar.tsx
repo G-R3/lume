@@ -1,8 +1,12 @@
-import { type KeyboardEvent, useLayoutEffect, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactElement,
+  type ReactNode,
+  useLayoutEffect,
+  useState,
+} from "react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
-  ArrowFatUpIcon,
-  CommandIcon,
   DotsThreeIcon,
   HeartBreakIcon,
   HeartIcon,
@@ -16,18 +20,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Kbd } from "@/components/ui/kbd";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDuration } from "@/lib/format-duration";
 import { duration as motionDuration, ease, spring } from "@/lib/motion";
-
-export type SelectionBarAction =
-  | "queue"
-  | "like"
-  | "addToPlaylist"
-  | "createPlaylist"
-  | "removeFromPlaylist";
+import {
+  SelectionMenuShortcut,
+  SelectionShortcutKeys,
+} from "@/pages/tracks/selection-shortcut-keys";
+import { type SelectionAction, selectionKeyShortcuts } from "@/pages/tracks/selection-shortcuts";
 
 type SelectionBarProps = {
   allLiked: boolean;
@@ -35,7 +38,7 @@ type SelectionBarProps = {
   canRemove: boolean;
   count: number;
   duration: number;
-  onAction: (action: SelectionBarAction) => void;
+  onAction: (action: SelectionAction) => void;
   onClear: () => void;
 };
 
@@ -163,24 +166,6 @@ function toastLiftFor(bar: HTMLElement) {
   return collides ? window.innerHeight - (laneBox.top + bar.offsetTop) : null;
 }
 
-export function NewPlaylistShortcut() {
-  return (
-    <DropdownMenuShortcut
-      aria-hidden="true"
-      className="flex items-center pl-2 group-data-highlighted/dropdown-menu-item:text-primary"
-    >
-      {window.lume.isMac ? (
-        <>
-          <CommandIcon className="size-3" weight="bold" />
-          <ArrowFatUpIcon className="size-3" weight="bold" />N
-        </>
-      ) : (
-        "Ctrl+Shift+N"
-      )}
-    </DropdownMenuShortcut>
-  );
-}
-
 function SelectionBar({
   allLiked,
   canAddToQueue,
@@ -193,108 +178,175 @@ function SelectionBar({
   const countLabel = `${count.toLocaleString()} selected`;
 
   return (
-    <div
-      aria-label={countLabel}
-      className="flex items-center gap-0.5 rounded-xl bg-overlay p-1 shadow-menu inset-ring inset-ring-strong surface-overlay"
-      onKeyDown={moveFocusWithArrows}
-      role="toolbar"
-    >
-      <div className="flex h-8 min-w-34 items-center gap-2 pr-2.5 pl-3 tabular-nums">
-        <span className="text-body font-medium text-primary">{countLabel}</span>
-        <span className="font-mono text-meta text-secondary">{formatDuration(duration)}</span>
-      </div>
+    <TooltipProvider delay={500}>
       <div
-        aria-orientation="vertical"
-        className="h-4 w-px shrink-0 bg-separator"
-        role="separator"
-      />
-      <Button
-        className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
-        data-bar-action="addToPlaylist"
-        onClick={() => onAction("addToPlaylist")}
-        variant="ghost"
+        aria-label={countLabel}
+        className="flex items-center gap-0.5 rounded-xl bg-overlay p-1 shadow-menu inset-ring inset-ring-strong surface-overlay"
+        onKeyDown={moveFocusWithArrows}
+        role="toolbar"
       >
-        <PlaylistIcon aria-hidden="true" data-icon="inline-start" />
-        Add to playlist…
-      </Button>
-      {canAddToQueue && (
-        <Button
-          className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
-          onClick={() => onAction("queue")}
-          variant="ghost"
-        >
-          <ListPlusIcon aria-hidden="true" data-icon="inline-start" />
-          Add to queue
-        </Button>
-      )}
-      <Button
-        className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
-        onClick={() => onAction("like")}
-        variant="ghost"
-      >
-        {allLiked ? (
-          <HeartBreakIcon aria-hidden="true" data-icon="inline-start" />
-        ) : (
-          <HeartIcon aria-hidden="true" data-icon="inline-start" />
-        )}
-        <span className="grid justify-items-start">
-          <span className="col-start-1 row-start-1">{allLiked ? "Unlike" : "Like"}</span>
-          <span aria-hidden="true" className="invisible col-start-1 row-start-1">
-            Unlike
-          </span>
-        </span>
-      </Button>
-      {canRemove && (
-        <Button
-          className="rounded-lg px-2 text-danger has-data-[icon=inline-start]:pl-2 hover:not-data-disabled:bg-danger-subtle hover:not-data-disabled:text-danger focus-visible:text-danger focus-visible:-outline-offset-2 [&_svg]:fill-danger"
-          onClick={() => onAction("removeFromPlaylist")}
-          variant="ghost"
-        >
-          <MinusCircleIcon aria-hidden="true" data-icon="inline-start" />
-          Remove
-        </Button>
-      )}
-      <DropdownMenu>
-        <DropdownMenuTrigger
+        <div className="flex h-8 min-w-34 items-center gap-2 pr-2.5 pl-3 tabular-nums">
+          <span className="text-body font-medium text-primary">{countLabel}</span>
+          <span className="font-mono text-meta text-secondary">{formatDuration(duration)}</span>
+        </div>
+        <div
+          aria-orientation="vertical"
+          className="h-4 w-px shrink-0 bg-separator"
+          role="separator"
+        />
+        <BarAction
+          action="addToPlaylist"
+          label="Add to playlist…"
           render={
             <Button
-              aria-label="More actions for the selection"
-              className="rounded-lg focus-visible:-outline-offset-2"
-              data-bar-action="createPlaylist"
-              size="icon"
+              className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
+              onClick={() => onAction("addToPlaylist")}
               variant="ghost"
             />
           }
         >
-          <DotsThreeIcon aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
-          <DropdownMenuItem
-            aria-keyshortcuts={window.lume.isMac ? "Meta+Shift+N" : "Control+Shift+N"}
-            className="whitespace-nowrap"
-            onClick={() => onAction("createPlaylist")}
+          <PlaylistIcon aria-hidden="true" data-icon="inline-start" />
+          Add to playlist…
+        </BarAction>
+        {canAddToQueue && (
+          <BarAction
+            action="queue"
+            label="Add to queue"
+            render={
+              <Button
+                className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
+                onClick={() => onAction("queue")}
+                variant="ghost"
+              />
+            }
           >
-            <PlusIcon aria-hidden="true" />
-            New playlist…
-            <NewPlaylistShortcut />
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <div
-        aria-orientation="vertical"
-        className="h-4 w-px shrink-0 bg-separator"
-        role="separator"
-      />
-      <Button
-        aria-keyshortcuts="Escape"
-        aria-label="Clear selection"
-        className="rounded-lg px-2.5 font-mono text-meta focus-visible:-outline-offset-2"
-        onClick={onClear}
-        variant="ghost"
+            <ListPlusIcon aria-hidden="true" data-icon="inline-start" />
+            Add to queue
+          </BarAction>
+        )}
+        <BarAction
+          action="like"
+          label={allLiked ? "Unlike" : "Like"}
+          render={
+            <Button
+              className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
+              onClick={() => onAction("like")}
+              variant="ghost"
+            />
+          }
+        >
+          {allLiked ? (
+            <HeartBreakIcon aria-hidden="true" data-icon="inline-start" />
+          ) : (
+            <HeartIcon aria-hidden="true" data-icon="inline-start" />
+          )}
+          <span className="grid justify-items-start">
+            <span className="col-start-1 row-start-1">{allLiked ? "Unlike" : "Like"}</span>
+            <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+              Unlike
+            </span>
+          </span>
+        </BarAction>
+        {canRemove && (
+          <BarAction
+            action="removeFromPlaylist"
+            label="Remove from playlist"
+            render={
+              <Button
+                className="rounded-lg px-2 text-danger has-data-[icon=inline-start]:pl-2 hover:not-data-disabled:bg-danger-subtle hover:not-data-disabled:text-danger focus-visible:text-danger focus-visible:-outline-offset-2 [&_svg]:fill-danger"
+                onClick={() => onAction("removeFromPlaylist")}
+                variant="ghost"
+              />
+            }
+          >
+            <MinusCircleIcon aria-hidden="true" data-icon="inline-start" />
+            Remove
+          </BarAction>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                aria-label="More actions for the selection"
+                className="rounded-lg focus-visible:-outline-offset-2"
+                data-bar-action="createPlaylist"
+                size="icon"
+                variant="ghost"
+              />
+            }
+          >
+            <DotsThreeIcon aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
+            <DropdownMenuItem
+              aria-keyshortcuts={selectionKeyShortcuts("createPlaylist", window.lume.isMac)}
+              className="whitespace-nowrap"
+              onClick={() => onAction("createPlaylist")}
+            >
+              <PlusIcon aria-hidden="true" />
+              New playlist…
+              <SelectionMenuShortcut action="createPlaylist" />
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div
+          aria-orientation="vertical"
+          className="h-4 w-px shrink-0 bg-separator"
+          role="separator"
+        />
+        <Button
+          aria-keyshortcuts="Escape"
+          aria-label="Clear selection"
+          className="rounded-lg px-2.5 font-mono text-meta focus-visible:-outline-offset-2"
+          onClick={onClear}
+          variant="ghost"
+        >
+          esc
+        </Button>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+// Chromium matches :focus-visible when focus returns to a button after a pointer-driven dialog,
+// so the tooltip follows the app's own focus modality instead.
+function BarAction({
+  action,
+  children,
+  label,
+  render,
+}: {
+  action: SelectionAction;
+  children: ReactNode;
+  label: string;
+  render: ReactElement;
+}) {
+  return (
+    <Tooltip
+      onOpenChange={(open, details) => {
+        if (
+          open &&
+          details.reason === "trigger-focus" &&
+          document.documentElement.hasAttribute("data-pointer-focus")
+        ) {
+          details.cancel();
+        }
+      }}
+    >
+      <TooltipTrigger
+        aria-keyshortcuts={selectionKeyShortcuts(action, window.lume.isMac)}
+        data-bar-action={action}
+        render={render}
       >
-        esc
-      </Button>
-    </div>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent sideOffset={8}>
+        {label}
+        <Kbd>
+          <SelectionShortcutKeys action={action} />
+        </Kbd>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
