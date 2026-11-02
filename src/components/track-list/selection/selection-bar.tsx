@@ -199,7 +199,7 @@ function SelectionBar({
         />
         <BarAction
           action="addToPlaylist"
-          label="Add to playlist…"
+          label="Add to playlist"
           render={
             <Button
               className="rounded-lg px-2 text-primary hover:not-data-disabled:text-primary has-data-[icon=inline-start]:pl-2 focus-visible:-outline-offset-2 [&_svg]:text-secondary"
@@ -209,7 +209,7 @@ function SelectionBar({
           }
         >
           <PlaylistIcon aria-hidden="true" data-icon="inline-start" />
-          Add to playlist…
+          Add to playlist
         </BarAction>
         {canAddToQueue && (
           <BarAction
@@ -287,7 +287,7 @@ function SelectionBar({
               onClick={() => onAction("createPlaylist")}
             >
               <PlusIcon aria-hidden="true" />
-              New playlist…
+              New playlist
               <SelectionMenuShortcut action="createPlaylist" />
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -143,7 +143,7 @@ function PlaylistSidebarItem({
   const menuItems = (
     <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
       <TrashIcon aria-hidden="true" />
-      Delete playlist…
+      Delete playlist
     </DropdownMenuItem>
   );
 

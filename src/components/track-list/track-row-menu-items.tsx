@@ -64,7 +64,7 @@ export function TrackRowMenuItems({
         onClick={() => run({ kind: "addToPlaylist", returnTo, target })}
       >
         <PlaylistIcon aria-hidden="true" />
-        Add to playlist…
+        Add to playlist
         {shortcut("addToPlaylist")}
       </DropdownMenuItem>
       <DropdownMenuItem
@@ -73,7 +73,7 @@ export function TrackRowMenuItems({
         onClick={() => run({ kind: "createPlaylist", returnTo, target })}
       >
         <PlusIcon aria-hidden="true" />
-        New playlist…
+        New playlist
         {shortcut("createPlaylist")}
       </DropdownMenuItem>
       <DropdownMenuSeparator />

@@ -89,7 +89,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           <div className="flex w-100 flex-col gap-2" data-slot="playlist-empty">
             <h2 className="text-title font-semibold text-primary">Nothing here yet</h2>
             <p className="text-copy text-secondary">
-              Open a track’s menu and choose Add to playlist…
+              Open a track’s menu and choose Add to playlist.
             </p>
             <div className="pt-4">
               <Link className={buttonVariants({ variant: "secondary" })} to="/">
