@@ -1,10 +1,12 @@
 import { useSidebar } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
+import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { getSidebarShortcut, useKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
 
 export function AppKeyboardShortcuts({ toggleQueue }: { toggleQueue: () => void }) {
   const playback = usePlayback();
   const sidebar = useSidebar();
+  const openPlaylistCreation = usePlaylistCreation();
   const sidebarShortcut = getSidebarShortcut(window.lume.isMac);
 
   useKeyboardShortcuts(
@@ -32,6 +34,13 @@ export function AppKeyboardShortcuts({ toggleQueue }: { toggleQueue: () => void 
         key: sidebarShortcut.key,
         commandOrControl: true,
         action: sidebar.toggleSidebar,
+      },
+      {
+        name: "New playlist",
+        key: "n",
+        commandOrControl: true,
+        yieldToOverlays: true,
+        action: () => openPlaylistCreation({ target: null }),
       },
       {
         name: "Toggle mute",

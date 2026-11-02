@@ -10,7 +10,6 @@ import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { type Ref, type RefObject, useRef, useState } from "react";
 import type { LibrarySource, PlaylistSummary } from "../../../shared/lib";
-import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { duration, ease } from "@/lib/motion";
 import { getSourceName } from "@/lib/source-name";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,7 @@ export function AppSidebar() {
   const matchRoute = useMatchRoute();
   const isTracks = Boolean(matchRoute({ to: "/" }));
   const createTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const openPlaylistCreation = usePlaylistCreation();
 
   return (
     <Sidebar className="border-separator bg-raised surface-raised md:absolute! md:h-auto!">
@@ -67,20 +67,15 @@ export function AppSidebar() {
           <div className="flex items-center justify-between pr-1">
             <SidebarGroupLabel render={<h2 />}>Playlists</SidebarGroupLabel>
             <Button
+              aria-keyshortcuts={window.lume.isMac ? "Meta+N" : "Control+N"}
               aria-label="Create playlist"
-              onClick={() => setIsCreatingPlaylist(true)}
+              onClick={() => openPlaylistCreation({ finalFocus: createTriggerRef, target: null })}
               ref={createTriggerRef}
               size="icon-sm"
               variant="ghost"
             >
               <PlusIcon aria-hidden="true" />
             </Button>
-            <CreatePlaylistDialog
-              draft={{ title: "", trackIds: [] }}
-              finalFocus={createTriggerRef}
-              onOpenChange={setIsCreatingPlaylist}
-              open={isCreatingPlaylist}
-            />
           </div>
           <SidebarGroupContent>
             <SidebarMenu className="relative">

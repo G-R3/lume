@@ -205,8 +205,94 @@ it("captures the selection in displayed order with repeated tracks kept as separ
   expect(captureSelectionInDisplayedOrder(state)).toEqual({
     context: playlist,
     entries: [
-      { liked: true, sourceEntryId: 30, title: "Track 2", trackId: 2 },
-      { liked: true, sourceEntryId: 20, title: "Track 2", trackId: 2 },
+      { artworkUrl: null, liked: true, sourceEntryId: 30, title: "Track 2", trackId: 2 },
+      { artworkUrl: null, liked: true, sourceEntryId: 20, title: "Track 2", trackId: 2 },
     ],
   });
+});
+
+const openMenu = (entryId: number, trigger: "context" | "overflow" = "context") =>
+  ({ entryId, trigger, type: "openMenu" }) as const;
+
+const targetIds = (state: SelectionState) =>
+  state.menu?.target.entries.map((entry) => entry.sourceEntryId);
+
+it("targets the whole selection in displayed order when a menu opens inside it", () => {
+  const state = run(
+    createSelection({ context: allTracks, rows: rows(1, 2, 3, 4) }),
+    click(4),
+    click(2, "toggle"),
+    openMenu(4),
+  );
+
+  expect(targetIds(state)).toEqual([2, 4]);
+  expect(state.menu).toMatchObject({
+    entryId: 4,
+    namesTarget: true,
+    open: true,
+    targetsSelection: true,
+  });
+});
+
+it("targets only the row when a menu opens outside the selection, and keeps the selection", () => {
+  const state = run(
+    createSelection({ context: allTracks, rows: rows(1, 2, 3, 4) }),
+    click(1),
+    click(2, "range"),
+    openMenu(4, "overflow"),
+  );
+
+  expect(targetIds(state)).toEqual([4]);
+  expect(state.menu).toMatchObject({
+    namesTarget: true,
+    targetsSelection: false,
+    trigger: "overflow",
+  });
+  expect(selected(state)).toEqual([1, 2]);
+  expect(state.focusedId).toBe(2);
+});
+
+it("keeps the captured target while the selection, sort and likes change underneath", () => {
+  const opened = run(
+    createSelection({ context: allTracks, rows: rows(1, 2, 3) }),
+    click(1),
+    click(3, "range"),
+    openMenu(2),
+  );
+
+  const changed = run(opened, click(3), {
+    type: "viewChanged",
+    view: {
+      context: allTracks,
+      rows: [3, 2, 1].map((id) => ({ addedToListAt: id, sourceEntryId: id, track: track(id, 9) })),
+    },
+  });
+
+  expect(targetIds(changed)).toEqual([1, 2, 3]);
+  expect(changed.menu?.target.entries.every((entry) => !entry.liked)).toBe(true);
+});
+
+it("closes only the menu that is open, and forgets it when its row leaves the list", () => {
+  const opened = run(createSelection({ context: allTracks, rows: rows(1, 2, 3) }), openMenu(2));
+
+  expect(opened.menu).toMatchObject({ namesTarget: false, targetsSelection: false });
+
+  expect(reduceSelection(opened, { entryId: 1, trigger: "context", type: "closeMenu" })).toBe(
+    opened,
+  );
+  expect(reduceSelection(opened, { entryId: 2, trigger: "overflow", type: "closeMenu" })).toBe(
+    opened,
+  );
+
+  const closed = reduceSelection(opened, { entryId: 2, trigger: "context", type: "closeMenu" });
+
+  expect(closed.menu).toMatchObject({ entryId: 2, open: false });
+  expect(targetIds(closed)).toEqual([2]);
+
+  const removed = reduceSelection(closed, {
+    type: "viewChanged",
+    view: { context: allTracks, rows: rows(1, 3) },
+  });
+
+  expect(removed.menu).toBeNull();
 });

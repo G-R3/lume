@@ -1,5 +1,15 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
-import { DotsThreeIcon, ListPlusIcon, PlaylistIcon, PlusIcon } from "@phosphor-icons/react";
+import {
+  ArrowFatUpIcon,
+  CommandIcon,
+  DotsThreeIcon,
+  HeartBreakIcon,
+  HeartIcon,
+  ListPlusIcon,
+  MinusCircleIcon,
+  PlaylistIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import {
   type KeyboardEvent,
@@ -18,7 +28,6 @@ import type { PlayableSource } from "@/lib/queue/commands";
 import { sessionSource } from "@/lib/queue/source";
 import type { Track } from "../../../shared/lib";
 import { AddToPlaylistDialog } from "@/components/add-to-playlist-dialog";
-import { CreatePlaylistDialog, type PlaylistDraft } from "@/components/create-playlist-dialog";
 import { LikeButton } from "@/components/like-button";
 import { SortArrow } from "@/components/sort-arrow";
 import { type ArtworkState, TrackArtwork } from "@/components/track-artwork";
@@ -26,7 +35,9 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
@@ -35,7 +46,9 @@ import { toast } from "@/components/ui/toast";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
 import { showTruncatedText } from "@/lib/show-truncated-text";
+import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { useSetTracksLiked } from "@/lib/library-query";
+import { useRemovePlaylistTracksMutation } from "@/lib/playlist-mutations";
 import {
   sortFieldInfo,
   sortName,
@@ -46,7 +59,10 @@ import {
 import { cn } from "@/lib/utils";
 import {
   type ActionTarget,
+  captureSelectionInDisplayedOrder,
   type NavigationKey,
+  type RowMenu,
+  type RowMenuTrigger,
   type TargetEntry,
   useTrackSelection,
 } from "@/pages/tracks/track-selection";
@@ -62,10 +78,16 @@ type TrackListProps = {
   onStepSort: (field: SortField) => void;
   onReady?: (list: HTMLElement) => void;
   ref?: Ref<TrackListHandle>;
-  renderMenuItems?: (item: TrackRow) => ReactNode;
 };
 
-type TrackAction = { kind: "like"; target: ActionTarget };
+type TrackAction =
+  | { kind: "queue"; target: ActionTarget }
+  | { kind: "like"; target: ActionTarget }
+  | { kind: "addToPlaylist"; target: ActionTarget; returnTo: number | null }
+  | { kind: "createPlaylist"; target: ActionTarget; returnTo: number | null }
+  | { kind: "removeFromPlaylist"; target: ActionTarget };
+
+type MenuCloseReason = Parameters<NonNullable<ContextMenu.Root.Props["onOpenChange"]>>[1]["reason"];
 
 const navigationKeys: ReadonlySet<string> = new Set<NavigationKey>([
   "ArrowDown",
@@ -97,7 +119,6 @@ export function TrackList({
   filter,
   sort,
   onStepSort,
-  renderMenuItems,
   onReady,
   ref,
 }: TrackListProps) {
@@ -113,45 +134,58 @@ export function TrackList({
   const canAddToQueue = queue !== null;
 
   const { mutate: setTracksLiked } = useSetTracksLiked();
-  const dialogReturnFocusRef = useRef<HTMLElement | null>(null);
-  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
-  const [trackToAdd, setTrackToAdd] = useState<Track | null>(null);
-  const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
-  const [playlistDraft, setPlaylistDraft] = useState<PlaylistDraft | null>(null);
+  const { mutateAsync: removePlaylistTracks } = useRemovePlaylistTracksMutation();
+  const openPlaylistCreation = usePlaylistCreation();
+
+  const [picker, setPicker] = useState<{
+    open: boolean;
+    returnTo: number | null;
+    target: ActionTarget;
+  } | null>(null);
+
+  const pickerHandedOffRef = useRef(false);
+  const menuReturnsFocusRef = useRef(false);
   const [selection, dispatchSelection] = useTrackSelection({ context: source, rows: items });
   const bodyRef = useRef<TrackListBodyHandle>(null);
   const regionRef = useRef<HTMLDivElement>(null);
   const listOwnsFocusRef = useRef(false);
   const playlistId = source.kind === "playlist" ? source.playlistId : null;
+  const playlistTitle = source.kind === "playlist" ? source.title : null;
   const isPlaylist = playlistId !== null;
 
   useLayoutEffect(() => {
     bodyRef.current?.scrollToTop();
   }, [sort]);
 
-  const openAddToPlaylist = (track: Track, trigger: HTMLButtonElement) => {
-    dialogReturnFocusRef.current = trigger;
-    setTrackToAdd(track);
-    setIsAddToPlaylistOpen(true);
+  const returnFocusTo = (entryId: number | null) => () => {
+    const region = regionRef.current;
+
+    if (!region?.isConnected) return false;
+
+    return (
+      region.querySelector<HTMLElement>(`tr[data-entry-id="${entryId}"]`) ??
+      region.querySelector<HTMLElement>("tr[data-entry-id][tabindex='0']") ??
+      false
+    );
   };
 
-  const openCreatePlaylist = (track: Track) => {
-    setPlaylistDraft({ title: track.title.trim().slice(0, 100), trackIds: [track.id] });
-    setIsCreatePlaylistOpen(true);
-  };
-
-  const openCreatePlaylistFromMenu = (track: Track, trigger: HTMLButtonElement) => {
-    dialogReturnFocusRef.current = trigger;
-    openCreatePlaylist(track);
-  };
+  const openCreation = (target: ActionTarget, returnTo: number | null) =>
+    openPlaylistCreation({ finalFocus: returnFocusTo(returnTo), target });
 
   const run = (action: TrackAction) => {
+    const { target } = action;
+    const count = target.entries.length;
+
     switch (action.kind) {
+      case "queue":
+        enqueueTracks(target.entries.map((entry) => entry.trackId));
+
+        return;
       case "like":
         setTracksLiked(
           {
-            liked: action.target.entries.some((entry) => !entry.liked),
-            trackIds: action.target.entries.map((entry) => entry.trackId),
+            liked: target.entries.some((entry) => !entry.liked),
+            trackIds: target.entries.map((entry) => entry.trackId),
           },
           {
             onError: (error) => {
@@ -164,6 +198,51 @@ export function TrackList({
             },
           },
         );
+
+        return;
+      case "addToPlaylist":
+        menuReturnsFocusRef.current = false;
+        pickerHandedOffRef.current = false;
+        setPicker({ open: true, returnTo: action.returnTo, target });
+
+        return;
+      case "createPlaylist":
+        menuReturnsFocusRef.current = false;
+        openCreation(target, action.returnTo);
+
+        return;
+      case "removeFromPlaylist": {
+        if (target.context.kind !== "playlist") return;
+
+        const title = playlistTitle ?? "playlist";
+
+        // Removing every row unmounts this list, which drops per-call mutate callbacks.
+        removePlaylistTracks({
+          playlistId: target.context.playlistId,
+          playlistTrackIds: target.entries.map((entry) => entry.sourceEntryId),
+        }).then(
+          () => {
+            toast.add({
+              title:
+                count === 1
+                  ? `Removed from ${title}`
+                  : `Removed ${count.toLocaleString()} tracks from ${title}`,
+              type: "success",
+            });
+          },
+          (error: Error) => {
+            toast.add({
+              description: error.message,
+              priority: "high",
+              title:
+                count === 1
+                  ? "Could not remove track from playlist"
+                  : "Could not remove tracks from playlist",
+              type: "error",
+            });
+          },
+        );
+      }
     }
   };
 
@@ -196,7 +275,7 @@ export function TrackList({
       active.dataset.entryId !== String(focusedId);
 
     if (focusIsLost || focusIsOnAnotherRow) bodyRef.current?.focusRow(focusedIndex, focusedId);
-  }, [focusedId, focusedIndex]);
+  }, [focusedId, focusedIndex, items]);
 
   const isSelectedAt = (index: number) => {
     const item = items[index];
@@ -237,6 +316,24 @@ export function TrackList({
       return;
     }
 
+    if (
+      event.key.toLowerCase() === "n" &&
+      hasPrimary &&
+      !hasSecondary &&
+      event.shiftKey &&
+      !event.altKey &&
+      !isEditableElement(target)
+    ) {
+      const selected = captureSelectionInDisplayedOrder(selection);
+
+      if (!selected) return;
+
+      event.preventDefault();
+      openCreation(selected, entryIdOfRow(target, event.currentTarget) ?? focusedId);
+
+      return;
+    }
+
     if (event.key === "Escape" && hasNoModifiers && !event.shiftKey) {
       if (isEditableElement(target) || selectedIds.size === 0) return;
 
@@ -249,6 +346,16 @@ export function TrackList({
     const entryId = entryIdOfRow(target, event.currentTarget);
 
     if (entryId === null || !hasNoModifiers) return;
+
+    if (
+      (event.key === "ContextMenu" && !event.shiftKey) ||
+      (event.key === "F10" && event.shiftKey)
+    ) {
+      event.preventDefault();
+      openMenu(entryId, "overflow");
+
+      return;
+    }
 
     if (isNavigationKey(event.key)) {
       event.preventDefault();
@@ -293,12 +400,22 @@ export function TrackList({
     if (entryId !== null) playRowAt(indexById.get(entryId) ?? -1);
   };
 
-  // Every mounted row receives these actions and `renderMenuItems`. If either reads `items`, the
-  // compiler rebuilds it on every library change and a like re-renders every row.
+  function openMenu(entryId: number, trigger: RowMenuTrigger) {
+    menuReturnsFocusRef.current = true;
+    dispatchSelection({ entryId, trigger, type: "openMenu" });
+  }
+
+  // Every mounted row receives these actions. If they read `items`, the compiler rebuilds them on
+  // every library change and a like re-renders every row.
   const rowActions: TrackRowActions = {
-    addToPlaylist: openAddToPlaylist,
-    addToQueue: (trackId) => enqueueTracks([trackId]),
-    createPlaylist: openCreatePlaylistFromMenu,
+    closeMenu: (entryId, trigger, reason) => {
+      if (reason === "outside-press" || reason === "focus-out") menuReturnsFocusRef.current = false;
+
+      dispatchSelection({ entryId, trigger, type: "closeMenu" });
+    },
+    menuFinalFocus: (entryId) => (menuReturnsFocusRef.current ? returnFocusTo(entryId)() : false),
+    openMenu,
+    run,
     toggleLike: (entry) => run({ kind: "like", target: { context: source, entries: [entry] } }),
   };
 
@@ -309,6 +426,7 @@ export function TrackList({
       activeSourceEntryId === item.sourceEntryId && activeSourcePlaylistId === playlistId;
 
     const isSelected = selectedIds.has(item.sourceEntryId);
+    const menu = selection.menu?.entryId === item.sourceEntryId ? selection.menu : null;
 
     return (
       <TrackRow
@@ -317,14 +435,14 @@ export function TrackList({
         canAddToQueue={canAddToQueue}
         index={index}
         isActive={isActive}
-        isPlaylist={isPlaylist}
         isSelected={isSelected}
         isSelectionEnd={isSelected && !isSelectedAt(index + 1)}
         isSelectionStart={isSelected && !isSelectedAt(index - 1)}
         isTabStop={item.sourceEntryId === tabStopEntryId}
         addedToListAt={item.addedToListAt}
         key={item.sourceEntryId}
-        renderMenuItems={renderMenuItems}
+        menuTarget={menu}
+        playlistTitle={playlistTitle}
         sourceEntryId={item.sourceEntryId}
         track={item.track}
       />
@@ -366,21 +484,16 @@ export function TrackList({
           renderRow={renderTrackRow}
         />
       </table>
-      {trackToAdd && (
+      {picker && (
         <AddToPlaylistDialog
-          finalFocus={dialogReturnFocusRef}
-          onCreatePlaylist={openCreatePlaylist}
-          onOpenChange={setIsAddToPlaylistOpen}
-          open={isAddToPlaylistOpen}
-          track={trackToAdd}
-        />
-      )}
-      {playlistDraft && (
-        <CreatePlaylistDialog
-          draft={playlistDraft}
-          finalFocus={dialogReturnFocusRef}
-          onOpenChange={setIsCreatePlaylistOpen}
-          open={isCreatePlaylistOpen}
+          finalFocus={() => (pickerHandedOffRef.current ? false : returnFocusTo(picker.returnTo)())}
+          onCreatePlaylist={(target) => {
+            pickerHandedOffRef.current = true;
+            openCreation(target, picker.returnTo);
+          }}
+          onOpenChange={(open) => setPicker((current) => current && { ...current, open })}
+          open={picker.open}
+          target={picker.target}
         />
       )}
     </div>
@@ -517,9 +630,10 @@ function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackLis
 }
 
 type TrackRowActions = {
-  addToPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
-  addToQueue: (trackId: number) => void;
-  createPlaylist: (track: Track, trigger: HTMLButtonElement) => void;
+  closeMenu: (entryId: number, trigger: RowMenuTrigger, reason: MenuCloseReason) => void;
+  menuFinalFocus: (entryId: number) => HTMLElement | false;
+  openMenu: (entryId: number, trigger: RowMenuTrigger) => void;
+  run: (action: TrackAction) => void;
   toggleLike: (entry: TargetEntry) => void;
 };
 
@@ -530,12 +644,12 @@ type TrackRowProps = {
   canAddToQueue: boolean;
   index: number;
   isActive: boolean;
-  isPlaylist: boolean;
   isSelected: boolean;
   isSelectionEnd: boolean;
   isSelectionStart: boolean;
   isTabStop: boolean;
-  renderMenuItems?: (item: TrackRow) => ReactNode;
+  menuTarget: RowMenu | null;
+  playlistTitle: string | null;
   sourceEntryId: number;
   track: Track;
 };
@@ -547,36 +661,40 @@ const TrackRow = memo(function TrackRow({
   canAddToQueue,
   index,
   isActive,
-  isPlaylist,
   isSelected,
   isSelectionEnd,
   isSelectionStart,
   isTabStop,
-  renderMenuItems,
+  menuTarget,
+  playlistTitle,
   sourceEntryId,
   track,
 }: TrackRowProps) {
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const isPlaylist = playlistTitle !== null;
 
-  const menuItems = (
+  const menuItems = menuTarget && (
     <TrackRowMenuItems
       canAddToQueue={canAddToQueue}
-      onAddToQueue={() => actions.addToQueue(track.id)}
-      onAddToPlaylist={() => {
-        if (menuTriggerRef.current) actions.addToPlaylist(track, menuTriggerRef.current);
-      }}
-      onCreatePlaylist={() => {
-        if (menuTriggerRef.current) actions.createPlaylist(track, menuTriggerRef.current);
-      }}
-    >
-      {renderMenuItems?.({ sourceEntryId, track, addedToListAt })}
-    </TrackRowMenuItems>
+      menu={menuTarget}
+      playlistTitle={playlistTitle}
+      run={actions.run}
+    />
   );
+
+  const menuProps = (trigger: RowMenuTrigger) => ({
+    onOpenChange: (open: boolean, details: { reason: MenuCloseReason }) => {
+      if (open) actions.openMenu(sourceEntryId, trigger);
+      else actions.closeMenu(sourceEntryId, trigger, details.reason);
+    },
+    open: menuTarget?.open === true && menuTarget.trigger === trigger,
+  });
+
+  const menuFinalFocus = () => actions.menuFinalFocus(sourceEntryId);
 
   const metadataColor = track.available ? "text-secondary" : "text-disabled";
 
   return (
-    <ContextMenu.Root>
+    <ContextMenu.Root {...menuProps("context")}>
       <ContextMenu.Trigger
         render={
           <tr
@@ -636,14 +754,13 @@ const TrackRow = memo(function TrackRow({
               onClick={(event) => event.stopPropagation()}
               onDoubleClick={(event) => event.stopPropagation()}
             >
-              <DropdownMenu>
+              <DropdownMenu {...menuProps("overflow")}>
                 <DropdownMenuTrigger
                   render={
                     <Button
                       aria-label={`More options for ${track.title}`}
                       className="opacity-0 group-hover/track-row:opacity-100 group-focus-visible/track-row:opacity-100 group-has-focus-visible/track-row:opacity-100 data-popup-open:opacity-100"
                       onMouseDown={(event) => event.preventDefault()}
-                      ref={menuTriggerRef}
                       size="icon-sm"
                       static
                       tabIndex={isTabStop ? 0 : -1}
@@ -653,7 +770,9 @@ const TrackRow = memo(function TrackRow({
                 >
                   <DotsThreeIcon aria-hidden="true" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">{menuItems}</DropdownMenuContent>
+                <DropdownMenuContent align="end" className="max-w-80" finalFocus={menuFinalFocus}>
+                  {menuItems}
+                </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
@@ -681,6 +800,7 @@ const TrackRow = memo(function TrackRow({
             liked={track.likedAt !== null}
             onToggle={() =>
               actions.toggleLike({
+                artworkUrl: track.artworkUrl,
                 liked: track.likedAt !== null,
                 sourceEntryId,
                 title: track.title,
@@ -694,7 +814,12 @@ const TrackRow = memo(function TrackRow({
           {formatDuration(track.duration)}
         </td>
       </ContextMenu.Trigger>
-      <DropdownMenuContent side="right" sideOffset={0}>
+      <DropdownMenuContent
+        className="max-w-80"
+        finalFocus={menuFinalFocus}
+        side="right"
+        sideOffset={0}
+      >
         {menuItems}
       </DropdownMenuContent>
     </ContextMenu.Root>
@@ -836,48 +961,86 @@ export function TrackListSkeleton({ isPlaylist, sort }: { isPlaylist: boolean; s
 
 function TrackRowMenuItems({
   canAddToQueue,
-  children,
-  onAddToQueue,
-  onAddToPlaylist,
-  onCreatePlaylist,
+  menu,
+  playlistTitle,
+  run,
 }: {
   canAddToQueue: boolean;
-  children?: ReactNode;
-  onAddToQueue: () => void;
-  onAddToPlaylist: () => void;
-  onCreatePlaylist: () => void;
+  menu: RowMenu;
+  playlistTitle: string | null;
+  run: (action: TrackAction) => void;
 }) {
-  return (
+  const { entryId: returnTo, namesTarget, target, targetsSelection } = menu;
+  const count = target.entries.length;
+  const countLabel = count.toLocaleString();
+  const likes = target.entries.some((entry) => !entry.liked);
+
+  const items = (
     <>
       {canAddToQueue && (
         <>
-          <DropdownMenuItem onClick={onAddToQueue}>
+          <DropdownMenuItem onClick={() => run({ kind: "queue", target })}>
             <ListPlusIcon aria-hidden="true" />
             Add to queue
-            <DropdownMenuShortcut aria-hidden="true" className="pl-2">
-              Q
-            </DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
         </>
       )}
-      <DropdownMenuItem onClick={onAddToPlaylist}>
+      <DropdownMenuItem onClick={() => run({ kind: "addToPlaylist", returnTo, target })}>
         <PlaylistIcon aria-hidden="true" />
         Add to playlist…
-        <DropdownMenuShortcut aria-hidden="true" className="pl-2">
-          P
-        </DropdownMenuShortcut>
       </DropdownMenuItem>
-      <DropdownMenuItem onClick={onCreatePlaylist}>
+      <DropdownMenuItem
+        aria-keyshortcuts={
+          targetsSelection ? (window.lume.isMac ? "Meta+Shift+N" : "Control+Shift+N") : undefined
+        }
+        onClick={() => run({ kind: "createPlaylist", returnTo, target })}
+      >
         <PlusIcon aria-hidden="true" />
-        New playlist from track…
+        {count === 1 ? "New playlist from track…" : "New playlist from selection…"}
+        {targetsSelection && (
+          <DropdownMenuShortcut aria-hidden="true" className="flex items-center pl-2">
+            {window.lume.isMac ? (
+              <>
+                <CommandIcon className="size-3" weight="bold" />
+                <ArrowFatUpIcon className="size-3" weight="bold" />N
+              </>
+            ) : (
+              "Ctrl+Shift+N"
+            )}
+          </DropdownMenuShortcut>
+        )}
       </DropdownMenuItem>
-      {children && (
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={() => run({ kind: "like", target })}>
+        {likes ? <HeartIcon aria-hidden="true" /> : <HeartBreakIcon aria-hidden="true" />}
+        {likes ? "Like" : "Unlike"}
+      </DropdownMenuItem>
+      {playlistTitle !== null && (
         <>
           <DropdownMenuSeparator />
-          {children}
+          <DropdownMenuItem
+            onClick={() => run({ kind: "removeFromPlaylist", target })}
+            variant="danger"
+          >
+            <MinusCircleIcon aria-hidden="true" />
+            <span className="truncate" title={`Remove from ${playlistTitle}`}>
+              {count === 1 ? "Remove" : `Remove ${countLabel}`} from {playlistTitle}
+            </span>
+          </DropdownMenuItem>
         </>
       )}
     </>
+  );
+
+  if (!namesTarget) return items;
+
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuLabel className="block max-w-72 truncate leading-8">
+        {count === 1 ? target.entries[0].title : `${countLabel} tracks`}
+      </DropdownMenuLabel>
+      {items}
+    </DropdownMenuGroup>
   );
 }

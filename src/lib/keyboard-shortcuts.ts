@@ -8,6 +8,7 @@ export type KeyboardShortcut = {
   alt?: boolean;
   allowInEditable?: boolean;
   yieldToButtons?: boolean;
+  yieldToOverlays?: boolean;
   action: () => void;
 };
 
@@ -54,7 +55,8 @@ export function createKeyboardShortcutHandler(
     if (
       !shortcut ||
       (!shortcut.allowInEditable && eventTargetMatches(event, editableSelector)) ||
-      (shortcut.yieldToButtons && eventTargetMatches(event, buttonSelector))
+      (shortcut.yieldToButtons && eventTargetMatches(event, buttonSelector)) ||
+      (shortcut.yieldToOverlays && eventTargetMatches(event, overlaySelector))
     )
       return;
 
@@ -93,6 +95,8 @@ const editableSelector =
   "input:not([type='range']), textarea, select, [contenteditable]:not([contenteditable='false'])";
 
 const buttonSelector = "button, [role='button']";
+
+const overlaySelector = "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']";
 
 export function isEditableElement(element: Element) {
   return element.closest(editableSelector) !== null;

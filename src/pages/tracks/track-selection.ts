@@ -14,6 +14,18 @@ export type SelectionState = {
   readonly selectedIds: ReadonlySet<number>;
   readonly anchorId: number | null;
   readonly focusedId: number | null;
+  readonly menu: RowMenu | null;
+};
+
+export type RowMenuTrigger = "context" | "overflow";
+
+export type RowMenu = {
+  readonly entryId: number;
+  readonly trigger: RowMenuTrigger;
+  readonly open: boolean;
+  readonly target: ActionTarget;
+  readonly targetsSelection: boolean;
+  readonly namesTarget: boolean;
 };
 
 export type NavigationKey = "ArrowUp" | "ArrowDown" | "Home" | "End" | "PageUp" | "PageDown";
@@ -29,12 +41,15 @@ export type SelectionEvent =
       extend: boolean;
     }
   | { type: "selectAll" }
-  | { type: "clear" };
+  | { type: "clear" }
+  | { type: "openMenu"; entryId: number; trigger: RowMenuTrigger }
+  | { type: "closeMenu"; entryId: number; trigger: RowMenuTrigger };
 
 export type TargetEntry = {
   readonly sourceEntryId: number;
   readonly trackId: number;
   readonly title: string;
+  readonly artworkUrl: string | null;
   readonly liked: boolean;
 };
 
@@ -48,6 +63,7 @@ export function createSelection(view: CompleteSelectionView): SelectionState {
     anchorId: null,
     focusedId: null,
     indexById: indexRows(view.rows),
+    menu: null,
     selectedIds: new Set(),
     view,
   };
@@ -99,6 +115,45 @@ export function reduceSelection(state: SelectionState, event: SelectionEvent): S
       if (state.selectedIds.size === 0) return state;
 
       return { ...state, anchorId: state.focusedId, selectedIds: new Set() };
+    case "openMenu": {
+      const index = state.indexById.get(event.entryId);
+
+      if (index === undefined) return state;
+
+      const targetsSelection = state.selectedIds.has(event.entryId);
+      const selection = targetsSelection ? captureSelectionInDisplayedOrder(state) : null;
+
+      const target =
+        selection ??
+        Object.freeze({
+          context: state.view.context,
+          entries: [targetEntryOf(state.view.rows[index])] as const,
+        });
+
+      return {
+        ...state,
+        menu: {
+          entryId: event.entryId,
+          namesTarget:
+            target.entries.length > 1 || (!targetsSelection && state.selectedIds.size > 0),
+          open: true,
+          target,
+          targetsSelection,
+          trigger: event.trigger,
+        },
+      };
+    }
+
+    case "closeMenu":
+      if (
+        state.menu?.entryId !== event.entryId ||
+        state.menu.trigger !== event.trigger ||
+        !state.menu.open
+      ) {
+        return state;
+      }
+
+      return { ...state, menu: { ...state.menu, open: false } };
   }
 }
 
@@ -119,18 +174,21 @@ export function useTrackSelection(view: CompleteSelectionView) {
 export function captureSelectionInDisplayedOrder(state: SelectionState): ActionTarget | null {
   const entries = state.view.rows
     .filter((row) => state.selectedIds.has(row.sourceEntryId))
-    .map(
-      (row): TargetEntry => ({
-        liked: row.track.likedAt !== null,
-        sourceEntryId: row.sourceEntryId,
-        title: row.track.title,
-        trackId: row.track.id,
-      }),
-    );
+    .map(targetEntryOf);
 
   const [first, ...rest] = entries;
 
   return first ? Object.freeze({ context: state.view.context, entries: [first, ...rest] }) : null;
+}
+
+function targetEntryOf(row: TrackRow): TargetEntry {
+  return {
+    artworkUrl: row.track.artworkUrl,
+    liked: row.track.likedAt !== null,
+    sourceEntryId: row.sourceEntryId,
+    title: row.track.title,
+    trackId: row.track.id,
+  };
 }
 
 function indexRows(rows: readonly TrackRow[]) {
@@ -172,6 +230,7 @@ function changeView(state: SelectionState, view: CompleteSelectionView): Selecti
     anchorId: keep(state.anchorId),
     focusedId: keep(state.focusedId) ?? survivorOf(state, indexById, view),
     indexById,
+    menu: state.menu && indexById.has(state.menu.entryId) ? state.menu : null,
     selectedIds: selectedIds.size === state.selectedIds.size ? state.selectedIds : selectedIds,
     view,
   };

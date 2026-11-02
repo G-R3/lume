@@ -1,4 +1,3 @@
-import { BackspaceIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
@@ -6,13 +5,11 @@ import type { PlaylistDetails } from "../../shared/lib";
 import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
 import { FilterNoResults } from "@/components/filter-no-results";
 import { buttonVariants } from "@/components/ui/button";
-import { DropdownMenuItem, DropdownMenuShortcut } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { useRemovePlaylistTracksMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
-import { playlistRows, sortRows, type TrackRow } from "@/lib/track-sort";
+import { playlistRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
 import { TrackList, type TrackListHandle, TrackListSkeleton } from "@/pages/tracks/track-list";
@@ -51,9 +48,6 @@ export function PlaylistPage() {
 export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
 
-  const { isPending: isRemovingTrack, mutate: removePlaylistTracks } =
-    useRemovePlaylistTracksMutation();
-
   const [filterText, setFilterText] = useState("");
   const deferredFilterText = useDeferredValue(filterText);
   const filter = playlist.tracks.length > 0 ? parseTrackFilter(deferredFilterText) : null;
@@ -69,43 +63,6 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
     setFilterText("");
     filterRef.current?.focus();
   };
-
-  const handleRemove = (playlistTrackId: number) => {
-    removePlaylistTracks(
-      { playlistTrackIds: [playlistTrackId], playlistId: playlist.id },
-      {
-        onError: (error) => {
-          toast.add({
-            description: error.message,
-            priority: "high",
-            title: "Could not remove track from playlist",
-            type: "error",
-          });
-        },
-        onSuccess: () => {
-          toast.add({ title: `Removed from ${playlist.title}`, type: "success" });
-        },
-      },
-    );
-  };
-
-  // The compiler caches an inline callback with the JSX around it, and that JSX reads `items`.
-  // Inline, a like would re-render every playlist row.
-  const renderMenuItems = (item: TrackRow) => (
-    <DropdownMenuItem
-      disabled={isRemovingTrack}
-      onClick={() => handleRemove(item.sourceEntryId)}
-      variant="danger"
-    >
-      <MinusCircleIcon aria-hidden="true" />
-      <span className="truncate" title={`Remove from ${playlist.title}`}>
-        Remove from {playlist.title}
-      </span>
-      <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
-        <BackspaceIcon className="size-3" weight="bold" />
-      </DropdownMenuShortcut>
-    </DropdownMenuItem>
-  );
 
   return (
     <main className="flex min-h-0 flex-1 flex-col">
@@ -156,7 +113,6 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
             items={items}
             onStepSort={stepSort}
             ref={trackListRef}
-            renderMenuItems={renderMenuItems}
             sort={sort}
             source={source}
           />

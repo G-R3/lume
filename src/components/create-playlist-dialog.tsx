@@ -1,6 +1,6 @@
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, type RefObject, useRef, useState } from "react";
+import { type ComponentProps, type KeyboardEvent, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,20 +16,25 @@ import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useCreatePlaylistMutation } from "@/lib/playlist-mutations";
+import type { ActionTarget } from "@/pages/tracks/track-selection";
 
-export type PlaylistDraft = { title: string; trackIds: readonly number[] };
+export type PlaylistCreationRequest = {
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
+  target: ActionTarget | null;
+};
 
 export function CreatePlaylistDialog({
-  draft,
-  finalFocus,
   onOpenChange,
   open,
+  request,
 }: {
-  draft: PlaylistDraft;
-  finalFocus?: RefObject<HTMLElement | null>;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  request: PlaylistCreationRequest;
 }) {
+  const { finalFocus, target } = request;
+  const entries = target?.entries ?? [];
+  const isGroup = entries.length > 1;
   const navigate = useNavigate();
   const [titleError, setTitleError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -69,7 +74,7 @@ export function CreatePlaylistDialog({
       {
         description: description.length > 0 ? description : null,
         title,
-        trackIds: draft.trackIds,
+        trackIds: entries.map((entry) => entry.trackId),
       },
       {
         onSuccess: (result) => {
@@ -103,7 +108,11 @@ export function CreatePlaylistDialog({
         }}
       >
         <DialogBody>
-          <DialogTitle>New playlist</DialogTitle>
+          <DialogTitle>
+            {isGroup
+              ? `New playlist from ${entries.length.toLocaleString()} tracks`
+              : "New playlist"}
+          </DialogTitle>
           <form id="create-playlist" noValidate onSubmit={handleSubmit} ref={formRef}>
             <FieldGroup>
               <Field>
@@ -111,7 +120,7 @@ export function CreatePlaylistDialog({
                 <Input
                   aria-describedby={titleError ? "title-error" : undefined}
                   aria-invalid={titleError ? true : undefined}
-                  defaultValue={draft.title}
+                  defaultValue={entries.length === 1 ? entries[0].title.trim().slice(0, 100) : ""}
                   id="title"
                   maxLength={100}
                   name="title"

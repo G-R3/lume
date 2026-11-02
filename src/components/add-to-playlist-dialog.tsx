@@ -1,13 +1,14 @@
 import {
   ArrowDownIcon,
   ArrowElbowDownLeftIcon,
+  ArrowRightIcon,
   ArrowUpIcon,
   CommandIcon,
 } from "@phosphor-icons/react";
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { type RefObject, useState } from "react";
-import type { PlaylistSummary, Track } from "../../shared/lib";
+import { useRef, useState } from "react";
+import type { PlaylistSummary } from "../../shared/lib";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
@@ -16,19 +17,22 @@ import { Kbd } from "@/components/ui/kbd";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useAddTracksToPlaylistMutation } from "@/lib/playlist-mutations";
+import type { ActionTarget } from "@/pages/tracks/track-selection";
 
 type PaletteItem = { kind: "create" } | { kind: "playlist"; playlist: PlaylistSummary };
 
 type PaletteGroup = { items: PaletteItem[]; value: "actions" | "playlists" };
 
+type DuplicateConfirmation = { alreadyInPlaylist: number; playlistId: number };
+
 const createItem: PaletteItem = { kind: "create" };
 
 type AddToPlaylistDialogProps = {
-  finalFocus: RefObject<HTMLElement | null>;
-  onCreatePlaylist: (track: Track) => void;
+  finalFocus: DialogPrimitive.Popup.Props["finalFocus"];
+  onCreatePlaylist: (target: ActionTarget) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  track: Track;
+  target: ActionTarget;
 };
 
 export function AddToPlaylistDialog({
@@ -36,14 +40,17 @@ export function AddToPlaylistDialog({
   onCreatePlaylist,
   onOpenChange,
   open,
-  track,
+  target,
 }: AddToPlaylistDialogProps) {
   const library = useMusicLibrary();
   const addTracks = useAddTracksToPlaylistMutation();
-  const [alreadyAddedId, setAlreadyAddedId] = useState<number | null>(null);
+  const [confirmation, setConfirmation] = useState<DuplicateConfirmation | null>(null);
   const [highlighted, setHighlighted] = useState<PaletteItem | undefined>();
   const [search, setSearch] = useState("");
+  const isSubmittingRef = useRef(false);
   const isPending = addTracks.isPending;
+  const count = target.entries.length;
+  const targetLabel = count === 1 ? target.entries[0].title : `${count.toLocaleString()} tracks`;
 
   const groups: PaletteGroup[] = [
     {
@@ -62,57 +69,72 @@ export function AddToPlaylistDialog({
     if (nextOpen) return;
 
     addTracks.reset();
-    setAlreadyAddedId(null);
+    setConfirmation(null);
     setSearch("");
   };
 
   const handleAdded = (playlist: PlaylistSummary) => {
-    toast.add({ title: `Added to ${playlist.title}`, type: "success" });
+    toast.add({
+      title:
+        count === 1 ? `Added to ${playlist.title}` : `Added ${targetLabel} to ${playlist.title}`,
+      type: "success",
+    });
     onOpenChange(false);
   };
 
   const handleSelect = (item: PaletteItem) => {
-    if (isPending) return;
+    if (isPending || isSubmittingRef.current) return;
 
     if (item.kind === "create") {
-      onCreatePlaylist(track);
+      onCreatePlaylist(target);
       onOpenChange(false);
 
       return;
     }
 
     const { playlist } = item;
+    const isConfirmed = confirmation?.playlistId === playlist.id;
 
-    const input = {
-      duplicates: alreadyAddedId === playlist.id ? "confirmed" : "check",
-      playlistId: playlist.id,
-      trackIds: [track.id],
-    } as const;
+    if (!isConfirmed) setConfirmation(null);
 
-    addTracks.mutate(input, {
-      onSuccess: (result) => {
-        if (result.kind === "duplicate") {
-          setAlreadyAddedId(playlist.id);
-
-          return;
-        }
-
-        handleAdded(playlist);
+    isSubmittingRef.current = true;
+    addTracks.mutate(
+      {
+        duplicates: isConfirmed ? "confirmed" : "check",
+        playlistId: playlist.id,
+        trackIds: target.entries.map((entry) => entry.trackId),
       },
-    });
+      {
+        onSettled: () => {
+          isSubmittingRef.current = false;
+        },
+        onSuccess: (result) => {
+          if (result.kind === "duplicate") {
+            setConfirmation({
+              alreadyInPlaylist: result.alreadyInPlaylist,
+              playlistId: playlist.id,
+            });
+
+            return;
+          }
+
+          handleAdded(playlist);
+        },
+      },
+    );
   };
 
   const enterHint =
     highlighted?.kind === "create"
       ? "create"
-      : highlighted?.kind === "playlist" && highlighted.playlist.id === alreadyAddedId
-        ? "add again"
+      : highlighted?.kind === "playlist" && highlighted.playlist.id === confirmation?.playlistId
+        ? "add anyway"
         : "add";
 
   const error = addTracks.error;
 
-  const alreadyAddedTitle = library.playlists.find(
-    (playlist) => playlist.id === alreadyAddedId,
+  const confirmationTitle = library.playlists.find(
+    (playlist) => playlist.id === confirmation?.playlistId,
   )?.title;
 
   return (
@@ -131,7 +153,7 @@ export function AddToPlaylistDialog({
         >
           <DialogTitle className="sr-only">Add to playlist</DialogTitle>
           <DialogDescription className="sr-only">
-            Choose a playlist for {track.title}.
+            Choose a playlist for {targetLabel}.
           </DialogDescription>
           <Autocomplete.Root
             autoHighlight="always"
@@ -156,8 +178,16 @@ export function AddToPlaylistDialog({
           >
             <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator px-4">
               <span className="flex h-6 max-w-48 shrink-0 items-center gap-1.5 rounded-md bg-overlay pr-2 pl-1">
-                <TrackArtwork artworkUrl={track.artworkUrl} className="h-4 w-3 rounded-xs" />
-                <span className="truncate text-meta text-primary">{track.title}</span>
+                <span className="flex shrink-0">
+                  {target.entries.slice(0, 3).map((entry) => (
+                    <TrackArtwork
+                      artworkUrl={entry.artworkUrl}
+                      className="h-4 w-3 rounded-xs not-first:-ml-1"
+                      key={entry.sourceEntryId}
+                    />
+                  ))}
+                </span>
+                <span className="truncate text-meta text-primary">{targetLabel}</span>
               </span>
               <Autocomplete.Input
                 aria-keyshortcuts={window.lume.isMac ? "Meta+Enter" : "Control+Enter"}
@@ -188,10 +218,13 @@ export function AddToPlaylistDialog({
                   <Autocomplete.Collection>
                     {(item: PaletteItem) => (
                       <PaletteRow
-                        alreadyAdded={
-                          item.kind === "playlist" && item.playlist.id === alreadyAddedId
+                        alreadyInPlaylist={
+                          item.kind === "playlist" && item.playlist.id === confirmation?.playlistId
+                            ? confirmation.alreadyInPlaylist
+                            : null
                         }
                         item={item}
+                        targetCount={count}
                         key={item.kind === "create" ? "create" : item.playlist.id}
                         onSelect={handleSelect}
                       />
@@ -202,8 +235,11 @@ export function AddToPlaylistDialog({
             </Autocomplete.List>
             <FieldError className="px-4 pb-2">{error?.message}</FieldError>
             <p aria-live="polite" className="sr-only">
-              {alreadyAddedTitle &&
-                `${track.title} is already in ${alreadyAddedTitle}. Choose it again to add it twice.`}
+              {confirmation &&
+                confirmationTitle &&
+                (count === 1
+                  ? `${targetLabel} is already in ${confirmationTitle}. Choose it again to add it twice.`
+                  : `${confirmation.alreadyInPlaylist.toLocaleString()} of ${targetLabel} are already in ${confirmationTitle}. Choose it again to add all ${count.toLocaleString()} anyway.`)}
             </p>
             <div className="flex h-10 shrink-0 items-center gap-4 rounded-b-[11px] border-t border-separator bg-inset px-4 font-mono text-meta text-secondary">
               <span className="flex items-center gap-1">
@@ -233,41 +269,76 @@ export function AddToPlaylistDialog({
 }
 
 function PaletteRow({
-  alreadyAdded,
+  alreadyInPlaylist,
   item,
   onSelect,
+  targetCount,
 }: {
-  alreadyAdded: boolean;
+  alreadyInPlaylist: number | null;
   item: PaletteItem;
   onSelect: (item: PaletteItem) => void;
+  targetCount: number;
 }) {
+  const label =
+    item.kind === "playlist"
+      ? item.playlist.title
+      : targetCount === 1
+        ? "New playlist with this track"
+        : `New playlist from ${targetCount.toLocaleString()} tracks`;
+
   return (
     <Autocomplete.Item
-      className="group/palette-row flex h-10 shrink-0 cursor-default items-center gap-3 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-highlighted:font-medium data-highlighted:[font-variation-settings:'opsz'_19.75]"
+      className="group/palette-row flex min-h-10 shrink-0 cursor-default flex-col justify-center rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-highlighted:font-medium data-highlighted:[font-variation-settings:'opsz'_19.75]"
       onClick={() => onSelect(item)}
       value={item}
     >
-      <span className="min-w-0 flex-1 truncate">
-        {item.kind === "create" ? "New playlist with this track" : item.playlist.title}
-      </span>
-      <span className="flex min-w-24 shrink-0 items-center justify-end gap-2 font-mono whitespace-nowrap text-meta font-normal text-secondary tabular-nums">
-        {item.kind === "playlist" &&
-          (alreadyAdded ? "already in it" : item.playlist.trackCount.toLocaleString())}
-        <Kbd
-          aria-hidden="true"
-          className="hidden group-data-highlighted/palette-row:inline-flex"
-          size="lg"
-        >
-          <ArrowElbowDownLeftIcon className="size-3" weight="bold" />
-        </Kbd>
-        {item.kind === "create" && (
-          <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
-            <CreateShortcut />
+      <span className="flex h-10 items-center gap-3">
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="flex min-w-24 shrink-0 items-center justify-end gap-2 font-mono whitespace-nowrap text-meta font-normal text-secondary tabular-nums">
+          {item.kind === "playlist" &&
+            (alreadyInPlaylist !== null ? (
+              alreadyInText(alreadyInPlaylist, targetCount)
+            ) : (
+              <>
+                <span className="group-data-highlighted/palette-row:hidden">
+                  {item.playlist.trackCount.toLocaleString()}
+                </span>
+                <span className="hidden items-center gap-1 group-data-highlighted/palette-row:flex">
+                  {item.playlist.trackCount.toLocaleString()}
+                  <ArrowRightIcon aria-hidden="true" className="size-3" />
+                  {(item.playlist.trackCount + targetCount).toLocaleString()}
+                </span>
+              </>
+            ))}
+          <Kbd
+            aria-hidden="true"
+            className="hidden group-data-highlighted/palette-row:inline-flex"
+            size="lg"
+          >
+            <ArrowElbowDownLeftIcon className="size-3" weight="bold" />
           </Kbd>
-        )}
+          {item.kind === "create" && (
+            <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
+              <CreateShortcut />
+            </Kbd>
+          )}
+        </span>
       </span>
+      {alreadyInPlaylist !== null && (
+        <span className="-mt-1.5 pb-2 text-meta font-normal text-secondary">
+          {targetCount === 1
+            ? "Adds it again"
+            : `Adds all ${targetCount.toLocaleString()} again, repeats included`}
+        </span>
+      )}
     </Autocomplete.Item>
   );
+}
+
+function alreadyInText(alreadyInPlaylist: number, targetCount: number) {
+  return targetCount === 1
+    ? "already in it"
+    : `${alreadyInPlaylist.toLocaleString()} of ${targetCount.toLocaleString()} already in it`;
 }
 
 function CreateShortcut() {

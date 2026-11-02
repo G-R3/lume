@@ -23,8 +23,6 @@ type FilterFieldProps = Omit<
   value: string;
 };
 
-const overlaySelector = "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']";
-
 export function FilterField({
   className,
   onBlur,
@@ -39,8 +37,6 @@ export function FilterField({
   const [isFocused, setIsFocused] = useState(false);
 
   const focusField = () => {
-    if (document.activeElement?.closest(overlaySelector)) return;
-
     inputRef.current?.focus();
     inputRef.current?.select();
   };
@@ -50,8 +46,14 @@ export function FilterField({
   // Layouts such as German or French AZERTY type "/" with Shift.
   useKeyboardShortcuts(
     [
-      { name: "Focus filter", key: "/", action: focusField },
-      { name: "Focus filter with Shift", key: "/", shift: true, action: focusField },
+      { name: "Focus filter", key: "/", yieldToOverlays: true, action: focusField },
+      {
+        name: "Focus filter with Shift",
+        key: "/",
+        shift: true,
+        yieldToOverlays: true,
+        action: focusField,
+      },
     ],
     window.lume.isMac,
   );

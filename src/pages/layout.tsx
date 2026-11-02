@@ -7,6 +7,7 @@ import { AppSidebar } from "@/pages/layout/sidebar";
 import { QueueSidebar } from "@/pages/layout/queue-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
+import { PlaylistCreationProvider } from "@/hooks/use-playlist-creation";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { getSidebarShortcut } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
@@ -26,47 +27,49 @@ export function AppLayout() {
 
   return (
     <SidebarProvider className="h-svh flex-col bg-page text-primary">
-      <AppKeyboardShortcuts toggleQueue={toggleQueue} />
-      <div className="relative flex min-h-0 flex-1 overflow-x-clip">
-        <AppSidebar />
+      <PlaylistCreationProvider>
+        <AppKeyboardShortcuts toggleQueue={toggleQueue} />
+        <div className="relative flex min-h-0 flex-1 overflow-x-clip">
+          <AppSidebar />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AudioPlayerControls queueOpen={queueOpen} toggleQueue={toggleQueue} />
-          <div className="relative flex min-h-0 flex-1">
-            <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page">
-              <div className="flex min-h-0 flex-1 flex-col">
-                {playback.errorMessage && (
-                  <p className="px-6 pt-4 text-meta text-danger" role="alert">
-                    {playback.errorMessage}
-                  </p>
-                )}
-                <Outlet />
-              </div>
-            </SidebarInset>
-            <QueueSidebar onOpenChange={setQueueOpen} open={queueOpen} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <AudioPlayerControls queueOpen={queueOpen} toggleQueue={toggleQueue} />
+            <div className="relative flex min-h-0 flex-1">
+              <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page">
+                <div className="flex min-h-0 flex-1 flex-col">
+                  {playback.errorMessage && (
+                    <p className="px-6 pt-4 text-meta text-danger" role="alert">
+                      {playback.errorMessage}
+                    </p>
+                  )}
+                  <Outlet />
+                </div>
+              </SidebarInset>
+              <QueueSidebar onOpenChange={setQueueOpen} open={queueOpen} />
+            </div>
+          </div>
+          <div
+            className={cn(
+              "pointer-events-none fixed inset-x-0 top-0 z-50 flex h-12 items-center",
+              window.lume.isMac ? "pl-22" : "pl-4",
+            )}
+          >
+            <SidebarTrigger
+              className="pointer-events-auto [-webkit-app-region:no-drag]"
+              shortcut={{
+                ...getSidebarShortcut(window.lume.isMac),
+                label: window.lume.isMac ? (
+                  <>
+                    <CommandIcon aria-hidden="true" className="size-3" weight="bold" />B
+                  </>
+                ) : (
+                  "Ctrl+B"
+                ),
+              }}
+            />
           </div>
         </div>
-        <div
-          className={cn(
-            "pointer-events-none fixed inset-x-0 top-0 z-50 flex h-12 items-center",
-            window.lume.isMac ? "pl-22" : "pl-4",
-          )}
-        >
-          <SidebarTrigger
-            className="pointer-events-auto [-webkit-app-region:no-drag]"
-            shortcut={{
-              ...getSidebarShortcut(window.lume.isMac),
-              label: window.lume.isMac ? (
-                <>
-                  <CommandIcon aria-hidden="true" className="size-3" weight="bold" />B
-                </>
-              ) : (
-                "Ctrl+B"
-              ),
-            }}
-          />
-        </div>
-      </div>
+      </PlaylistCreationProvider>
     </SidebarProvider>
   );
 }
