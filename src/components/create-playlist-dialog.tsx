@@ -120,7 +120,9 @@ export function CreatePlaylistDialog({
                 <Input
                   aria-describedby={titleError ? "title-error" : undefined}
                   aria-invalid={titleError ? true : undefined}
-                  defaultValue={entries.length === 1 ? entries[0].title.trim().slice(0, 100) : ""}
+                  defaultValue={
+                    isGroup ? "Playlist" : (entries[0]?.title.trim().slice(0, 100) ?? "")
+                  }
                   id="title"
                   maxLength={100}
                   name="title"
