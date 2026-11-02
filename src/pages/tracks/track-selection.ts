@@ -146,8 +146,7 @@ export function reduceSelection(state: SelectionState, event: SelectionEvent): S
         menu: {
           entryId: event.entryId,
           focusToken: event.focusToken,
-          namesTarget:
-            target.entries.length > 1 || (!targetsSelection && state.selectedIds.size > 0),
+          namesTarget: !targetsSelection && state.selectedIds.size > 0,
           open: true,
           target,
           targetsSelection,

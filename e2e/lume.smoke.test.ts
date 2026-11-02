@@ -287,7 +287,7 @@ it("returns focus to the row whose menu opened last while an earlier menu is sti
     await row("charlie").click();
     await window.keyboard.press("Meta+a");
     await window.keyboard.press("Shift+F10");
-    await window.getByRole("menu").getByText("5 tracks", { exact: true }).waitFor();
+    await window.getByRole("menu").getByRole("menuitem", { name: "Add to playlist…" }).waitFor();
     await window.waitForTimeout(400);
     expect(await focusedTitle()).not.toBe("alpha");
     await window.keyboard.press("Escape");

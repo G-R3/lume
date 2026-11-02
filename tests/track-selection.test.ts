@@ -368,7 +368,7 @@ it("targets the whole selection in displayed order when a menu opens inside it",
   expect(targetIds(state)).toEqual([2, 4]);
   expect(state.menu).toMatchObject({
     entryId: 4,
-    namesTarget: true,
+    namesTarget: false,
     open: true,
     targetsSelection: true,
   });

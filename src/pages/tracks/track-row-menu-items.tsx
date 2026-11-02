@@ -55,7 +55,7 @@ export function TrackRowMenuItems({
         onClick={() => run({ kind: "createPlaylist", returnTo, target })}
       >
         <PlusIcon aria-hidden="true" />
-        {count === 1 ? "New playlist from track…" : "New playlist from selection…"}
+        New playlist…
         {targetsSelection && <NewPlaylistShortcut />}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
@@ -85,7 +85,7 @@ export function TrackRowMenuItems({
   return (
     <DropdownMenuGroup>
       <DropdownMenuLabel className="block max-w-72 truncate leading-8">
-        {count === 1 ? target.entries[0].title : `${countLabel} tracks`}
+        {target.entries[0].title}
       </DropdownMenuLabel>
       {items}
     </DropdownMenuGroup>
