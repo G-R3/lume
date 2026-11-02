@@ -107,6 +107,54 @@ it("extends with shift and arrows from a command-clicked anchor without touching
   expect(selected(shrunk)).toEqual([4, 5, 7, 8, 9]);
 });
 
+const lettered = { context: allTracks, rows: rows(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) };
+
+const [A, B, C, D, E, F, G, H, I] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+it("merges a range that reaches an earlier range, so the next shift-click replaces the merged run", () => {
+  const ranges = run(
+    createSelection(lettered),
+    click(A),
+    click(C, "range"),
+    click(E, "toggle"),
+    click(G, "range"),
+  );
+
+  expect(selected(ranges)).toEqual([A, B, C, E, F, G]);
+
+  const merged = reduceSelection(ranges, click(A, "range"));
+
+  expect(selected(merged)).toEqual([A, B, C, D, E]);
+  expect(selected(reduceSelection(merged, click(G, "range")))).toEqual([E, F, G]);
+  expect(selected(reduceSelection(merged, click(I, "range")))).toEqual([E, F, G, H, I]);
+});
+
+it("merges ranges the same way when extending with shift and arrows", () => {
+  const extend = (fromEntryId: number, key: "ArrowUp" | "ArrowDown") =>
+    ({ extend: true, fromEntryId, key, pageSize: 10, type: "navigate" }) as const;
+
+  const ranges = run(
+    createSelection(lettered),
+    click(A),
+    extend(A, "ArrowDown"),
+    extend(B, "ArrowDown"),
+    click(E, "toggle"),
+    extend(E, "ArrowDown"),
+    extend(F, "ArrowDown"),
+  );
+
+  expect(selected(ranges)).toEqual([A, B, C, E, F, G]);
+
+  const merged = run(ranges, extend(G, "ArrowUp"), extend(F, "ArrowUp"), extend(E, "ArrowUp"));
+
+  expect(selected(merged)).toEqual([A, B, C, D, E]);
+  expect(merged.focusedId).toBe(D);
+
+  const replaced = run(merged, extend(D, "ArrowDown"), extend(E, "ArrowDown"));
+
+  expect(selected(replaced)).toEqual([E, F]);
+});
+
 it("selects the anchor again when a range starts from a command-click that deselected it", () => {
   const state = run(
     createSelection({ context: allTracks, rows: rows(1, 2, 3, 4, 5, 6) }),

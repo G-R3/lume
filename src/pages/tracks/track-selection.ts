@@ -252,15 +252,30 @@ function extendTo(
     id: fallbackAnchorId ?? state.focusedId ?? entryId,
   };
 
+  const rows = state.view.rows;
   const from = state.indexById.get(anchor.id) ?? 0;
   const to = state.indexById.get(entryId) ?? from;
-  const range = state.view.rows.slice(Math.min(from, to), Math.max(from, to) + 1);
+  let start = Math.min(from, to);
+  let end = Math.max(from, to);
+
+  const selectedIds = new Set([
+    ...anchor.base,
+    ...rows.slice(start, end + 1).map((row) => row.sourceEntryId),
+  ]);
+
+  while (start > 0 && selectedIds.has(rows[start - 1].sourceEntryId)) start--;
+
+  while (end < rows.length - 1 && selectedIds.has(rows[end + 1].sourceEntryId)) end++;
+
+  // An earlier range the new one touches merges into the anchor's range, so the next extend
+  // from this anchor replaces the merged run instead of keeping it.
+  const anchorRun = new Set(rows.slice(start, end + 1).map((row) => row.sourceEntryId));
 
   return {
     ...state,
-    anchor,
+    anchor: { base: new Set([...anchor.base].filter((id) => !anchorRun.has(id))), id: anchor.id },
     focusedId: entryId,
-    selectedIds: new Set([...anchor.base, ...range.map((row) => row.sourceEntryId)]),
+    selectedIds,
   };
 }
 
