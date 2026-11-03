@@ -1,132 +1,124 @@
 import {
   ArrowDownIcon,
   ArrowElbowDownLeftIcon,
+  ArrowRightIcon,
   ArrowUpIcon,
   CommandIcon,
 } from "@phosphor-icons/react";
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { type RefObject, useState } from "react";
-import type { PlaylistSummary, Track } from "../../shared/lib";
+import { useState } from "react";
+import type { PlaylistSummary } from "../../../../shared/lib";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
-import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import {
-  useAddTrackToPlaylistMutation,
-  useConfirmAddTrackToPlaylistMutation,
-} from "@/lib/playlist-mutations";
+import { SelectionShortcutKeys } from "@/components/track-list/selection/selection-shortcut-keys";
+import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
-type PaletteItem = { kind: "create" } | { kind: "playlist"; playlist: PlaylistSummary };
+type PaletteItem =
+  | { kind: "create" }
+  | { kind: "queue" }
+  | { kind: "playlist"; playlist: PlaylistSummary };
 
-type PaletteGroup = { items: PaletteItem[]; value: "actions" | "playlists" };
+type PaletteGroup = { items: PaletteItem[]; value: "playlists" | "queue" };
 
 const createItem: PaletteItem = { kind: "create" };
 
+const queueItem: PaletteItem = { kind: "queue" };
+
+const queueGroup: PaletteGroup = { items: [queueItem], value: "queue" };
+
+const queueLabel = "Add to queue";
+
+function matchesQuery(item: PaletteItem, query: string) {
+  const needle = query.trim().toLowerCase();
+
+  switch (item.kind) {
+    case "create":
+      return true;
+    case "queue":
+      return queueLabel.toLowerCase().includes(needle);
+    case "playlist":
+      return item.playlist.title.toLowerCase().includes(needle);
+  }
+}
+
 type AddToPlaylistDialogProps = {
-  finalFocus: RefObject<HTMLElement | null>;
-  onCreatePlaylist: (track: Track) => void;
-  onOpenChange: (open: boolean) => void;
+  error: string | null;
+  finalFocus: DialogPrimitive.Popup.Props["finalFocus"];
+  onAddToQueue: (() => void) | null;
+  onCreatePlaylist: () => void;
+  onDismiss: () => void;
+  onExited: () => void;
+  onPick: (playlist: PlaylistSummary) => void;
   open: boolean;
-  track: Track;
+  target: ActionTarget;
 };
 
 export function AddToPlaylistDialog({
+  error,
   finalFocus,
+  onAddToQueue,
   onCreatePlaylist,
-  onOpenChange,
+  onDismiss,
+  onExited,
+  onPick,
   open,
-  track,
+  target,
 }: AddToPlaylistDialogProps) {
   const library = useMusicLibrary();
-  const addTrack = useAddTrackToPlaylistMutation();
-  const confirmAddTrack = useConfirmAddTrackToPlaylistMutation();
-  const [alreadyAddedId, setAlreadyAddedId] = useState<number | null>(null);
   const [highlighted, setHighlighted] = useState<PaletteItem | undefined>();
   const [search, setSearch] = useState("");
-  const isPending = addTrack.isPending || confirmAddTrack.isPending;
+  const count = target.entries.length;
+  const targetLabel = count === 1 ? target.entries[0].title : `${count.toLocaleString()} tracks`;
 
-  const groups: PaletteGroup[] = [
-    {
-      items: library.playlists.map((playlist) => ({ kind: "playlist", playlist })),
-      value: "playlists",
-    },
-    { items: [createItem], value: "actions" },
-  ];
+  const playlistItems = library.playlists.map(
+    (playlist): PaletteItem => ({ kind: "playlist", playlist }),
+  );
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && isPending) return;
-    onOpenChange(nextOpen);
-  };
+  const playlistGroup: PaletteGroup = { items: [...playlistItems, createItem], value: "playlists" };
 
-  const handleOpenChangeComplete = (nextOpen: boolean) => {
-    if (nextOpen) return;
+  const searchFindsOnlyQueue =
+    search.trim() !== "" &&
+    matchesQuery(queueItem, search) &&
+    !playlistItems.some((item) => matchesQuery(item, search));
 
-    addTrack.reset();
-    confirmAddTrack.reset();
-    setAlreadyAddedId(null);
-    setSearch("");
-  };
-
-  const handleAdded = (playlist: PlaylistSummary) => {
-    toast.add({ title: `Added to ${playlist.title}`, type: "success" });
-    onOpenChange(false);
-  };
+  const groups: PaletteGroup[] = !onAddToQueue
+    ? [playlistGroup]
+    : searchFindsOnlyQueue
+      ? [queueGroup, playlistGroup]
+      : [playlistGroup, queueGroup];
 
   const handleSelect = (item: PaletteItem) => {
-    if (isPending) return;
+    switch (item.kind) {
+      case "create":
+        onCreatePlaylist();
 
-    if (item.kind === "create") {
-      onCreatePlaylist(track);
-      onOpenChange(false);
+        return;
+      case "queue":
+        onAddToQueue?.();
 
-      return;
+        return;
+      case "playlist":
+        onPick(item.playlist);
     }
-
-    const { playlist } = item;
-    const input = { playlistId: playlist.id, trackId: track.id };
-
-    if (alreadyAddedId === playlist.id) {
-      confirmAddTrack.mutate(input, { onSuccess: () => handleAdded(playlist) });
-
-      return;
-    }
-
-    addTrack.mutate(input, {
-      onSuccess: (result) => {
-        if (result.kind === "duplicate") {
-          setAlreadyAddedId(playlist.id);
-
-          return;
-        }
-
-        handleAdded(playlist);
-      },
-    });
   };
 
-  const enterHint =
-    highlighted?.kind === "create"
-      ? "create"
-      : highlighted?.kind === "playlist" && highlighted.playlist.id === alreadyAddedId
-        ? "add again"
-        : "add";
-
-  const error = addTrack.error ?? confirmAddTrack.error;
-
-  const alreadyAddedTitle = library.playlists.find(
-    (playlist) => playlist.id === alreadyAddedId,
-  )?.title;
+  const placeholder = onAddToQueue ? "Add to playlist or queue" : "Add to playlist";
 
   return (
     <Dialog
       modal
       open={open}
-      onOpenChange={handleOpenChange}
-      onOpenChangeComplete={handleOpenChangeComplete}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onDismiss();
+      }}
+      onOpenChangeComplete={(nextOpen) => {
+        if (!nextOpen) onExited();
+      }}
     >
       <DialogPrimitive.Portal>
         <DialogOverlay className="transition-none" />
@@ -137,17 +129,18 @@ export function AddToPlaylistDialog({
         >
           <DialogTitle className="sr-only">Add to playlist</DialogTitle>
           <DialogDescription className="sr-only">
-            Choose a playlist for {track.title}.
+            {placeholder} for {targetLabel}.
           </DialogDescription>
           <Autocomplete.Root
             autoHighlight="always"
-            filter={(item: PaletteItem, query) =>
-              item.kind === "create" ||
-              item.playlist.title.toLowerCase().includes(query.trim().toLowerCase())
-            }
+            filter={matchesQuery}
             inline
             itemToStringValue={(item: PaletteItem) =>
-              item.kind === "create" ? "" : item.playlist.title
+              item.kind === "playlist"
+                ? item.playlist.title
+                : item.kind === "queue"
+                  ? queueLabel
+                  : ""
             }
             items={groups}
             keepHighlight
@@ -162,43 +155,47 @@ export function AddToPlaylistDialog({
           >
             <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator px-4">
               <span className="flex h-6 max-w-48 shrink-0 items-center gap-1.5 rounded-md bg-overlay pr-2 pl-1">
-                <TrackArtwork artworkUrl={track.artworkUrl} className="h-4 w-3 rounded-xs" />
-                <span className="truncate text-meta text-primary">{track.title}</span>
+                <span className="flex shrink-0">
+                  {target.entries.slice(0, 3).map((entry) => (
+                    <TrackArtwork
+                      artworkUrl={entry.artworkUrl}
+                      className="h-4 w-3 rounded-xs not-first:-ml-1"
+                      key={entry.sourceEntryId}
+                    />
+                  ))}
+                </span>
+                <span className="truncate text-meta text-primary">{targetLabel}</span>
               </span>
               <Autocomplete.Input
                 aria-keyshortcuts={window.lume.isMac ? "Meta+Enter" : "Control+Enter"}
                 aria-label="Find a playlist"
                 className="h-full min-w-0 flex-1 bg-transparent text-title font-normal tracking-normal text-primary caret-accent outline-none placeholder:text-placeholder"
                 onKeyDown={(event) => {
-                  if (
-                    event.key !== "Enter" ||
-                    !(window.lume.isMac ? event.metaKey : event.ctrlKey)
-                  ) {
-                    return;
-                  }
+                  if (event.key !== "Enter") return;
 
-                  event.preventDefault();
-                  handleSelect(createItem);
+                  if (window.lume.isMac ? event.metaKey : event.ctrlKey) {
+                    event.preventDefault();
+                    handleSelect(createItem);
+                  } else if (event.altKey && onAddToQueue) {
+                    event.preventDefault();
+                    handleSelect(queueItem);
+                  }
                 }}
-                placeholder="Add to playlist…"
+                placeholder={placeholder}
               />
             </div>
-            <Autocomplete.List className="flex max-h-[min(400px,50vh)] scroll-py-2 flex-col overflow-y-auto overscroll-contain p-2">
+            <Autocomplete.List className="flex max-h-[min(400px,50vh)] scroll-py-2 flex-col overflow-y-auto overscroll-contain p-2 scroll-area-scrollbar">
               {(group: PaletteGroup) => (
                 <Autocomplete.Group items={group.items} key={group.value}>
-                  {group.value === "playlists" && (
-                    <Autocomplete.GroupLabel className="flex h-8 items-center px-2 text-meta font-medium text-secondary">
-                      Playlists
-                    </Autocomplete.GroupLabel>
-                  )}
+                  <Autocomplete.GroupLabel className="flex h-8 items-center px-2 text-meta font-medium text-secondary">
+                    {group.value === "playlists" ? "Playlists" : "Queue"}
+                  </Autocomplete.GroupLabel>
                   <Autocomplete.Collection>
                     {(item: PaletteItem) => (
                       <PaletteRow
-                        alreadyAdded={
-                          item.kind === "playlist" && item.playlist.id === alreadyAddedId
-                        }
                         item={item}
-                        key={item.kind === "create" ? "create" : item.playlist.id}
+                        targetCount={count}
+                        key={item.kind === "playlist" ? item.playlist.id : item.kind}
                         onSelect={handleSelect}
                       />
                     )}
@@ -206,11 +203,7 @@ export function AddToPlaylistDialog({
                 </Autocomplete.Group>
               )}
             </Autocomplete.List>
-            <FieldError className="px-4 pb-2">{error?.message}</FieldError>
-            <p aria-live="polite" className="sr-only">
-              {alreadyAddedTitle &&
-                `${track.title} is already in ${alreadyAddedTitle}. Choose it again to add it twice.`}
-            </p>
+            <FieldError className="px-4 pb-2">{error}</FieldError>
             <div className="flex h-10 shrink-0 items-center gap-4 rounded-b-[11px] border-t border-separator bg-inset px-4 font-mono text-meta text-secondary">
               <span className="flex items-center gap-1">
                 <span className="flex">
@@ -221,7 +214,7 @@ export function AddToPlaylistDialog({
               </span>
               <span className="flex items-center gap-1">
                 <ArrowElbowDownLeftIcon aria-hidden="true" className="size-3" weight="bold" />
-                {enterHint}
+                {highlighted?.kind === "create" ? "create" : "add"}
               </span>
               {highlighted?.kind !== "create" && (
                 <span className="flex items-center gap-1">
@@ -239,26 +232,43 @@ export function AddToPlaylistDialog({
 }
 
 function PaletteRow({
-  alreadyAdded,
   item,
   onSelect,
+  targetCount,
 }: {
-  alreadyAdded: boolean;
   item: PaletteItem;
   onSelect: (item: PaletteItem) => void;
+  targetCount: number;
 }) {
+  const label =
+    item.kind === "playlist"
+      ? item.playlist.title
+      : item.kind === "queue"
+        ? queueLabel
+        : targetCount === 1
+          ? "New playlist with this track"
+          : `New playlist from ${targetCount.toLocaleString()} tracks`;
+
   return (
     <Autocomplete.Item
       className="group/palette-row flex h-10 shrink-0 cursor-default items-center gap-3 rounded-sm px-2 text-body text-primary outline-none select-none data-highlighted:bg-hover data-highlighted:font-medium data-highlighted:[font-variation-settings:'opsz'_19.75]"
       onClick={() => onSelect(item)}
       value={item}
     >
-      <span className="min-w-0 flex-1 truncate">
-        {item.kind === "create" ? "New playlist with this track" : item.playlist.title}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       <span className="flex min-w-24 shrink-0 items-center justify-end gap-2 font-mono whitespace-nowrap text-meta font-normal text-secondary tabular-nums">
-        {item.kind === "playlist" &&
-          (alreadyAdded ? "already in it" : item.playlist.trackCount.toLocaleString())}
+        {item.kind === "playlist" && (
+          <>
+            <span className="group-data-highlighted/palette-row:hidden">
+              {item.playlist.trackCount.toLocaleString()}
+            </span>
+            <span className="hidden items-center gap-1 group-data-highlighted/palette-row:flex">
+              {item.playlist.trackCount.toLocaleString()}
+              <ArrowRightIcon aria-hidden="true" className="size-3" />
+              {(item.playlist.trackCount + targetCount).toLocaleString()}
+            </span>
+          </>
+        )}
         <Kbd
           aria-hidden="true"
           className="hidden group-data-highlighted/palette-row:inline-flex"
@@ -269,6 +279,11 @@ function PaletteRow({
         {item.kind === "create" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
             <CreateShortcut />
+          </Kbd>
+        )}
+        {item.kind === "queue" && (
+          <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
+            <SelectionShortcutKeys action="queue" />
           </Kbd>
         )}
       </span>

@@ -13,9 +13,9 @@ import {
   getSources,
   getTrackPath,
   saveSource,
-  setTrackLiked,
+  setTracksLiked,
 } from "../electron/library";
-import { addTrackToPlaylist, createPlaylist, getPlaylist } from "../electron/playlists";
+import { createPlaylist, getPlaylist } from "../electron/playlists";
 import { scanAudioFiles } from "../electron/library-files";
 import { getArtworkUrl } from "../shared/lib";
 
@@ -150,7 +150,7 @@ describe("track likes", () => {
 
     if (!track) throw new Error("Expected a scanned track");
 
-    const liked = setTrackLiked({ liked: true, trackId: track.id });
+    const [liked] = setTracksLiked({ liked: true, trackIds: [track.id] });
 
     expect(liked).toEqual({ likedAt: expect.any(Number), trackId: track.id });
 
@@ -159,10 +159,9 @@ describe("track likes", () => {
     if (likedLibrary.kind !== "library") throw new Error("Expected a library snapshot");
 
     expect(likedLibrary.tracks).toMatchObject([{ id: track.id, likedAt: liked.likedAt }]);
-    expect(setTrackLiked({ liked: false, trackId: track.id })).toEqual({
-      likedAt: null,
-      trackId: track.id,
-    });
+    expect(setTracksLiked({ liked: false, trackIds: [track.id] })).toEqual([
+      { likedAt: null, trackId: track.id },
+    ]);
 
     const unlikedLibrary = readLibrary();
 
@@ -288,10 +287,7 @@ describe("track persistence", () => {
 
     if (!track) throw new Error("Expected the scan to create a track");
 
-    const playlist = createPlaylist({ description: null, title: "Keepers" });
-    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: track.id });
-
-    if (addition.kind !== "added") throw new Error("Expected the track to be added");
+    const playlist = createPlaylist({ description: null, title: "Keepers", trackIds: [track.id] });
 
     await rm(trackPath);
     await scanWith(source.id, await scanAudioFiles(folder));
@@ -300,7 +296,7 @@ describe("track persistence", () => {
       id: track.id,
     });
     expect(libraryTracks()).toMatchObject([{ available: false, title: "song" }]);
-    expect(getPlaylist(playlist.id)?.tracks).toEqual([addition.track]);
+    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
 
     await writeFile(trackPath, "restored");
     await scanWith(source.id, await scanAudioFiles(folder));
@@ -319,7 +315,7 @@ describe("track persistence", () => {
       },
     ]);
     expect(getTrackPath(track.id)).toBe(trackPath);
-    expect(getPlaylist(playlist.id)?.tracks).toEqual([addition.track]);
+    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
   });
 
   it("creates a new track after a file is renamed", async () => {

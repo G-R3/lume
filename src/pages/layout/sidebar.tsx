@@ -1,10 +1,15 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
-import { DotsThreeIcon, GearIcon, MusicNotesIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  DotsThreeIcon,
+  GearIcon,
+  MusicNotesIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { type Ref, type RefObject, useRef, useState } from "react";
 import type { LibrarySource, PlaylistSummary } from "../../../shared/lib";
-import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -21,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { duration, ease } from "@/lib/motion";
 import { getSourceName } from "@/lib/source-name";
 import { cn } from "@/lib/utils";
@@ -36,12 +42,13 @@ export function AppSidebar() {
   const matchRoute = useMatchRoute();
   const isTracks = Boolean(matchRoute({ to: "/" }));
   const createTriggerRef = useRef<HTMLButtonElement>(null);
+  const openPlaylistCreation = usePlaylistCreation();
 
   return (
     <Sidebar className="border-separator bg-raised surface-raised md:absolute! md:h-auto!">
       <SidebarHeader className="h-12 shrink-0 p-0 [-webkit-app-region:drag]" />
 
-      <SidebarContent className="pb-2">
+      <SidebarContent className="pb-2 scroll-area-scrollbar [scrollbar-width:auto]! [&::-webkit-scrollbar]:block!">
         <SidebarGroup className="px-2 pt-2 pb-0">
           <SidebarGroupContent>
             <SidebarMenu>
@@ -59,7 +66,16 @@ export function AppSidebar() {
         <SidebarGroup className="px-2 pt-6 pb-0">
           <div className="flex items-center justify-between pr-1">
             <SidebarGroupLabel render={<h2 />}>Playlists</SidebarGroupLabel>
-            <CreatePlaylistDialog triggerRef={createTriggerRef} />
+            <Button
+              aria-keyshortcuts={window.lume.isMac ? "Meta+N" : "Control+N"}
+              aria-label="Create playlist"
+              onClick={() => openPlaylistCreation({ finalFocus: createTriggerRef, target: null })}
+              ref={createTriggerRef}
+              size="icon-sm"
+              variant="ghost"
+            >
+              <PlusIcon aria-hidden="true" />
+            </Button>
           </div>
           <SidebarGroupContent>
             <SidebarMenu className="relative">
@@ -127,7 +143,7 @@ function PlaylistSidebarItem({
   const menuItems = (
     <DropdownMenuItem onClick={() => setDeleteOpen(true)} variant="danger">
       <TrashIcon aria-hidden="true" />
-      Delete playlist…
+      Delete playlist
     </DropdownMenuItem>
   );
 

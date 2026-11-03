@@ -18,7 +18,9 @@ type Snapshot = {
 
 type SourceChange = Extract<
   QueueCommand,
-  { type: "sourceEntryAdded" | "sourceEntryRemoved" | "sourceEntryMoved" | "sourceDeleted" }
+  {
+    type: "sourceEntriesAdded" | "sourceEntriesRemoved" | "sourceEntryMoved" | "sourceDeleted";
+  }
 >;
 
 type SessionRequest = Pick<
@@ -140,12 +142,10 @@ export function createPlaybackController(dependencies: {
     const load =
       restartAudio || queue.current?.item.queueItemId !== previous?.current?.item.queueItemId;
 
-    publish({ ...snapshot, queue });
+    publish({ ...snapshot, queue, errorMessage: load ? null : snapshot.errorMessage });
     persist(queue, load ? 0 : dependencies.audio.getPosition());
 
-    if (!load) return;
-    loadCurrent(0);
-    setError(null);
+    if (load) loadCurrent(0);
   };
 
   const dispatch = (command: QueueCommand, options?: { restartAudio?: boolean }) => {
@@ -404,10 +404,13 @@ export function createPlaybackController(dependencies: {
       ++actionId;
       dispatch({ type: "clearManualQueue" });
     },
-    enqueueTrack: (trackId: number) => {
-      if (closing || !snapshot.isInitialized) return;
+    enqueueTracks: (orderedTrackIds: readonly number[]) => {
+      if (closing || !snapshot.isInitialized || !snapshot.queue) return;
       ++actionId;
-      dispatch({ type: "enqueueTrack", trackId, queueItemId: crypto.randomUUID() });
+      dispatch({
+        type: "enqueueTracks",
+        items: orderedTrackIds.map((trackId) => ({ trackId, queueItemId: crypto.randomUUID() })),
+      });
     },
     flush: () => {
       closing = true;

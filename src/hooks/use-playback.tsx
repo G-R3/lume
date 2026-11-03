@@ -18,7 +18,7 @@ type PlaybackContextValue = Pick<
   ReturnType<typeof createPlaybackController>,
   | "applySourceChange"
   | "clearManualQueue"
-  | "enqueueTrack"
+  | "enqueueTracks"
   | "jumpToQueueItem"
   | "moveQueueItem"
   | "playSource"
@@ -142,7 +142,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         canGoNext: selectCanGoNext(snapshot.queue, availableTrackIds),
         applySourceChange: controller.applySourceChange,
         clearManualQueue: controller.clearManualQueue,
-        enqueueTrack: controller.enqueueTrack,
+        enqueueTracks: controller.enqueueTracks,
         jumpToQueueItem: controller.jumpToQueueItem,
         moveQueueItem: controller.moveQueueItem,
         playSource: controller.playSource,

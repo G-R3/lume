@@ -82,7 +82,7 @@ describe("a filtered session", () => {
     expect(
       transition(
         state,
-        { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 4, trackId: 4 } },
+        { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 4, trackId: 4 }] },
         context,
       ),
     ).toBe(state);
@@ -104,7 +104,7 @@ describe("a filtered session", () => {
 
     const removed = transition(
       state,
-      { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+      { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
       context,
     );
 
@@ -151,7 +151,7 @@ describe("an unfiltered session", () => {
 
     const added = transition(
       state,
-      { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 3, trackId: 3 } },
+      { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 3, trackId: 3 }] },
       queueContext([1, 2, 3]),
     );
 

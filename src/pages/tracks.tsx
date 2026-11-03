@@ -15,7 +15,7 @@ import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { libraryRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
-import { TrackList } from "@/pages/tracks/track-list";
+import { TrackList } from "@/components/track-list/track-list";
 
 const allTracks = { kind: "all-tracks" } as const;
 
@@ -52,7 +52,7 @@ export function TracksPage() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center gap-4 pr-4 pl-6" data-slot="page-header">
         <div className="flex min-w-0 flex-1 items-baseline gap-3">
           <h1
@@ -91,20 +91,19 @@ export function TracksPage() {
       </header>
       <LibraryStatus library={library} />
       {(items.length > 0 || filter) && (
-        <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
-          <TrackList
-            caption="Tracks"
-            filter={filter?.normalizedText ?? null}
-            items={items}
-            onReady={onListReady}
-            onStepSort={stepSort}
-            sort={sort}
-            source={allTracks}
-          />
+        <TrackList
+          caption="Tracks"
+          filter={filter?.normalizedText ?? null}
+          items={items}
+          onReady={onListReady}
+          onStepSort={stepSort}
+          sort={sort}
+          source={allTracks}
+        >
           {filter && items.length === 0 && (
             <FilterNoResults filterText={filter.text} onClear={clearFilter} />
           )}
-        </div>
+        </TrackList>
       )}
     </div>
   );
@@ -132,7 +131,7 @@ function EmptyLibrary({ library }: { library: MusicLibrary }) {
         <LibraryOnboarding
           actions={
             <>
-              {chooseFolderButton("Choose another folder…")}
+              {chooseFolderButton("Choose another folder")}
               <Button
                 busy={libraryMutation.isPending && libraryMutation.variables?.kind !== "add-source"}
                 disabled={libraryMutation.isPending}
@@ -152,7 +151,7 @@ function EmptyLibrary({ library }: { library: MusicLibrary }) {
         />
       ) : (
         <LibraryOnboarding
-          actions={chooseFolderButton("Choose folder…")}
+          actions={chooseFolderButton("Choose folder")}
           busy={libraryMutation.isPending}
           description="Choose a folder of audio files. Lume plays them where they are."
           errorMessage={libraryMutation.error?.message}

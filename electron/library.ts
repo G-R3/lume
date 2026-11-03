@@ -1,9 +1,10 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import { and, count, eq, isNotNull, isNull, notExists, sql, type SQL } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, notExists, sql, type SQL } from "drizzle-orm";
 import {
   type LibraryUpdate,
-  type TrackLikeInput,
+  type SetTracksLikedInput,
+  type TrackLikeResult,
   type TrackTuple,
   type TrackTupleKey,
   albumArtistsIfDifferent,
@@ -13,7 +14,12 @@ import {
   stringifyFirstRunLibrary,
 } from "../shared/lib";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
-import { getDatabase, runImmediateTransaction, type LibraryDatabase } from "./database";
+import {
+  getDatabase,
+  parameterChunks,
+  runImmediateTransaction,
+  type LibraryDatabase,
+} from "./database";
 import { artwork, librarySources, tracks, trackState } from "./database/schema";
 import {
   describeFolderReadError,
@@ -21,7 +27,7 @@ import {
   trackMetadataVersion,
   type ScannedTrack,
 } from "./library-files";
-import { getPlaylists } from "./playlists";
+import { getPlaylists, requireTracks } from "./playlists";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
 
@@ -158,39 +164,33 @@ function trackTupleFromRow(row: StoredTrackRow): TrackTuple {
   ];
 }
 
-export function setTrackLiked(input: TrackLikeInput) {
+export function setTracksLiked(input: SetTracksLikedInput): TrackLikeResult[] {
+  const trackIds = [...new Set(input.trackIds)];
+
   return runImmediateTransaction(getDatabase(), (transaction) => {
-    const track = transaction
-      .select({ id: tracks.id })
-      .from(tracks)
-      .where(eq(tracks.id, input.trackId))
-      .get();
-
-    if (!track) throw new Error(`Track was not found: ${input.trackId}`);
-
-    const state = transaction
-      .select({ trackId: trackState.trackId })
-      .from(trackState)
-      .where(eq(trackState.trackId, input.trackId))
-      .get();
+    requireTracks(transaction, trackIds);
 
     const likedAt = input.liked ? Date.now() : null;
 
-    if (!state) {
-      if (likedAt === null) return { likedAt, trackId: input.trackId };
-
-      transaction.insert(trackState).values({ likedAt, trackId: input.trackId }).run();
-
-      return { likedAt, trackId: input.trackId };
+    if (likedAt === null) {
+      for (const ids of parameterChunks(trackIds)) {
+        transaction
+          .update(trackState)
+          .set({ likedAt })
+          .where(inArray(trackState.trackId, ids))
+          .run();
+      }
+    } else {
+      for (const ids of parameterChunks(trackIds, 2)) {
+        transaction
+          .insert(trackState)
+          .values(ids.map((trackId) => ({ likedAt, trackId })))
+          .onConflictDoUpdate({ set: { likedAt }, target: trackState.trackId })
+          .run();
+      }
     }
 
-    transaction
-      .update(trackState)
-      .set({ likedAt })
-      .where(eq(trackState.trackId, input.trackId))
-      .run();
-
-    return { likedAt, trackId: input.trackId };
+    return trackIds.map((trackId) => ({ likedAt, trackId }));
   });
 }
 

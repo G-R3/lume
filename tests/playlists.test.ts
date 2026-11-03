@@ -5,18 +5,16 @@ import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { closeDatabase } from "../electron/database";
-import { saveSource } from "../electron/library";
+import { saveSource, setTracksLiked } from "../electron/library";
 import { scanAudioFiles } from "../electron/library-files";
 import { transition } from "../src/lib/queue/transition";
 import {
-  addTrackToPlaylist,
-  confirmAddTrackToPlaylist,
+  addTracksToPlaylist,
   createPlaylist,
-  createPlaylistFromTrack,
   deletePlaylist,
   getPlaylist,
   getPlaylists,
-  removePlaylistTrack,
+  removePlaylistTracks,
 } from "../electron/playlists";
 import { queueContext } from "./helpers/queue-context";
 import { defaultSort } from "../src/lib/track-sort";
@@ -26,7 +24,7 @@ describe("playlist behavior", () => {
     await openTestDatabase();
     const firstTrack = await addTrack("A");
     const secondTrack = await addTrack("B");
-    const playlist = createPlaylistFromTrack(firstTrack.id);
+    const playlist = createPlaylist({ description: null, title: "A", trackIds: [firstTrack.id] });
     const context = queueContext([firstTrack.id, secondTrack.id]);
     const titlesById = new Map(libraryTracks().map((track) => [track.id, track.title]));
 
@@ -48,28 +46,35 @@ describe("playlist behavior", () => {
       context,
     );
 
-    removePlaylistTrack({ playlistId: playlist.id, playlistTrackId: playlist.tracks[0].id });
+    removePlaylistTracks({ playlistId: playlist.id, playlistTrackIds: [playlist.tracks[0].id] });
 
     const removed = transition(
       started,
       {
-        type: "sourceEntryRemoved",
+        type: "sourceEntriesRemoved",
         playlistId: playlist.id,
-        sourceEntryId: playlist.tracks[0].id,
+        sourceEntryIds: [playlist.tracks[0].id],
       },
       context,
     );
 
-    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: secondTrack.id });
+    const addition = addTracksToPlaylist({
+      duplicates: "check",
+      playlistId: playlist.id,
+      trackIds: [secondTrack.id],
+    });
 
     if (addition.kind !== "added") throw new Error("Expected B to be added to the playlist");
 
     const queued = transition(
       removed,
       {
-        type: "sourceEntryAdded",
+        type: "sourceEntriesAdded",
         playlistId: playlist.id,
-        entry: { sourceEntryId: addition.track.id, trackId: addition.track.trackId },
+        entries: addition.tracks.map((track) => ({
+          sourceEntryId: track.id,
+          trackId: track.trackId,
+        })),
       },
       context,
     );
@@ -90,18 +95,28 @@ describe("playlist behavior", () => {
     const maximumTitle = "T".repeat(100);
     const maximumDescription = "D".repeat(300);
 
-    expect(() => createPlaylist({ description: null, title: "   " })).toThrow();
-    expect(() => createPlaylist({ description: null, title: "T".repeat(101) })).toThrow();
-    expect(() => createPlaylist({ description: "D".repeat(301), title: "Valid" })).toThrow();
+    expect(() => createPlaylist({ description: null, title: "   ", trackIds: [] })).toThrow();
+    expect(() =>
+      createPlaylist({ description: null, title: "T".repeat(101), trackIds: [] }),
+    ).toThrow();
+    expect(() =>
+      createPlaylist({ description: "D".repeat(301), title: "Valid", trackIds: [] }),
+    ).toThrow();
 
     const firstPlaylist = createPlaylist({
       description: `  ${maximumDescription}  `,
       title: `  ${maximumTitle}  `,
+      trackIds: [],
     });
 
-    const secondPlaylist = createPlaylist({ description: "   ", title: maximumTitle });
+    const secondPlaylist = createPlaylist({
+      description: "   ",
+      title: maximumTitle,
+      trackIds: [],
+    });
 
     expect([firstPlaylist.id, secondPlaylist.id]).toEqual([1, 2]);
+    expect(firstPlaylist.tracks).toEqual([]);
     closeDatabase();
 
     await openTestDatabase(databasePath);
@@ -127,34 +142,30 @@ describe("playlist behavior", () => {
     const playlist = createPlaylist({
       description: null,
       title: "Sequence",
+      trackIds: [firstTrack.id, secondTrack.id],
     });
 
-    const firstTrackInPlaylist = addTrackToPlaylist({
+    expect(
+      addTracksToPlaylist({
+        duplicates: "check",
+        playlistId: playlist.id,
+        trackIds: [firstTrack.id],
+      }),
+    ).toEqual({ alreadyInPlaylist: 1, kind: "duplicate", newTrackCount: 0 });
+
+    addTracksToPlaylist({
+      duplicates: "allow",
       playlistId: playlist.id,
-      trackId: firstTrack.id,
+      trackIds: [firstTrack.id],
     });
 
-    const secondTrackInPlaylist = addTrackToPlaylist({
+    removePlaylistTracks({ playlistId: playlist.id, playlistTrackIds: [playlist.tracks[0].id] });
+
+    addTracksToPlaylist({
+      duplicates: "check",
       playlistId: playlist.id,
-      trackId: secondTrack.id,
+      trackIds: [thirdTrack.id],
     });
-
-    expect(addTrackToPlaylist({ playlistId: playlist.id, trackId: firstTrack.id })).toEqual({
-      kind: "duplicate",
-    });
-
-    confirmAddTrackToPlaylist({ playlistId: playlist.id, trackId: firstTrack.id });
-
-    if (firstTrackInPlaylist.kind !== "added" || secondTrackInPlaylist.kind !== "added") {
-      throw new Error("Expected both distinct tracks to be added");
-    }
-
-    removePlaylistTrack({
-      playlistId: playlist.id,
-      playlistTrackId: firstTrackInPlaylist.track.id,
-    });
-
-    confirmAddTrackToPlaylist({ playlistId: playlist.id, trackId: thirdTrack.id });
 
     const tracks = getPlaylist(playlist.id)?.tracks;
     expect(tracks?.map((track) => track.position)).toEqual([1, 2, 3]);
@@ -173,27 +184,24 @@ describe("playlist behavior", () => {
     expect(libraryTracks().map((track) => track.title)).toEqual(["First", "Second", "Third"]);
   });
 
-  it("creates a playlist from a track atomically and falls back for unusable names", async () => {
+  it("creates a playlist and its memberships together or not at all", async () => {
     const database = await openTestDatabase();
-    const namedTrack = await addTrack("Night Drive");
-    const blankTrackId = await addTrackTitled("blank-track", "   ");
-    const longTrackId = await addTrackTitled("long-track", "x".repeat(101));
-    const namedPlaylist = createPlaylistFromTrack(namedTrack.id);
-    const blankPlaylist = createPlaylistFromTrack(blankTrackId);
-    const longPlaylist = createPlaylistFromTrack(longTrackId);
+    const first = await addTrack("Night");
+    const second = await addTrack("Drive");
 
-    expect(
-      [namedPlaylist, blankPlaylist, longPlaylist].map((playlist) => ({
-        title: playlist.title,
-        trackId: playlist.tracks[0]?.trackId,
-      })),
-    ).toEqual([
-      { title: "Night Drive", trackId: namedTrack.id },
-      { title: "New Playlist", trackId: blankTrackId },
-      { title: "New Playlist", trackId: longTrackId },
-    ]);
+    const playlist = createPlaylist({
+      description: null,
+      title: "Night Drive",
+      trackIds: [second.id, first.id, second.id],
+    });
 
-    const failingTrackId = await addTrackTitled("failing-track", "Uncommitted");
+    expect(playlist.tracks.map((track) => track.trackId)).toEqual([second.id, first.id, second.id]);
+    expect(getPlaylist(playlist.id)).toEqual(playlist);
+
+    expect(() =>
+      createPlaylist({ description: null, title: "Missing", trackIds: [first.id, 999_999] }),
+    ).toThrow("Track does not exist");
+
     database.$client.exec(`
       CREATE TRIGGER reject_playlist_track
       BEFORE INSERT ON playlist_entries
@@ -202,20 +210,206 @@ describe("playlist behavior", () => {
       END;
     `);
 
-    expect(() => createPlaylistFromTrack(failingTrackId)).toThrow("Playlist track insert failed");
-    expect(getPlaylists().map((playlist) => playlist.title)).toEqual([
-      "Night Drive",
-      "New Playlist",
-      "New Playlist",
+    expect(() =>
+      createPlaylist({ description: null, title: "Uncommitted", trackIds: [first.id] }),
+    ).toThrow("Playlist track insert failed");
+    expect(getPlaylists().map((summary) => summary.title)).toEqual(["Night Drive"]);
+  });
+
+  it("appends ordered occurrences, repeats included, after the existing entries", async () => {
+    await openTestDatabase();
+    const first = await addTrack("One");
+    const second = await addTrack("Two");
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [first.id] });
+
+    const addition = addTracksToPlaylist({
+      duplicates: "check",
+      playlistId: playlist.id,
+      trackIds: [second.id, second.id],
+    });
+
+    if (addition.kind !== "added") throw new Error("Expected the repeats to be added");
+
+    expect(addition.tracks.map(({ position, trackId }) => ({ position, trackId }))).toEqual([
+      { position: 1, trackId: second.id },
+      { position: 2, trackId: second.id },
     ]);
+    expect(getPlaylist(playlist.id)?.tracks).toEqual([...playlist.tracks, ...addition.tracks]);
+  });
+
+  it("writes nothing when any added track is already in the playlist until confirmed", async () => {
+    await openTestDatabase();
+    const first = await addTrack("Old");
+    const second = await addTrack("New");
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [first.id] });
+    const request = [second.id, first.id, first.id];
+
+    expect(
+      addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: request }),
+    ).toEqual({ alreadyInPlaylist: 2, kind: "duplicate", newTrackCount: 1 });
+    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
+
+    const confirmed = addTracksToPlaylist({
+      duplicates: "allow",
+      playlistId: playlist.id,
+      trackIds: request,
+    });
+
+    if (confirmed.kind !== "added") throw new Error("Expected the confirmed add to write");
+
+    expect(getPlaylist(playlist.id)?.tracks.map((track) => track.trackId)).toEqual([
+      first.id,
+      ...request,
+    ]);
+  });
+
+  it("adds only the new tracks once each, in target order, when skipping duplicates", async () => {
+    await openTestDatabase();
+    const old = await addTrack("Old");
+    const first = await addTrack("First");
+    const second = await addTrack("Second");
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [old.id] });
+    const request = [second.id, old.id, first.id, second.id, old.id];
+
+    expect(
+      addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: request }),
+    ).toEqual({ alreadyInPlaylist: 2, kind: "duplicate", newTrackCount: 2 });
+
+    const skipped = addTracksToPlaylist({
+      duplicates: "skip",
+      playlistId: playlist.id,
+      trackIds: request,
+    });
+
+    if (skipped.kind !== "added") throw new Error("Expected the new tracks to be added");
+
+    expect(skipped.tracks.map(({ position, trackId }) => ({ position, trackId }))).toEqual([
+      { position: 1, trackId: second.id },
+      { position: 2, trackId: first.id },
+    ]);
+    expect(getPlaylist(playlist.id)?.tracks).toEqual([...playlist.tracks, ...skipped.tracks]);
+  });
+
+  it("writes nothing when skipping duplicates and every target is already there", async () => {
+    await openTestDatabase();
+    const track = await addTrack("Kept");
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [track.id] });
+    const before = getPlaylists();
+
+    expect(
+      addTracksToPlaylist({
+        duplicates: "skip",
+        playlistId: playlist.id,
+        trackIds: [track.id, track.id],
+      }),
+    ).toEqual({ kind: "added", tracks: [] });
+    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
+    expect(getPlaylists()).toEqual(before);
+  });
+
+  it("skips duplicates across more distinct tracks than SQLite binds in one statement", async () => {
+    const database = await openTestDatabase();
+    const seed = await addTrack("Seed");
+
+    database.$client.exec(`
+      WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2500)
+      INSERT INTO tracks (source_id, path, title, format, file_size, modified_at, available,
+        created_at, updated_at, artists, album_artists, genres, metadata_version)
+      SELECT source_id, path || '-' || i, 'Bulk ' || i, format, file_size, modified_at, available,
+        created_at, updated_at, artists, album_artists, genres, metadata_version
+      FROM tracks, n WHERE tracks.id = ${seed.id}
+    `);
+
+    const bulkIds = libraryTracks()
+      .filter((track) => track.title.startsWith("Bulk "))
+      .map((track) => track.id)
+      .sort((left, right) => left - right);
+
+    const existing = bulkIds.filter((_, index) => index % 2 === 0);
+    const playlist = createPlaylist({ description: null, title: "Bulk", trackIds: existing });
+    const request = [...bulkIds].reverse().flatMap((id) => [id, id]);
+
+    expect(bulkIds).toHaveLength(2500);
+    expect(
+      addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: request }),
+    ).toEqual({ alreadyInPlaylist: 2500, kind: "duplicate", newTrackCount: 1250 });
+
+    const skipped = addTracksToPlaylist({
+      duplicates: "skip",
+      playlistId: playlist.id,
+      trackIds: request,
+    });
+
+    if (skipped.kind !== "added") throw new Error("Expected the new tracks to be added");
+
+    const added = [...bulkIds].reverse().filter((_, index) => index % 2 === 0);
+
+    expect(skipped.tracks.map((entry) => entry.trackId)).toEqual(added);
+    expect(skipped.tracks.map((entry) => entry.position)).toEqual(
+      added.map((_, index) => existing.length + index),
+    );
+    expect(getPlaylist(playlist.id)?.tracks.map((entry) => entry.trackId)).toEqual([
+      ...existing,
+      ...added,
+    ]);
+  });
+
+  it("rejects the whole add when any target is missing", async () => {
+    await openTestDatabase();
+    const track = await addTrack("Real");
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [] });
+
+    expect(() =>
+      addTracksToPlaylist({
+        duplicates: "allow",
+        playlistId: playlist.id,
+        trackIds: [track.id, 999_999],
+      }),
+    ).toThrow("Track does not exist");
+    expect(() =>
+      addTracksToPlaylist({ duplicates: "check", playlistId: 999_999, trackIds: [track.id] }),
+    ).toThrow("Playlist does not exist");
+    expect(getPlaylist(playlist.id)?.tracks).toEqual([]);
+  });
+
+  it("adds and removes more entries than SQLite binds in one statement", async () => {
+    await openTestDatabase();
+    const track = await addTrack("Loop");
+    const playlist = createPlaylist({ description: null, title: "Loop", trackIds: [] });
+    const occurrences = Array.from({ length: 33_000 }, () => track.id);
+
+    const addition = addTracksToPlaylist({
+      duplicates: "check",
+      playlistId: playlist.id,
+      trackIds: occurrences,
+    });
+
+    if (addition.kind !== "added") throw new Error("Expected every occurrence to be added");
+
+    expect(addition.tracks.map((entry) => entry.position)).toEqual(
+      occurrences.map((_, index) => index),
+    );
+
+    removePlaylistTracks({
+      playlistId: playlist.id,
+      playlistTrackIds: addition.tracks.map((entry) => entry.id),
+    });
+
+    expect(getPlaylist(playlist.id)?.tracks).toEqual([]);
+    expect(libraryTracks().map((entry) => entry.title)).toEqual(["Loop"]);
   });
 
   it("returns each entry's membership time as addedAt", async () => {
     const database = await openTestDatabase();
     const first = await addTrack("Early");
     const second = await addTrack("Late");
-    const playlist = createPlaylistFromTrack(first.id);
-    const addition = addTrackToPlaylist({ playlistId: playlist.id, trackId: second.id });
+    const playlist = createPlaylist({ description: null, title: "Times", trackIds: [first.id] });
+
+    const addition = addTracksToPlaylist({
+      duplicates: "check",
+      playlistId: playlist.id,
+      trackIds: [second.id],
+    });
 
     if (addition.kind !== "added") throw new Error("Expected Late to be added");
 
@@ -225,38 +419,75 @@ describe("playlist behavior", () => {
         .all();
 
     expect(
-      [playlist.tracks[0], addition.track].map(({ id, addedAt }) => ({ id, addedAt })),
+      [...playlist.tracks, ...addition.tracks].map(({ id, addedAt }) => ({ id, addedAt })),
     ).toEqual(membershipTimes());
 
     database.$client.prepare("UPDATE playlist_entries SET created_at = id * 1000").run();
 
     expect(getPlaylist(playlist.id)?.tracks.map(({ id, addedAt }) => ({ id, addedAt }))).toEqual(
-      [playlist.tracks[0].id, addition.track.id].map((id) => ({ id, addedAt: id * 1000 })),
+      [playlist.tracks[0].id, addition.tracks[0].id].map((id) => ({ id, addedAt: id * 1000 })),
     );
   });
 
-  it("validates membership and scopes track removal to its playlist", async () => {
+  it("removes nothing unless every entry belongs to the playlist", async () => {
     await openTestDatabase();
     const track = await addTrack("Belonging");
-    const firstPlaylist = createPlaylist({ description: null, title: "First" });
-    const secondPlaylist = createPlaylist({ description: null, title: "Second" });
-    const addition = addTrackToPlaylist({ playlistId: firstPlaylist.id, trackId: track.id });
 
-    if (addition.kind !== "added") throw new Error("Expected the track to be added");
+    const firstPlaylist = createPlaylist({
+      description: null,
+      title: "First",
+      trackIds: [track.id, track.id],
+    });
 
-    expect(() => addTrackToPlaylist({ playlistId: 999_999, trackId: track.id })).toThrow(
-      "Playlist does not exist",
-    );
-    expect(() => addTrackToPlaylist({ playlistId: firstPlaylist.id, trackId: 999_999 })).toThrow(
-      "Track does not exist",
-    );
+    const secondPlaylist = createPlaylist({
+      description: null,
+      title: "Second",
+      trackIds: [track.id],
+    });
+
     expect(() =>
-      removePlaylistTrack({
-        playlistId: secondPlaylist.id,
-        playlistTrackId: addition.track.id,
+      removePlaylistTracks({
+        playlistId: firstPlaylist.id,
+        playlistTrackIds: [firstPlaylist.tracks[0].id, secondPlaylist.tracks[0].id],
       }),
     ).toThrow("Playlist track does not exist in this playlist");
-    expect(getPlaylist(firstPlaylist.id)?.tracks).toEqual([addition.track]);
+    expect(getPlaylist(firstPlaylist.id)?.tracks).toEqual(firstPlaylist.tracks);
+    expect(getPlaylist(secondPlaylist.id)?.tracks).toEqual(secondPlaylist.tracks);
+  });
+});
+
+describe("track likes", () => {
+  it("likes each distinct track once and unlikes them together", async () => {
+    await openTestDatabase();
+    const first = await addTrack("Left");
+    const second = await addTrack("Right");
+
+    const liked = setTracksLiked({ liked: true, trackIds: [first.id, second.id, first.id] });
+
+    expect(liked).toEqual([
+      { likedAt: expect.any(Number), trackId: first.id },
+      { likedAt: liked[0].likedAt, trackId: second.id },
+    ]);
+    expect(libraryTracks().map((track) => track.likedAt)).toEqual([
+      liked[0].likedAt,
+      liked[0].likedAt,
+    ]);
+
+    expect(setTracksLiked({ liked: false, trackIds: [second.id, first.id] })).toEqual([
+      { likedAt: null, trackId: second.id },
+      { likedAt: null, trackId: first.id },
+    ]);
+    expect(libraryTracks().map((track) => track.likedAt)).toEqual([null, null]);
+  });
+
+  it("changes no like when any track is missing", async () => {
+    await openTestDatabase();
+    const track = await addTrack("Kept");
+
+    expect(() => setTracksLiked({ liked: true, trackIds: [track.id, 999_999] })).toThrow(
+      "Track does not exist",
+    );
+    expect(libraryTracks().map((entry) => entry.likedAt)).toEqual([null]);
   });
 });
 
@@ -268,41 +499,5 @@ async function addTrack(title: string) {
   const track = libraryTracks().find((track) => track.title === title);
 
   if (track) return track;
-  throw new Error(`Expected ${title} to be stored`);
-}
-
-async function addTrackTitled(name: string, title: string) {
-  const folder = await createTemporaryFolder("lume-playlist-track-");
-  const source = await saveSource(folder);
-  await scanWith(source.id, [
-    {
-      album: null,
-      albumArtists: [],
-      artists: [],
-      artwork: null,
-      bitrate: null,
-      bitsPerSample: null,
-      channelCount: null,
-      codec: null,
-      discNumber: null,
-      discTotal: null,
-      duration: 180,
-      fileSize: 1,
-      format: "MP3",
-      genres: [],
-      kind: "changed",
-      lossless: null,
-      modifiedAt: 1,
-      path: join(folder, `${name}.mp3`),
-      sampleRate: null,
-      title,
-      trackNumber: null,
-      trackTotal: null,
-      year: null,
-    },
-  ]);
-  const track = libraryTracks().find((track) => track.title === title);
-
-  if (track) return track.id;
   throw new Error(`Expected ${title} to be stored`);
 }

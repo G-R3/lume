@@ -35,7 +35,10 @@ export type QueueCommand =
       filter: string | null;
       sourceEntryId: number;
     }
-  | { type: "enqueueTrack"; trackId: number; queueItemId: string }
+  | {
+      type: "enqueueTracks";
+      items: readonly { trackId: number; queueItemId: string }[];
+    }
   | { type: "jumpTo"; queueItemId: string }
   | {
       type: "moveQueueItem";
@@ -49,12 +52,8 @@ export type QueueCommand =
   | { type: "previous" }
   | { type: "playbackStarted" }
   | { type: "playbackPaused" }
-  | {
-      type: "sourceEntryAdded";
-      playlistId: number;
-      entry: SourceEntry;
-    }
-  | { type: "sourceEntryRemoved"; playlistId: number; sourceEntryId: number }
+  | { type: "sourceEntriesAdded"; playlistId: number; entries: readonly SourceEntry[] }
+  | { type: "sourceEntriesRemoved"; playlistId: number; sourceEntryIds: readonly number[] }
   | {
       type: "sourceEntryMoved";
       playlistId: number;

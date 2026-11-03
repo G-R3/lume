@@ -53,7 +53,7 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
           {!isAdding && (
             <PlusIcon aria-hidden="true" className="size-3.5" data-icon="inline-start" />
           )}
-          Add folder…
+          Add folder
         </Button>
       </header>
 
@@ -67,7 +67,7 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
           </div>
         </div>
       ) : (
-        <div className="@container min-h-0 flex-1 overflow-y-auto">
+        <div className="@container min-h-0 flex-1 overflow-y-auto scroll-area-scrollbar">
           <table className="w-full table-fixed border-separate border-spacing-0 px-2 select-none">
             <caption className="sr-only">Folders</caption>
             <thead className="sticky top-0 z-10 text-left font-mono text-meta text-secondary">

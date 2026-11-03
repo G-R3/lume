@@ -1,4 +1,3 @@
-import { BackspaceIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
@@ -6,16 +5,15 @@ import type { PlaylistDetails } from "../../shared/lib";
 import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
 import { FilterNoResults } from "@/components/filter-no-results";
 import { buttonVariants } from "@/components/ui/button";
-import { DropdownMenuItem, DropdownMenuShortcut } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { useRemovePlaylistTrackMutation } from "@/lib/playlist-mutations";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
-import { playlistRows, sortRows, type TrackRow } from "@/lib/track-sort";
+import { playlistRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
-import { TrackList, TrackListSkeleton } from "@/pages/tracks/track-list";
+import { TrackList } from "@/components/track-list/track-list";
+import { TrackListSkeleton } from "@/components/track-list/track-list-skeleton";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -50,9 +48,6 @@ export function PlaylistPage() {
 export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const library = useMusicLibrary();
 
-  const { isPending: isRemovingTrack, mutate: removePlaylistTrack } =
-    useRemovePlaylistTrackMutation();
-
   const [filterText, setFilterText] = useState("");
   const deferredFilterText = useDeferredValue(filterText);
   const filter = playlist.tracks.length > 0 ? parseTrackFilter(deferredFilterText) : null;
@@ -68,45 +63,8 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
     filterRef.current?.focus();
   };
 
-  const handleRemove = (playlistTrackId: number) => {
-    removePlaylistTrack(
-      { playlistTrackId, playlistId: playlist.id },
-      {
-        onError: (error) => {
-          toast.add({
-            description: error.message,
-            priority: "high",
-            title: "Could not remove track from playlist",
-            type: "error",
-          });
-        },
-        onSuccess: () => {
-          toast.add({ title: `Removed from ${playlist.title}`, type: "success" });
-        },
-      },
-    );
-  };
-
-  // The compiler caches an inline callback with the JSX around it, and that JSX reads `items`.
-  // Inline, a like would re-render every playlist row.
-  const renderMenuItems = (item: TrackRow) => (
-    <DropdownMenuItem
-      disabled={isRemovingTrack}
-      onClick={() => handleRemove(item.sourceEntryId)}
-      variant="danger"
-    >
-      <MinusCircleIcon aria-hidden="true" />
-      <span className="truncate" title={`Remove from ${playlist.title}`}>
-        Remove from {playlist.title}
-      </span>
-      <DropdownMenuShortcut aria-hidden="true" className="flex pl-2">
-        <BackspaceIcon className="size-3" weight="bold" />
-      </DropdownMenuShortcut>
-    </DropdownMenuItem>
-  );
-
   return (
-    <main className="flex min-h-0 flex-1 flex-col">
+    <main className="relative flex min-h-0 flex-1 flex-col">
       <PlaylistHeader
         filter={filter?.normalizedText ?? null}
         filterField={
@@ -131,7 +89,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           <div className="flex w-100 flex-col gap-2" data-slot="playlist-empty">
             <h2 className="text-title font-semibold text-primary">Nothing here yet</h2>
             <p className="text-copy text-secondary">
-              Open a track’s menu and choose Add to playlist…
+              Open a track’s menu and choose Add to playlist.
             </p>
             <div className="pt-4">
               <Link className={buttonVariants({ variant: "secondary" })} to="/">
@@ -141,20 +99,18 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
           </div>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto" data-scroll-container>
-          <TrackList
-            caption={playlist.title}
-            filter={filter?.normalizedText ?? null}
-            items={items}
-            onStepSort={stepSort}
-            renderMenuItems={renderMenuItems}
-            sort={sort}
-            source={source}
-          />
+        <TrackList
+          caption={playlist.title}
+          filter={filter?.normalizedText ?? null}
+          items={items}
+          onStepSort={stepSort}
+          sort={sort}
+          source={source}
+        >
           {filter && items.length === 0 && (
             <FilterNoResults filterText={filter.text} onClear={clearFilter} />
           )}
-        </div>
+        </TrackList>
       )}
     </main>
   );

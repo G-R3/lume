@@ -43,13 +43,13 @@ it("restores source order after toggling and keeps removals and manual priority"
 
   const firstManual = transition(
     reordered,
-    { type: "enqueueTrack", trackId: 5, queueItemId: "manual-5" },
+    { type: "enqueueTracks", items: [{ trackId: 5, queueItemId: "manual-5" }] },
     context,
   );
 
   const secondManual = transition(
     firstManual,
-    { type: "enqueueTrack", trackId: 6, queueItemId: "manual-6" },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
     context,
   );
 
@@ -111,7 +111,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const removedAnchor = transition(
     manual,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 
@@ -119,7 +119,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const appended = transition(
     removedAnchor,
-    { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 7, trackId: 7 } },
+    { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 7, trackId: 7 }] },
     insertAt(0),
   );
 
@@ -127,7 +127,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const removedBefore = transition(
     appended,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 1 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [1] },
     context,
   );
 
@@ -135,7 +135,7 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
 
   const appendedAgain = transition(
     removedBefore,
-    { type: "sourceEntryAdded", playlistId: 1, entry: { sourceEntryId: 8, trackId: 8 } },
+    { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 8, trackId: 8 }] },
     insertAt(1),
   );
 
@@ -163,7 +163,7 @@ it("stops after a manual song when the deleted source anchor was last", () => {
 
   const removed = transition(
     manual,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 5 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [5] },
     context,
   );
 
@@ -202,7 +202,7 @@ it("keeps a carried source item independent of the next session's occurrence", (
 
   const removedOccurrence = transition(
     shuffle(rebuilt, [5, 2, 4, 3]),
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 
@@ -257,7 +257,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
 
   const manual = transition(
     shuffle(started, [14, 13, 12]),
-    { type: "enqueueTrack", trackId: 1, queueItemId: "manual-1" },
+    { type: "enqueueTracks", items: [{ trackId: 1, queueItemId: "manual-1" }] },
     context,
   );
 
@@ -313,9 +313,9 @@ it("keeps shuffle order through source edits and appends only the new occurrence
   const added = transition(
     moved,
     {
-      type: "sourceEntryAdded",
+      type: "sourceEntriesAdded",
       playlistId: 1,
-      entry: { sourceEntryId: 6, trackId: 6 },
+      entries: [{ sourceEntryId: 6, trackId: 6 }],
     },
     insertAt(2),
   );
@@ -324,7 +324,7 @@ it("keeps shuffle order through source edits and appends only the new occurrence
 
   const removed = transition(
     added,
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 4 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [4] },
     context,
   );
 
@@ -348,13 +348,13 @@ it("restores a shuffled pass and lets Previous return through repeated visits", 
 
   const firstManual = transition(
     revisited,
-    { type: "enqueueTrack", trackId: 6, queueItemId: "manual-6" },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
     context,
   );
 
   const secondManual = transition(
     firstManual,
-    { type: "enqueueTrack", trackId: 7, queueItemId: "manual-7" },
+    { type: "enqueueTracks", items: [{ trackId: 7, queueItemId: "manual-7" }] },
     context,
   );
 
@@ -402,7 +402,7 @@ it("restores a shuffled pass and lets Previous return through repeated visits", 
 it("rejects duplicate stored queue IDs and restores valid deleted-anchor continuation", () => {
   const removed = transition(
     playManualAfterShuffle(2, [5, 1, 4, 3]),
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 
@@ -471,13 +471,13 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
 
   const deletedCurrent = transition(
     shuffle(second, [5, 1, 3, 4]),
-    { type: "sourceEntryRemoved", playlistId: 1, sourceEntryId: 2 },
+    { type: "sourceEntriesRemoved", playlistId: 1, sourceEntryIds: [2] },
     context,
   );
 
   const state = transition(
     deletedCurrent,
-    { type: "enqueueTrack", trackId: 6, queueItemId: "manual-6" },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
     context,
   );
 
@@ -533,7 +533,7 @@ function startPlaylist(startEntryId: number) {
 function playManualAfterShuffle(startEntryId: number, orderedSourceEntryIds: number[]) {
   const queued = transition(
     shuffle(startPlaylist(startEntryId), orderedSourceEntryIds),
-    { type: "enqueueTrack", trackId: 6, queueItemId: "manual-6" },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
     context,
   );
 

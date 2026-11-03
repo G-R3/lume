@@ -154,6 +154,37 @@ describe("keyboard shortcut event policy", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  it.each(["dialog", "alertdialog", "menu", "listbox"])(
+    "yields to an open %s when the shortcut asks to",
+    (role) => {
+      let calls = 0;
+      const overlay = document.body.appendChild(document.createElement("div"));
+      overlay.setAttribute("role", role);
+      const item = overlay.appendChild(document.createElement("div"));
+
+      const shortcut = {
+        name: "New playlist",
+        key: "n",
+        commandOrControl: true,
+        yieldToOverlays: true,
+        action: () => calls++,
+      };
+
+      const insideEvent = dispatchShortcut(item, [shortcut], { key: "n", metaKey: true }, true);
+
+      const outsideEvent = dispatchShortcut(
+        document.body,
+        [shortcut],
+        { key: "n", metaKey: true },
+        true,
+      );
+
+      expect(calls).toBe(1);
+      expect(insideEvent.defaultPrevented).toBe(false);
+      expect(outsideEvent.defaultPrevented).toBe(true);
+    },
+  );
+
   it("ignores repeated events", () => {
     let calls = 0;
     const shortcut = { name: "Toggle playback", key: " ", action: () => calls++ };

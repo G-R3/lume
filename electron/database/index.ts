@@ -66,6 +66,17 @@ export type LibraryDatabase = Awaited<ReturnType<typeof openLibraryDatabase>>;
 
 export type LibraryTransaction = Parameters<Parameters<LibraryDatabase["transaction"]>[0]>[0];
 
+// Far below SQLite's 32766-variable limit, so a statement can bind its own parameters beside a chunk.
+const maxBoundParameters = 999;
+
+export function parameterChunks<Value>(values: readonly Value[], parametersPerValue = 1) {
+  const size = Math.floor(maxBoundParameters / parametersPerValue);
+
+  return Array.from({ length: Math.ceil(values.length / size) }, (_, index) =>
+    values.slice(index * size, (index + 1) * size),
+  );
+}
+
 // Drizzle's top-level sync transaction type accepts async callbacks, and query failures hide the
 // SQLite message behind DrizzleQueryError. Keep both constraints in one transaction boundary.
 export function runImmediateTransaction<Result>(

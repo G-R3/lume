@@ -1,10 +1,17 @@
-import { queryOptions, type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  mutationOptions,
+  queryOptions,
+  type QueryClient,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   type LibrarySnapshot,
   type LibrarySource,
   type LibraryUpdate,
   parseLibrarySnapshot,
-  type TrackLikeInput,
+  type SetTracksLikedInput,
+  type Track,
 } from "../../shared/lib";
 
 type LibraryCommand =
@@ -91,49 +98,76 @@ export function useLibraryMutation() {
   });
 }
 
-export function useSetTrackLiked() {
-  const queryClient = useQueryClient();
+type LikeWrite = { previousLikedAt: Map<number, number | null> };
 
-  return useMutation({
+const newestLikeWrites = new WeakMap<QueryClient, Map<number, LikeWrite>>();
+
+export function setTracksLikedMutation(queryClient: QueryClient) {
+  const newestWrites = newestLikeWrites.get(queryClient) ?? new Map<number, LikeWrite>();
+  newestLikeWrites.set(queryClient, newestWrites);
+
+  const settle = (write: LikeWrite, likedAtOf: (trackId: number) => number | null | undefined) => {
+    updateLibraryTracks(queryClient, (track) => {
+      const likedAt = newestWrites.get(track.id) === write ? likedAtOf(track.id) : undefined;
+
+      return likedAt === undefined ? track : { ...track, likedAt };
+    });
+
+    for (const trackId of write.previousLikedAt.keys()) {
+      if (newestWrites.get(trackId) === write) newestWrites.delete(trackId);
+    }
+  };
+
+  return mutationOptions({
     ...libraryMutationOptions,
-    mutationFn: window.lume.setTrackLiked,
-    onMutate: async (input: TrackLikeInput) => {
+    mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
+    onMutate: async (input): Promise<LikeWrite> => {
       await queryClient.cancelQueries({ queryKey: libraryQueryOptions.queryKey });
 
-      const previousLibrary = queryClient.getQueryData<LibrarySnapshot>(
-        libraryQueryOptions.queryKey,
-      );
+      const likedAt = input.liked ? Date.now() : null;
+      const trackIds = new Set(input.trackIds);
+      const write: LikeWrite = { previousLikedAt: new Map() };
 
-      queryClient.setQueryData<LibrarySnapshot>(libraryQueryOptions.queryKey, (library) => {
-        if (!library || library.kind === "first-run") return library;
+      updateLibraryTracks(queryClient, (track) => {
+        if (!trackIds.has(track.id)) return track;
 
-        return {
-          ...library,
-          tracks: library.tracks.map((track) =>
-            track.id === input.trackId
-              ? { ...track, likedAt: input.liked ? Date.now() : null }
-              : track,
-          ),
-        };
+        write.previousLikedAt.set(track.id, track.likedAt);
+        newestWrites.set(track.id, write);
+
+        return { ...track, likedAt };
       });
 
-      return { previousLibrary };
+      return write;
     },
-    onError: (_error, _input, context) => {
-      queryClient.setQueryData(libraryQueryOptions.queryKey, context?.previousLibrary);
+    onError: (_error, _input, write) => {
+      if (write) settle(write, (trackId) => write.previousLikedAt.get(trackId));
+      void queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
     },
-    onSuccess: (result) => {
-      queryClient.setQueryData<LibrarySnapshot>(libraryQueryOptions.queryKey, (library) => {
-        if (!library || library.kind === "first-run") return library;
+    onSuccess: (results, _input, write) => {
+      const likedAtById = new Map(results.map((result) => [result.trackId, result.likedAt]));
+      settle(write, (trackId) => likedAtById.get(trackId));
+    },
+  });
+}
 
-        return {
-          ...library,
-          tracks: library.tracks.map((track) =>
-            track.id === result.trackId ? { ...track, likedAt: result.likedAt } : track,
-          ),
-        };
-      });
-    },
+export function useSetTracksLiked() {
+  return useMutation(setTracksLikedMutation(useQueryClient()));
+}
+
+function updateLibraryTracks(queryClient: QueryClient, update: (track: Track) => Track) {
+  queryClient.setQueryData<LibrarySnapshot>(libraryQueryOptions.queryKey, (library) => {
+    if (!library || library.kind === "first-run") return library;
+
+    let changed = false;
+
+    const tracks = library.tracks.map((track) => {
+      const next = update(track);
+      changed ||= next !== track;
+
+      return next;
+    });
+
+    return changed ? { ...library, tracks } : library;
   });
 }
 

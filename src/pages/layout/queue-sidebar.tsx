@@ -135,7 +135,10 @@ function QueuePanel() {
             `${queuedItems.length.toLocaleString()} ${queuedItems.length === 1 ? "track" : "tracks"} · ${formatTotalDuration(queuedDuration)}`}
         </p>
       </SidebarHeader>
-      <SidebarContent className="gap-4 pb-2" onPointerOver={showTruncatedText}>
+      <SidebarContent
+        className="gap-4 pb-2 scroll-area-scrollbar [scrollbar-width:auto]! [&::-webkit-scrollbar]:block!"
+        onPointerOver={showTruncatedText}
+      >
         {playback.errorMessage && (
           <p className="px-4 text-meta text-danger">{playback.errorMessage}</p>
         )}

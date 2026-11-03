@@ -1,10 +1,10 @@
 import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  type AddTracksToPlaylistInput,
   parseLibrarySnapshot,
   type PlaylistCreationInput,
   type PlaylistTrack,
-  type PlaylistTrackInput,
-  type PlaylistTrackRemovalInput,
+  type RemovePlaylistTracksInput,
 } from "../../shared/lib";
 import { usePlayback } from "@/hooks/use-playback";
 import { libraryMutationOptions, libraryQueryOptions } from "@/lib/library-query";
@@ -23,6 +23,7 @@ export function useCreatePlaylistMutation() {
     },
     onSuccess: (result) => {
       forgetViewSort({ kind: "playlist", playlistId: result.playlist.id });
+      queryClient.setQueryData(playlistQueryOptions(result.playlist.id).queryKey, result.playlist);
       queryClient.setQueryData(libraryQueryOptions.queryKey, result.library);
     },
   });
@@ -45,21 +46,24 @@ export function useDeletePlaylistMutation() {
   });
 }
 
-export function useAddTrackToPlaylistMutation() {
+export function useAddTracksToPlaylistMutation() {
   const queryClient = useQueryClient();
   const playback = usePlayback();
 
   return useMutation({
     ...libraryMutationOptions,
-    mutationFn: (input: PlaylistTrackInput) => window.lume.addTrackToPlaylist(input),
+    mutationFn: (input: AddTracksToPlaylistInput) => window.lume.addTracksToPlaylist(input),
     onSuccess: (result, input) => {
-      if (result.kind === "duplicate") return;
+      if (result.kind === "duplicate" || result.tracks.length === 0) return;
 
-      commitPlaylistAddition(queryClient, input.playlistId, result.track);
+      commitPlaylistAddition(queryClient, input.playlistId, result.tracks);
       playback.applySourceChange({
-        type: "sourceEntryAdded",
+        type: "sourceEntriesAdded",
         playlistId: input.playlistId,
-        entry: { sourceEntryId: result.track.id, trackId: result.track.trackId },
+        entries: result.tracks.map((track) => ({
+          sourceEntryId: track.id,
+          trackId: track.trackId,
+        })),
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -67,54 +71,19 @@ export function useAddTrackToPlaylistMutation() {
   });
 }
 
-export function useConfirmAddTrackToPlaylistMutation() {
+export function useRemovePlaylistTracksMutation() {
   const queryClient = useQueryClient();
   const playback = usePlayback();
 
   return useMutation({
     ...libraryMutationOptions,
-    mutationFn: (input: PlaylistTrackInput) => window.lume.confirmAddTrackToPlaylist(input),
-    onSuccess: (track, input) => {
-      commitPlaylistAddition(queryClient, input.playlistId, track);
-      playback.applySourceChange({
-        type: "sourceEntryAdded",
-        playlistId: input.playlistId,
-        entry: { sourceEntryId: track.id, trackId: track.trackId },
-      });
-
-      return invalidatePlaylistQueries(queryClient, input.playlistId);
-    },
-  });
-}
-
-export function useCreatePlaylistFromTrackMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    ...libraryMutationOptions,
-    mutationFn: window.lume.createPlaylistFromTrack,
-    onSuccess: (playlist) => {
-      forgetViewSort({ kind: "playlist", playlistId: playlist.id });
-      queryClient.setQueryData(playlistQueryOptions(playlist.id).queryKey, playlist);
-
-      return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
-    },
-  });
-}
-
-export function useRemovePlaylistTrackMutation() {
-  const queryClient = useQueryClient();
-  const playback = usePlayback();
-
-  return useMutation({
-    ...libraryMutationOptions,
-    mutationFn: (input: PlaylistTrackRemovalInput) => window.lume.removePlaylistTrack(input),
+    mutationFn: (input: RemovePlaylistTracksInput) => window.lume.removePlaylistTracks(input),
     onSuccess: (_result, input) => {
-      commitPlaylistRemoval(queryClient, input.playlistId, input.playlistTrackId);
+      commitPlaylistRemoval(queryClient, input.playlistId, input.playlistTrackIds);
       playback.applySourceChange({
-        type: "sourceEntryRemoved",
+        type: "sourceEntriesRemoved",
         playlistId: input.playlistId,
-        sourceEntryId: input.playlistTrackId,
+        sourceEntryIds: input.playlistTrackIds,
       });
 
       return invalidatePlaylistQueries(queryClient, input.playlistId);
@@ -132,7 +101,7 @@ function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number)
 function commitPlaylistAddition(
   queryClient: QueryClient,
   playlistId: number,
-  track: PlaylistTrack,
+  tracks: readonly PlaylistTrack[],
 ) {
   const options = playlistQueryOptions(playlistId);
   void queryClient.cancelQueries({ queryKey: options.queryKey });
@@ -140,9 +109,11 @@ function commitPlaylistAddition(
 
   if (!playlist) return;
 
+  const addedIds = new Set(tracks.map((track) => track.id));
+
   queryClient.setQueryData(options.queryKey, () => ({
     ...playlist,
-    tracks: [...playlist.tracks.filter((entry) => entry.id !== track.id), track].sort(
+    tracks: [...playlist.tracks.filter((entry) => !addedIds.has(entry.id)), ...tracks].sort(
       (left, right) => left.position - right.position,
     ),
   }));
@@ -151,17 +122,18 @@ function commitPlaylistAddition(
 function commitPlaylistRemoval(
   queryClient: QueryClient,
   playlistId: number,
-  playlistTrackId: number,
+  playlistTrackIds: readonly number[],
 ) {
   const options = playlistQueryOptions(playlistId);
   void queryClient.cancelQueries({ queryKey: options.queryKey });
+  const removedIds = new Set(playlistTrackIds);
 
   queryClient.setQueryData(
     options.queryKey,
     (playlist) =>
       playlist && {
         ...playlist,
-        tracks: playlist.tracks.filter((track) => track.id !== playlistTrackId),
+        tracks: playlist.tracks.filter((track) => !removedIds.has(track.id)),
       },
   );
 }

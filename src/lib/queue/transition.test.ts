@@ -26,13 +26,13 @@ it("plays each manual addition before returning to the source", () => {
 
   const withFirstAddition = transition(
     started,
-    { type: "enqueueTrack", trackId: 3, queueItemId: "manual-1" },
+    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual-1" }] },
     context,
   );
 
   const withBothAdditions = transition(
     withFirstAddition,
-    { type: "enqueueTrack", trackId: 3, queueItemId: "manual-2" },
+    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual-2" }] },
     context,
   );
 
@@ -163,13 +163,13 @@ it("skips unavailable source items after a manual jump and Previous", () => {
 
   const firstManual = transition(
     started,
-    { type: "enqueueTrack", trackId: 4, queueItemId: "manual-1" },
+    { type: "enqueueTracks", items: [{ trackId: 4, queueItemId: "manual-1" }] },
     context,
   );
 
   const secondManual = transition(
     firstManual,
-    { type: "enqueueTrack", trackId: 4, queueItemId: "manual-2" },
+    { type: "enqueueTracks", items: [{ trackId: 4, queueItemId: "manual-2" }] },
     context,
   );
 
