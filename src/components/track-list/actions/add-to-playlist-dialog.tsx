@@ -23,7 +23,7 @@ type PaletteItem =
   | { kind: "queue" }
   | { kind: "playlist"; playlist: PlaylistSummary };
 
-type PaletteGroup = { items: PaletteItem[]; value: "actions" | "playlists" | "queue" };
+type PaletteGroup = { items: PaletteItem[]; value: "playlists" | "queue" };
 
 const createItem: PaletteItem = { kind: "create" };
 
@@ -75,14 +75,23 @@ export function AddToPlaylistDialog({
   const count = target.entries.length;
   const targetLabel = count === 1 ? target.entries[0].title : `${count.toLocaleString()} tracks`;
 
-  const groups: PaletteGroup[] = [
-    {
-      items: library.playlists.map((playlist) => ({ kind: "playlist", playlist })),
-      value: "playlists",
-    },
-    ...(onAddToQueue ? [queueGroup] : []),
-    { items: [createItem], value: "actions" },
-  ];
+  const playlistItems = library.playlists.map(
+    (playlist): PaletteItem => ({ kind: "playlist", playlist }),
+  );
+
+  const playlistGroup: PaletteGroup = { items: [...playlistItems, createItem], value: "playlists" };
+
+  // New playlist always matches, so a search that only finds the queue would otherwise highlight it.
+  const queueLeads =
+    search.trim() !== "" &&
+    matchesQuery(queueItem, search) &&
+    !playlistItems.some((item) => matchesQuery(item, search));
+
+  const groups: PaletteGroup[] = !onAddToQueue
+    ? [playlistGroup]
+    : queueLeads
+      ? [queueGroup, playlistGroup]
+      : [playlistGroup, queueGroup];
 
   const handleSelect = (item: PaletteItem) => {
     switch (item.kind) {
@@ -179,11 +188,9 @@ export function AddToPlaylistDialog({
             <Autocomplete.List className="flex max-h-[min(400px,50vh)] scroll-py-2 flex-col overflow-y-auto overscroll-contain p-2 scroll-area-scrollbar">
               {(group: PaletteGroup) => (
                 <Autocomplete.Group items={group.items} key={group.value}>
-                  {group.value !== "actions" && (
-                    <Autocomplete.GroupLabel className="flex h-8 items-center px-2 text-meta font-medium text-secondary">
-                      {group.value === "playlists" ? "Playlists" : "Queue"}
-                    </Autocomplete.GroupLabel>
-                  )}
+                  <Autocomplete.GroupLabel className="flex h-8 items-center px-2 text-meta font-medium text-secondary">
+                    {group.value === "playlists" ? "Playlists" : "Queue"}
+                  </Autocomplete.GroupLabel>
                   <Autocomplete.Collection>
                     {(item: PaletteItem) => (
                       <PaletteRow
