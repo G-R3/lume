@@ -38,7 +38,7 @@ it("restores a saved queue paused at its position after its playlist is deleted"
 
   const withManual = transition(
     started,
-    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual" }] },
+    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual" }], position: "end" },
     context,
   );
 

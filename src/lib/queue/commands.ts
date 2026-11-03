@@ -11,6 +11,8 @@ export type QueueContext = {
   random: QueueRandom;
 };
 
+export type QueuePosition = "start" | "end";
+
 export type SessionStart =
   | { kind: "entry"; sourceEntryId: number }
   | { kind: "first-available" }
@@ -38,6 +40,7 @@ export type QueueCommand =
   | {
       type: "enqueueTracks";
       items: readonly { trackId: number; queueItemId: string }[];
+      position: QueuePosition;
     }
   | { type: "jumpTo"; queueItemId: string }
   | {

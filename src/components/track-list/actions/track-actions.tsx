@@ -135,7 +135,7 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
   };
 
   const addToQueue = (target: ActionTarget) =>
-    enqueueTracks(target.entries.map((entry) => entry.trackId));
+    enqueueTracks(target.entries.map((entry) => entry.trackId), "end");
 
   const toggleLike = async (target: ActionTarget) => {
     try {

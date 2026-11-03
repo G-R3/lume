@@ -37,13 +37,13 @@ it.each([
     playback.controller.playSourceEntry(allTracks(playback.controller), 1);
 
     if (manualPlaying) {
-      playback.controller.enqueueTracks([2]);
+      playback.controller.enqueueTracks([2], "end");
       playback.controller.next();
     }
 
     // Include duplicates, unavailable tracks, and more than the panel's 50 visible rows.
     Array.from({ length: 60 }, (_, index) => (index % 2 === 0 ? 2 : 3)).forEach((trackId) => {
-      playback.controller.enqueueTracks([trackId]);
+      playback.controller.enqueueTracks([trackId], "end");
     });
     playback.controller.seek(19);
 
@@ -116,7 +116,7 @@ it.each([
       });
     }
 
-    playback.controller.enqueueTracks([4]);
+    playback.controller.enqueueTracks([4], "end");
 
     expect(
       playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId),
@@ -391,7 +391,7 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
   });
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(playlistView(playlist), 11);
-  playback.controller.enqueueTracks([3]);
+  playback.controller.enqueueTracks([3], "end");
   playback.controller.shufflePlay(playlistView(playlist));
   const first = playback.controller.getSnapshot().queue;
   expect(first?.current?.item.trackId).toBe(2);
@@ -439,7 +439,7 @@ it("restores a shuffled queue and position exactly, paused without new randomnes
   await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
   original.controller.playSourceEntry(allTracks(original.controller), 2);
   original.controller.setShuffleEnabled(true);
-  original.controller.enqueueTracks([4]);
+  original.controller.enqueueTracks([4], "end");
 
   const suppressed = original.controller
     .getSnapshot()
@@ -636,7 +636,7 @@ it("saves only the latest pending queue and flushes the final position before cl
   playback.controller.playSourceEntry(allTracks(playback.controller), 2);
   await expect.poll(() => describeWrites(playback.writes, library)).toEqual(["queue 2 at 0"]);
   playback.controller.setShuffleEnabled(true);
-  playback.controller.enqueueTracks([3]);
+  playback.controller.enqueueTracks([3], "end");
   playback.controller.seek(7);
   playback.controller.seek(19);
   holdSave = false;
@@ -746,7 +746,7 @@ it("rebuilds a shuffled queue from another source and keeps the manual queue", a
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(allTracks(playback.controller), 2);
   playback.controller.setShuffleEnabled(true);
-  playback.controller.enqueueTracks([4]);
+  playback.controller.enqueueTracks([4], "end");
   playback.controller.playSourceEntry(playlistView(playlist), 11);
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
@@ -1165,7 +1165,7 @@ it("queues tracks in submitted order, repeats included, with one publication and
   let publications = 0;
   playback.controller.subscribe(() => publications++);
 
-  playback.controller.enqueueTracks([3, 2, 3]);
+  playback.controller.enqueueTracks([3, 2, 3], "end");
 
   const queue = playback.controller.getSnapshot().queue;
   expect(queue?.manualQueue.map((item) => item.trackId)).toEqual([3, 2, 3]);
@@ -1176,18 +1176,70 @@ it("queues tracks in submitted order, repeats included, with one publication and
   expect(playback.audioState).toMatchObject({ position: 12, playing: true });
 });
 
-it("ignores an enqueue when there is no playback session", async () => {
+it.each(["start", "end"] as const)(
+  "ignores an enqueue at the %s when there is no playback session",
+  async (position) => {
+    const playback = createTestPlayback();
+    playback.controller.syncLibrary(libraryOf([1, 2]));
+    await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+    let publications = 0;
+    playback.controller.subscribe(() => publications++);
+
+    playback.controller.enqueueTracks([1, 2], position);
+
+    expect(playback.controller.getSnapshot().queue).toBeNull();
+    expect(publications).toBe(0);
+    expect(playback.requests).toEqual([]);
+  },
+);
+
+it("plays next ahead of queued tracks without reloading the current track", async () => {
   const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2]));
+  playback.controller.syncLibrary(libraryOf([1, 2, 3, 4, 5]));
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
-  let publications = 0;
-  playback.controller.subscribe(() => publications++);
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.enqueueTracks([5], "end");
+  playback.controller.seek(12);
+  const requestCount = playback.requests.length;
+  const current = playback.controller.getSnapshot().queue?.current;
 
-  playback.controller.enqueueTracks([1, 2]);
+  playback.controller.enqueueTracks([4, 3, 4], "start");
 
-  expect(playback.controller.getSnapshot().queue).toBeNull();
-  expect(publications).toBe(0);
-  expect(playback.requests).toEqual([]);
+  const queue = playback.controller.getSnapshot().queue;
+  expect(queue?.manualQueue.map((item) => item.trackId)).toEqual([4, 3, 4, 5]);
+  expect(queue?.current).toEqual(current);
+  expect(playback.requests).toHaveLength(requestCount);
+  expect(playback.audioState).toMatchObject({ position: 12, playing: true });
+});
+
+it("restores a Play next group ahead of earlier queued tracks", async () => {
+  const original = createTestPlayback();
+  original.controller.syncLibrary(libraryOf([1, 2, 3, 4, 5]));
+  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  original.controller.playSourceEntry(allTracks(original.controller), 1);
+  original.controller.enqueueTracks([5], "end");
+  original.controller.enqueueTracks([3, 4], "start");
+  original.controller.flush();
+  const saved = original.flushes.at(-1) ?? null;
+
+  const restored = createTestPlayback({
+    storage: {
+      load: () => Promise.resolve(saved),
+      save: () => Promise.resolve(),
+      savePosition: () => Promise.resolve(),
+      flush: () => {},
+    },
+  });
+
+  restored.controller.syncLibrary(libraryOf([1, 2, 3, 4, 5]));
+  await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
+
+  expect(restored.controller.getSnapshot().queue?.manualQueue).toEqual(
+    original.controller.getSnapshot().queue?.manualQueue,
+  );
+  expect(restored.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId)).toEqual([
+    3, 4, 5,
+  ]);
 });
 
 it("starts the first queued track of a stopped session and clears the error in one publication", async () => {
@@ -1218,7 +1270,7 @@ it("starts the first queued track of a stopped session and clears the error in o
     });
   });
 
-  playback.controller.enqueueTracks([3, 2, 3]);
+  playback.controller.enqueueTracks([3, 2, 3], "end");
 
   expect(published).toEqual([{ errorMessage: null, current: 3 }]);
   expect(playback.controller.getSnapshot().queue).toMatchObject({
