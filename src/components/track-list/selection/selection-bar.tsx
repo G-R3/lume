@@ -33,7 +33,7 @@ import {
 
 type SelectionBarProps = {
   allLiked: boolean;
-  canAddToQueue: boolean;
+  canQueue: boolean;
   canRemove: boolean;
   count: number;
   duration: number;
@@ -167,7 +167,7 @@ function toastLiftFor(bar: HTMLElement) {
 
 function SelectionBar({
   allLiked,
-  canAddToQueue,
+  canQueue,
   canRemove,
   count,
   duration,
@@ -201,7 +201,7 @@ function SelectionBar({
           <PlaylistIcon aria-hidden="true" data-icon="inline-start" />
           Add to playlist
         </BarAction>
-        {canAddToQueue && (
+        {canQueue && (
           <BarAction
             action="queue"
             label="Add to queue"
@@ -270,7 +270,7 @@ function SelectionBar({
             <DotsThreeIcon aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
-            {canAddToQueue && (
+            {canQueue && (
               <DropdownMenuItem
                 aria-keyshortcuts={selectionKeyShortcuts("playNext", window.lume.isMac)}
                 className="whitespace-nowrap"

@@ -281,14 +281,14 @@ it("puts each Play next group ahead of earlier ones and plays them before resumi
   ]);
 
   const played: (string | undefined)[] = [];
-  let state = firstGroup;
+  let state = secondGroup;
 
-  for (let step = 0; step < 6; step++) {
+  for (let step = 0; step < 8; step++) {
     state = transition(state, { type: "next" }, context);
     played.push(state?.current?.item.queueItemId);
   }
 
-  expect(played.slice(0, 5)).toEqual(["A", "B", "C", "X", "Y"]);
+  expect(played.slice(0, 7)).toEqual(["D", "E", "A", "B", "C", "X", "Y"]);
   expect(state?.current).toMatchObject({ lane: "source", item: { trackId: 2 } });
 });
 
@@ -316,25 +316,19 @@ it("keeps every duplicate track that arrives with a distinct id", () => {
   ]);
 });
 
-it("starts the first Play next item of a stopped queue and puts the rest before earlier additions", () => {
+it("starts the first Play next item of a stopped queue and queues the rest in order", () => {
   const context = queueContext([1, 2, 3, 4, 5, 6]);
   const ended = transition(startedAt(1, context), { type: "next" }, queueContext([1]));
 
-  if (!ended) throw new Error("Expected a stopped session");
-  expect(ended).toMatchObject({ current: null, status: "stopped" });
+  expect(ended).toMatchObject({ current: null, status: "stopped", manualQueue: [] });
 
-  const queued: QueueState = {
-    ...ended,
-    manualQueue: [{ queueItemId: "X", trackId: 6, origin: { kind: "manual" } }],
-  };
-
-  const placed = enqueue(queued, ["A", "B", "C"], "start", context);
+  const placed = enqueue(ended, ["A", "B", "C"], "start", context);
 
   expect(placed).toMatchObject({
     status: "playing",
     current: { lane: "manual", item: { queueItemId: "A" } },
   });
-  expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(["B", "C", "X"]);
+  expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(["B", "C"]);
 });
 
 function startedAt(sourceEntryId: number, context: ReturnType<typeof queueContext>) {

@@ -22,12 +22,12 @@ import type { TrackAction } from "@/components/track-list/actions/track-actions"
 import type { RowMenu } from "@/components/track-list/selection/track-selection";
 
 export function TrackRowMenuItems({
-  canAddToQueue,
+  canQueue,
   menu,
   playlistTitle,
   run,
 }: {
-  canAddToQueue: boolean;
+  canQueue: boolean;
   menu: RowMenu;
   playlistTitle: string | null;
   run: (action: TrackAction) => void;
@@ -45,7 +45,7 @@ export function TrackRowMenuItems({
 
   const items = (
     <>
-      {canAddToQueue && (
+      {canQueue && (
         <>
           <DropdownMenuItem
             aria-keyshortcuts={keyShortcuts("playNext")}

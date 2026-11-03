@@ -20,23 +20,26 @@ import { matchSelectionShortcut } from "@/components/track-list/selection/select
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 import type { QueuePosition } from "@/lib/queue/commands";
 
-type QueueItem = { kind: "queue"; position: QueuePosition };
+type QueuePaletteItem = { kind: "queue"; position: QueuePosition };
 
-type PaletteItem = { kind: "create" } | QueueItem | { kind: "playlist"; playlist: PlaylistSummary };
+type PaletteItem =
+  | { kind: "create" }
+  | QueuePaletteItem
+  | { kind: "playlist"; playlist: PlaylistSummary };
 
 type PaletteGroup = { items: PaletteItem[]; value: "playlists" | "queue" };
 
 const createItem: PaletteItem = { kind: "create" };
 
-const playNextItem: QueueItem = { kind: "queue", position: "start" };
+const playNextItem: QueuePaletteItem = { kind: "queue", position: "start" };
 
-const addToQueueItem: QueueItem = { kind: "queue", position: "end" };
+const addToQueueItem: QueuePaletteItem = { kind: "queue", position: "end" };
 
 const queueItems = [playNextItem, addToQueueItem];
 
 const queueGroup: PaletteGroup = { items: queueItems, value: "queue" };
 
-function queueLabel(item: QueueItem) {
+function queueLabel(item: QueuePaletteItem) {
   return item.position === "start" ? "Play next" : "Add to queue";
 }
 
