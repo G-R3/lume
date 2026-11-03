@@ -45,7 +45,7 @@ export function focusReturnTarget(region: HTMLElement | null, to: FocusReturn) {
 }
 
 export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTMLElement | null>) {
-  const { enqueueTracks } = usePlayback();
+  const { enqueueTracks, queue } = usePlayback();
   const { mutate: setTracksLiked } = useSetTracksLiked();
   const { mutateAsync: removePlaylistTracks } = useRemovePlaylistTracksMutation();
   const { mutateAsync: addTracksToPlaylist } = useAddTracksToPlaylistMutation();
@@ -135,12 +135,15 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
     return true;
   };
 
+  const addToQueue = (target: ActionTarget) =>
+    enqueueTracks(target.entries.map((entry) => entry.trackId));
+
   const run = (action: TrackAction) => {
     const { target } = action;
 
     switch (action.kind) {
       case "queue":
-        enqueueTracks(target.entries.map((entry) => entry.trackId));
+        addToQueue(target);
 
         return;
       case "like":
@@ -189,6 +192,13 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
       <AddToPlaylistDialog
         error={shown.phase === "picking" ? shown.error : null}
         finalFocus={finalFocus}
+        onAddToQueue={
+          queue === null
+            ? null
+            : () => {
+                if (sendToFlow({ type: "addToQueue" })) addToQueue(shown.target);
+              }
+        }
         onCreatePlaylist={() => {
           if (sendToFlow({ type: "createInstead" })) openCreation(shown.target, shown.returnTo);
         }}

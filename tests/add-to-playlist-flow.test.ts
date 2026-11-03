@@ -134,6 +134,19 @@ it("hands off to creation from the picker without returning focus", () => {
   expect(run(open, pick(), { type: "createInstead" }).phase).toBe("checking");
 });
 
+it("closes the picker for the queue and returns focus without a playlist request", () => {
+  const state = run(open, { type: "addToQueue" });
+
+  expect(state).toMatchObject({
+    last: { phase: "picking", returnTo: 1, target },
+    phase: "closed",
+    returnFocus: true,
+  });
+  expect(requestOf(state)).toBeNull();
+  expect(run(open, pick(), { type: "addToQueue" }).phase).toBe("checking");
+  expect(run({ type: "addToQueue" })).toBe(idleFlow);
+});
+
 it("shows a failed check in the picker and starts fresh on the next destination", () => {
   const failed = run(open, pick(), { message: "Playlist does not exist", type: "failed" });
 

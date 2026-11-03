@@ -40,6 +40,7 @@ export type AddToPlaylistEvent =
   | { type: "open"; target: ActionTarget; returnTo: FocusReturn }
   | { type: "pick"; destination: Destination }
   | { type: "createInstead" }
+  | { type: "addToQueue" }
   | { type: "choose"; mode: DuplicateMode }
   | { type: "settled"; result: AddTracksToPlaylistResult }
   | { type: "failed"; message: string }
@@ -76,6 +77,10 @@ export function reduceAddToPlaylist(
       if (state.phase !== "picking") return state;
 
       return { last: state, phase: "closed", returnFocus: false };
+    case "addToQueue":
+      if (state.phase !== "picking") return state;
+
+      return { last: state, phase: "closed", returnFocus: true };
     case "choose":
       if (state.phase !== "confirmingDuplicates") return state;
 

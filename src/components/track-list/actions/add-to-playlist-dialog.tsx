@@ -15,17 +15,41 @@ import { FieldError } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { SelectionShortcutKeys } from "@/components/track-list/selection/selection-shortcut-keys";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
-type PaletteItem = { kind: "create" } | { kind: "playlist"; playlist: PlaylistSummary };
+type PaletteItem =
+  | { kind: "create" }
+  | { kind: "queue" }
+  | { kind: "playlist"; playlist: PlaylistSummary };
 
-type PaletteGroup = { items: PaletteItem[]; value: "actions" | "playlists" };
+type PaletteGroup = { items: PaletteItem[]; value: "actions" | "playlists" | "queue" };
 
 const createItem: PaletteItem = { kind: "create" };
+
+const queueItem: PaletteItem = { kind: "queue" };
+
+const queueGroup: PaletteGroup = { items: [queueItem], value: "queue" };
+
+const queueLabel = "Add to queue";
+
+function matchesQuery(item: PaletteItem, query: string) {
+  const needle = query.trim().toLowerCase();
+
+  switch (item.kind) {
+    case "create":
+      return true;
+    case "queue":
+      return queueLabel.toLowerCase().includes(needle);
+    case "playlist":
+      return item.playlist.title.toLowerCase().includes(needle);
+  }
+}
 
 type AddToPlaylistDialogProps = {
   error: string | null;
   finalFocus: DialogPrimitive.Popup.Props["finalFocus"];
+  onAddToQueue: (() => void) | null;
   onCreatePlaylist: () => void;
   onDismiss: () => void;
   onExited: () => void;
@@ -37,6 +61,7 @@ type AddToPlaylistDialogProps = {
 export function AddToPlaylistDialog({
   error,
   finalFocus,
+  onAddToQueue,
   onCreatePlaylist,
   onDismiss,
   onExited,
@@ -55,13 +80,26 @@ export function AddToPlaylistDialog({
       items: library.playlists.map((playlist) => ({ kind: "playlist", playlist })),
       value: "playlists",
     },
+    ...(onAddToQueue ? [queueGroup] : []),
     { items: [createItem], value: "actions" },
   ];
 
   const handleSelect = (item: PaletteItem) => {
-    if (item.kind === "create") onCreatePlaylist();
-    else onPick(item.playlist);
+    switch (item.kind) {
+      case "create":
+        onCreatePlaylist();
+
+        return;
+      case "queue":
+        onAddToQueue?.();
+
+        return;
+      case "playlist":
+        onPick(item.playlist);
+    }
   };
+
+  const placeholder = onAddToQueue ? "Add to playlist or queue" : "Add to playlist";
 
   return (
     <Dialog
@@ -83,17 +121,18 @@ export function AddToPlaylistDialog({
         >
           <DialogTitle className="sr-only">Add to playlist</DialogTitle>
           <DialogDescription className="sr-only">
-            Choose a playlist for {targetLabel}.
+            {placeholder} for {targetLabel}.
           </DialogDescription>
           <Autocomplete.Root
             autoHighlight="always"
-            filter={(item: PaletteItem, query) =>
-              item.kind === "create" ||
-              item.playlist.title.toLowerCase().includes(query.trim().toLowerCase())
-            }
+            filter={matchesQuery}
             inline
             itemToStringValue={(item: PaletteItem) =>
-              item.kind === "create" ? "" : item.playlist.title
+              item.kind === "playlist"
+                ? item.playlist.title
+                : item.kind === "queue"
+                  ? queueLabel
+                  : ""
             }
             items={groups}
             keepHighlight
@@ -124,25 +163,25 @@ export function AddToPlaylistDialog({
                 aria-label="Find a playlist"
                 className="h-full min-w-0 flex-1 bg-transparent text-title font-normal tracking-normal text-primary caret-accent outline-none placeholder:text-placeholder"
                 onKeyDown={(event) => {
-                  if (
-                    event.key !== "Enter" ||
-                    !(window.lume.isMac ? event.metaKey : event.ctrlKey)
-                  ) {
-                    return;
-                  }
+                  if (event.key !== "Enter") return;
 
-                  event.preventDefault();
-                  handleSelect(createItem);
+                  if (window.lume.isMac ? event.metaKey : event.ctrlKey) {
+                    event.preventDefault();
+                    handleSelect(createItem);
+                  } else if (event.altKey && onAddToQueue) {
+                    event.preventDefault();
+                    handleSelect(queueItem);
+                  }
                 }}
-                placeholder="Add to playlist"
+                placeholder={placeholder}
               />
             </div>
             <Autocomplete.List className="flex max-h-[min(400px,50vh)] scroll-py-2 flex-col overflow-y-auto overscroll-contain p-2 scroll-area-scrollbar">
               {(group: PaletteGroup) => (
                 <Autocomplete.Group items={group.items} key={group.value}>
-                  {group.value === "playlists" && (
+                  {group.value !== "actions" && (
                     <Autocomplete.GroupLabel className="flex h-8 items-center px-2 text-meta font-medium text-secondary">
-                      Playlists
+                      {group.value === "playlists" ? "Playlists" : "Queue"}
                     </Autocomplete.GroupLabel>
                   )}
                   <Autocomplete.Collection>
@@ -150,7 +189,7 @@ export function AddToPlaylistDialog({
                       <PaletteRow
                         item={item}
                         targetCount={count}
-                        key={item.kind === "create" ? "create" : item.playlist.id}
+                        key={item.kind === "playlist" ? item.playlist.id : item.kind}
                         onSelect={handleSelect}
                       />
                     )}
@@ -198,9 +237,11 @@ function PaletteRow({
   const label =
     item.kind === "playlist"
       ? item.playlist.title
-      : targetCount === 1
-        ? "New playlist with this track"
-        : `New playlist from ${targetCount.toLocaleString()} tracks`;
+      : item.kind === "queue"
+        ? queueLabel
+        : targetCount === 1
+          ? "New playlist with this track"
+          : `New playlist from ${targetCount.toLocaleString()} tracks`;
 
   return (
     <Autocomplete.Item
@@ -232,6 +273,11 @@ function PaletteRow({
         {item.kind === "create" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
             <CreateShortcut />
+          </Kbd>
+        )}
+        {item.kind === "queue" && (
+          <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
+            <SelectionShortcutKeys action="queue" />
           </Kbd>
         )}
       </span>
