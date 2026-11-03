@@ -2,6 +2,7 @@ import { type ReactElement, type ReactNode, useLayoutEffect, useState } from "re
 import { Toolbar } from "@base-ui/react/toolbar";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
+  ArrowBendDownRightIcon,
   DotsThreeIcon,
   HeartBreakIcon,
   HeartIcon,
@@ -269,6 +270,17 @@ function SelectionBar({
             <DotsThreeIcon aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
+            {canAddToQueue && (
+              <DropdownMenuItem
+                aria-keyshortcuts={selectionKeyShortcuts("playNext", window.lume.isMac)}
+                className="whitespace-nowrap"
+                onClick={() => onAction("playNext")}
+              >
+                <ArrowBendDownRightIcon aria-hidden="true" />
+                Play next
+                <SelectionMenuShortcut action="playNext" />
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               aria-keyshortcuts={selectionKeyShortcuts("createPlaylist", window.lume.isMac)}
               className="whitespace-nowrap"

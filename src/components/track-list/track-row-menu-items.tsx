@@ -1,4 +1,5 @@
 import {
+  ArrowBendDownRightIcon,
   HeartBreakIcon,
   HeartIcon,
   ListPlusIcon,
@@ -46,6 +47,15 @@ export function TrackRowMenuItems({
     <>
       {canAddToQueue && (
         <>
+          <DropdownMenuItem
+            aria-keyshortcuts={keyShortcuts("playNext")}
+            className="whitespace-nowrap"
+            onClick={() => run({ kind: "playNext", target })}
+          >
+            <ArrowBendDownRightIcon aria-hidden="true" />
+            Play next
+            {shortcut("playNext")}
+          </DropdownMenuItem>
           <DropdownMenuItem
             aria-keyshortcuts={keyShortcuts("queue")}
             className="whitespace-nowrap"

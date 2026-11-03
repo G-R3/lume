@@ -16,22 +16,29 @@ import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { SelectionShortcutKeys } from "@/components/track-list/selection/selection-shortcut-keys";
+import { matchSelectionShortcut } from "@/components/track-list/selection/selection-shortcuts";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
+import type { QueuePosition } from "@/lib/queue/commands";
 
-type PaletteItem =
-  | { kind: "create" }
-  | { kind: "queue" }
-  | { kind: "playlist"; playlist: PlaylistSummary };
+type QueueItem = { kind: "queue"; position: QueuePosition };
+
+type PaletteItem = { kind: "create" } | QueueItem | { kind: "playlist"; playlist: PlaylistSummary };
 
 type PaletteGroup = { items: PaletteItem[]; value: "playlists" | "queue" };
 
 const createItem: PaletteItem = { kind: "create" };
 
-const queueItem: PaletteItem = { kind: "queue" };
+const playNextItem: QueueItem = { kind: "queue", position: "start" };
 
-const queueGroup: PaletteGroup = { items: [queueItem], value: "queue" };
+const addToQueueItem: QueueItem = { kind: "queue", position: "end" };
 
-const queueLabel = "Add to queue";
+const queueItems = [playNextItem, addToQueueItem];
+
+const queueGroup: PaletteGroup = { items: queueItems, value: "queue" };
+
+function queueLabel(item: QueueItem) {
+  return item.position === "start" ? "Play next" : "Add to queue";
+}
 
 function matchesQuery(item: PaletteItem, query: string) {
   const needle = query.trim().toLowerCase();
@@ -40,7 +47,7 @@ function matchesQuery(item: PaletteItem, query: string) {
     case "create":
       return true;
     case "queue":
-      return queueLabel.toLowerCase().includes(needle);
+      return queueLabel(item).toLowerCase().includes(needle);
     case "playlist":
       return item.playlist.title.toLowerCase().includes(needle);
   }
@@ -49,7 +56,7 @@ function matchesQuery(item: PaletteItem, query: string) {
 type AddToPlaylistDialogProps = {
   error: string | null;
   finalFocus: DialogPrimitive.Popup.Props["finalFocus"];
-  onAddToQueue: (() => void) | null;
+  onQueue: ((position: QueuePosition) => void) | null;
   onCreatePlaylist: () => void;
   onDismiss: () => void;
   onExited: () => void;
@@ -61,7 +68,7 @@ type AddToPlaylistDialogProps = {
 export function AddToPlaylistDialog({
   error,
   finalFocus,
-  onAddToQueue,
+  onQueue,
   onCreatePlaylist,
   onDismiss,
   onExited,
@@ -83,10 +90,10 @@ export function AddToPlaylistDialog({
 
   const searchFindsOnlyQueue =
     search.trim() !== "" &&
-    matchesQuery(queueItem, search) &&
+    queueItems.some((item) => matchesQuery(item, search)) &&
     !playlistItems.some((item) => matchesQuery(item, search));
 
-  const groups: PaletteGroup[] = !onAddToQueue
+  const groups: PaletteGroup[] = !onQueue
     ? [playlistGroup]
     : searchFindsOnlyQueue
       ? [queueGroup, playlistGroup]
@@ -99,7 +106,7 @@ export function AddToPlaylistDialog({
 
         return;
       case "queue":
-        onAddToQueue?.();
+        onQueue?.(item.position);
 
         return;
       case "playlist":
@@ -107,7 +114,7 @@ export function AddToPlaylistDialog({
     }
   };
 
-  const placeholder = onAddToQueue ? "Add to playlist or queue" : "Add to playlist";
+  const placeholder = onQueue ? "Add to playlist or queue" : "Add to playlist";
 
   return (
     <Dialog
@@ -139,7 +146,7 @@ export function AddToPlaylistDialog({
               item.kind === "playlist"
                 ? item.playlist.title
                 : item.kind === "queue"
-                  ? queueLabel
+                  ? queueLabel(item)
                   : ""
             }
             items={groups}
@@ -176,9 +183,18 @@ export function AddToPlaylistDialog({
                   if (window.lume.isMac ? event.metaKey : event.ctrlKey) {
                     event.preventDefault();
                     handleSelect(createItem);
-                  } else if (event.altKey && onAddToQueue) {
+
+                    return;
+                  }
+
+                  const shortcut = matchSelectionShortcut(event, window.lume.isMac, {
+                    playlist: false,
+                    queue: onQueue !== null,
+                  });
+
+                  if (shortcut === "queue" || shortcut === "playNext") {
                     event.preventDefault();
-                    handleSelect(queueItem);
+                    handleSelect(shortcut === "playNext" ? playNextItem : addToQueueItem);
                   }
                 }}
                 placeholder={placeholder}
@@ -195,7 +211,13 @@ export function AddToPlaylistDialog({
                       <PaletteRow
                         item={item}
                         targetCount={count}
-                        key={item.kind === "playlist" ? item.playlist.id : item.kind}
+                        key={
+                          item.kind === "playlist"
+                            ? item.playlist.id
+                            : item.kind === "queue"
+                              ? item.position
+                              : item.kind
+                        }
                         onSelect={handleSelect}
                       />
                     )}
@@ -244,7 +266,7 @@ function PaletteRow({
     item.kind === "playlist"
       ? item.playlist.title
       : item.kind === "queue"
-        ? queueLabel
+        ? queueLabel(item)
         : targetCount === 1
           ? "New playlist with this track"
           : `New playlist from ${targetCount.toLocaleString()} tracks`;
@@ -283,7 +305,7 @@ function PaletteRow({
         )}
         {item.kind === "queue" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
-            <SelectionShortcutKeys action="queue" />
+            <SelectionShortcutKeys action={item.position === "start" ? "playNext" : "queue"} />
           </Kbd>
         )}
       </span>

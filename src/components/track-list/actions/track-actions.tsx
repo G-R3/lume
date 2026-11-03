@@ -9,7 +9,7 @@ import {
   useAddTracksToPlaylistMutation,
   useRemovePlaylistTracksMutation,
 } from "@/lib/playlist-mutations";
-import type { PlayableSource } from "@/lib/queue/commands";
+import type { PlayableSource, QueuePosition } from "@/lib/queue/commands";
 import {
   type AddRequest,
   type AddToPlaylistEvent,
@@ -25,6 +25,7 @@ import type { ActionTarget } from "@/components/track-list/selection/track-selec
 
 export type TrackAction =
   | { kind: "queue"; target: ActionTarget }
+  | { kind: "playNext"; target: ActionTarget }
   | { kind: "like"; target: ActionTarget }
   | { kind: "addToPlaylist"; target: ActionTarget; returnTo: FocusReturn }
   | { kind: "createPlaylist"; target: ActionTarget; returnTo: FocusReturn }
@@ -134,8 +135,11 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
     return true;
   };
 
-  const addToQueue = (target: ActionTarget) =>
-    enqueueTracks(target.entries.map((entry) => entry.trackId), "end");
+  const enqueue = (target: ActionTarget, position: QueuePosition) =>
+    enqueueTracks(
+      target.entries.map((entry) => entry.trackId),
+      position,
+    );
 
   const toggleLike = async (target: ActionTarget) => {
     try {
@@ -158,7 +162,11 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
 
     switch (action.kind) {
       case "queue":
-        addToQueue(target);
+        enqueue(target, "end");
+
+        return;
+      case "playNext":
+        enqueue(target, "start");
 
         return;
       case "like":
@@ -192,11 +200,11 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
       <AddToPlaylistDialog
         error={shown.phase === "picking" ? shown.error : null}
         finalFocus={finalFocus}
-        onAddToQueue={
+        onQueue={
           queue === null
             ? null
-            : () => {
-                if (applyFlowEvent({ type: "addToQueue" })) addToQueue(shown.target);
+            : (position) => {
+                if (applyFlowEvent({ type: "queue" })) enqueue(shown.target, position);
               }
         }
         onCreatePlaylist={() => {

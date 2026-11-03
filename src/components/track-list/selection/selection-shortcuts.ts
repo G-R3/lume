@@ -19,6 +19,7 @@ export type SelectionCapabilities = { readonly queue: boolean; readonly playlist
 const selectionActions = [
   "addToPlaylist",
   "queue",
+  "playNext",
   "like",
   "createPlaylist",
   "removeFromPlaylist",
@@ -34,6 +35,11 @@ const selectionShortcuts = {
   queue: {
     mac: { alt: true, key: "Enter", keyIcon: ArrowElbowDownLeftIcon },
     other: { alt: true, key: "Enter" },
+    requires: "queue",
+  },
+  playNext: {
+    mac: { alt: true, shift: true, key: "Enter", keyIcon: ArrowElbowDownLeftIcon },
+    other: { alt: true, shift: true, key: "Enter" },
     requires: "queue",
   },
   like: {
