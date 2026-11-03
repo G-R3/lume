@@ -1,10 +1,5 @@
-import {
-  type KeyboardEvent,
-  type ReactElement,
-  type ReactNode,
-  useLayoutEffect,
-  useState,
-} from "react";
+import { type ReactElement, type ReactNode, useLayoutEffect, useState } from "react";
+import { Toolbar } from "@base-ui/react/toolbar";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
   DotsThreeIcon,
@@ -182,21 +177,15 @@ function SelectionBar({
 
   return (
     <TooltipProvider delay={500}>
-      <div
+      <Toolbar.Root
         aria-label={countLabel}
         className="flex items-center gap-0.5 rounded-xl bg-overlay p-1 shadow-menu inset-ring inset-ring-strong surface-overlay"
-        onKeyDown={moveFocusWithArrows}
-        role="toolbar"
       >
         <div className="flex h-8 min-w-34 items-center gap-2 pr-2.5 pl-3 tabular-nums">
           <span className="text-body font-medium text-primary">{countLabel}</span>
           <span className="font-mono text-meta text-secondary">{formatDuration(duration)}</span>
         </div>
-        <div
-          aria-orientation="vertical"
-          className="h-4 w-px shrink-0 bg-separator"
-          role="separator"
-        />
+        <Toolbar.Separator className="h-4 w-px shrink-0 bg-separator" />
         <BarAction
           action="addToPlaylist"
           label="Add to playlist"
@@ -269,12 +258,16 @@ function SelectionBar({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button
+              <Toolbar.Button
                 aria-label="More actions for the selection"
-                className="rounded-lg focus-visible:-outline-offset-2"
                 data-bar-action="createPlaylist"
-                size="icon"
-                variant="ghost"
+                render={
+                  <Button
+                    className="rounded-lg focus-visible:-outline-offset-2"
+                    size="icon"
+                    variant="ghost"
+                  />
+                }
               />
             }
           >
@@ -292,21 +285,21 @@ function SelectionBar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <div
-          aria-orientation="vertical"
-          className="h-4 w-px shrink-0 bg-separator"
-          role="separator"
-        />
-        <Button
+        <Toolbar.Separator className="h-4 w-px shrink-0 bg-separator" />
+        <Toolbar.Button
           aria-keyshortcuts="Escape"
           aria-label="Clear selection"
-          className="rounded-lg px-2.5 font-mono text-meta focus-visible:-outline-offset-2"
           onClick={onClear}
-          variant="ghost"
+          render={
+            <Button
+              className="rounded-lg px-2.5 font-mono text-meta focus-visible:-outline-offset-2"
+              variant="ghost"
+            />
+          }
         >
           esc
-        </Button>
-      </div>
+        </Toolbar.Button>
+      </Toolbar.Root>
     </TooltipProvider>
   );
 }
@@ -339,7 +332,7 @@ function BarAction({
       <TooltipTrigger
         aria-keyshortcuts={selectionKeyShortcuts(action, window.lume.isMac)}
         data-bar-action={action}
-        render={render}
+        render={<Toolbar.Button render={render} />}
       >
         {children}
       </TooltipTrigger>
@@ -351,18 +344,4 @@ function BarAction({
       </TooltipContent>
     </Tooltip>
   );
-}
-
-function moveFocusWithArrows(event: KeyboardEvent<HTMLDivElement>) {
-  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-
-  const buttons = [...event.currentTarget.querySelectorAll("button")];
-  const index = buttons.findIndex((button) => button === document.activeElement);
-
-  if (index < 0) return;
-
-  event.preventDefault();
-  buttons[
-    (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length
-  ].focus();
 }
