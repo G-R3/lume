@@ -181,7 +181,7 @@ function SelectionBar({
         aria-label={countLabel}
         className="flex items-center gap-0.5 rounded-xl bg-overlay p-1 shadow-menu inset-ring inset-ring-strong surface-overlay"
       >
-        <div className="flex h-8 min-w-34 items-center gap-2 pr-2.5 pl-3 tabular-nums">
+        <div className="flex h-8 items-center gap-2 pr-2 pl-3 tabular-nums">
           <span className="text-body font-medium text-primary">{countLabel}</span>
           <span className="font-mono text-meta text-secondary">{formatDuration(duration)}</span>
         </div>
@@ -232,12 +232,7 @@ function SelectionBar({
           ) : (
             <HeartIcon aria-hidden="true" data-icon="inline-start" />
           )}
-          <span className="grid justify-items-start">
-            <span className="col-start-1 row-start-1">{allLiked ? "Unlike" : "Like"}</span>
-            <span aria-hidden="true" className="invisible col-start-1 row-start-1">
-              Unlike
-            </span>
-          </span>
+          {allLiked ? "Unlike" : "Like"}
         </BarAction>
         {canRemove && (
           <BarAction
@@ -319,6 +314,7 @@ function BarAction({
 }) {
   return (
     <Tooltip
+      disableHoverablePopup
       onOpenChange={(open, details) => {
         if (
           open &&
@@ -336,7 +332,7 @@ function BarAction({
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent sideOffset={8}>
+      <TooltipContent className="rounded-lg pr-1" sideOffset={8}>
         {label}
         <Kbd>
           <SelectionShortcutKeys action={action} />
