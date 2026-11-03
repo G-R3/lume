@@ -46,7 +46,7 @@ export function focusReturnTarget(region: HTMLElement | null, to: FocusReturn) {
 
 export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTMLElement | null>) {
   const { enqueueTracks, queue } = usePlayback();
-  const { mutate: setTracksLiked } = useSetTracksLiked();
+  const { mutateAsync: setTracksLiked } = useSetTracksLiked();
   const { mutateAsync: removePlaylistTracks } = useRemovePlaylistTracksMutation();
   const { mutateAsync: addTracksToPlaylist } = useAddTracksToPlaylistMutation();
   const openPlaylistCreation = usePlaylistCreation();
@@ -137,6 +137,22 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
   const addToQueue = (target: ActionTarget) =>
     enqueueTracks(target.entries.map((entry) => entry.trackId));
 
+  const toggleLike = async (target: ActionTarget) => {
+    try {
+      await setTracksLiked({
+        liked: target.entries.some((entry) => !entry.liked),
+        trackIds: target.entries.map((entry) => entry.trackId),
+      });
+    } catch (error) {
+      toast.add({
+        description: error instanceof Error ? error.message : String(error),
+        priority: "high",
+        title: "Could not update like",
+        type: "error",
+      });
+    }
+  };
+
   const run = (action: TrackAction) => {
     const { target } = action;
 
@@ -146,22 +162,7 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
 
         return;
       case "like":
-        setTracksLiked(
-          {
-            liked: target.entries.some((entry) => !entry.liked),
-            trackIds: target.entries.map((entry) => entry.trackId),
-          },
-          {
-            onError: (error) => {
-              toast.add({
-                description: error.message,
-                priority: "high",
-                title: "Could not update like",
-                type: "error",
-              });
-            },
-          },
-        );
+        void toggleLike(target);
 
         return;
       case "addToPlaylist":
