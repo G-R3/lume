@@ -1,4 +1,4 @@
-import { BackspaceIcon, type Icon, KeyReturnIcon } from "@phosphor-icons/react";
+import { ArrowElbowDownLeftIcon, BackspaceIcon, type Icon } from "@phosphor-icons/react";
 
 export type Chord = {
   readonly key: string;
@@ -33,7 +33,7 @@ const selectionShortcuts = {
     other: { key: "p", primary: true, shift: true },
   },
   queue: {
-    mac: { alt: true, key: "Enter", keyIcon: KeyReturnIcon },
+    mac: { alt: true, key: "Enter", keyIcon: ArrowElbowDownLeftIcon },
     other: { alt: true, key: "Enter" },
     requires: "queue",
   },
