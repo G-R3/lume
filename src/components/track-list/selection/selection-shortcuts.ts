@@ -26,7 +26,6 @@ const selectionActions = [
 
 export type SelectionAction = (typeof selectionActions)[number];
 
-// Removal has no undo, so it takes a chord on macOS instead of a bare Delete or Backspace.
 const selectionShortcuts = {
   addToPlaylist: {
     mac: { key: "p", primary: true, shift: true },

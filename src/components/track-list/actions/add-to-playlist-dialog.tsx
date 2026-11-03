@@ -81,15 +81,14 @@ export function AddToPlaylistDialog({
 
   const playlistGroup: PaletteGroup = { items: [...playlistItems, createItem], value: "playlists" };
 
-  // New playlist always matches, so a search that only finds the queue would otherwise highlight it.
-  const queueLeads =
+  const searchFindsOnlyQueue =
     search.trim() !== "" &&
     matchesQuery(queueItem, search) &&
     !playlistItems.some((item) => matchesQuery(item, search));
 
   const groups: PaletteGroup[] = !onAddToQueue
     ? [playlistGroup]
-    : queueLeads
+    : searchFindsOnlyQueue
       ? [queueGroup, playlistGroup]
       : [playlistGroup, queueGroup];
 

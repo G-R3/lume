@@ -100,8 +100,6 @@ export function useLibraryMutation() {
 
 type LikeWrite = { previousLikedAt: Map<number, number | null> };
 
-// The newest write per track decides what it shows. An older write that settles later, or a
-// library reread that replaced the track objects meanwhile, must not override it.
 const newestLikeWrites = new WeakMap<QueryClient, Map<number, LikeWrite>>();
 
 export function setTracksLikedMutation(queryClient: QueryClient) {

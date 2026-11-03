@@ -148,7 +148,6 @@ export function FloatingSelectionBar({
   );
 }
 
-// Layout offsets, not the bar's rect, so the rise animation's transform never skews the measurement.
 function toastLiftFor(bar: HTMLElement) {
   const lane = bar.offsetParent;
   const toasts = document.querySelector("[data-slot='toast-viewport']")?.getBoundingClientRect();
@@ -156,12 +155,13 @@ function toastLiftFor(bar: HTMLElement) {
   if (!lane || !toasts) return null;
 
   const laneBox = lane.getBoundingClientRect();
-  const left = laneBox.left + bar.offsetLeft;
-  const collides = left < toasts.right && left + bar.offsetWidth > toasts.left;
+  const untransformedLeft = laneBox.left + bar.offsetLeft;
+  const untransformedTop = laneBox.top + bar.offsetTop;
 
-  // The toast viewport already sits 16px above the window bottom, so lifting it by the bar's
-  // top above that edge leaves the same 16px between the toasts and the bar.
-  return collides ? window.innerHeight - (laneBox.top + bar.offsetTop) : null;
+  const collides =
+    untransformedLeft < toasts.right && untransformedLeft + bar.offsetWidth > toasts.left;
+
+  return collides ? window.innerHeight - untransformedTop : null;
 }
 
 function SelectionBar({
@@ -299,8 +299,6 @@ function SelectionBar({
   );
 }
 
-// Chromium matches :focus-visible when focus returns to a button after a pointer-driven dialog,
-// so the tooltip follows the app's own focus modality instead.
 function BarAction({
   action,
   children,

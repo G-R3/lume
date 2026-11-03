@@ -273,13 +273,11 @@ function extendTo(
 
   while (end < rows.length - 1 && selectedIds.has(rows[end + 1].sourceEntryId)) end++;
 
-  // An earlier range the new one touches merges into the anchor's range, so the next extend
-  // from this anchor replaces the merged run instead of keeping it.
-  const anchorRun = new Set(rows.slice(start, end + 1).map((row) => row.sourceEntryId));
+  const anchorRange = new Set(rows.slice(start, end + 1).map((row) => row.sourceEntryId));
 
   return {
     ...state,
-    anchor: { base: new Set([...anchor.base].filter((id) => !anchorRun.has(id))), id: anchor.id },
+    anchor: { base: new Set([...anchor.base].filter((id) => !anchorRange.has(id))), id: anchor.id },
     focusedId: entryId,
     selectedIds,
   };

@@ -93,8 +93,9 @@ export function TrackList({
   }, [sort]);
 
   const run = (action: TrackAction) => {
-    // The dialog takes focus next, so the closing row menu must not pull focus back to its row.
-    if (action.kind === "addToPlaylist" || action.kind === "createPlaylist") {
+    const dialogTakesFocus = action.kind === "addToPlaylist" || action.kind === "createPlaylist";
+
+    if (dialogTakesFocus) {
       focusReturnOwnerRef.current = null;
     }
 
@@ -297,8 +298,6 @@ export function TrackList({
 
       dispatchSelection({ entryId, trigger, type: "closeMenu" });
     },
-    // A menu still fading out can resolve its final focus after another row's menu opened, so
-    // only the most recent opening may pull focus back to its row.
     menuFinalFocus: (entryId, focusToken) => {
       const active = document.activeElement;
       const focusMovedOn = active && active !== document.body && !active.closest("[role='menu']");

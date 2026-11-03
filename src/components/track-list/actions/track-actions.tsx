@@ -102,7 +102,7 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
         trackIds: request.trackIds,
       });
 
-      sendToFlow({ result, type: "settled" });
+      applyFlowEvent({ result, type: "settled" });
 
       if (result.kind === "added") {
         toast.add({
@@ -111,15 +111,14 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
         });
       }
     } catch (error) {
-      sendToFlow({
+      applyFlowEvent({
         message: error instanceof Error ? error.message : String(error),
         type: "failed",
       });
     }
   };
 
-  // Reducing against the ref, not render state, keeps a second click before re-render from submitting.
-  const sendToFlow = (event: AddToPlaylistEvent) => {
+  const applyFlowEvent = (event: AddToPlaylistEvent) => {
     const previous = flowRef.current;
     const next = reduceAddToPlaylist(previous, event);
 
@@ -166,7 +165,7 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
 
         return;
       case "addToPlaylist":
-        sendToFlow({ returnTo: action.returnTo, target, type: "open" });
+        applyFlowEvent({ returnTo: action.returnTo, target, type: "open" });
 
         return;
       case "createPlaylist":
@@ -196,16 +195,16 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
           queue === null
             ? null
             : () => {
-                if (sendToFlow({ type: "addToQueue" })) addToQueue(shown.target);
+                if (applyFlowEvent({ type: "addToQueue" })) addToQueue(shown.target);
               }
         }
         onCreatePlaylist={() => {
-          if (sendToFlow({ type: "createInstead" })) openCreation(shown.target, shown.returnTo);
+          if (applyFlowEvent({ type: "createInstead" })) openCreation(shown.target, shown.returnTo);
         }}
-        onDismiss={() => sendToFlow({ type: "dismiss" })}
-        onExited={() => sendToFlow({ type: "exited" })}
+        onDismiss={() => applyFlowEvent({ type: "dismiss" })}
+        onExited={() => applyFlowEvent({ type: "exited" })}
         onPick={(playlist) =>
-          sendToFlow({
+          applyFlowEvent({
             destination: { playlistId: playlist.id, title: playlist.title },
             type: "pick",
           })
@@ -219,9 +218,9 @@ export function useTrackActions(source: PlayableSource, regionRef: RefObject<HTM
         confirmation={shown}
         error={shown.phase === "confirmingDuplicates" ? shown.error : null}
         finalFocus={finalFocus}
-        onChoose={(mode) => sendToFlow({ mode, type: "choose" })}
-        onDismiss={() => sendToFlow({ type: "dismiss" })}
-        onExited={() => sendToFlow({ type: "exited" })}
+        onChoose={(mode) => applyFlowEvent({ mode, type: "choose" })}
+        onDismiss={() => applyFlowEvent({ type: "dismiss" })}
+        onExited={() => applyFlowEvent({ type: "exited" })}
         open={flow.phase === "confirmingDuplicates" || flow.phase === "adding"}
       />
     ) : null;
