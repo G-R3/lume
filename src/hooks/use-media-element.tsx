@@ -2,6 +2,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 
+type Attachment =
+  | { kind: "detached" }
+  | { kind: "attached"; requestId: string; audio: HTMLAudioElement };
+
+type MediaLifecycle = { attachment: Attachment } & (
+  | { kind: "empty" }
+  | {
+      kind: "requested";
+      request: PlaybackRequest;
+      intent: "play" | "pause";
+      isPlaying: boolean;
+      attempt: symbol | null;
+      seek: { kind: "deferred"; position: number } | { kind: "direct" };
+      duration: number;
+      lastReportedSecond: number;
+    }
+);
+
 /**
  * Loads and plays the selected track. Supports pausing and jumping to a time in the track.
  * Reports playback changes, such as the track ending, to the playback controller.
@@ -10,85 +28,120 @@ export function useMediaElement(options: {
   onEvent: (event: AudioEvent) => void;
   onPosition: (position: number) => void;
 }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const mountedRequestIdRef = useRef<string | null>(null);
-  const shouldPlayRef = useRef(false);
-  const requestRef = useRef<PlaybackRequest | null>(null);
-  const pendingSeekRef = useRef<number | null>(null);
-  const playbackAttemptRef = useRef(0);
-  const lastReportedSecondRef = useRef(-1);
+  const lifecycleRef = useRef<MediaLifecycle>({ kind: "empty", attachment: { kind: "detached" } });
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
-  const [request, setRequest] = useState<PlaybackRequest | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+
+  const [view, setView] = useState<{
+    request: PlaybackRequest | null;
+    isPlaying: boolean;
+    duration: number;
+  }>({ request: null, isPlaying: false, duration: 0 });
+
+  const request = view.request;
   const [audioPreferences, setAudioPreferences] = useState(loadAudioPreferences);
-  const [duration, setDuration] = useState(0);
   const [timeStore] = useState(createAudioTimeStore);
+
+  const commit = useCallback((next: MediaLifecycle) => {
+    lifecycleRef.current = next;
+    const request = next.kind === "requested" ? next.request : null;
+    const isPlaying = next.kind === "requested" && next.isPlaying;
+    const duration = next.kind === "requested" ? next.duration : 0;
+    setView((current) =>
+      current.request === request &&
+      current.isPlaying === isPlaying &&
+      current.duration === duration
+        ? current
+        : { request, isPlaying, duration },
+    );
+  }, []);
+
+  const requestedLifecycle = useCallback((requestId: string) => {
+    const current = lifecycleRef.current;
+
+    return current.kind === "requested" && current.request.requestId === requestId ? current : null;
+  }, []);
 
   const load = useCallback(
     (next: PlaybackRequest | null, position = next?.position ?? 0) => {
-      ++playbackAttemptRef.current;
-      requestRef.current = next;
-      shouldPlayRef.current = next?.shouldPlay ?? false;
-      pendingSeekRef.current = next?.position ?? null;
-      lastReportedSecondRef.current = -1;
+      commit(
+        next
+          ? {
+              kind: "requested",
+              request: next,
+              attachment: lifecycleRef.current.attachment,
+              intent: next.shouldPlay ? "play" : "pause",
+              isPlaying: false,
+              attempt: null,
+              seek: { kind: "deferred", position: next.position },
+              duration: next.durationHint,
+              lastReportedSecond: -1,
+            }
+          : { kind: "empty", attachment: lifecycleRef.current.attachment },
+      );
       timeStore.set(position);
-      setDuration(next?.durationHint ?? 0);
-      setIsPlaying(false);
-      setRequest(next);
     },
-    [timeStore],
+    [commit, timeStore],
   );
 
   const play = useCallback(() => {
-    shouldPlayRef.current = true;
-    const audio = audioRef.current;
-    const current = requestRef.current;
+    const current = lifecycleRef.current;
 
-    if (!audio || !current || mountedRequestIdRef.current !== current.requestId) return;
+    if (current.kind === "empty") return;
+    current.intent = "play";
 
-    const attempt = ++playbackAttemptRef.current;
-    void audio.play().catch((error: DOMException) => {
-      if (
-        attempt !== playbackAttemptRef.current ||
-        requestRef.current?.requestId !== current.requestId
-      )
-        return;
+    if (
+      current.attachment.kind === "detached" ||
+      current.attachment.requestId !== current.request.requestId
+    )
+      return;
 
-      shouldPlayRef.current = false;
-      setIsPlaying(false);
+    const attempt = Symbol();
+    current.attempt = attempt;
+    void current.attachment.audio.play().catch((error: DOMException) => {
+      const latest = requestedLifecycle(current.request.requestId);
+
+      if (!latest || latest.attempt !== attempt) return;
+      commit({ ...latest, intent: "pause", isPlaying: false });
       callbacksRef.current.onEvent({
         type: "error",
-        requestId: current.requestId,
-        queueItemId: current.queueItemId,
+        requestId: current.request.requestId,
+        queueItemId: current.request.queueItemId,
         message: error.message || "Playback failed",
         source: "play",
       });
     });
-  }, []);
+  }, [commit, requestedLifecycle]);
 
   useEffect(() => {
-    if (request && requestRef.current?.requestId === request.requestId && shouldPlayRef.current)
-      play();
-  }, [play, request]);
+    if (request && requestedLifecycle(request.requestId)?.intent === "play") play();
+  }, [requestedLifecycle, play, request]);
 
   const pause = useCallback(() => {
-    shouldPlayRef.current = false;
-    ++playbackAttemptRef.current;
-    audioRef.current?.pause();
-    setIsPlaying(false);
-  }, []);
+    const current = lifecycleRef.current;
+
+    if (current.kind === "requested")
+      commit({ ...current, intent: "pause", isPlaying: false, attempt: null });
+
+    if (current.attachment.kind === "attached") current.attachment.audio.pause();
+  }, [commit]);
 
   const isMuted = audioPreferences.muted || audioPreferences.volume === 0;
 
   const attachAudio = useCallback(
     (audio: HTMLAudioElement | null) => {
-      audioRef.current = audio;
-      mountedRequestIdRef.current = audio ? (request?.requestId ?? null) : null;
+      if (!audio || !request) return;
+      lifecycleRef.current.attachment = { kind: "attached", requestId: request.requestId, audio };
+      audio.volume = audioPreferences.volume;
 
-      if (audio) audio.volume = audioPreferences.volume;
+      return () => {
+        const current = lifecycleRef.current;
+
+        if (current.attachment.kind === "attached" && current.attachment.audio === audio)
+          current.attachment = { kind: "detached" };
+      };
     },
-    [audioPreferences.volume, request?.requestId],
+    [audioPreferences.volume, request],
   );
 
   useEffect(() => {
@@ -115,20 +168,21 @@ export function useMediaElement(options: {
 
   const seek = useCallback(
     (time: number) => {
-      const audio = audioRef.current;
+      const current = lifecycleRef.current;
 
-      const current = requestRef.current;
+      if (current.kind === "empty" || !Number.isFinite(time)) return;
 
-      if (!current || !Number.isFinite(time)) return;
+      const audio =
+        current.attachment.kind === "attached" &&
+        current.attachment.requestId === current.request.requestId
+          ? current.attachment.audio
+          : null;
 
-      if (
-        !audio ||
-        mountedRequestIdRef.current !== current.requestId ||
-        pendingSeekRef.current !== null
-      ) {
-        pendingSeekRef.current = Math.max(0, time);
-        timeStore.set(pendingSeekRef.current);
-        callbacksRef.current.onPosition(pendingSeekRef.current);
+      if (!audio || current.seek.kind === "deferred") {
+        const position = Math.max(0, time);
+        current.seek = { kind: "deferred", position };
+        timeStore.set(position);
+        callbacksRef.current.onPosition(position);
 
         return;
       }
@@ -138,30 +192,33 @@ export function useMediaElement(options: {
         Math.min(time, Number.isFinite(audio.duration) ? audio.duration : time),
       );
       timeStore.set(audio.currentTime);
-      lastReportedSecondRef.current = Math.floor(audio.currentTime) - 1;
+      current.lastReportedSecond = Math.floor(audio.currentTime) - 1;
       callbacksRef.current.onPosition(audio.currentTime);
     },
     [timeStore],
   );
 
   return {
-    duration,
+    duration: view.duration,
     element: request && (
       <audio
         key={request.requestId}
         muted={isMuted}
         onDurationChange={(event) => {
-          if (requestRef.current?.requestId !== request.requestId) return;
+          const current = requestedLifecycle(request.requestId);
+
+          if (!current) return;
 
           const value = event.currentTarget.duration;
 
-          if (Number.isFinite(value) && value > 0) setDuration(value);
+          if (Number.isFinite(value) && value > 0) commit({ ...current, duration: value });
         }}
         onEnded={() => {
-          if (requestRef.current?.requestId !== request.requestId) return;
+          const current = requestedLifecycle(request.requestId);
 
-          shouldPlayRef.current = false;
-          setIsPlaying(false);
+          if (!current) return;
+
+          commit({ ...current, intent: "pause", isPlaying: false });
           callbacksRef.current.onEvent({
             type: "ended",
             requestId: request.requestId,
@@ -169,10 +226,11 @@ export function useMediaElement(options: {
           });
         }}
         onError={(event) => {
-          if (requestRef.current?.requestId !== request.requestId) return;
+          const current = requestedLifecycle(request.requestId);
 
-          shouldPlayRef.current = false;
-          setIsPlaying(false);
+          if (!current) return;
+
+          commit({ ...current, intent: "pause", isPlaying: false });
           callbacksRef.current.onEvent({
             type: "error",
             requestId: request.requestId,
@@ -182,11 +240,12 @@ export function useMediaElement(options: {
           });
         }}
         onLoadedMetadata={(event) => {
-          if (requestRef.current?.requestId !== request.requestId) return;
+          const current = requestedLifecycle(request.requestId);
 
-          const position = pendingSeekRef.current;
+          if (!current) return;
 
-          if (position === null) return;
+          if (current.seek.kind === "direct") return;
+          const position = current.seek.position;
 
           const audio = event.currentTarget;
           audio.currentTime = Math.min(
@@ -194,15 +253,15 @@ export function useMediaElement(options: {
             Number.isFinite(audio.duration) ? audio.duration : position,
           );
           timeStore.set(audio.currentTime);
-          lastReportedSecondRef.current = Math.floor(audio.currentTime) - 1;
-          pendingSeekRef.current = null;
+          current.lastReportedSecond = Math.floor(audio.currentTime) - 1;
+          current.seek = { kind: "direct" };
         }}
         onPause={(event) => {
-          if (requestRef.current?.requestId !== request.requestId || !event.currentTarget.paused)
-            return;
+          const current = requestedLifecycle(request.requestId);
 
-          shouldPlayRef.current = false;
-          setIsPlaying(false);
+          if (!current || !event.currentTarget.paused) return;
+
+          commit({ ...current, intent: "pause", isPlaying: false });
 
           if (event.currentTarget.ended) return;
           callbacksRef.current.onEvent({
@@ -212,16 +271,17 @@ export function useMediaElement(options: {
           });
         }}
         onPlay={(event) => {
-          if (requestRef.current?.requestId !== request.requestId || event.currentTarget.paused)
-            return;
+          const current = requestedLifecycle(request.requestId);
 
-          if (!shouldPlayRef.current) {
+          if (!current || event.currentTarget.paused) return;
+
+          if (current.intent === "pause") {
             event.currentTarget.pause();
 
             return;
           }
 
-          setIsPlaying(true);
+          commit({ ...current, isPlaying: true });
           callbacksRef.current.onEvent({
             type: "started",
             requestId: request.requestId,
@@ -229,14 +289,16 @@ export function useMediaElement(options: {
           });
         }}
         onTimeUpdate={(event) => {
-          if (requestRef.current?.requestId !== request.requestId) return;
+          const current = requestedLifecycle(request.requestId);
+
+          if (!current) return;
 
           const position = event.currentTarget.currentTime;
           timeStore.set(position);
           const second = Math.floor(position);
 
-          if (second > lastReportedSecondRef.current) {
-            lastReportedSecondRef.current = second;
+          if (second > current.lastReportedSecond) {
+            current.lastReportedSecond = second;
             callbacksRef.current.onPosition(position);
           }
         }}
@@ -245,9 +307,9 @@ export function useMediaElement(options: {
       />
     ),
     getPosition: timeStore.getSnapshot,
-    hasRequest: () => requestRef.current !== null,
+    hasRequest: () => lifecycleRef.current.kind === "requested",
     isMuted,
-    isPlaying,
+    isPlaying: view.isPlaying,
     load,
     pause,
     play,
