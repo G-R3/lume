@@ -1,4 +1,4 @@
-import type { LumeApi, MusicLibrary, PlaylistDetails } from "../../shared/lib";
+import type { LumeApi, MusicLibrary, PlaylistDetails, Track } from "../../shared/lib";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
@@ -12,6 +12,8 @@ import { transition } from "@/lib/queue/transition";
 type Snapshot = {
   queue: QueueState | null;
   library: MusicLibrary | null;
+  tracksById: ReadonlyMap<number, Track>;
+  availableTrackIds: ReadonlySet<number>;
   isInitialized: boolean;
   errorMessage: string | null;
 };
@@ -57,15 +59,22 @@ export function createPlaybackController(dependencies: {
 }) {
   const listeners = new Set<() => void>();
   const random = createQueueRandom(dependencies.random);
-  let snapshot: Snapshot = { queue: null, library: null, isInitialized: false, errorMessage: null };
+
+  let snapshot: Snapshot = {
+    queue: null,
+    library: null,
+    tracksById: new Map(),
+    availableTrackIds: new Set(),
+    isInitialized: false,
+    errorMessage: null,
+  };
+
   let lifecycle: "awaiting-library" | "restoring" | "ready" | "closed" = "awaiting-library";
   let playlistRestart: PlaylistRestart | null = null;
   let requestId: string | null = null;
   let pendingSave: { state: QueueState; position: number } | null = null;
   let savedState: QueueState | null = null;
   let saving = false;
-  let tracksById = new Map<number, MusicLibrary["tracks"][number]>();
-  let availableTrackIds = new Set<number>();
 
   const publish = (next: Snapshot) => {
     snapshot = next;
@@ -113,7 +122,7 @@ export function createPlaybackController(dependencies: {
 
   const loadCurrent = (position: number, shouldPlay = snapshot.queue?.status === "playing") => {
     const queue = snapshot.queue;
-    const track = queue?.current ? tracksById.get(queue.current.item.trackId) : undefined;
+    const track = queue?.current ? snapshot.tracksById.get(queue.current.item.trackId) : undefined;
 
     requestId = queue?.current && track?.available ? crypto.randomUUID() : null;
 
@@ -147,7 +156,13 @@ export function createPlaybackController(dependencies: {
   };
 
   const dispatch = (command: QueueCommand, options?: { restartAudio?: boolean }) => {
-    commit(transition(snapshot.queue, command, { availableTrackIds, random }), options);
+    commit(
+      transition(snapshot.queue, command, {
+        availableTrackIds: snapshot.availableTrackIds,
+        random,
+      }),
+      options,
+    );
   };
 
   const dispatchSessionStart = (view: SessionSource, request: SessionRequest) => {
@@ -195,7 +210,7 @@ export function createPlaybackController(dependencies: {
       dispatchSessionStart(
         {
           source: { kind: "playlist", playlistId: data.id, title: data.title },
-          entries: playlistEntries(data, tracksById, sort),
+          entries: playlistEntries(data, snapshot.tracksById, sort),
           filter: null,
           sort,
         },
@@ -220,7 +235,7 @@ export function createPlaybackController(dependencies: {
       dispatchSessionStart(
         {
           source: queue.source,
-          entries: queue.sourceEntries.filter((entry) => tracksById.has(entry.trackId)),
+          entries: queue.sourceEntries.filter((entry) => snapshot.tracksById.has(entry.trackId)),
           filter: queue.filter,
           sort: queue.sort,
         },
@@ -265,7 +280,7 @@ export function createPlaybackController(dependencies: {
 
   const resume = () => {
     if (snapshot.queue?.current && requestId === null) {
-      if (availableTrackIds.has(snapshot.queue.current.item.trackId)) {
+      if (snapshot.availableTrackIds.has(snapshot.queue.current.item.trackId)) {
         loadCurrent(dependencies.audio.getPosition(), true);
         setError(null);
 
@@ -290,11 +305,14 @@ export function createPlaybackController(dependencies: {
 
   const syncLibrary = (library: MusicLibrary) => {
     if (lifecycle === "closed") return;
-    tracksById = new Map(library.tracks.map((track) => [track.id, track] as const));
-    availableTrackIds = new Set(
-      library.tracks.filter((track) => track.available).map((track) => track.id),
-    );
-    publish({ ...snapshot, library });
+    publish({
+      ...snapshot,
+      library,
+      tracksById: new Map(library.tracks.map((track) => [track.id, track])),
+      availableTrackIds: new Set(
+        library.tracks.filter((track) => track.available).map((track) => track.id),
+      ),
+    });
 
     if (lifecycle !== "awaiting-library") {
       dispatch({
@@ -304,7 +322,7 @@ export function createPlaybackController(dependencies: {
 
       if (
         snapshot.queue?.current &&
-        availableTrackIds.has(snapshot.queue.current.item.trackId) &&
+        snapshot.availableTrackIds.has(snapshot.queue.current.item.trackId) &&
         requestId === null
       )
         loadCurrent(dependencies.audio.getPosition());
@@ -328,7 +346,7 @@ export function createPlaybackController(dependencies: {
               type: "libraryRescanned",
               entries: libraryEntries(latestLibrary, restored.state.sort),
             },
-            { availableTrackIds, random },
+            { availableTrackIds: snapshot.availableTrackIds, random },
           );
 
           publish({ ...snapshot, queue });
