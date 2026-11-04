@@ -2,7 +2,7 @@ import type { LumeApi, MusicLibrary, PlaylistDetails } from "../../shared/lib";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
-import type { QueueState, SourceIdentity } from "@/lib/queue/model";
+import type { QueueState } from "@/lib/queue/model";
 import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistence";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
 import { libraryEntries, playlistEntries } from "@/lib/queue/source";
@@ -22,6 +22,8 @@ type SourceChange = Extract<
     type: "sourceEntriesAdded" | "sourceEntriesRemoved" | "sourceEntryMoved" | "sourceDeleted";
   }
 >;
+
+type PlaylistRestart = { playlistId: number; edited: boolean };
 
 type SessionRequest = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
@@ -55,10 +57,9 @@ export function createPlaybackController(dependencies: {
 }) {
   const listeners = new Set<() => void>();
   const random = createQueueRandom(dependencies.random);
-  const playlistRevisions = new Map<number, number>();
   let snapshot: Snapshot = { queue: null, library: null, isInitialized: false, errorMessage: null };
   let lifecycle: "awaiting-library" | "restoring" | "ready" | "closed" = "awaiting-library";
-  let latestSourceRestart: symbol | null = null;
+  let playlistRestart: PlaylistRestart | null = null;
   let requestId: string | null = null;
   let pendingSave: { state: QueueState; position: number } | null = null;
   let savedState: QueueState | null = null;
@@ -75,8 +76,6 @@ export function createPlaybackController(dependencies: {
     if (lifecycle !== "closed" && snapshot.errorMessage !== errorMessage)
       publish({ ...snapshot, errorMessage });
   };
-
-  const revisionOf = (playlistId: number) => playlistRevisions.get(playlistId) ?? 0;
 
   const savePending = async () => {
     if (saving) return;
@@ -167,41 +166,30 @@ export function createPlaybackController(dependencies: {
     <Args extends unknown[]>(run: (...args: Args) => void) =>
     (...args: Args) => {
       if (lifecycle !== "ready") return;
-      latestSourceRestart = null;
+      playlistRestart = null;
       run(...args);
     };
 
-  const restartFromSource = async (
-    source: SourceIdentity,
+  const restartFromPlaylist = async (
+    restart: PlaylistRestart,
     sort: TrackSort,
     request: SessionRequest,
-    restart: symbol,
     refresh = false,
   ): Promise<void> => {
-    if (source.kind === "all-tracks") {
-      if (snapshot.library)
-        dispatchSessionStart(
-          { source, entries: libraryEntries(snapshot.library, sort), filter: null, sort },
-          request,
-        );
-
-      return;
-    }
-
-    const revision = revisionOf(source.playlistId);
-
     const data = await dependencies.playlistReader
-      .read(source.playlistId, refresh)
+      .read(restart.playlistId, refresh)
       .catch((error: Error) => {
-        if (restart !== latestSourceRestart || revision !== revisionOf(source.playlistId))
-          return null;
+        if (restart !== playlistRestart || restart.edited) return null;
         throw error;
       });
 
-    if (restart !== latestSourceRestart) return;
+    if (restart !== playlistRestart) return;
 
-    if (revision !== revisionOf(source.playlistId))
-      return restartFromSource(source, sort, request, restart, true);
+    if (restart.edited) {
+      restart.edited = false;
+
+      return restartFromPlaylist(restart, sort, request, true);
+    }
 
     if (data)
       dispatchSessionStart(
@@ -242,10 +230,25 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    const restart = Symbol();
-    latestSourceRestart = restart;
-    void restartFromSource(queue.sourceIdentity, queue.sort, request, restart).catch(
-      (error: Error) => setError(error.message || "Could not load playback source"),
+    if (queue.sourceIdentity.kind === "all-tracks") {
+      if (snapshot.library)
+        dispatchSessionStart(
+          {
+            source: queue.sourceIdentity,
+            entries: libraryEntries(snapshot.library, queue.sort),
+            filter: null,
+            sort: queue.sort,
+          },
+          request,
+        );
+
+      return;
+    }
+
+    const restart = { playlistId: queue.sourceIdentity.playlistId, edited: false };
+    playlistRestart = restart;
+    void restartFromPlaylist(restart, queue.sort, request).catch((error: Error) =>
+      setError(error.message || "Could not load playback source"),
     );
   };
 
@@ -388,7 +391,8 @@ export function createPlaybackController(dependencies: {
   return {
     applySourceChange: (change: SourceChange) => {
       if (lifecycle === "closed") return;
-      playlistRevisions.set(change.playlistId, revisionOf(change.playlistId) + 1);
+
+      if (playlistRestart?.playlistId === change.playlistId) playlistRestart.edited = true;
       dispatch(change);
     },
     clearManualQueue: userCommand(() => dispatch({ type: "clearManualQueue" })),
@@ -402,7 +406,7 @@ export function createPlaybackController(dependencies: {
     }),
     flush: () => {
       lifecycle = "closed";
-      latestSourceRestart = null;
+      playlistRestart = null;
       pendingSave = null;
 
       // Electron handles sent saves before the final synchronous flush from this renderer.
