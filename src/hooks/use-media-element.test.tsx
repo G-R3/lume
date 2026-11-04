@@ -219,7 +219,7 @@ it.each(["play", "ended", "error"])(
     emit(probe.audio, type, { paused: false });
     expect(probe.events).toHaveLength(1);
     expect(probe.events[0]?.requestId).toBe("a");
-    expect(probe.audio.src).toBe("file:///b.wav");
+    expect(probe.audio.src).toBe("file:///b.wav?request=b");
     expect(probe.media.getPosition()).toBe(30);
     expect(probe.media.isPlaying).toBe(false);
   },

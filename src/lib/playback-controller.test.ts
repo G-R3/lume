@@ -1470,6 +1470,44 @@ it("resumes the loaded track in place without reloading it", async () => {
   expect(playback.requests).toHaveLength(1);
 });
 
+it("reloads a paused track whose media failed when Play is pressed, ignoring the failed load", async () => {
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.pause();
+  const failed = playback.requests.at(-1);
+
+  if (!failed) throw new Error("Expected the track to load");
+  playback.controller.handleAudioEvent({
+    type: "error",
+    requestId: failed.requestId,
+    queueItemId: failed.queueItemId,
+    source: "media",
+    message: "Could not open file",
+  });
+
+  expect(playback.controller.getSnapshot()).toMatchObject({
+    errorMessage: "Could not open file",
+    queue: { status: "paused", current: { item: { trackId: 1 } } },
+  });
+
+  playback.controller.resume();
+  const reloaded = playback.requests.at(-1);
+
+  expect(reloaded).toMatchObject({ url: "lume://track/1", shouldPlay: true });
+  expect(reloaded?.requestId).not.toBe(failed.requestId);
+  expect(playback.controller.getSnapshot().errorMessage).toBeNull();
+
+  playback.controller.handleAudioEvent({
+    type: "ended",
+    requestId: failed.requestId,
+    queueItemId: failed.queueItemId,
+  });
+
+  expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(1);
+});
+
 it("keeps the loaded track playing through a rescan without reloading it", async () => {
   const playback = createTestPlayback();
   playback.controller.syncLibrary(libraryOf([1, 2]));

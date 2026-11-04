@@ -375,7 +375,13 @@ export function createPlaybackController(dependencies: {
 
     if (event.source === "play") dispatch({ type: "playbackPaused" });
 
-    if (event.source === "media" && queue.status === "playing") advance();
+    if (event.source === "media") {
+      // A failed element never recovers, so Play must load the track again.
+      requestId = null;
+
+      if (queue.status === "playing") advance();
+    }
+
     setError(event.message);
   };
 
