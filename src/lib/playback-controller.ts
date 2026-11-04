@@ -43,7 +43,6 @@ export function createPlaybackController(dependencies: {
   audio: {
     load: (request: PlaybackRequest | null, position?: number) => void;
     getPosition: () => number;
-    hasRequest: () => boolean;
     play: () => void;
     pause: () => void;
     seek: (time: number) => void;
@@ -262,7 +261,7 @@ export function createPlaybackController(dependencies: {
   };
 
   const resume = () => {
-    if (snapshot.queue?.current && !dependencies.audio.hasRequest()) {
+    if (snapshot.queue?.current && requestId === null) {
       if (availableTrackIds.has(snapshot.queue.current.item.trackId)) {
         loadCurrent(dependencies.audio.getPosition(), true);
         setError(null);
@@ -303,7 +302,7 @@ export function createPlaybackController(dependencies: {
       if (
         snapshot.queue?.current &&
         availableTrackIds.has(snapshot.queue.current.item.trackId) &&
-        !dependencies.audio.hasRequest()
+        requestId === null
       )
         loadCurrent(dependencies.audio.getPosition());
 

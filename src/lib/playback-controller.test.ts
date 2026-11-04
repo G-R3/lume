@@ -1470,6 +1470,18 @@ it("resumes the loaded track in place without reloading it", async () => {
   expect(playback.requests).toHaveLength(1);
 });
 
+it("keeps the loaded track playing through a rescan without reloading it", async () => {
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.seek(8);
+  playback.controller.syncLibrary(libraryOf([1, 2, 3]));
+
+  expect(playback.requests).toHaveLength(1);
+  expect(playback.audioState).toMatchObject({ playing: true, position: 8 });
+});
+
 it("reloads a restored track at its saved position once a rescan makes it available", async () => {
   const saved = await savedSession(libraryOf([1, 2]), 1, 12);
   const playback = createTestPlayback({ storage: loadingStorage(() => Promise.resolve(saved)) });
@@ -1632,7 +1644,6 @@ function createTestPlayback(
       audioState.playing = request?.shouldPlay ?? false;
     },
     getPosition: () => audioState.position,
-    hasRequest: () => audioState.request !== null,
     play: () => {
       audioState.playing = true;
     },

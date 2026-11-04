@@ -307,7 +307,6 @@ export function useMediaElement(options: {
       />
     ),
     getPosition: timeStore.getSnapshot,
-    hasRequest: () => lifecycleRef.current.kind === "requested",
     isMuted,
     isPlaying: view.isPlaying,
     load,

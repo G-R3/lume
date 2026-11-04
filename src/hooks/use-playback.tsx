@@ -85,7 +85,6 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       audio: {
         load: media.load,
         getPosition: media.getPosition,
-        hasRequest: media.hasRequest,
         play: media.play,
         pause: media.pause,
         seek: media.seek,

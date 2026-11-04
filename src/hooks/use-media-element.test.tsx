@@ -181,10 +181,10 @@ it("preserves separate load positions and an unavailable track position", () => 
   expect(probe.media.getPosition()).toBe(12);
   act(() => {
     probe.media.load(null, 19);
-    expect(probe.media.hasRequest()).toBe(false);
     probe.media.play();
     probe.media.seek(30);
   });
+  expect(probe.media.element).toBeNull();
   expect(probe.media.getPosition()).toBe(19);
   act(() => probe.media.load(request("b")));
   expect(probe.attempts).toHaveLength(0);
@@ -221,7 +221,6 @@ it.each(["play", "ended", "error"])(
     expect(probe.events[0]?.requestId).toBe("a");
     expect(probe.audio.src).toBe("file:///b.wav");
     expect(probe.media.getPosition()).toBe(30);
-    expect(probe.media.hasRequest()).toBe(true);
     expect(probe.media.isPlaying).toBe(false);
   },
 );
