@@ -1414,6 +1414,38 @@ it("closing drops a queue-end restart that finishes reading its playlist afterwa
   expect(playback.requests.at(-1)).toBeNull();
 });
 
+it("re-reads instead of failing when the playlist is edited during a failed queue-end read", async () => {
+  const firstRead = deferred<PlaylistDetails | null>();
+  const reads: number[] = [];
+
+  const playback = createTestPlayback({
+    loadPlaylist: (playlistId) => {
+      reads.push(playlistId);
+
+      return reads.length === 1 ? firstRead.promise : Promise.resolve(twoTrackPlaylist);
+    },
+  });
+
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
+  playback.controller.next();
+  playback.controller.applySourceChange({
+    type: "sourceEntriesAdded",
+    playlistId: 1,
+    entries: [{ sourceEntryId: 11, trackId: 2 }],
+  });
+  firstRead.reject(new Error("Playlist unavailable"));
+
+  await expect.poll(() => playback.controller.getSnapshot().queue?.status).toBe("paused");
+  expect(playback.controller.getSnapshot()).toMatchObject({
+    errorMessage: null,
+    queue: { current: { item: { trackId: 1 } } },
+  });
+  expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 2]);
+  expect(reads).toEqual([1, 1]);
+});
+
 it("shows a failed queue-end playlist read and stays stopped", async () => {
   const read = deferred<PlaylistDetails | null>();
   const playback = createTestPlayback({ loadPlaylist: () => read.promise });
@@ -1556,6 +1588,16 @@ it("skips a restored track that is still unavailable when resumed", async () => 
   });
   expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2" });
 });
+
+const twoTrackPlaylist = {
+  id: 1,
+  title: "Source",
+  description: null,
+  tracks: [
+    { id: 10, trackId: 1, position: 0, addedAt: 0 },
+    { id: 11, trackId: 2, position: 1, addedAt: 1 },
+  ],
+} satisfies PlaylistDetails;
 
 const singleTrackPlaylist = {
   id: 1,
