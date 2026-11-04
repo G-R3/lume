@@ -157,45 +157,6 @@ it.each([
   },
 );
 
-it("does not replace a new selection when the finished playlist read resolves", async () => {
-  let finishRead: ((playlist: PlaylistDetails | null) => void) | undefined;
-
-  const pending = new Promise<PlaylistDetails | null>((resolve) => {
-    finishRead = resolve;
-  });
-
-  const playlist = {
-    id: 1,
-    title: "Source",
-    description: null,
-    tracks: [{ id: 10, trackId: 1, position: 0, addedAt: 0 }],
-  } satisfies PlaylistDetails;
-
-  const playback = createTestPlayback({ loadPlaylist: () => pending });
-
-  const tracks = [track(1), track(2)];
-
-  playback.controller.syncLibrary({ kind: "library", sources: [], playlists: [], tracks });
-
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
-
-  playback.controller.playSourceEntry(playlistView(playlist), 10);
-  playback.controller.next();
-  playback.controller.playSourceEntry(allTracks(playback.controller), 2);
-
-  if (!finishRead) throw new Error("Expected the playlist read to start");
-  finishRead(playlist);
-
-  await pending;
-
-  expect(playback.controller.getSnapshot().queue).toMatchObject({
-    source: { kind: "all-tracks" },
-    current: { item: { trackId: 2 } },
-    status: "playing",
-  });
-  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
-});
-
 it("stays stopped when the source no longer has any available tracks", async () => {
   const playback = createTestPlayback();
   playback.controller.syncLibrary({
@@ -1465,15 +1426,15 @@ it("shows a failed queue-end playlist read and stays stopped", async () => {
 });
 
 it.each(["resolves", "rejects"] as const)(
-  "lets a later pause cancel a queue-end restart whose playlist read %s",
+  "keeps a new selection when the stale queue-end playlist read %s",
   async (outcome) => {
     const read = deferred<PlaylistDetails | null>();
     const playback = createTestPlayback({ loadPlaylist: () => read.promise });
-    playback.controller.syncLibrary(libraryOf([1]));
+    playback.controller.syncLibrary(libraryOf([1, 2]));
     await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
     playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
     playback.controller.next();
-    playback.controller.pause();
+    playback.controller.playSourceEntry(allTracks(playback.controller), 2);
 
     if (outcome === "resolves") read.resolve(singleTrackPlaylist);
     else read.reject(new Error("Playlist unavailable"));
@@ -1481,9 +1442,13 @@ it.each(["resolves", "rejects"] as const)(
 
     expect(playback.controller.getSnapshot()).toMatchObject({
       errorMessage: null,
-      queue: { status: "stopped", current: null },
+      queue: {
+        source: { kind: "all-tracks" },
+        status: "playing",
+        current: { item: { trackId: 2 } },
+      },
     });
-    expect(playback.requests.at(-1)).toBeNull();
+    expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
   },
 );
 
