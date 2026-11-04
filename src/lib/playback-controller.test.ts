@@ -1283,6 +1283,272 @@ it("starts the first queued track of a stopped session and clears the error in o
   expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/3", shouldPlay: true });
 });
 
+it("ignores commands until the restore finishes, then restores paused against the latest library", async () => {
+  const saved = await savedSession(libraryOf([1, 2]), 1, 12);
+  const load = deferred<SavedPlaybackSession | null>();
+  const playback = createTestPlayback({ storage: loadingStorage(() => load.promise) });
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+  playback.controller.playSourceEntry(allTracks(playback.controller), 2);
+  playback.controller.syncLibrary(libraryOf([1, 2, 3]));
+  await settle();
+
+  expect(playback.controller.getSnapshot()).toMatchObject({ isInitialized: false, queue: null });
+  expect(playback.requests).toEqual([]);
+
+  load.resolve(saved);
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  expect(playback.controller.getSnapshot().queue).toMatchObject({
+    status: "paused",
+    current: { item: { trackId: 1 } },
+  });
+  expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 2, 3]);
+  expect(playback.requests).toEqual([
+    expect.objectContaining({ url: "lume://track/1", position: 12, shouldPlay: false }),
+  ]);
+  expect(playback.writes).toEqual([]);
+});
+
+it("recovers from a failed restore with an error and no queue, then plays normally", async () => {
+  const playback = createTestPlayback({
+    storage: loadingStorage(() => Promise.reject(new Error("Database locked"))),
+  });
+
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  expect(playback.controller.getSnapshot()).toMatchObject({
+    queue: null,
+    errorMessage: "Database locked",
+  });
+  expect(playback.requests).toEqual([]);
+
+  playback.controller.playSourceEntry(allTracks(playback.controller), 2);
+
+  expect(playback.controller.getSnapshot()).toMatchObject({
+    errorMessage: null,
+    queue: { status: "playing", current: { item: { trackId: 2 } } },
+  });
+  expect(playback.requests).toEqual([
+    expect.objectContaining({ url: "lume://track/2", shouldPlay: true }),
+  ]);
+});
+
+it.each(["resolves", "rejects"] as const)(
+  "drops a restore that %s after closing",
+  async (outcome) => {
+    const saved = await savedSession(libraryOf([1]), 1, 4);
+    const load = deferred<SavedPlaybackSession | null>();
+    const playback = createTestPlayback({ storage: loadingStorage(() => load.promise) });
+    playback.controller.syncLibrary(libraryOf([1]));
+    playback.controller.flush();
+    const closed = playback.controller.getSnapshot();
+
+    if (outcome === "resolves") load.resolve(saved);
+    else load.reject(new Error("Database locked"));
+    await settle();
+
+    expect(playback.controller.getSnapshot()).toBe(closed);
+    expect(closed).toMatchObject({ isInitialized: false, queue: null, errorMessage: null });
+    expect(playback.requests).toEqual([]);
+    expect(playback.writes).toEqual([]);
+    expect(playback.flushes).toEqual([]);
+  },
+);
+
+it("ignores audio events, positions, library syncs, playlist edits, and errors after closing", async () => {
+  const playlist = {
+    id: 1,
+    title: "Source",
+    description: null,
+    tracks: [
+      { id: 10, trackId: 1, position: 0, addedAt: 0 },
+      { id: 11, trackId: 2, position: 1, addedAt: 1 },
+    ],
+  } satisfies PlaylistDetails;
+
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(playlistView(playlist), 10);
+  const loaded = playback.requests.at(-1);
+
+  if (!loaded) throw new Error("Expected the first track to load");
+  playback.controller.flush();
+  const closed = playback.controller.getSnapshot();
+  playback.controller.handleAudioEvent({
+    type: "ended",
+    requestId: loaded.requestId,
+    queueItemId: loaded.queueItemId,
+  });
+  playback.controller.onPosition(9);
+  playback.controller.syncLibrary(libraryOf([1, 2, 3]));
+  playback.controller.applySourceChange({
+    type: "sourceEntriesRemoved",
+    playlistId: 1,
+    sourceEntryIds: [11],
+  });
+  playback.controller.setError("Late failure");
+  await settle();
+
+  expect(playback.controller.getSnapshot()).toBe(closed);
+  expect(playback.requests).toEqual([loaded]);
+  expect(playback.writes).toEqual([]);
+  expect(playback.flushes).toHaveLength(1);
+});
+
+it("closing drops a queue-end restart that finishes reading its playlist afterwards", async () => {
+  const read = deferred<PlaylistDetails | null>();
+  const playback = createTestPlayback({ loadPlaylist: () => read.promise });
+  playback.controller.syncLibrary(libraryOf([1]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
+  playback.controller.next();
+  playback.controller.flush();
+  const closed = playback.controller.getSnapshot();
+  read.resolve(singleTrackPlaylist);
+  await settle();
+
+  expect(playback.controller.getSnapshot()).toBe(closed);
+  expect(closed.queue).toMatchObject({ status: "stopped", current: null });
+  expect(playback.requests.at(-1)).toBeNull();
+});
+
+it("shows a failed queue-end playlist read and stays stopped", async () => {
+  const read = deferred<PlaylistDetails | null>();
+  const playback = createTestPlayback({ loadPlaylist: () => read.promise });
+  playback.controller.syncLibrary(libraryOf([1]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
+  playback.controller.next();
+  read.reject(new Error("Playlist unavailable"));
+
+  await expect
+    .poll(() => playback.controller.getSnapshot().errorMessage)
+    .toBe("Playlist unavailable");
+  expect(playback.controller.getSnapshot().queue).toMatchObject({
+    status: "stopped",
+    current: null,
+  });
+});
+
+it.each(["resolves", "rejects"] as const)(
+  "lets a later pause cancel a queue-end restart whose playlist read %s",
+  async (outcome) => {
+    const read = deferred<PlaylistDetails | null>();
+    const playback = createTestPlayback({ loadPlaylist: () => read.promise });
+    playback.controller.syncLibrary(libraryOf([1]));
+    await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+    playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
+    playback.controller.next();
+    playback.controller.pause();
+
+    if (outcome === "resolves") read.resolve(singleTrackPlaylist);
+    else read.reject(new Error("Playlist unavailable"));
+    await settle();
+
+    expect(playback.controller.getSnapshot()).toMatchObject({
+      errorMessage: null,
+      queue: { status: "stopped", current: null },
+    });
+    expect(playback.requests.at(-1)).toBeNull();
+  },
+);
+
+it("resumes the loaded track in place without reloading it", async () => {
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary(libraryOf([1]));
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.pause();
+
+  expect(playback.audioState.playing).toBe(false);
+
+  playback.controller.resume();
+
+  expect(playback.audioState.playing).toBe(true);
+  expect(playback.requests).toHaveLength(1);
+});
+
+it("reloads a restored track at its saved position once a rescan makes it available", async () => {
+  const saved = await savedSession(libraryOf([1, 2]), 1, 12);
+  const playback = createTestPlayback({ storage: loadingStorage(() => Promise.resolve(saved)) });
+  playback.controller.syncLibrary({
+    ...libraryOf([2]),
+    tracks: [{ ...track(1), available: false }, track(2)],
+  });
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  expect(playback.requests).toEqual([null]);
+
+  playback.controller.syncLibrary(libraryOf([1, 2]));
+
+  expect(playback.requests.at(-1)).toMatchObject({
+    url: "lume://track/1",
+    position: 12,
+    shouldPlay: false,
+  });
+});
+
+it("skips a restored track that is still unavailable when resumed", async () => {
+  const saved = await savedSession(libraryOf([1, 2]), 1, 12);
+  const playback = createTestPlayback({ storage: loadingStorage(() => Promise.resolve(saved)) });
+  playback.controller.syncLibrary({
+    ...libraryOf([2]),
+    tracks: [{ ...track(1), available: false }, track(2)],
+  });
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.resume();
+
+  expect(playback.controller.getSnapshot()).toMatchObject({
+    errorMessage: "This track is unavailable",
+    queue: { current: { item: { trackId: 2 } } },
+  });
+  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2" });
+});
+
+const singleTrackPlaylist = {
+  id: 1,
+  title: "Source",
+  description: null,
+  tracks: [{ id: 10, trackId: 1, position: 0, addedAt: 0 }],
+} satisfies PlaylistDetails;
+
+async function savedSession(library: MusicLibrary, trackId: number, position: number) {
+  const original = createTestPlayback();
+  original.controller.syncLibrary(library);
+  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  original.controller.playSourceEntry(allTracks(original.controller), trackId);
+  original.controller.seek(position);
+  original.controller.flush();
+
+  return original.flushes.at(-1) ?? null;
+}
+
+function loadingStorage(
+  load: () => Promise<SavedPlaybackSession | null>,
+): LumeApi["playbackSession"] {
+  return {
+    load,
+    save: () => Promise.resolve(),
+    savePosition: () => Promise.resolve(),
+    flush: () => {},
+  };
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+
+  let reject: (error: Error) => void = () => {};
+
+  const promise = new Promise<T>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 function libraryOf(ids: readonly number[]): MusicLibrary {
   return { kind: "library", playlists: [], sources: [], tracks: ids.map(track) };
 }
