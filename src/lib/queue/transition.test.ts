@@ -1,4 +1,5 @@
 import { expect, it } from "vite-plus/test";
+import type { QueuePosition } from "./commands";
 import type { QueueState } from "./model";
 import { transition } from "./transition";
 import { queueContext } from "../../../tests/helpers/queue-context";
@@ -26,13 +27,13 @@ it("plays each manual addition before returning to the source", () => {
 
   const withFirstAddition = transition(
     started,
-    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual-1" }] },
+    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual-1" }], position: "end" },
     context,
   );
 
   const withBothAdditions = transition(
     withFirstAddition,
-    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual-2" }] },
+    { type: "enqueueTracks", items: [{ trackId: 3, queueItemId: "manual-2" }], position: "end" },
     context,
   );
 
@@ -163,13 +164,13 @@ it("skips unavailable source items after a manual jump and Previous", () => {
 
   const firstManual = transition(
     started,
-    { type: "enqueueTracks", items: [{ trackId: 4, queueItemId: "manual-1" }] },
+    { type: "enqueueTracks", items: [{ trackId: 4, queueItemId: "manual-1" }], position: "end" },
     context,
   );
 
   const secondManual = transition(
     firstManual,
-    { type: "enqueueTracks", items: [{ trackId: 4, queueItemId: "manual-2" }] },
+    { type: "enqueueTracks", items: [{ trackId: 4, queueItemId: "manual-2" }], position: "end" },
     context,
   );
 
@@ -241,4 +242,125 @@ function sourceQueueItemId(state: QueueState | null, sourceEntryId: number) {
   if (!item) throw new Error(`Expected source entry ${sourceEntryId} in the queue`);
 
   return item.queueItemId;
+}
+
+it.each([
+  { position: "start", expected: ["A", "B", "C", "X", "Y"] },
+  { position: "end", expected: ["X", "Y", "A", "B", "C"] },
+] as const)(
+  "places a batch at the $position of the manual queue without touching playback",
+  ({ position, expected }) => {
+    const context = queueContext([1, 2, 3, 4, 5, 6]);
+    const queued = enqueue(startedAt(1, context), ["X", "Y"], "end", context);
+
+    const placed = enqueue(queued, ["A", "B", "C"], position, context);
+
+    expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(expected);
+    expect(placed?.current).toEqual(queued?.current);
+    expect(placed?.status).toBe(queued?.status);
+    expect(placed?.sourceQueue).toEqual(queued?.sourceQueue);
+    expect(placed?.previousSourceItems).toEqual(queued?.previousSourceItems);
+  },
+);
+
+it("puts each Play next group ahead of earlier ones and plays them before resuming the source", () => {
+  const context = queueContext([1, 2, 3, 4, 5, 6]);
+  const queued = enqueue(startedAt(1, context), ["X", "Y"], "end", context);
+  const firstGroup = enqueue(queued, ["A", "B", "C"], "start", context);
+
+  const secondGroup = enqueue(firstGroup, ["D", "E"], "start", context);
+
+  expect(secondGroup?.manualQueue.map((item) => item.queueItemId)).toEqual([
+    "D",
+    "E",
+    "A",
+    "B",
+    "C",
+    "X",
+    "Y",
+  ]);
+
+  const played: (string | undefined)[] = [];
+  let state = secondGroup;
+
+  for (let step = 0; step < 8; step++) {
+    state = transition(state, { type: "next" }, context);
+    played.push(state?.current?.item.queueItemId);
+  }
+
+  expect(played.slice(0, 7)).toEqual(["D", "E", "A", "B", "C", "X", "Y"]);
+  expect(state?.current).toMatchObject({ lane: "source", item: { trackId: 2 } });
+});
+
+it("keeps every duplicate track that arrives with a distinct id", () => {
+  const context = queueContext([1, 2, 3]);
+
+  const placed = transition(
+    startedAt(1, context),
+    {
+      type: "enqueueTracks",
+      items: [
+        { trackId: 3, queueItemId: "first" },
+        { trackId: 3, queueItemId: "second" },
+        { trackId: 2, queueItemId: "third" },
+      ],
+      position: "start",
+    },
+    context,
+  );
+
+  expect(placed?.manualQueue.map((item) => [item.queueItemId, item.trackId])).toEqual([
+    ["first", 3],
+    ["second", 3],
+    ["third", 2],
+  ]);
+});
+
+it("starts the first Play next item of a stopped queue and queues the rest in order", () => {
+  const context = queueContext([1, 2, 3, 4, 5, 6]);
+  const ended = transition(startedAt(1, context), { type: "next" }, queueContext([1]));
+
+  expect(ended).toMatchObject({ current: null, status: "stopped", manualQueue: [] });
+
+  const placed = enqueue(ended, ["A", "B", "C"], "start", context);
+
+  expect(placed).toMatchObject({
+    status: "playing",
+    current: { lane: "manual", item: { queueItemId: "A" } },
+  });
+  expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(["B", "C"]);
+});
+
+function startedAt(sourceEntryId: number, context: ReturnType<typeof queueContext>) {
+  return transition(
+    null,
+    {
+      type: "startSession",
+      sort: defaultSort,
+      filter: null,
+      source: { kind: "all-tracks" },
+      entries: [1, 2, 3, 4, 5, 6].map((trackId) => ({ sourceEntryId: trackId, trackId })),
+      start: { kind: "entry", sourceEntryId },
+      shuffled: false,
+      sessionId: "session",
+    },
+    context,
+  );
+}
+
+function enqueue(
+  state: QueueState | null,
+  ids: readonly string[],
+  position: QueuePosition,
+  context: ReturnType<typeof queueContext>,
+) {
+  return transition(
+    state,
+    {
+      type: "enqueueTracks",
+      items: ids.map((queueItemId, index) => ({ trackId: index + 3, queueItemId })),
+      position,
+    },
+    context,
+  );
 }

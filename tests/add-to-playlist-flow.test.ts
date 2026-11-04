@@ -135,7 +135,7 @@ it("hands off to creation from the picker without returning focus", () => {
 });
 
 it("closes the picker for the queue and returns focus without a playlist request", () => {
-  const state = run(open, { type: "addToQueue" });
+  const state = run(open, { type: "queue" });
 
   expect(state).toMatchObject({
     last: { phase: "picking", returnTo: 1, target },
@@ -143,8 +143,8 @@ it("closes the picker for the queue and returns focus without a playlist request
     returnFocus: true,
   });
   expect(requestOf(state)).toBeNull();
-  expect(run(open, pick(), { type: "addToQueue" }).phase).toBe("checking");
-  expect(run({ type: "addToQueue" })).toBe(idleFlow);
+  expect(run(open, pick(), { type: "queue" }).phase).toBe("checking");
+  expect(run({ type: "queue" })).toBe(idleFlow);
 });
 
 it("shows a failed check in the picker and starts fresh on the next destination", () => {

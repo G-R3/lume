@@ -22,6 +22,7 @@ const platforms = [
       createPlaylist: { key: "N", meta: true, shift: true },
       like: { key: "l", meta: true },
       queue: { alt: true, key: "Enter" },
+      playNext: { alt: true, key: "Enter", shift: true },
       removeFromPlaylist: { key: "Backspace", meta: true },
     },
   },
@@ -33,6 +34,7 @@ const platforms = [
       createPlaylist: { ctrl: true, key: "N", shift: true },
       like: { ctrl: true, key: "l" },
       queue: { alt: true, key: "Enter" },
+      playNext: { alt: true, key: "Enter", shift: true },
       removeFromPlaylist: { key: "Delete" },
     },
   },
@@ -48,7 +50,7 @@ describe("neighbors of a selection shortcut", () => {
   it.each<[string, Press]>([
     ["plain Enter", { key: "Enter" }],
     ["Shift+Enter", { key: "Enter", shift: true }],
-    ["Alt+Shift+Enter", { alt: true, key: "Enter", shift: true }],
+    ["Cmd+Alt+Shift+Enter", { alt: true, key: "Enter", meta: true, shift: true }],
     ["Cmd+Enter", { key: "Enter", meta: true }],
     ["Cmd+P", { key: "p", meta: true }],
     ["Cmd+Alt+Shift+P", { alt: true, key: "P", meta: true, shift: true }],
@@ -80,12 +82,18 @@ describe("neighbors of a selection shortcut", () => {
 });
 
 describe("shortcuts for unavailable actions", () => {
-  it("ignores Alt+Enter when nothing is playing", () => {
-    const noQueue = { playlist: true, queue: false };
+  it.each([true, false])(
+    "ignores Alt+Enter and Shift+Alt+Enter when nothing is playing, isMac=%s",
+    (isMac) => {
+      const noQueue = { playlist: true, queue: false };
 
-    expect(matchSelectionShortcut(press({ alt: true, key: "Enter" }), true, noQueue)).toBeNull();
-    expect(matchSelectionShortcut(press({ key: "l", meta: true }), true, noQueue)).toBe("like");
-  });
+      expect(matchSelectionShortcut(press({ alt: true, key: "Enter" }), isMac, noQueue)).toBeNull();
+      expect(
+        matchSelectionShortcut(press({ alt: true, key: "Enter", shift: true }), isMac, noQueue),
+      ).toBeNull();
+      expect(matchSelectionShortcut(press({ key: "l", meta: true }), true, noQueue)).toBe("like");
+    },
+  );
 
   it("ignores remove outside a playlist", () => {
     const tracksView = { playlist: false, queue: true };
@@ -101,6 +109,7 @@ describe("aria-keyshortcuts", () => {
   it.each([
     ["addToPlaylist", "Meta+Shift+P", "Control+Shift+P"],
     ["queue", "Alt+Enter", "Alt+Enter"],
+    ["playNext", "Shift+Alt+Enter", "Shift+Alt+Enter"],
     ["like", "Meta+L", "Control+L"],
     ["createPlaylist", "Meta+Shift+N", "Control+Shift+N"],
     ["removeFromPlaylist", "Meta+Backspace", "Delete"],

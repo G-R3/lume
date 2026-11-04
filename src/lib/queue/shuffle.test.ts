@@ -43,13 +43,13 @@ it("restores source order after toggling and keeps removals and manual priority"
 
   const firstManual = transition(
     reordered,
-    { type: "enqueueTracks", items: [{ trackId: 5, queueItemId: "manual-5" }] },
+    { type: "enqueueTracks", items: [{ trackId: 5, queueItemId: "manual-5" }], position: "end" },
     context,
   );
 
   const secondManual = transition(
     firstManual,
-    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }], position: "end" },
     context,
   );
 
@@ -257,7 +257,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
 
   const manual = transition(
     shuffle(started, [14, 13, 12]),
-    { type: "enqueueTracks", items: [{ trackId: 1, queueItemId: "manual-1" }] },
+    { type: "enqueueTracks", items: [{ trackId: 1, queueItemId: "manual-1" }], position: "end" },
     context,
   );
 
@@ -348,13 +348,13 @@ it("restores a shuffled pass and lets Previous return through repeated visits", 
 
   const firstManual = transition(
     revisited,
-    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }], position: "end" },
     context,
   );
 
   const secondManual = transition(
     firstManual,
-    { type: "enqueueTracks", items: [{ trackId: 7, queueItemId: "manual-7" }] },
+    { type: "enqueueTracks", items: [{ trackId: 7, queueItemId: "manual-7" }], position: "end" },
     context,
   );
 
@@ -477,7 +477,7 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
 
   const state = transition(
     deletedCurrent,
-    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }], position: "end" },
     context,
   );
 
@@ -533,7 +533,7 @@ function startPlaylist(startEntryId: number) {
 function playManualAfterShuffle(startEntryId: number, orderedSourceEntryIds: number[]) {
   const queued = transition(
     shuffle(startPlaylist(startEntryId), orderedSourceEntryIds),
-    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }] },
+    { type: "enqueueTracks", items: [{ trackId: 6, queueItemId: "manual-6" }], position: "end" },
     context,
   );
 

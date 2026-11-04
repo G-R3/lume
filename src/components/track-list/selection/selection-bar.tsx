@@ -2,6 +2,7 @@ import { type ReactElement, type ReactNode, useLayoutEffect, useState } from "re
 import { Toolbar } from "@base-ui/react/toolbar";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
+  ArrowBendDownRightIcon,
   DotsThreeIcon,
   HeartBreakIcon,
   HeartIcon,
@@ -32,7 +33,7 @@ import {
 
 type SelectionBarProps = {
   allLiked: boolean;
-  canAddToQueue: boolean;
+  canQueue: boolean;
   canRemove: boolean;
   count: number;
   duration: number;
@@ -166,7 +167,7 @@ function toastLiftFor(bar: HTMLElement) {
 
 function SelectionBar({
   allLiked,
-  canAddToQueue,
+  canQueue,
   canRemove,
   count,
   duration,
@@ -200,7 +201,7 @@ function SelectionBar({
           <PlaylistIcon aria-hidden="true" data-icon="inline-start" />
           Add to playlist
         </BarAction>
-        {canAddToQueue && (
+        {canQueue && (
           <BarAction
             action="queue"
             label="Add to queue"
@@ -269,6 +270,17 @@ function SelectionBar({
             <DotsThreeIcon aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
+            {canQueue && (
+              <DropdownMenuItem
+                aria-keyshortcuts={selectionKeyShortcuts("playNext", window.lume.isMac)}
+                className="whitespace-nowrap"
+                onClick={() => onAction("playNext")}
+              >
+                <ArrowBendDownRightIcon aria-hidden="true" />
+                Play next
+                <SelectionMenuShortcut action="playNext" />
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               aria-keyshortcuts={selectionKeyShortcuts("createPlaylist", window.lume.isMac)}
               className="whitespace-nowrap"

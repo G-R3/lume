@@ -351,6 +351,18 @@ it("captures the selection in displayed order with repeated tracks kept as separ
   });
 });
 
+it("captures a range made upward with Shift-click in displayed order", () => {
+  const state = run(
+    createSelection({ context: allTracks, rows: rows(1, 2, 3, 4) }),
+    click(3),
+    click(1, "range"),
+  );
+
+  expect(
+    captureSelectionInDisplayedOrder(state)?.entries.map((entry) => entry.sourceEntryId),
+  ).toEqual([1, 2, 3]);
+});
+
 const openMenu = (entryId: number, trigger: "context" | "overflow" = "context") =>
   ({ entryId, focusToken: Symbol("row menu"), trigger, type: "openMenu" }) as const;
 

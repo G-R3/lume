@@ -42,7 +42,7 @@ type TrackRowProps = {
   actions: TrackRowActions;
   addedToListAt: number;
   artworkState: ArtworkState | undefined;
-  canAddToQueue: boolean;
+  canQueue: boolean;
   index: number;
   isActive: boolean;
   isSelected: boolean;
@@ -59,7 +59,7 @@ export const TrackRow = memo(function TrackRow({
   actions,
   addedToListAt,
   artworkState,
-  canAddToQueue,
+  canQueue,
   index,
   isActive,
   isSelected,
@@ -75,7 +75,7 @@ export const TrackRow = memo(function TrackRow({
 
   const menuItems = menuTarget && (
     <TrackRowMenuItems
-      canAddToQueue={canAddToQueue}
+      canQueue={canQueue}
       menu={menuTarget}
       playlistTitle={playlistTitle}
       run={actions.run}

@@ -77,7 +77,7 @@ export function TrackList({
   const { activeSourceEntryId, activeSourcePlaylistId, isPlaying, playSourceEntry, queue } =
     usePlayback();
 
-  const canAddToQueue = queue !== null;
+  const canQueue = queue !== null;
   const focusReturnOwnerRef = useRef<symbol | null>(null);
   const [selection, dispatchSelection] = useTrackSelection({ context: source, rows: items });
   const bodyRef = useRef<TrackListBodyHandle>(null);
@@ -205,7 +205,7 @@ export function TrackList({
 
     const shortcut = isEditableElement(target)
       ? null
-      : matchSelectionShortcut(event, isMac, { playlist: isPlaylist, queue: canAddToQueue });
+      : matchSelectionShortcut(event, isMac, { playlist: isPlaylist, queue: canQueue });
 
     if (shortcut) {
       const barAction = target.closest<HTMLElement>("[data-bar-action]")?.dataset.barAction;
@@ -324,7 +324,7 @@ export function TrackList({
       <TrackRow
         actions={rowActions}
         artworkState={isActive ? (isPlaying ? "playing" : "paused") : undefined}
-        canAddToQueue={canAddToQueue}
+        canQueue={canQueue}
         index={index}
         isActive={isActive}
         isSelected={isSelected}
@@ -391,7 +391,7 @@ export function TrackList({
       </div>
       <FloatingSelectionBar
         allLiked={summary.allLiked}
-        canAddToQueue={canAddToQueue}
+        canQueue={canQueue}
         canRemove={isPlaylist}
         count={summary.count}
         duration={summary.duration}

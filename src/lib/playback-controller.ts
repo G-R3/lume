@@ -1,7 +1,7 @@
 import type { LumeApi, MusicLibrary, PlaylistDetails } from "../../shared/lib";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
-import type { QueueCommand, QueueRandom, SessionSource } from "@/lib/queue/commands";
+import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
 import type { QueueState, SourceIdentity } from "@/lib/queue/model";
 import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistence";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
@@ -404,12 +404,13 @@ export function createPlaybackController(dependencies: {
       ++actionId;
       dispatch({ type: "clearManualQueue" });
     },
-    enqueueTracks: (orderedTrackIds: readonly number[]) => {
+    enqueueTracks: (orderedTrackIds: readonly number[], position: QueuePosition) => {
       if (closing || !snapshot.isInitialized || !snapshot.queue) return;
       ++actionId;
       dispatch({
         type: "enqueueTracks",
         items: orderedTrackIds.map((trackId) => ({ trackId, queueItemId: crypto.randomUUID() })),
+        position,
       });
     },
     flush: () => {

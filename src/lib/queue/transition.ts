@@ -1,4 +1,4 @@
-import type { QueueCommand, QueueContext } from "./commands";
+import type { QueueCommand, QueueContext, QueuePosition } from "./commands";
 import {
   activeSourceEntryId,
   addUnique,
@@ -156,11 +156,19 @@ function enqueueTracks(
       current: playAs(first, "manual"),
       status: "playing",
       lastSelectedItem: first,
-      manualQueue: [...state.manualQueue, ...rest],
+      manualQueue: placeInManualQueue(state.manualQueue, rest, command.position),
     };
   }
 
-  return { ...state, manualQueue: [...state.manualQueue, ...items] };
+  return { ...state, manualQueue: placeInManualQueue(state.manualQueue, items, command.position) };
+}
+
+function placeInManualQueue(
+  manualQueue: readonly QueueItem[],
+  items: readonly QueueItem[],
+  position: QueuePosition,
+) {
+  return position === "start" ? [...items, ...manualQueue] : [...manualQueue, ...items];
 }
 
 function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueState {
