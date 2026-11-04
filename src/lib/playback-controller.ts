@@ -80,10 +80,10 @@ export function createPlaybackController(dependencies: {
   const revisionOf = (playlistId: number) => playlistRevisions.get(playlistId) ?? 0;
 
   const savePending = async () => {
-    if (saving || closing) return;
+    if (saving) return;
     saving = true;
 
-    while (pendingSave && !closing) {
+    while (pendingSave) {
       const next = pendingSave;
       pendingSave = null;
       const saveQueue = next.state !== savedState;
@@ -245,10 +245,7 @@ export function createPlaybackController(dependencies: {
     }
 
     void restartFromSource(queue.sourceIdentity, queue.sort, request, initiatingAction).catch(
-      (error: Error) => {
-        if (initiatingAction === actionId)
-          setError(error.message || "Could not load playback source");
-      },
+      (error: Error) => setError(error.message || "Could not load playback source"),
     );
   };
 
