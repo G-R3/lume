@@ -125,7 +125,7 @@ it("only accepts the latest play rejection and explicit pause supersedes it", as
   expect(probe.events).toEqual([]);
   await act(async () => probe.attempts[1]!(new DOMException("latest")));
   expect(probe.events).toEqual([
-    { type: "error", requestId: "a", queueItemId: "same-item", source: "play", message: "latest" },
+    { type: "error", requestId: "a", queueItemId: "same-item", reason: "rejected" },
   ]);
   act(() => probe.media.play());
   act(() => probe.media.pause());
@@ -181,10 +181,10 @@ it("preserves separate load positions and an unavailable track position", () => 
   expect(probe.media.getPosition()).toBe(12);
   act(() => {
     probe.media.load(null, 19);
-    expect(probe.media.hasRequest()).toBe(false);
     probe.media.play();
     probe.media.seek(30);
   });
+  expect(probe.media.element).toBeNull();
   expect(probe.media.getPosition()).toBe(19);
   act(() => probe.media.load(request("b")));
   expect(probe.attempts).toHaveLength(0);
@@ -221,7 +221,6 @@ it.each(["play", "ended", "error"])(
     expect(probe.events[0]?.requestId).toBe("a");
     expect(probe.audio.src).toBe("file:///b.wav");
     expect(probe.media.getPosition()).toBe(30);
-    expect(probe.media.hasRequest()).toBe(true);
     expect(probe.media.isPlaying).toBe(false);
   },
 );
@@ -274,15 +273,23 @@ it("distinguishes pause at natural end from a plain pause and reports media erro
   expect(probe.events.map((event) => event.type)).toEqual(["started", "ended"]);
   act(() => probe.media.play());
   emit(probe.audio, "pause", { paused: true, ended: false });
-  emit(probe.audio, "error", { error: { message: "Unreadable file" } });
+  emit(probe.audio, "error", { error: { code: 4 } });
   expect(probe.events.slice(2)).toEqual([
     { type: "paused", requestId: "a", queueItemId: "same-item" },
-    {
-      type: "error",
-      requestId: "a",
-      queueItemId: "same-item",
-      message: "Unreadable file",
-      source: "media",
-    },
+    { type: "error", requestId: "a", queueItemId: "same-item", reason: "load" },
   ]);
+});
+
+it("reports a failed load once, without a second error from its play rejection", async () => {
+  const probe = mountMedia();
+  act(() => probe.media.load(request("a", true)));
+  emit(probe.audio, "error", { error: { code: 4 } });
+  await act(async () =>
+    probe.attempts[0]!(new DOMException("The element has no supported sources.")),
+  );
+
+  expect(probe.events).toEqual([
+    { type: "error", requestId: "a", queueItemId: "same-item", reason: "load" },
+  ]);
+  expect(probe.media.isPlaying).toBe(false);
 });

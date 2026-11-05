@@ -1,8 +1,8 @@
-import type { LumeApi, MusicLibrary, PlaylistDetails } from "../../shared/lib";
+import type { LumeApi, MusicLibrary, PlaylistDetails, Track } from "../../shared/lib";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
-import type { QueueState, SourceIdentity } from "@/lib/queue/model";
+import type { QueueState } from "@/lib/queue/model";
 import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistence";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
 import { libraryEntries, playlistEntries } from "@/lib/queue/source";
@@ -12,6 +12,8 @@ import { transition } from "@/lib/queue/transition";
 type Snapshot = {
   queue: QueueState | null;
   library: MusicLibrary | null;
+  tracksById: ReadonlyMap<number, Track>;
+  availableTrackIds: ReadonlySet<number>;
   isInitialized: boolean;
   errorMessage: string | null;
 };
@@ -22,6 +24,8 @@ type SourceChange = Extract<
     type: "sourceEntriesAdded" | "sourceEntriesRemoved" | "sourceEntryMoved" | "sourceDeleted";
   }
 >;
+
+type PlaylistRestart = { playlistId: number; edited: boolean };
 
 type SessionRequest = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
@@ -43,7 +47,6 @@ export function createPlaybackController(dependencies: {
   audio: {
     load: (request: PlaybackRequest | null, position?: number) => void;
     getPosition: () => number;
-    hasRequest: () => boolean;
     play: () => void;
     pause: () => void;
     seek: (time: number) => void;
@@ -52,21 +55,29 @@ export function createPlaybackController(dependencies: {
   playlistReader: {
     read: (playlistId: number, refresh: boolean) => Promise<PlaylistDetails | null>;
   };
+  hasTrackFile: (trackId: number) => Promise<boolean>;
   random: () => number;
 }) {
   const listeners = new Set<() => void>();
   const random = createQueueRandom(dependencies.random);
-  const playlistRevisions = new Map<number, number>();
-  let snapshot: Snapshot = { queue: null, library: null, isInitialized: false, errorMessage: null };
-  let sessionRestoreStarted = false;
-  let closing = false;
-  let actionId = 0;
+
+  let snapshot: Snapshot = {
+    queue: null,
+    library: null,
+    tracksById: new Map(),
+    availableTrackIds: new Set(),
+    isInitialized: false,
+    errorMessage: null,
+  };
+
+  let lifecycle: "awaiting-library" | "restoring" | "ready" | "closed" = "awaiting-library";
+  let playlistRestart: PlaylistRestart | null = null;
   let requestId: string | null = null;
+  // Chromium keeps reusing a failed load for the same URL, so these tracks reload under a fresh one.
+  const failedTrackIds = new Set<number>();
   let pendingSave: { state: QueueState; position: number } | null = null;
   let savedState: QueueState | null = null;
   let saving = false;
-  let tracksById = new Map<number, MusicLibrary["tracks"][number]>();
-  let availableTrackIds = new Set<number>();
 
   const publish = (next: Snapshot) => {
     snapshot = next;
@@ -74,16 +85,15 @@ export function createPlaybackController(dependencies: {
   };
 
   const setError = (errorMessage: string | null) => {
-    if (!closing && snapshot.errorMessage !== errorMessage) publish({ ...snapshot, errorMessage });
+    if (lifecycle !== "closed" && snapshot.errorMessage !== errorMessage)
+      publish({ ...snapshot, errorMessage });
   };
 
-  const revisionOf = (playlistId: number) => playlistRevisions.get(playlistId) ?? 0;
-
   const savePending = async () => {
-    if (saving || closing) return;
+    if (saving) return;
     saving = true;
 
-    while (pendingSave && !closing) {
+    while (pendingSave) {
       const next = pendingSave;
       pendingSave = null;
       const saveQueue = next.state !== savedState;
@@ -106,7 +116,7 @@ export function createPlaybackController(dependencies: {
   };
 
   const persist = (state: QueueState, position: number) => {
-    if (closing) return;
+    if (lifecycle === "closed") return;
 
     pendingSave = { state, position: savedPosition(position) };
 
@@ -115,7 +125,7 @@ export function createPlaybackController(dependencies: {
 
   const loadCurrent = (position: number, shouldPlay = snapshot.queue?.status === "playing") => {
     const queue = snapshot.queue;
-    const track = queue?.current ? tracksById.get(queue.current.item.trackId) : undefined;
+    const track = queue?.current ? snapshot.tracksById.get(queue.current.item.trackId) : undefined;
 
     requestId = queue?.current && track?.available ? crypto.randomUUID() : null;
 
@@ -124,7 +134,7 @@ export function createPlaybackController(dependencies: {
         ? {
             requestId,
             queueItemId: queue.current.item.queueItemId,
-            url: track.url,
+            url: failedTrackIds.has(track.id) ? `${track.url}?retry=${requestId}` : track.url,
             shouldPlay,
             position,
             durationHint: track.duration && Number.isFinite(track.duration) ? track.duration : 0,
@@ -137,7 +147,7 @@ export function createPlaybackController(dependencies: {
   const commit = (queue: QueueState | null, { restartAudio = false } = {}) => {
     const previous = snapshot.queue;
 
-    if (!queue || queue === previous || closing) return;
+    if (!queue || queue === previous || lifecycle === "closed") return;
 
     const load =
       restartAudio || queue.current?.item.queueItemId !== previous?.current?.item.queueItemId;
@@ -149,7 +159,13 @@ export function createPlaybackController(dependencies: {
   };
 
   const dispatch = (command: QueueCommand, options?: { restartAudio?: boolean }) => {
-    commit(transition(snapshot.queue, command, { availableTrackIds, random }), options);
+    commit(
+      transition(snapshot.queue, command, {
+        availableTrackIds: snapshot.availableTrackIds,
+        random,
+      }),
+      options,
+    );
   };
 
   const dispatchSessionStart = (view: SessionSource, request: SessionRequest) => {
@@ -164,49 +180,40 @@ export function createPlaybackController(dependencies: {
     });
   };
 
-  const startFromView = (view: SessionSource, request: SessionRequest) => {
-    if (!snapshot.isInitialized || closing) return;
-    ++actionId;
-    dispatchSessionStart(view, request);
-  };
+  const userCommand =
+    <Args extends unknown[]>(run: (...args: Args) => void) =>
+    (...args: Args) => {
+      if (lifecycle !== "ready") return;
+      playlistRestart = null;
+      run(...args);
+    };
 
-  const restartFromSource = async (
-    source: SourceIdentity,
+  const restartFromPlaylist = async (
+    restart: PlaylistRestart,
     sort: TrackSort,
     request: SessionRequest,
-    initiatingAction: number,
     refresh = false,
   ): Promise<void> => {
-    if (source.kind === "all-tracks") {
-      if (snapshot.library)
-        dispatchSessionStart(
-          { source, entries: libraryEntries(snapshot.library, sort), filter: null, sort },
-          request,
-        );
-
-      return;
-    }
-
-    const revision = revisionOf(source.playlistId);
-
     const data = await dependencies.playlistReader
-      .read(source.playlistId, refresh)
+      .read(restart.playlistId, refresh)
       .catch((error: Error) => {
-        if (closing || initiatingAction !== actionId || revision !== revisionOf(source.playlistId))
-          return null;
+        if (restart !== playlistRestart || restart.edited) return null;
         throw error;
       });
 
-    if (closing || initiatingAction !== actionId) return;
+    if (restart !== playlistRestart) return;
 
-    if (revision !== revisionOf(source.playlistId))
-      return restartFromSource(source, sort, request, initiatingAction, true);
+    if (restart.edited) {
+      restart.edited = false;
+
+      return restartFromPlaylist(restart, sort, request, true);
+    }
 
     if (data)
       dispatchSessionStart(
         {
           source: { kind: "playlist", playlistId: data.id, title: data.title },
-          entries: playlistEntries(data, tracksById, sort),
+          entries: playlistEntries(data, snapshot.tracksById, sort),
           filter: null,
           sort,
         },
@@ -215,9 +222,6 @@ export function createPlaybackController(dependencies: {
   };
 
   const advance = () => {
-    if (closing || !snapshot.isInitialized) return;
-    const initiatingAction = ++actionId;
-
     dispatch({ type: "next" });
 
     const queue = snapshot.queue;
@@ -234,7 +238,7 @@ export function createPlaybackController(dependencies: {
       dispatchSessionStart(
         {
           source: queue.source,
-          entries: queue.sourceEntries.filter((entry) => tracksById.has(entry.trackId)),
+          entries: queue.sourceEntries.filter((entry) => snapshot.tracksById.has(entry.trackId)),
           filter: queue.filter,
           sort: queue.sort,
         },
@@ -244,19 +248,30 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    void restartFromSource(queue.sourceIdentity, queue.sort, request, initiatingAction).catch(
-      (error: Error) => {
-        if (initiatingAction === actionId)
-          setError(error.message || "Could not load playback source");
-      },
+    if (queue.sourceIdentity.kind === "all-tracks") {
+      if (snapshot.library)
+        dispatchSessionStart(
+          {
+            source: queue.sourceIdentity,
+            entries: libraryEntries(snapshot.library, queue.sort),
+            filter: null,
+            sort: queue.sort,
+          },
+          request,
+        );
+
+      return;
+    }
+
+    const restart = { playlistId: queue.sourceIdentity.playlistId, edited: false };
+    playlistRestart = restart;
+    void restartFromPlaylist(restart, queue.sort, request).catch((error: Error) =>
+      setError(error.message || "Could not load playback source"),
     );
   };
 
   const previous = () => {
-    if (!snapshot.queue || closing) return;
-    ++actionId;
-
-    if (snapshot.queue.current && dependencies.audio.getPosition() > 2) {
+    if (snapshot.queue?.current && dependencies.audio.getPosition() > 2) {
       dependencies.audio.seek(0);
       persist(snapshot.queue, 0);
 
@@ -266,12 +281,26 @@ export function createPlaybackController(dependencies: {
     dispatch({ type: "previous" });
   };
 
-  const resume = () => {
-    if (closing || !snapshot.isInitialized) return;
-    ++actionId;
+  const failureMessage = (
+    reason: "pending" | "unavailable" | "gone" | "unreadable" | "rejected",
+    trackId: number,
+  ) => {
+    const title = snapshot.tracksById.get(trackId)?.title ?? "this track";
 
-    if (snapshot.queue?.current && !dependencies.audio.hasRequest()) {
-      if (availableTrackIds.has(snapshot.queue.current.item.trackId)) {
+    return {
+      pending: `Could not play ${title}.`,
+      unavailable: `Could not play ${title}. It’s unavailable. Check its folder in Settings.`,
+      gone: `Could not play ${title}. Its file was moved, deleted, or disconnected.`,
+      unreadable: `Could not play ${title}. The file can’t be read or is in a format Lume can’t play.`,
+      rejected: `Could not play ${title}. Press Play to try again.`,
+    }[reason];
+  };
+
+  const resume = () => {
+    if (snapshot.queue?.current && requestId === null) {
+      const trackId = snapshot.queue.current.item.trackId;
+
+      if (snapshot.availableTrackIds.has(trackId)) {
         loadCurrent(dependencies.audio.getPosition(), true);
         setError(null);
 
@@ -279,7 +308,7 @@ export function createPlaybackController(dependencies: {
       }
 
       advance();
-      setError("This track is unavailable");
+      setError(failureMessage("unavailable", trackId));
 
       return;
     }
@@ -294,22 +323,18 @@ export function createPlaybackController(dependencies: {
     dependencies.audio.play();
   };
 
-  const pause = () => {
-    if (closing) return;
-    ++actionId;
-    dependencies.audio.pause();
-    dispatch({ type: "playbackPaused" });
-  };
-
   const syncLibrary = (library: MusicLibrary) => {
-    if (closing) return;
-    tracksById = new Map(library.tracks.map((track) => [track.id, track] as const));
-    availableTrackIds = new Set(
-      library.tracks.filter((track) => track.available).map((track) => track.id),
-    );
-    publish({ ...snapshot, library });
+    if (lifecycle === "closed") return;
+    publish({
+      ...snapshot,
+      library,
+      tracksById: new Map(library.tracks.map((track) => [track.id, track])),
+      availableTrackIds: new Set(
+        library.tracks.filter((track) => track.available).map((track) => track.id),
+      ),
+    });
 
-    if (sessionRestoreStarted) {
+    if (lifecycle !== "awaiting-library") {
       dispatch({
         type: "libraryRescanned",
         entries: libraryEntries(library, snapshot.queue?.sort ?? defaultSort),
@@ -317,19 +342,20 @@ export function createPlaybackController(dependencies: {
 
       if (
         snapshot.queue?.current &&
-        availableTrackIds.has(snapshot.queue.current.item.trackId) &&
-        !dependencies.audio.hasRequest()
+        snapshot.availableTrackIds.has(snapshot.queue.current.item.trackId) &&
+        requestId === null
       )
         loadCurrent(dependencies.audio.getPosition());
 
       return;
     }
 
-    sessionRestoreStarted = true;
+    lifecycle = "restoring";
     void dependencies.storage
       .load()
       .then((raw) => {
-        if (closing) return;
+        if (lifecycle === "closed") return;
+        lifecycle = "ready";
         const latestLibrary = snapshot.library ?? library;
         const restored = parseQueueSession(raw, latestLibrary);
 
@@ -340,7 +366,7 @@ export function createPlaybackController(dependencies: {
               type: "libraryRescanned",
               entries: libraryEntries(latestLibrary, restored.state.sort),
             },
-            { availableTrackIds, random },
+            { availableTrackIds: snapshot.availableTrackIds, random },
           );
 
           publish({ ...snapshot, queue });
@@ -350,12 +376,13 @@ export function createPlaybackController(dependencies: {
         publish({ ...snapshot, isInitialized: true });
       })
       .catch((error: Error) => {
-        if (!closing)
-          publish({
-            ...snapshot,
-            errorMessage: error.message || "Could not restore playback",
-            isInitialized: true,
-          });
+        if (lifecycle === "closed") return;
+        lifecycle = "ready";
+        publish({
+          ...snapshot,
+          errorMessage: error.message || "Could not restore playback",
+          isInitialized: true,
+        });
       });
   };
 
@@ -363,7 +390,7 @@ export function createPlaybackController(dependencies: {
     const queue = snapshot.queue;
 
     if (
-      closing ||
+      lifecycle !== "ready" ||
       event.requestId !== requestId ||
       queue?.current?.item.queueItemId !== event.queueItemId
     )
@@ -387,35 +414,52 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    if (event.source === "play") dispatch({ type: "playbackPaused" });
+    const trackId = queue.current.item.trackId;
 
-    if (event.source === "media" && queue.status === "playing") advance();
-    setError(event.message);
+    if (event.reason === "rejected") {
+      dispatch({ type: "playbackPaused" });
+      setError(failureMessage("rejected", trackId));
+
+      return;
+    }
+
+    // A failed element never recovers, so Play must load the track again.
+    requestId = null;
+    failedTrackIds.add(trackId);
+
+    if (queue.status === "playing") advance();
+
+    // Chromium reports a gone file and an unreadable one with the same error, so ask the main process.
+    const firstMessage = failureMessage("pending", trackId);
+    setError(firstMessage);
+    void dependencies
+      .hasTrackFile(trackId)
+      .catch(() => true)
+      .then((exists) => {
+        if (snapshot.errorMessage === firstMessage)
+          setError(failureMessage(exists ? "unreadable" : "gone", trackId));
+      });
   };
 
   return {
     applySourceChange: (change: SourceChange) => {
-      if (closing) return;
-      playlistRevisions.set(change.playlistId, revisionOf(change.playlistId) + 1);
+      if (lifecycle === "closed") return;
+
+      if (playlistRestart?.playlistId === change.playlistId) playlistRestart.edited = true;
       dispatch(change);
     },
-    clearManualQueue: () => {
-      if (closing || !snapshot.isInitialized) return;
-      ++actionId;
-      dispatch({ type: "clearManualQueue" });
-    },
-    enqueueTracks: (orderedTrackIds: readonly number[], position: QueuePosition) => {
-      if (closing || !snapshot.isInitialized || !snapshot.queue) return;
-      ++actionId;
+    clearManualQueue: userCommand(() => dispatch({ type: "clearManualQueue" })),
+    enqueueTracks: userCommand((orderedTrackIds: readonly number[], position: QueuePosition) => {
+      if (!snapshot.queue) return;
       dispatch({
         type: "enqueueTracks",
         items: orderedTrackIds.map((trackId) => ({ trackId, queueItemId: crypto.randomUUID() })),
         position,
       });
-    },
+    }),
     flush: () => {
-      closing = true;
-      ++actionId;
+      lifecycle = "closed";
+      playlistRestart = null;
       pendingSave = null;
 
       // Electron handles sent saves before the final synchronous flush from this renderer.
@@ -427,62 +471,57 @@ export function createPlaybackController(dependencies: {
     },
     getSnapshot: () => snapshot,
     handleAudioEvent,
-    jumpToQueueItem: (queueItemId: string) => {
-      if (closing || !snapshot.isInitialized) return;
-      ++actionId;
-      dispatch({ type: "jumpTo", queueItemId });
-    },
-    moveQueueItem: (input: Omit<Extract<QueueCommand, { type: "moveQueueItem" }>, "type">) => {
-      if (closing || !snapshot.isInitialized) return;
-      ++actionId;
-      dispatch({ type: "moveQueueItem", ...input });
-    },
-    next: advance,
+    jumpToQueueItem: userCommand((queueItemId: string) =>
+      dispatch({ type: "jumpTo", queueItemId }),
+    ),
+    moveQueueItem: userCommand(
+      (input: Omit<Extract<QueueCommand, { type: "moveQueueItem" }>, "type">) =>
+        dispatch({ type: "moveQueueItem", ...input }),
+    ),
+    next: userCommand(advance),
     onPosition: (position: number) => {
       if (snapshot.queue) persist(snapshot.queue, position);
     },
-    pause,
-    playSource: (view: SessionSource) =>
-      startFromView(view, { start: { kind: "first-available" }, shuffled: false }),
-    playSourceEntry: (view: SessionSource, sourceEntryId: number) => {
-      if (!snapshot.isInitialized || closing) return;
+    pause: userCommand(() => {
+      dependencies.audio.pause();
+      dispatch({ type: "playbackPaused" });
+    }),
+    playSource: userCommand((view: SessionSource) =>
+      dispatchSessionStart(view, { start: { kind: "first-available" }, shuffled: false }),
+    ),
+    playSourceEntry: userCommand((view: SessionSource, sourceEntryId: number) => {
       const queue = snapshot.queue;
       const selection = { source: view.source, filter: view.filter, sourceEntryId };
 
       if (selectsWithinShuffledSession(queue, selection)) {
-        ++actionId;
         dispatch({ type: "selectSourceEntry", ...selection }, { restartAudio: true });
 
         return;
       }
 
-      startFromView(view, {
+      dispatchSessionStart(view, {
         start: { kind: "entry", sourceEntryId },
         shuffled: queue?.shuffleEnabled ?? false,
       });
-    },
-    previous,
-    removeQueueItem: (queueItemId: string) => {
-      if (closing || !snapshot.isInitialized) return;
-      ++actionId;
-      dispatch({ type: "removeQueueItem", queueItemId });
-    },
-    resume,
-    seek: (position: number) => {
-      if (closing) return;
-      ++actionId;
+    }),
+    previous: userCommand(previous),
+    removeQueueItem: userCommand((queueItemId: string) =>
+      dispatch({ type: "removeQueueItem", queueItemId }),
+    ),
+    resume: userCommand(resume),
+    seek: userCommand((position: number) => {
       dependencies.audio.seek(position);
 
       if (snapshot.queue) persist(snapshot.queue, dependencies.audio.getPosition());
-    },
+    }),
     setError,
-    setShuffleEnabled: (enabled: boolean) => {
-      if (closing || !snapshot.queue || snapshot.queue.shuffleEnabled === enabled) return;
-      ++actionId;
+    setShuffleEnabled: userCommand((enabled: boolean) => {
+      if (!snapshot.queue || snapshot.queue.shuffleEnabled === enabled) return;
       dispatch({ type: "setShuffleEnabled", enabled });
-    },
-    shufflePlay: (view: SessionSource) =>
-      startFromView(view, { start: { kind: "random" }, shuffled: true }),
+    }),
+    shufflePlay: userCommand((view: SessionSource) =>
+      dispatchSessionStart(view, { start: { kind: "random" }, shuffled: true }),
+    ),
     subscribe: (listener: () => void) => {
       listeners.add(listener);
 

@@ -23,6 +23,7 @@ import {
   forgetSource,
   getLibrarySnapshotJson,
   getSources,
+  hasTrackFile,
   saveSource,
   scanEnabledSources,
   scanSource,
@@ -129,6 +130,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
       return getLibrarySnapshotJson();
     },
+    hasTrackFile: (_window, trackId) => hasTrackFile(rowIdSchema.parse(trackId)),
     loadLibrary: () => getLibrarySnapshotJson(),
     loadPlaybackSession: () => loadPlaybackSession(),
     loadPlaylist: (_window, playlistId) => getPlaylist(rowIdSchema.parse(playlistId)),

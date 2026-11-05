@@ -85,13 +85,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       audio: {
         load: media.load,
         getPosition: media.getPosition,
-        hasRequest: media.hasRequest,
         play: media.play,
         pause: media.pause,
         seek: media.seek,
       },
       storage: window.lume.playbackSession,
       playlistReader: createPlaylistReader(queryClient),
+      hasTrackFile: window.lume.hasTrackFile,
       random: Math.random,
     }),
   );
@@ -105,22 +105,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("beforeunload", controller.flush);
   }, [controller]);
 
-  const tracksById = useMemo(
-    () => new Map(snapshot.library?.tracks.map((track) => [track.id, track]) ?? []),
-    [snapshot.library],
-  );
-
-  const availableTrackIds = useMemo(
-    () =>
-      new Set(
-        snapshot.library?.tracks.filter((track) => track.available).map((track) => track.id) ?? [],
-      ),
-    [snapshot.library],
-  );
-
   const current = snapshot.queue?.current;
   const displayItem = current?.item ?? snapshot.queue?.lastSelectedItem;
-  const activeTrack = displayItem ? (tracksById.get(displayItem.trackId) ?? null) : null;
+  const activeTrack = displayItem ? (snapshot.tracksById.get(displayItem.trackId) ?? null) : null;
 
   const activeSourceEntryId = selectActiveSourceEntryId(snapshot.queue);
 
@@ -139,7 +126,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         activeSourceEntryId,
         activeSourcePlaylistId,
         activeTrack,
-        canGoNext: selectCanGoNext(snapshot.queue, availableTrackIds),
+        canGoNext: selectCanGoNext(snapshot.queue, snapshot.availableTrackIds),
         applySourceChange: controller.applySourceChange,
         clearManualQueue: controller.clearManualQueue,
         enqueueTracks: controller.enqueueTracks,
@@ -176,7 +163,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       media.setVolume,
       media.toggleMute,
       media.volume,
-      availableTrackIds,
+      snapshot.availableTrackIds,
       controller,
       current?.item.queueItemId,
       snapshot.errorMessage,

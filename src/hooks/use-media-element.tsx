@@ -97,18 +97,19 @@ export function useMediaElement(options: {
       return;
 
     const attempt = Symbol();
+    const audio = current.attachment.audio;
     current.attempt = attempt;
-    void current.attachment.audio.play().catch((error: DOMException) => {
+    void audio.play().catch(() => {
       const latest = requestedLifecycle(current.request.requestId);
 
-      if (!latest || latest.attempt !== attempt) return;
+      // A failed load also rejects play(); its media error reports why.
+      if (!latest || latest.attempt !== attempt || audio.error) return;
       commit({ ...latest, intent: "pause", isPlaying: false });
       callbacksRef.current.onEvent({
         type: "error",
         requestId: current.request.requestId,
         queueItemId: current.request.queueItemId,
-        message: error.message || "Playback failed",
-        source: "play",
+        reason: "rejected",
       });
     });
   }, [commit, requestedLifecycle]);
@@ -225,7 +226,7 @@ export function useMediaElement(options: {
             queueItemId: request.queueItemId,
           });
         }}
-        onError={(event) => {
+        onError={() => {
           const current = requestedLifecycle(request.requestId);
 
           if (!current) return;
@@ -235,8 +236,7 @@ export function useMediaElement(options: {
             type: "error",
             requestId: request.requestId,
             queueItemId: request.queueItemId,
-            message: event.currentTarget.error?.message || "Playback failed",
-            source: "media",
+            reason: "load",
           });
         }}
         onLoadedMetadata={(event) => {
@@ -307,7 +307,6 @@ export function useMediaElement(options: {
       />
     ),
     getPosition: timeStore.getSnapshot,
-    hasRequest: () => lifecycleRef.current.kind === "requested",
     isMuted,
     isPlaying: view.isPlaying,
     load,
