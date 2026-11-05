@@ -303,8 +303,7 @@ export function useMediaElement(options: {
           }
         }}
         ref={attachAudio}
-        // Chromium shares loading state between elements with the same URL, including a failed load.
-        src={`${request.url}?request=${request.requestId}`}
+        src={request.url}
       />
     ),
     getPosition: timeStore.getSnapshot,

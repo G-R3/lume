@@ -98,7 +98,7 @@ it("keeps a scanned track and playlist working after restart", async () => {
     .dblclick();
   await firstWindow.getByRole("button", { name: "Pause" }).waitFor();
   expect(await firstWindow.locator("audio").getAttribute("src")).toMatch(
-    /^lume:\/\/app\/media\/\d+\?request=[\w-]+$/,
+    /^lume:\/\/app\/media\/\d+$/,
   );
 
   const playlistRow = firstWindow

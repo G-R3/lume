@@ -1448,7 +1448,10 @@ it("reloads a failed paused track as soon as Play is pressed, before its file ch
   playback.controller.resume();
   const reloaded = playback.requests.at(-1);
 
-  expect(reloaded).toMatchObject({ url: "lume://track/1", shouldPlay: true });
+  expect(reloaded).toMatchObject({
+    url: `lume://track/1?retry=${reloaded?.requestId}`,
+    shouldPlay: true,
+  });
   expect(reloaded?.requestId).not.toBe(failed.requestId);
   expect(playback.controller.getSnapshot().errorMessage).toBeNull();
 

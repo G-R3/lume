@@ -73,6 +73,8 @@ export function createPlaybackController(dependencies: {
   let lifecycle: "awaiting-library" | "restoring" | "ready" | "closed" = "awaiting-library";
   let playlistRestart: PlaylistRestart | null = null;
   let requestId: string | null = null;
+  // Chromium keeps reusing a failed load for the same URL, so these tracks reload under a fresh one.
+  const failedTrackIds = new Set<number>();
   let pendingSave: { state: QueueState; position: number } | null = null;
   let savedState: QueueState | null = null;
   let saving = false;
@@ -132,7 +134,7 @@ export function createPlaybackController(dependencies: {
         ? {
             requestId,
             queueItemId: queue.current.item.queueItemId,
-            url: track.url,
+            url: failedTrackIds.has(track.id) ? `${track.url}?retry=${requestId}` : track.url,
             shouldPlay,
             position,
             durationHint: track.duration && Number.isFinite(track.duration) ? track.duration : 0,
@@ -423,6 +425,7 @@ export function createPlaybackController(dependencies: {
 
     // A failed element never recovers, so Play must load the track again.
     requestId = null;
+    failedTrackIds.add(trackId);
 
     if (queue.status === "playing") advance();
 
