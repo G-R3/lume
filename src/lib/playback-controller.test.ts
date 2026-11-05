@@ -98,11 +98,10 @@ it.each([
       })),
     } satisfies PlaylistDetails;
 
-    const playback = createTestPlayback({ loadPlaylist: () => Promise.resolve(playlist) });
-
-    playback.controller.syncLibrary({ kind: "library", sources: [], playlists: [], tracks });
-
-    await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+    const playback = await createReadyPlayback(
+      { kind: "library", sources: [], playlists: [], tracks },
+      { loadPlaylist: () => Promise.resolve(playlist) },
+    );
 
     playback.controller.playSourceEntry(
       source === "playlist" ? playlistView(playlist) : allTracks(playback.controller),
@@ -158,15 +157,12 @@ it.each([
 );
 
 it("stays stopped when the source no longer has any available tracks", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary({
+  const playback = await createReadyPlayback({
     kind: "library",
     sources: [],
     playlists: [],
     tracks: [track(1)],
   });
-
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
 
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
 
@@ -339,18 +335,19 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
     ],
   } satisfies PlaylistDetails;
 
-  const playback = createTestPlayback({
-    loadPlaylist: () => Promise.resolve(playlist),
-    random: () => random,
-  });
+  const playback = await createReadyPlayback(
+    {
+      kind: "library",
+      playlists: [{ id: 1, title: "Source", description: null, trackCount: 2 }],
+      sources: [],
+      tracks: [1, 2, 3].map(track),
+    },
+    {
+      loadPlaylist: () => Promise.resolve(playlist),
+      random: () => random,
+    },
+  );
 
-  playback.controller.syncLibrary({
-    kind: "library",
-    playlists: [{ id: 1, title: "Source", description: null, trackCount: 2 }],
-    sources: [],
-    tracks: [1, 2, 3].map(track),
-  });
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(playlistView(playlist), 11);
   playback.controller.enqueueTracks([3], "end");
   playback.controller.shufflePlay(playlistView(playlist));
@@ -395,9 +392,7 @@ it("restores a shuffled queue and position exactly, paused without new randomnes
     tracks: [1, 2, 3, 4].map(track),
   } satisfies MusicLibrary;
 
-  const original = createTestPlayback();
-  original.controller.syncLibrary(library);
-  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  const original = await createReadyPlayback(library);
   original.controller.playSourceEntry(allTracks(original.controller), 2);
   original.controller.setShuffleEnabled(true);
   original.controller.enqueueTracks([4], "end");
@@ -471,17 +466,18 @@ it("refreshes a late playlist read after a committed edit before restarting at q
 
   const updated = { ...original, tracks: [{ id: 12, trackId: 2, position: 0, addedAt: 0 }] };
 
-  const playback = createTestPlayback({
-    loadPlaylist: () => (finishRead ? pending : Promise.resolve(updated)),
-  });
+  const playback = await createReadyPlayback(
+    {
+      kind: "library",
+      playlists: [{ id: 1, title: "Source", description: null, trackCount: 2 }],
+      sources: [],
+      tracks: [1, 2].map(track),
+    },
+    {
+      loadPlaylist: () => (finishRead ? pending : Promise.resolve(updated)),
+    },
+  );
 
-  playback.controller.syncLibrary({
-    kind: "library",
-    playlists: [{ id: 1, title: "Source", description: null, trackCount: 2 }],
-    sources: [],
-    tracks: [1, 2].map(track),
-  });
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(playlistView(original), 12);
   playback.controller.next();
   playback.controller.applySourceChange({
@@ -511,14 +507,13 @@ it("refreshes a late playlist read after a committed edit before restarting at q
 });
 
 it("restarts the current shuffled row in place and ignores events from its old load", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary({
+  const playback = await createReadyPlayback({
     kind: "library",
     playlists: [],
     sources: [],
     tracks: [1, 2, 3].map(track),
   });
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
   playback.controller.playSourceEntry(allTracks(playback.controller), 2);
   playback.controller.setShuffleEnabled(true);
   const old = playback.audioState.request;
@@ -695,15 +690,16 @@ it("rebuilds a shuffled queue from another source and keeps the manual queue", a
     })),
   } satisfies PlaylistDetails;
 
-  const playback = createTestPlayback({ loadPlaylist: () => Promise.resolve(playlist) });
+  const playback = await createReadyPlayback(
+    {
+      kind: "library",
+      playlists: [{ id: 1, title: "Source", description: null, trackCount: 3 }],
+      sources: [],
+      tracks: [1, 2, 3, 4].map(track),
+    },
+    { loadPlaylist: () => Promise.resolve(playlist) },
+  );
 
-  playback.controller.syncLibrary({
-    kind: "library",
-    playlists: [{ id: 1, title: "Source", description: null, trackCount: 3 }],
-    sources: [],
-    tracks: [1, 2, 3, 4].map(track),
-  });
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(allTracks(playback.controller), 2);
   playback.controller.setShuffleEnabled(true);
   playback.controller.enqueueTracks([4], "end");
@@ -729,9 +725,7 @@ it("rebuilds a shuffled queue from another source and keeps the manual queue", a
 });
 
 it("starts a filtered view at the clicked row, in displayed order", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2, 3, 4]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2, 3, 4]));
 
   playback.controller.playSourceEntry(tracksView([3, 1, 2], "a"), 1);
 
@@ -750,9 +744,7 @@ it("starts a filtered view at the clicked row, in displayed order", async () => 
 });
 
 it("plays a row clicked under a different filter while shuffle is on", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2, 3, 4]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2, 3, 4]));
 
   playback.controller.playSourceEntry(tracksView([1, 2], "a"), 1);
   playback.controller.setShuffleEnabled(true);
@@ -773,9 +765,7 @@ it("plays a row clicked under a different filter while shuffle is on", async () 
 });
 
 it("selects within a shuffled filtered session when clicked under the same filter", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2, 3]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2, 3]));
 
   playback.controller.playSourceEntry(tracksView([1, 2, 3], "a"), 1);
   playback.controller.setShuffleEnabled(true);
@@ -844,9 +834,7 @@ it.each([false, true])(
 );
 
 it("re-reads the library for an unfiltered session at queue end", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
 
   playback.controller.playSourceEntry(tracksView([2, 1], null), 1);
   playback.controller.syncLibrary(libraryOf([1, 2, 3]));
@@ -864,14 +852,12 @@ it("re-reads the library for an unfiltered session at queue end", async () => {
 });
 
 it("keeps a restored filtered session unchanged through rescans", async () => {
-  const original = createTestPlayback();
-  original.controller.syncLibrary(libraryOf([1, 2, 3]));
-  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  const original = await createReadyPlayback(libraryOf([1, 2, 3]));
   original.controller.playSourceEntry(tracksView([3, 1], "a"), 3);
   original.controller.flush();
   const saved = original.flushes.at(-1) ?? null;
 
-  const restored = createTestPlayback({
+  const restored = await createReadyPlayback(libraryOf([1, 2, 3, 4]), {
     storage: {
       load: () => Promise.resolve(saved),
       save: () => Promise.resolve(),
@@ -880,8 +866,6 @@ it("keeps a restored filtered session unchanged through rescans", async () => {
     },
   });
 
-  restored.controller.syncLibrary(libraryOf([1, 2, 3, 4]));
-  await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
   const queue = restored.controller.getSnapshot().queue;
 
   expect(queue).toEqual({ ...original.controller.getSnapshot().queue, status: "paused" });
@@ -1065,31 +1049,27 @@ it("restores a session's sort after a relaunch", async () => {
   original.controller.flush();
   const saved = original.flushes.at(-1) ?? null;
 
-  const restored = createTestPlayback({
-    storage: {
-      load: () => Promise.resolve(saved),
-      save: () => Promise.resolve(),
-      savePosition: () => Promise.resolve(),
-      flush: () => {},
-    },
-  });
-
-  restored.controller.syncLibrary(
+  const restored = await createReadyPlayback(
     fruitLibrary([
       { ...track(4), title: "Aardvark", addedAt: 4 },
       { ...track(5), title: "Zucchini", addedAt: 5 },
     ]),
+    {
+      storage: {
+        load: () => Promise.resolve(saved),
+        save: () => Promise.resolve(),
+        savePosition: () => Promise.resolve(),
+        flush: () => {},
+      },
+    },
   );
-  await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
 
   expect(restored.controller.getSnapshot().queue?.sort).toEqual(titleDesc);
   expect(trackIds(restored.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 3, 2, 5, 4]);
 });
 
 it("restores no queue and shows no error for a version 5 session", async () => {
-  const original = createTestPlayback();
-  original.controller.syncLibrary(libraryOf([1, 2]));
-  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  const original = await createReadyPlayback(libraryOf([1, 2]));
   original.controller.playSourceEntry(allTracks(original.controller), 1);
   original.controller.flush();
   const saved = original.flushes.at(-1);
@@ -1099,7 +1079,7 @@ it("restores no queue and shows no error for a version 5 session", async () => {
   delete state.filter;
   const payload = JSON.stringify({ version: 5, state });
 
-  const restored = createTestPlayback({
+  const restored = await createReadyPlayback(libraryOf([1, 2]), {
     storage: {
       load: () => Promise.resolve({ payload, position: 4 }),
       save: () => Promise.resolve(),
@@ -1108,17 +1088,12 @@ it("restores no queue and shows no error for a version 5 session", async () => {
     },
   });
 
-  restored.controller.syncLibrary(libraryOf([1, 2]));
-  await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
-
   expect(restored.controller.getSnapshot()).toMatchObject({ queue: null, errorMessage: null });
   expect(restored.requests).toEqual([]);
 });
 
 it("queues tracks in submitted order, repeats included, with one publication and no reload", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2, 3]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2, 3]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
   playback.controller.seek(12);
   const requestCount = playback.requests.length;
@@ -1139,9 +1114,7 @@ it("queues tracks in submitted order, repeats included, with one publication and
 it.each(["start", "end"] as const)(
   "ignores an enqueue at the %s when there is no playback session",
   async (position) => {
-    const playback = createTestPlayback();
-    playback.controller.syncLibrary(libraryOf([1, 2]));
-    await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+    const playback = await createReadyPlayback(libraryOf([1, 2]));
     let publications = 0;
     playback.controller.subscribe(() => publications++);
 
@@ -1154,9 +1127,7 @@ it.each(["start", "end"] as const)(
 );
 
 it("plays next ahead of queued tracks without reloading the current track", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2, 3, 4, 5]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2, 3, 4, 5]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
   playback.controller.enqueueTracks([5], "end");
   playback.controller.seek(12);
@@ -1173,16 +1144,14 @@ it("plays next ahead of queued tracks without reloading the current track", asyn
 });
 
 it("restores a Play next group ahead of earlier queued tracks", async () => {
-  const original = createTestPlayback();
-  original.controller.syncLibrary(libraryOf([1, 2, 3, 4, 5]));
-  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  const original = await createReadyPlayback(libraryOf([1, 2, 3, 4, 5]));
   original.controller.playSourceEntry(allTracks(original.controller), 1);
   original.controller.enqueueTracks([5], "end");
   original.controller.enqueueTracks([3, 4], "start");
   original.controller.flush();
   const saved = original.flushes.at(-1) ?? null;
 
-  const restored = createTestPlayback({
+  const restored = await createReadyPlayback(libraryOf([1, 2, 3, 4, 5]), {
     storage: {
       load: () => Promise.resolve(saved),
       save: () => Promise.resolve(),
@@ -1190,9 +1159,6 @@ it("restores a Play next group ahead of earlier queued tracks", async () => {
       flush: () => {},
     },
   });
-
-  restored.controller.syncLibrary(libraryOf([1, 2, 3, 4, 5]));
-  await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
 
   expect(restored.controller.getSnapshot().queue?.manualQueue).toEqual(
     original.controller.getSnapshot().queue?.manualQueue,
@@ -1203,9 +1169,7 @@ it("restores a Play next group ahead of earlier queued tracks", async () => {
 });
 
 it("starts the first queued track of a stopped session and clears the error in one publication", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
   playback.controller.syncLibrary({
     ...libraryOf([1]),
@@ -1270,12 +1234,9 @@ it("ignores commands until the restore finishes, then restores paused against th
 });
 
 it("recovers from a failed restore with an error and no queue, then plays normally", async () => {
-  const playback = createTestPlayback({
+  const playback = await createReadyPlayback(libraryOf([1, 2]), {
     storage: loadingStorage(() => Promise.reject(new Error("Database locked"))),
   });
-
-  playback.controller.syncLibrary(libraryOf([1, 2]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
 
   expect(playback.controller.getSnapshot()).toMatchObject({
     queue: null,
@@ -1327,9 +1288,7 @@ it("ignores audio events, positions, library syncs, playlist edits, and errors a
     ],
   } satisfies PlaylistDetails;
 
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
   playback.controller.playSourceEntry(playlistView(playlist), 10);
   const loaded = playback.requests.at(-1);
 
@@ -1359,9 +1318,7 @@ it("ignores audio events, positions, library syncs, playlist edits, and errors a
 
 it("closing drops a queue-end restart that finishes reading its playlist afterwards", async () => {
   const read = deferred<PlaylistDetails | null>();
-  const playback = createTestPlayback({ loadPlaylist: () => read.promise });
-  playback.controller.syncLibrary(libraryOf([1]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1]), { loadPlaylist: () => read.promise });
   playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
   playback.controller.next();
   playback.controller.flush();
@@ -1408,9 +1365,7 @@ it("re-reads instead of failing when the playlist is edited during a failed queu
 
 it("shows a failed queue-end playlist read and stays stopped", async () => {
   const read = deferred<PlaylistDetails | null>();
-  const playback = createTestPlayback({ loadPlaylist: () => read.promise });
-  playback.controller.syncLibrary(libraryOf([1]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1]), { loadPlaylist: () => read.promise });
   playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
   playback.controller.next();
   read.reject(new Error("Playlist unavailable"));
@@ -1428,9 +1383,11 @@ it.each(["resolves", "rejects"] as const)(
   "keeps a new selection when the stale queue-end playlist read %s",
   async (outcome) => {
     const read = deferred<PlaylistDetails | null>();
-    const playback = createTestPlayback({ loadPlaylist: () => read.promise });
-    playback.controller.syncLibrary(libraryOf([1, 2]));
-    await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+    const playback = await createReadyPlayback(libraryOf([1, 2]), {
+      loadPlaylist: () => read.promise,
+    });
+
     playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
     playback.controller.next();
     playback.controller.playSourceEntry(allTracks(playback.controller), 2);
@@ -1452,9 +1409,7 @@ it.each(["resolves", "rejects"] as const)(
 );
 
 it("resumes the loaded track in place without reloading it", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
   playback.controller.pause();
 
@@ -1467,9 +1422,7 @@ it("resumes the loaded track in place without reloading it", async () => {
 });
 
 it("reloads a paused track whose media failed when Play is pressed, ignoring the failed load", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
   playback.controller.pause();
   const failed = playback.requests.at(-1);
@@ -1516,12 +1469,11 @@ it.each([
   },
   { reason: "rejected", message: "Could not play Alpha. Press Play to try again.", current: 1 },
 ] as const)("says why a playing track failed: $reason", async ({ reason, message, current }) => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary({
+  const playback = await createReadyPlayback({
     ...libraryOf([2]),
     tracks: [{ ...track(1), title: "Alpha" }, track(2)],
   });
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
   const loaded = playback.requests.at(-1);
 
@@ -1545,9 +1497,7 @@ it.each([
 });
 
 it("keeps the loaded track playing through a rescan without reloading it", async () => {
-  const playback = createTestPlayback();
-  playback.controller.syncLibrary(libraryOf([1, 2]));
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
   playback.controller.seek(8);
   playback.controller.syncLibrary(libraryOf([1, 2, 3]));
@@ -1558,12 +1508,14 @@ it("keeps the loaded track playing through a rescan without reloading it", async
 
 it("reloads a restored track at its saved position once a rescan makes it available", async () => {
   const saved = await savedSession(libraryOf([1, 2]), 1, 12);
-  const playback = createTestPlayback({ storage: loadingStorage(() => Promise.resolve(saved)) });
-  playback.controller.syncLibrary({
-    ...libraryOf([2]),
-    tracks: [{ ...track(1), available: false }, track(2)],
-  });
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  const playback = await createReadyPlayback(
+    {
+      ...libraryOf([2]),
+      tracks: [{ ...track(1), available: false }, track(2)],
+    },
+    { storage: loadingStorage(() => Promise.resolve(saved)) },
+  );
 
   expect(playback.requests).toEqual([null]);
 
@@ -1578,12 +1530,15 @@ it("reloads a restored track at its saved position once a rescan makes it availa
 
 it("skips a restored track that is still unavailable when resumed", async () => {
   const saved = await savedSession(libraryOf([1, 2]), 1, 12);
-  const playback = createTestPlayback({ storage: loadingStorage(() => Promise.resolve(saved)) });
-  playback.controller.syncLibrary({
-    ...libraryOf([2]),
-    tracks: [{ ...track(1), available: false }, track(2)],
-  });
-  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  const playback = await createReadyPlayback(
+    {
+      ...libraryOf([2]),
+      tracks: [{ ...track(1), available: false }, track(2)],
+    },
+    { storage: loadingStorage(() => Promise.resolve(saved)) },
+  );
+
   playback.controller.resume();
 
   expect(playback.controller.getSnapshot()).toMatchObject({
@@ -1611,9 +1566,7 @@ const singleTrackPlaylist = {
 } satisfies PlaylistDetails;
 
 async function savedSession(library: MusicLibrary, trackId: number, position: number) {
-  const original = createTestPlayback();
-  original.controller.syncLibrary(library);
-  await expect.poll(() => original.controller.getSnapshot().isInitialized).toBe(true);
+  const original = await createReadyPlayback(library);
   original.controller.playSourceEntry(allTracks(original.controller), trackId);
   original.controller.seek(position);
   original.controller.flush();
@@ -1699,6 +1652,17 @@ function describeWrites(writes: readonly TestWrite[], library: MusicLibrary) {
       ? `position ${write.position}`
       : `queue ${parseQueueSession(write.session, library)?.state.current?.item.trackId} at ${write.session.position}`,
   );
+}
+
+async function createReadyPlayback(
+  library: MusicLibrary,
+  options: Parameters<typeof createTestPlayback>[0] = {},
+) {
+  const playback = createTestPlayback(options);
+  playback.controller.syncLibrary(library);
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+
+  return playback;
 }
 
 function createTestPlayback(
