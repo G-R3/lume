@@ -1,30 +1,13 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { expect, it } from "vite-plus/test";
+import { closeDatabase } from "../electron/database";
+import { saveSource, scanSource } from "../electron/library";
 import { libraryTracks } from "../tests/helpers/library";
 import { createTemporaryFolder } from "../tests/helpers/temp-folder";
-import { join } from "node:path";
-import { _electron as electron, type ElectronApplication } from "playwright";
-import { afterEach, expect, it } from "vite-plus/test";
 import { createWaveAudio } from "../tests/helpers/wave-audio";
-import { closeDatabase, initializeDatabase } from "../electron/database";
-import { saveSource, scanSource } from "../electron/library";
-
-const launchedApplications: ElectronApplication[] = [];
-
-const electronEnvironment = Object.fromEntries(
-  Object.entries(process.env).flatMap((entry) =>
-    entry[0] === "ELECTRON_RUN_AS_NODE" || entry[1] === undefined
-      ? []
-      : [[entry[0], entry[1]] as const],
-  ),
-);
-
-afterEach(async () => {
-  closeDatabase();
-  await Promise.all(
-    launchedApplications.splice(0).map((application) => application.close().catch(() => {})),
-  );
-});
+import { electronEnvironment, launchLume, openDatabase } from "./launch";
 
 it("keeps a scanned track and playlist working after restart", async () => {
   const profile = await createTemporaryFolder("lume-electron-smoke-");
@@ -32,17 +15,13 @@ it("keeps a scanned track and playlist working after restart", async () => {
   await mkdir(sourceDirectory);
   await writeFile(join(sourceDirectory, "smoke.wav"), createWaveAudio(1, 16));
 
-  await initializeDatabase({
-    location: join(profile, "lume-dev.sqlite"),
-    migrationsFolder: join(process.cwd(), "drizzle"),
-  });
+  await openDatabase(profile);
   const source = await saveSource(sourceDirectory);
   await scanSource(source.id);
   expect(libraryTracks().map((track) => track.title)).toEqual(["smoke"]);
   closeDatabase();
 
   const firstApplication = await launchLume(profile);
-  launchedApplications.push(firstApplication);
   const firstWindow = await firstApplication.firstWindow();
   await firstWindow.getByRole("heading", { exact: true, name: "Tracks" }).waitFor();
   expect(
@@ -160,10 +139,8 @@ it("keeps a scanned track and playlist working after restart", async () => {
     .toBe(true);
 
   await firstApplication.close();
-  launchedApplications.pop();
 
   const restartedApplication = await launchLume(profile);
-  launchedApplications.push(restartedApplication);
   const restartedWindow = await restartedApplication.firstWindow();
   await restartedWindow.getByRole("heading", { exact: true, name: "Tracks" }).waitFor();
   await restartedWindow.getByRole("link", { name: "Smoke playlist" }).click();
@@ -175,131 +152,3 @@ it("keeps a scanned track and playlist working after restart", async () => {
       .isVisible(),
   ).toBe(true);
 });
-
-it("moves the track selection with the keyboard and plays it with Enter", async () => {
-  const profile = await createTemporaryFolder("lume-electron-keys-");
-  const sourceDirectory = join(profile, "music");
-  await mkdir(sourceDirectory);
-  await Promise.all(
-    Array.from({ length: 60 }, (_, index) =>
-      writeFile(
-        join(sourceDirectory, `track ${String(index + 1).padStart(2, "0")}.wav`),
-        createWaveAudio(5),
-      ),
-    ),
-  );
-
-  await initializeDatabase({
-    location: join(profile, "lume-dev.sqlite"),
-    migrationsFolder: join(process.cwd(), "drizzle"),
-  });
-  await scanSource((await saveSource(sourceDirectory)).id);
-  closeDatabase();
-
-  const application = await launchLume(profile);
-  launchedApplications.push(application);
-  const window = await application.firstWindow();
-  const grid = window.getByRole("grid", { name: "Tracks" });
-  await grid.locator("tr[data-entry-id]").first().waitFor();
-
-  const focusedRow = grid.locator("tr[data-entry-id]:focus");
-
-  const focusedRowIndex = async () =>
-    Number(await focusedRow.getAttribute("aria-rowindex", { timeout: 1_000 }));
-
-  const expectFocusedRow = async (rowIndex: number) => {
-    await expect.poll(focusedRowIndex).toBe(rowIndex);
-    expect(await focusedRow.getAttribute("aria-selected")).toBe("true");
-  };
-
-  await grid.locator('tr[aria-rowindex="3"]').click();
-  await expectFocusedRow(3);
-  await window.keyboard.press("ArrowDown");
-  await expectFocusedRow(4);
-  await window.keyboard.press("ArrowUp");
-  await expectFocusedRow(3);
-  await window.keyboard.press("End");
-  await expectFocusedRow(61);
-  await window.keyboard.press("PageUp");
-  await expect.poll(focusedRowIndex).toBeLessThan(60);
-  await window.keyboard.press("Home");
-  await expectFocusedRow(2);
-  await window.keyboard.press("PageDown");
-  await expect.poll(focusedRowIndex).toBeGreaterThan(3);
-  await window.keyboard.press("Home");
-  await expectFocusedRow(2);
-
-  const firstRow = grid.locator('tr[aria-rowindex="2"]');
-  const firstTitle = (await firstRow.locator("p").first().textContent()) ?? "";
-  await firstRow.click({ button: "right" });
-  await window.getByRole("menu").waitFor();
-  await window.keyboard.press("ArrowDown");
-  await window.keyboard.press("End");
-  await window.keyboard.press("Escape");
-  await window.getByRole("menu").waitFor({ state: "detached" });
-  expect(await grid.locator('tr[aria-selected="true"]').getAttribute("aria-rowindex")).toBe("2");
-
-  await grid.getByRole("button", { exact: true, name: `Like ${firstTitle}` }).focus();
-  await window.keyboard.press("Enter");
-  await grid.getByRole("button", { exact: true, name: `Unlike ${firstTitle}` }).waitFor();
-  expect(await window.getByRole("button", { name: "Pause" }).count()).toBe(0);
-  expect(await grid.locator('tr[aria-selected="true"]').getAttribute("aria-rowindex")).toBe("2");
-
-  await firstRow.focus();
-  await window.keyboard.press("Enter");
-  await window.getByRole("button", { name: "Pause" }).waitFor();
-  expect(await firstRow.getAttribute("aria-current")).toBe("true");
-});
-
-it("returns focus to the row whose menu opened last while an earlier menu is still closing", async () => {
-  const profile = await createTemporaryFolder("lume-electron-menu-focus-");
-  const sourceDirectory = join(profile, "music");
-  const titles = ["alpha", "bravo", "charlie", "delta", "echo"];
-  await mkdir(sourceDirectory);
-  await Promise.all(
-    titles.map((title) => writeFile(join(sourceDirectory, `${title}.wav`), createWaveAudio(5))),
-  );
-
-  await initializeDatabase({
-    location: join(profile, "lume-dev.sqlite"),
-    migrationsFolder: join(process.cwd(), "drizzle"),
-  });
-  await scanSource((await saveSource(sourceDirectory)).id);
-  closeDatabase();
-
-  const application = await launchLume(profile);
-  launchedApplications.push(application);
-  const window = await application.firstWindow();
-  const grid = window.getByRole("grid", { name: "Tracks" });
-  const row = (title: string) => grid.getByRole("row", { name: new RegExp(`\\b${title}\\b`) });
-  const focusedRow = grid.locator("tr[data-entry-id]:focus-within");
-
-  const focusedTitle = async () =>
-    (await focusedRow.count()) === 0 ? null : focusedRow.locator("p").first().textContent();
-
-  await row("echo").waitFor();
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    await row("alpha").click();
-    await row("bravo").click({ modifiers: ["Shift"] });
-    await row("alpha").click({ button: "right" });
-    await window.getByRole("menuitem", { name: /^(Like|Unlike)$/ }).click();
-    await row("charlie").click();
-    await window.keyboard.press("Meta+a");
-    await window.keyboard.press("Shift+F10");
-    await window.getByRole("menu").getByRole("menuitem", { name: "Add to playlist" }).waitFor();
-    await window.waitForTimeout(400);
-    expect(await focusedTitle()).not.toBe("alpha");
-    await window.keyboard.press("Escape");
-    await window.getByRole("menu").waitFor({ state: "detached" });
-    expect(await focusedTitle()).toBe("charlie");
-  }
-});
-
-function launchLume(profile: string) {
-  return electron.launch({
-    args: [".", `--user-data-dir=${profile}`],
-    cwd: process.cwd(),
-    env: electronEnvironment,
-  });
-}
