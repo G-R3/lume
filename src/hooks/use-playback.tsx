@@ -78,6 +78,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const media = useMediaElement({
     onEvent: (event) => controllerRef.current?.handleAudioEvent(event),
     onPosition: (position) => controllerRef.current?.onPosition(position),
+    hasTrackFile: window.lume.hasTrackFile,
   });
 
   const [controller] = useState(() =>

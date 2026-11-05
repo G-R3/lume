@@ -27,6 +27,7 @@ type MediaLifecycle = { attachment: Attachment } & (
 export function useMediaElement(options: {
   onEvent: (event: AudioEvent) => void;
   onPosition: (position: number) => void;
+  hasTrackFile: (trackId: number) => Promise<boolean>;
 }) {
   const lifecycleRef = useRef<MediaLifecycle>({ kind: "empty", attachment: { kind: "detached" } });
   const callbacksRef = useRef(options);
@@ -97,18 +98,19 @@ export function useMediaElement(options: {
       return;
 
     const attempt = Symbol();
+    const audio = current.attachment.audio;
     current.attempt = attempt;
-    void current.attachment.audio.play().catch((error: DOMException) => {
+    void audio.play().catch(() => {
       const latest = requestedLifecycle(current.request.requestId);
 
-      if (!latest || latest.attempt !== attempt) return;
+      // A failed load also rejects play(); its media error reports why.
+      if (!latest || latest.attempt !== attempt || audio.error) return;
       commit({ ...latest, intent: "pause", isPlaying: false });
       callbacksRef.current.onEvent({
         type: "error",
         requestId: current.request.requestId,
         queueItemId: current.request.queueItemId,
-        message: error.message || "Playback failed",
-        source: "play",
+        reason: "rejected",
       });
     });
   }, [commit, requestedLifecycle]);
@@ -225,19 +227,25 @@ export function useMediaElement(options: {
             queueItemId: request.queueItemId,
           });
         }}
-        onError={(event) => {
+        onError={() => {
           const current = requestedLifecycle(request.requestId);
 
           if (!current) return;
 
           commit({ ...current, intent: "pause", isPlaying: false });
-          callbacksRef.current.onEvent({
-            type: "error",
-            requestId: request.requestId,
-            queueItemId: request.queueItemId,
-            message: event.currentTarget.error?.message || "Playback failed",
-            source: "media",
-          });
+          // Chromium reports a missing file and an undecodable one with the same error.
+          void callbacksRef.current
+            .hasTrackFile(request.trackId)
+            .catch(() => true)
+            .then((exists) => {
+              if (!requestedLifecycle(request.requestId)) return;
+              callbacksRef.current.onEvent({
+                type: "error",
+                requestId: request.requestId,
+                queueItemId: request.queueItemId,
+                reason: exists ? "unplayable" : "unavailable",
+              });
+            });
         }}
         onLoadedMetadata={(event) => {
           const current = requestedLifecycle(request.requestId);

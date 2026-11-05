@@ -540,8 +540,7 @@ it("restarts the current shuffled row in place and ignores events from its old l
     type: "error",
     requestId: old.requestId,
     queueItemId: old.queueItemId,
-    source: "play",
-    message: "Old load failed",
+    reason: "rejected",
   });
   expect(playback.controller.getSnapshot()).toMatchObject({
     errorMessage: null,
@@ -1480,12 +1479,11 @@ it("reloads a paused track whose media failed when Play is pressed, ignoring the
     type: "error",
     requestId: failed.requestId,
     queueItemId: failed.queueItemId,
-    source: "media",
-    message: "Could not open file",
+    reason: "unavailable",
   });
 
   expect(playback.controller.getSnapshot()).toMatchObject({
-    errorMessage: "Could not open file",
+    errorMessage: "Could not play 1. Its file was moved, deleted, or disconnected.",
     queue: { status: "paused", current: { item: { trackId: 1 } } },
   });
 
@@ -1503,6 +1501,47 @@ it("reloads a paused track whose media failed when Play is pressed, ignoring the
   });
 
   expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(1);
+});
+
+it.each([
+  {
+    reason: "unavailable",
+    message: "Could not play Alpha. Its file was moved, deleted, or disconnected.",
+    current: 2,
+  },
+  {
+    reason: "unplayable",
+    message: "Could not play Alpha. The file is damaged or in a format Lume can’t play.",
+    current: 2,
+  },
+  { reason: "rejected", message: "Could not play Alpha. Press Play to try again.", current: 1 },
+] as const)("says why a playing track failed: $reason", async ({ reason, message, current }) => {
+  const playback = createTestPlayback();
+  playback.controller.syncLibrary({
+    ...libraryOf([2]),
+    tracks: [{ ...track(1), title: "Alpha" }, track(2)],
+  });
+  await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  const loaded = playback.requests.at(-1);
+
+  if (!loaded) throw new Error("Expected the track to load");
+  playback.controller.handleAudioEvent({
+    type: "started",
+    requestId: loaded.requestId,
+    queueItemId: loaded.queueItemId,
+  });
+  playback.controller.handleAudioEvent({
+    type: "error",
+    requestId: loaded.requestId,
+    queueItemId: loaded.queueItemId,
+    reason,
+  });
+
+  expect(playback.controller.getSnapshot()).toMatchObject({
+    errorMessage: message,
+    queue: { current: { item: { trackId: current } } },
+  });
 });
 
 it("keeps the loaded track playing through a rescan without reloading it", async () => {
@@ -1548,7 +1587,7 @@ it("skips a restored track that is still unavailable when resumed", async () => 
   playback.controller.resume();
 
   expect(playback.controller.getSnapshot()).toMatchObject({
-    errorMessage: "This track is unavailable",
+    errorMessage: "Could not play 1. Its file was moved, deleted, or disconnected.",
     queue: { current: { item: { trackId: 2 } } },
   });
   expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2" });

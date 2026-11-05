@@ -1,5 +1,5 @@
 import type { LumeApi, MusicLibrary, PlaylistDetails, Track } from "../../shared/lib";
-import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
+import type { AudioEvent, PlaybackFailure, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
 import type { QueueState } from "@/lib/queue/model";
@@ -131,6 +131,7 @@ export function createPlaybackController(dependencies: {
         ? {
             requestId,
             queueItemId: queue.current.item.queueItemId,
+            trackId: track.id,
             url: track.url,
             shouldPlay,
             position,
@@ -278,9 +279,21 @@ export function createPlaybackController(dependencies: {
     dispatch({ type: "previous" });
   };
 
+  const failureMessage = (reason: PlaybackFailure, trackId: number) => {
+    const title = snapshot.tracksById.get(trackId)?.title ?? "this track";
+
+    return {
+      unavailable: `Could not play ${title}. Its file was moved, deleted, or disconnected.`,
+      unplayable: `Could not play ${title}. The file is damaged or in a format Lume can’t play.`,
+      rejected: `Could not play ${title}. Press Play to try again.`,
+    }[reason];
+  };
+
   const resume = () => {
     if (snapshot.queue?.current && requestId === null) {
-      if (snapshot.availableTrackIds.has(snapshot.queue.current.item.trackId)) {
+      const trackId = snapshot.queue.current.item.trackId;
+
+      if (snapshot.availableTrackIds.has(trackId)) {
         loadCurrent(dependencies.audio.getPosition(), true);
         setError(null);
 
@@ -288,7 +301,7 @@ export function createPlaybackController(dependencies: {
       }
 
       advance();
-      setError("This track is unavailable");
+      setError(failureMessage("unavailable", trackId));
 
       return;
     }
@@ -394,16 +407,20 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    if (event.source === "play") dispatch({ type: "playbackPaused" });
+    const message = failureMessage(event.reason, queue.current.item.trackId);
 
-    if (event.source === "media") {
-      // A failed element never recovers, so Play must load the track again.
-      requestId = null;
+    if (event.reason === "rejected") {
+      dispatch({ type: "playbackPaused" });
+      setError(message);
 
-      if (queue.status === "playing") advance();
+      return;
     }
 
-    setError(event.message);
+    // A failed element never recovers, so Play must load the track again.
+    requestId = null;
+
+    if (queue.status === "playing") advance();
+    setError(message);
   };
 
   return {

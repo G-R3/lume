@@ -313,6 +313,7 @@ export type LumeInvokeApi = {
   disableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   enableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
   forgetSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  hasTrackFile: (trackId: number) => Promise<boolean>;
   loadLibrary: () => Promise<LibrarySnapshotJson>;
   loadPlaybackSession: () => Promise<SavedPlaybackSession | null>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
@@ -347,6 +348,7 @@ export const lumeChannels = {
   disableSource: "lume:disable-source",
   enableSource: "lume:enable-source",
   forgetSource: "lume:forget-source",
+  hasTrackFile: "lume:has-track-file",
   loadLibrary: "lume:load-library",
   loadPlaybackSession: "lume:load-playback-session",
   loadPlaylist: "lume:load-playlist",

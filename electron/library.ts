@@ -453,6 +453,18 @@ export function getTrackPath(trackId: number) {
   );
 }
 
+export async function hasTrackFile(trackId: number) {
+  const path = getTrackPath(trackId);
+
+  return (
+    path !== null &&
+    (await stat(path).then(
+      (file) => file.isFile(),
+      () => false,
+    ))
+  );
+}
+
 function getStoredTrackFingerprints(sourceId: number) {
   return new Map(
     getDatabase()
