@@ -426,15 +426,14 @@ export function createPlaybackController(dependencies: {
 
     if (queue.status === "playing") advance();
 
-    // Chromium reports a gone file and an unreadable one with the same error, so ask the main
-    // process. Its answer only adds the reason, and only while the first message still shows.
-    const pending = failureMessage("pending", trackId);
-    setError(pending);
+    // Chromium reports a gone file and an unreadable one with the same error, so ask the main process.
+    const firstMessage = failureMessage("pending", trackId);
+    setError(firstMessage);
     void dependencies
       .hasTrackFile(trackId)
       .catch(() => true)
       .then((exists) => {
-        if (snapshot.errorMessage === pending)
+        if (snapshot.errorMessage === firstMessage)
           setError(failureMessage(exists ? "unreadable" : "gone", trackId));
       });
   };
