@@ -21,7 +21,6 @@ function request(id: string, shouldPlay = false): PlaybackRequest {
   return {
     requestId: id,
     queueItemId: "same-item",
-    trackId: 7,
     url: `file:///${id}.wav`,
     shouldPlay,
     position: 12,
@@ -48,7 +47,6 @@ function mountMedia(strict = false) {
     onPosition: (position: number) => {
       positions.push(position);
     },
-    hasTrackFile: (_trackId: number) => Promise.resolve(true),
   };
 
   function Probe() {
@@ -89,10 +87,6 @@ function mountMedia(strict = false) {
     positions,
     callbacks,
   };
-}
-
-function settle() {
-  return act(() => new Promise((resolve) => setTimeout(resolve)));
 }
 
 function emit(audio: HTMLAudioElement, type: string, values = {}) {
@@ -214,7 +208,7 @@ it("keeps precommit pause and volume ref attachment from restarting playback", (
 
 it.each(["play", "ended", "error"])(
   "allows a synchronous replacement from a %s callback",
-  async (type) => {
+  (type) => {
     const probe = mountMedia();
     probe.callbacks.onEvent = (event) => {
       probe.events.push(event);
@@ -223,7 +217,6 @@ it.each(["play", "ended", "error"])(
 
     act(() => probe.media.load(request("a", true)));
     emit(probe.audio, type, { paused: false });
-    await settle();
     expect(probe.events).toHaveLength(1);
     expect(probe.events[0]?.requestId).toBe("a");
     expect(probe.audio.src).toBe("file:///b.wav?request=b");
@@ -270,7 +263,7 @@ it("publishes finite durations and reads live duration when seeking", () => {
   expect(probe.media.getPosition()).toBe(0);
 });
 
-it("distinguishes pause at natural end from a plain pause and reports media errors", async () => {
+it("distinguishes pause at natural end from a plain pause and reports media errors", () => {
   const probe = mountMedia();
   act(() => probe.media.load(request("a", true)));
   emit(probe.audio, "play", { paused: false });
@@ -281,48 +274,22 @@ it("distinguishes pause at natural end from a plain pause and reports media erro
   act(() => probe.media.play());
   emit(probe.audio, "pause", { paused: true, ended: false });
   emit(probe.audio, "error", { error: { code: 4 } });
-  await settle();
   expect(probe.events.slice(2)).toEqual([
     { type: "paused", requestId: "a", queueItemId: "same-item" },
-    { type: "error", requestId: "a", queueItemId: "same-item", reason: "unplayable" },
+    { type: "error", requestId: "a", queueItemId: "same-item", reason: "load" },
   ]);
 });
 
-it.each([
-  { exists: true, reason: "unplayable" },
-  { exists: false, reason: "unavailable" },
-] as const)(
-  "reports a failed load as $reason when the file exists=$exists, once, without a play error",
-  async ({ exists, reason }) => {
-    const probe = mountMedia();
-    const checked: number[] = [];
-    probe.callbacks.hasTrackFile = (trackId) => {
-      checked.push(trackId);
-
-      return Promise.resolve(exists);
-    };
-
-    act(() => probe.media.load(request("a", true)));
-    emit(probe.audio, "error", { error: { code: 4 } });
-    await act(async () =>
-      probe.attempts[0]!(new DOMException("The element has no supported sources.")),
-    );
-    await settle();
-
-    expect(checked).toEqual([7]);
-    expect(probe.events).toEqual([
-      { type: "error", requestId: "a", queueItemId: "same-item", reason },
-    ]);
-    expect(probe.media.isPlaying).toBe(false);
-  },
-);
-
-it("drops a failed load's report when another track loads while its file is checked", async () => {
+it("reports a failed load once, without a second error from its play rejection", async () => {
   const probe = mountMedia();
-  act(() => probe.media.load(request("a")));
+  act(() => probe.media.load(request("a", true)));
   emit(probe.audio, "error", { error: { code: 4 } });
-  act(() => probe.media.load(request("b")));
-  await settle();
+  await act(async () =>
+    probe.attempts[0]!(new DOMException("The element has no supported sources.")),
+  );
 
-  expect(probe.events).toEqual([]);
+  expect(probe.events).toEqual([
+    { type: "error", requestId: "a", queueItemId: "same-item", reason: "load" },
+  ]);
+  expect(probe.media.isPlaying).toBe(false);
 });

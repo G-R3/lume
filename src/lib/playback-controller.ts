@@ -1,5 +1,5 @@
 import type { LumeApi, MusicLibrary, PlaylistDetails, Track } from "../../shared/lib";
-import type { AudioEvent, PlaybackFailure, PlaybackRequest } from "@/lib/playback-media";
+import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
 import type { QueueState } from "@/lib/queue/model";
@@ -55,6 +55,7 @@ export function createPlaybackController(dependencies: {
   playlistReader: {
     read: (playlistId: number, refresh: boolean) => Promise<PlaylistDetails | null>;
   };
+  hasTrackFile: (trackId: number) => Promise<boolean>;
   random: () => number;
 }) {
   const listeners = new Set<() => void>();
@@ -131,7 +132,6 @@ export function createPlaybackController(dependencies: {
         ? {
             requestId,
             queueItemId: queue.current.item.queueItemId,
-            trackId: track.id,
             url: track.url,
             shouldPlay,
             position,
@@ -279,12 +279,17 @@ export function createPlaybackController(dependencies: {
     dispatch({ type: "previous" });
   };
 
-  const failureMessage = (reason: PlaybackFailure, trackId: number) => {
+  const failureMessage = (
+    reason: "pending" | "unavailable" | "gone" | "unreadable" | "rejected",
+    trackId: number,
+  ) => {
     const title = snapshot.tracksById.get(trackId)?.title ?? "this track";
 
     return {
-      unavailable: `Could not play ${title}. Its file was moved, deleted, or disconnected.`,
-      unplayable: `Could not play ${title}. The file is damaged or in a format Lume can’t play.`,
+      pending: `Could not play ${title}.`,
+      unavailable: `Could not play ${title}. It’s unavailable. Check its folder in Settings.`,
+      gone: `Could not play ${title}. Its file was moved, deleted, or disconnected.`,
+      unreadable: `Could not play ${title}. The file can’t be read or is in a format Lume can’t play.`,
       rejected: `Could not play ${title}. Press Play to try again.`,
     }[reason];
   };
@@ -407,11 +412,11 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    const message = failureMessage(event.reason, queue.current.item.trackId);
+    const trackId = queue.current.item.trackId;
 
     if (event.reason === "rejected") {
       dispatch({ type: "playbackPaused" });
-      setError(message);
+      setError(failureMessage("rejected", trackId));
 
       return;
     }
@@ -420,7 +425,18 @@ export function createPlaybackController(dependencies: {
     requestId = null;
 
     if (queue.status === "playing") advance();
-    setError(message);
+
+    // Chromium reports a gone file and an unreadable one with the same error, so ask the main
+    // process. Its answer only adds the reason, and only while the first message still shows.
+    const pending = failureMessage("pending", trackId);
+    setError(pending);
+    void dependencies
+      .hasTrackFile(trackId)
+      .catch(() => true)
+      .then((exists) => {
+        if (snapshot.errorMessage === pending)
+          setError(failureMessage(exists ? "unreadable" : "gone", trackId));
+      });
   };
 
   return {

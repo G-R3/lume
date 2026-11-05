@@ -27,7 +27,6 @@ type MediaLifecycle = { attachment: Attachment } & (
 export function useMediaElement(options: {
   onEvent: (event: AudioEvent) => void;
   onPosition: (position: number) => void;
-  hasTrackFile: (trackId: number) => Promise<boolean>;
 }) {
   const lifecycleRef = useRef<MediaLifecycle>({ kind: "empty", attachment: { kind: "detached" } });
   const callbacksRef = useRef(options);
@@ -233,19 +232,12 @@ export function useMediaElement(options: {
           if (!current) return;
 
           commit({ ...current, intent: "pause", isPlaying: false });
-          // Chromium reports a missing file and an undecodable one with the same error.
-          void callbacksRef.current
-            .hasTrackFile(request.trackId)
-            .catch(() => true)
-            .then((exists) => {
-              if (!requestedLifecycle(request.requestId)) return;
-              callbacksRef.current.onEvent({
-                type: "error",
-                requestId: request.requestId,
-                queueItemId: request.queueItemId,
-                reason: exists ? "unplayable" : "unavailable",
-              });
-            });
+          callbacksRef.current.onEvent({
+            type: "error",
+            requestId: request.requestId,
+            queueItemId: request.queueItemId,
+            reason: "load",
+          });
         }}
         onLoadedMetadata={(event) => {
           const current = requestedLifecycle(request.requestId);
