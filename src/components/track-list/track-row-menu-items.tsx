@@ -32,7 +32,7 @@ export function TrackRowMenuItems({
   playlistTitle: string | null;
   run: (action: TrackAction) => void;
 }) {
-  const { entryId: returnTo, namesTarget, target, targetsSelection } = menu;
+  const { namesTarget, target, targetsSelection } = menu;
   const count = target.entries.length;
   const countLabel = count.toLocaleString();
   const likes = target.entries.some((entry) => !entry.liked);
@@ -71,7 +71,7 @@ export function TrackRowMenuItems({
       <DropdownMenuItem
         aria-keyshortcuts={keyShortcuts("addToPlaylist")}
         className="whitespace-nowrap"
-        onClick={() => run({ kind: "addToPlaylist", returnTo, target })}
+        onClick={() => run({ kind: "addToPlaylist", target })}
       >
         <PlaylistIcon aria-hidden="true" />
         Add to playlist
@@ -80,7 +80,7 @@ export function TrackRowMenuItems({
       <DropdownMenuItem
         aria-keyshortcuts={keyShortcuts("createPlaylist")}
         className="whitespace-nowrap"
-        onClick={() => run({ kind: "createPlaylist", returnTo, target })}
+        onClick={() => run({ kind: "createPlaylist", target })}
       >
         <PlusIcon aria-hidden="true" />
         New playlist

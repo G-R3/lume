@@ -1,4 +1,3 @@
-import type { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 import { useRef } from "react";
 import {
   AlertDialog,
@@ -21,7 +20,6 @@ type DuplicateTracksDialogProps = {
   addingMode: DuplicateMode | null;
   confirmation: ConfirmationPhase;
   error: string | null;
-  finalFocus: AlertDialogPrimitive.Popup.Props["finalFocus"];
   onChoose: (mode: DuplicateMode) => void;
   onDismiss: () => void;
   onExited: () => void;
@@ -32,7 +30,6 @@ export function DuplicateTracksDialog({
   addingMode,
   confirmation,
   error,
-  finalFocus,
   onChoose,
   onDismiss,
   onExited,
@@ -53,7 +50,7 @@ export function DuplicateTracksDialog({
         if (!nextOpen) onExited();
       }}
     >
-      <AlertDialogContent finalFocus={finalFocus} initialFocus={primaryRef}>
+      <AlertDialogContent initialFocus={primaryRef}>
         <AlertDialogHeader>
           <AlertDialogTitle>Add to {destination.title}?</AlertDialogTitle>
           <AlertDialogDescription>

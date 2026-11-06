@@ -58,7 +58,6 @@ function matchesQuery(item: PaletteItem, query: string) {
 
 type AddToPlaylistDialogProps = {
   error: string | null;
-  finalFocus: DialogPrimitive.Popup.Props["finalFocus"];
   onQueue: ((position: QueuePosition) => void) | null;
   onCreatePlaylist: () => void;
   onDismiss: () => void;
@@ -70,7 +69,6 @@ type AddToPlaylistDialogProps = {
 
 export function AddToPlaylistDialog({
   error,
-  finalFocus,
   onQueue,
   onCreatePlaylist,
   onDismiss,
@@ -135,7 +133,6 @@ export function AddToPlaylistDialog({
         <DialogPrimitive.Popup
           className="fixed top-24 left-1/2 z-50 flex w-140 max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-clip rounded-xl bg-raised p-px surface-raised text-primary shadow-dialog inset-ring inset-ring-default outline-none"
           data-slot="palette"
-          finalFocus={finalFocus}
         >
           <DialogTitle className="sr-only">Add to playlist</DialogTitle>
           <DialogDescription className="sr-only">

@@ -364,7 +364,7 @@ it("captures a range made upward with Shift-click in displayed order", () => {
 });
 
 const openMenu = (entryId: number, trigger: "context" | "overflow" = "context") =>
-  ({ entryId, focusToken: Symbol("row menu"), trigger, type: "openMenu" }) as const;
+  ({ entryId, trigger, type: "openMenu" }) as const;
 
 const targetIds = (state: SelectionState) =>
   state.menu?.target.entries.map((entry) => entry.sourceEntryId);
@@ -386,7 +386,7 @@ it("targets the whole selection in displayed order when a menu opens inside it",
   });
 });
 
-it("targets only the row when a menu opens outside the selection, and keeps the selection", () => {
+it("targets only the row when a menu opens outside the selection, and moves focus without changing the selection", () => {
   const state = run(
     createSelection({ context: allTracks, rows: rows(1, 2, 3, 4) }),
     click(1),
@@ -401,7 +401,7 @@ it("targets only the row when a menu opens outside the selection, and keeps the 
     trigger: "overflow",
   });
   expect(selected(state)).toEqual([1, 2]);
-  expect(state.focusedId).toBe(2);
+  expect(state.focusedId).toBe(4);
 });
 
 it("keeps the captured target while the selection, sort and likes change underneath", () => {

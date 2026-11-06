@@ -32,7 +32,6 @@ type TrackListBodyProps = {
 // here, apart from TrackList.
 export function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: TrackListBodyProps) {
   const bodyRef = useRef<HTMLTableSectionElement>(null);
-  const pendingFocusEntryId = useRef<number | null>(null);
   const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
@@ -89,32 +88,23 @@ export function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: T
     if (hasMountedRows && table) onReady?.(table);
   }, [hasMountedRows, onReady]);
 
-  const focusPendingRow = () => {
-    const entryId = pendingFocusEntryId.current;
-
-    if (entryId === null) return;
-
-    const row = bodyRef.current?.querySelector<HTMLElement>(`tr[data-entry-id="${entryId}"]`);
-
-    if (!row) return;
-
-    pendingFocusEntryId.current = null;
-    row.focus({ preventScroll: true });
-    row.scrollIntoView({ block: "nearest" });
-  };
-
   useImperativeHandle(ref, () => ({
     focusRow: (index, sourceEntryId) => {
-      pendingFocusEntryId.current = sourceEntryId;
       virtualizer.scrollToIndex(index);
-      focusPendingRow();
+
+      const row = bodyRef.current?.querySelector<HTMLElement>(
+        `tr[data-entry-id="${sourceEntryId}"]`,
+      );
+
+      if (!row) throw new Error(`Row ${sourceEntryId} at ${index} is not mounted`);
+
+      row.focus({ preventScroll: true });
+      row.scrollIntoView({ block: "nearest" });
     },
     rowsPerPage: () =>
       Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1),
     scrollToTop: () => scrollContainer?.scrollTo({ top: 0 }),
   }));
-
-  useLayoutEffect(focusPendingRow);
 
   const bodyRows: ReactNode[] = [];
   let nextUnmountedIndex = 0;

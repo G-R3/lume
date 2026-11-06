@@ -65,10 +65,6 @@ type KeyPress = {
   readonly shiftKey: boolean;
 };
 
-export function isSelectionAction(value: string | number): value is SelectionAction {
-  return Object.hasOwn(selectionShortcuts, value);
-}
-
 function shortcutOf(action: SelectionAction): SelectionShortcut {
   return selectionShortcuts[action];
 }
