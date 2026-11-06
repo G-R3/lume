@@ -137,6 +137,5 @@ function commitPlaylistRemoval(
 }
 
 function commitPlaylistDeletion(queryClient: QueryClient, playlistId: number) {
-  const options = playlistQueryOptions(playlistId);
-  queryClient.setQueryData(options.queryKey, null);
+  queryClient.setQueryData(playlistQueryOptions(playlistId).queryKey, null);
 }

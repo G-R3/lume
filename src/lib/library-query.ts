@@ -27,13 +27,11 @@ export const libraryMutationOptions = {
   scope: { id: "library" },
 } as const;
 
-const libraryQueryKey = ["library"];
-
 const setTracksLikedKey = ["library", "set-tracks-liked"];
 
 export const libraryQueryOptions = queryOptions({
   networkMode: "always",
-  queryKey: libraryQueryKey,
+  queryKey: ["library"],
   queryFn: async () => parseLibrarySnapshot(await window.lume.loadLibrary()),
   retry: false,
   staleTime: Infinity,
@@ -44,7 +42,7 @@ export const libraryQueryOptions = queryOptions({
 // than that read's result, so the read may replace it.
 export function applyLibraryUpdate(queryClient: QueryClient, update: LibraryUpdate) {
   if (update.kind === "snapshot") {
-    queryClient.setQueryData(libraryQueryKey, parseLibrarySnapshot(update.library));
+    queryClient.setQueryData(libraryQueryOptions.queryKey, parseLibrarySnapshot(update.library));
 
     return;
   }
@@ -61,7 +59,7 @@ export function applyLibraryUpdate(queryClient: QueryClient, update: LibraryUpda
     return;
   }
 
-  void queryClient.invalidateQueries({ queryKey: libraryQueryKey }, { cancelRefetch: false });
+  void queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey }, { cancelRefetch: false });
 }
 
 export function useLibraryQuery() {
@@ -111,7 +109,7 @@ export function libraryCommandMutation(queryClient: QueryClient) {
     ...libraryMutationOptions,
     mutationFn: async (command: LibraryCommand) =>
       parseLibrarySnapshot(await runLibraryCommand(command)),
-    onSuccess: (library) => queryClient.setQueryData(libraryQueryKey, library),
+    onSuccess: (library) => queryClient.setQueryData(libraryQueryOptions.queryKey, library),
   });
 }
 
@@ -124,7 +122,7 @@ export function setTracksLikedMutation(queryClient: QueryClient) {
     ...libraryMutationOptions,
     mutationKey: setTracksLikedKey,
     mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
-    onError: () => queryClient.invalidateQueries({ queryKey: libraryQueryKey }),
+    onError: () => queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey }),
     onSuccess: (results) => {
       const likedAtById = new Map(results.map((result) => [result.trackId, result.likedAt]));
 
