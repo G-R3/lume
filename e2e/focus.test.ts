@@ -145,6 +145,24 @@ it("returns focus to the row after a menu closes", async () => {
   expect(await isFocused(filter)).toBe(true);
 });
 
+it("makes the row whose menu opened the focused row without changing the selection", async () => {
+  const window = await launchWithLibrary("lume-electron-menu-row-", letters);
+  const { focusedRowTitle, grid, row } = trackGrid(window);
+  await row("echo").waitFor();
+
+  await row("alpha").click();
+  await row("delta").click({ button: "right" });
+  await window.getByRole("menu").waitFor();
+  await window.keyboard.press("Escape");
+  await window.getByRole("menu").waitFor({ state: "detached" });
+  await expect.poll(focusedRowTitle).toBe("delta");
+  expect(await row("alpha").getAttribute("aria-selected")).toBe("true");
+
+  await grid.getByRole("button", { name: "Duration" }).focus();
+  await window.keyboard.press("Tab");
+  await expect.poll(focusedRowTitle).toBe("delta");
+});
+
 it("leaves focus where the user moved it while a menu is still closing", async () => {
   const window = await launchWithLibrary("lume-electron-menu-exit-", letters);
   const { focusedRowTitle, row } = trackGrid(window);
