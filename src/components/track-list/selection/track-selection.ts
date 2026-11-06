@@ -26,7 +26,6 @@ export type RowMenuTrigger = "context" | "overflow";
 
 export type RowMenu = {
   readonly entryId: number;
-  readonly focusToken: symbol;
   readonly trigger: RowMenuTrigger;
   readonly open: boolean;
   readonly target: ActionTarget;
@@ -48,7 +47,7 @@ export type SelectionEvent =
     }
   | { type: "selectAll" }
   | { type: "clear" }
-  | { type: "openMenu"; entryId: number; trigger: RowMenuTrigger; focusToken: symbol }
+  | { type: "openMenu"; entryId: number; trigger: RowMenuTrigger }
   | { type: "closeMenu"; entryId: number; trigger: RowMenuTrigger };
 
 export type TargetEntry = {
@@ -145,7 +144,6 @@ export function reduceSelection(state: SelectionState, event: SelectionEvent): S
         ...state,
         menu: {
           entryId: event.entryId,
-          focusToken: event.focusToken,
           namesTarget: !targetsSelection && state.selectedIds.size > 0,
           open: true,
           target,

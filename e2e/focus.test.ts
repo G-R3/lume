@@ -115,7 +115,7 @@ it("returns focus to the row whose menu opened last while an earlier menu is sti
   }
 });
 
-it("returns focus to the row after a menu closes from the keyboard but not after an outside press", async () => {
+it("returns focus to the row after a menu closes", async () => {
   const window = await launchWithLibrary("lume-electron-menu-close-", letters);
   const { focusedRowTitle, row } = trackGrid(window);
   await row("echo").waitFor();
@@ -139,11 +139,43 @@ it("returns focus to the row after a menu closes from the keyboard but not after
   const pressFilter = () => window.mouse.click((box?.x ?? 0) + 20, (box?.y ?? 0) + 10);
   await pressFilter();
   await window.getByRole("menu").waitFor({ state: "detached" });
-  await window.waitForTimeout(300);
-  expect(await focusedRowTitle()).toBe(null);
+  await expect.poll(focusedRowTitle).toBe("bravo");
   await pressFilter();
   await window.waitForTimeout(300);
   expect(await isFocused(filter)).toBe(true);
+});
+
+it("leaves focus where the user moved it while a menu is still closing", async () => {
+  const window = await launchWithLibrary("lume-electron-menu-exit-", letters);
+  const { focusedRowTitle, row } = trackGrid(window);
+  const filter = window.getByPlaceholder("Filter tracks");
+  await row("echo").waitFor();
+
+  await row("bravo").click();
+  await window.keyboard.press("Shift+F10");
+  await window.getByRole("menuitem", { name: "Like" }).click();
+  await filter.click();
+  await window.getByRole("menu").waitFor({ state: "detached" });
+  await window.waitForTimeout(300);
+  expect(await isFocused(filter)).toBe(true);
+
+  await row("bravo").click();
+  await window.keyboard.press("Shift+F10");
+  await window.getByRole("menuitem", { name: /^(Like|Unlike)$/ }).click();
+  await window.locator(":focus").evaluate((element: { blur(): void }) => element.blur());
+  await filter.click();
+  await window.getByRole("menu").waitFor({ state: "detached" });
+  await window.waitForTimeout(300);
+  expect(await isFocused(filter)).toBe(true);
+
+  await row("charlie").click({ button: "right" });
+  await window.getByRole("menuitem", { name: "Like" }).click();
+  await row("charlie").click();
+  await window.keyboard.press("Shift+F10");
+  await window.waitForTimeout(400);
+  await window.getByRole("menuitem", { name: /^(Like|Unlike)$/ }).click();
+  await window.getByRole("menu").waitFor({ state: "detached" });
+  await expect.poll(focusedRowTitle).toBe("charlie");
 });
 
 it("keeps focus on a surviving row when rows leave the view", async () => {
@@ -162,6 +194,11 @@ it("keeps focus on a surviving row when rows leave the view", async () => {
   await window.keyboard.press("Meta+Backspace");
   await row("echo").waitFor({ state: "detached" });
   await expect.poll(focusedRowTitle).toBe("delta");
+
+  await row("delta").click({ button: "right" });
+  await window.getByRole("menuitem", { name: "Remove from Mix" }).click();
+  await row("delta").waitFor({ state: "detached" });
+  await expect.poll(focusedRowTitle).toBe("charlie");
 
   await window.getByPlaceholder("Filter tracks").fill("alpha");
   await row("charlie").waitFor({ state: "detached" });

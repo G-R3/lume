@@ -1,8 +1,5 @@
 import type { AddTracksToPlaylistResult } from "../../../../shared/lib";
-import type { SelectionAction } from "../selection/selection-shortcuts";
 import type { ActionTarget } from "../selection/track-selection";
-
-export type FocusReturn = number | SelectionAction | null;
 
 export type Destination = { readonly playlistId: number; readonly title: string };
 
@@ -13,7 +10,7 @@ export type DuplicateCounts = {
   readonly newTrackCount: number;
 };
 
-type Origin = { readonly target: ActionTarget; readonly returnTo: FocusReturn };
+type Origin = { readonly target: ActionTarget };
 
 export type PickerPhase = Origin &
   (
@@ -33,11 +30,11 @@ export type OpenPhase = PickerPhase | ConfirmationPhase;
 
 export type AddToPlaylistFlow =
   | { readonly phase: "idle" }
-  | { readonly phase: "closed"; readonly last: OpenPhase; readonly returnFocus: boolean }
+  | { readonly phase: "closed"; readonly last: OpenPhase }
   | OpenPhase;
 
 export type AddToPlaylistEvent =
-  | { type: "open"; target: ActionTarget; returnTo: FocusReturn }
+  | { type: "open"; target: ActionTarget }
   | { type: "pick"; destination: Destination }
   | { type: "createInstead" }
   | { type: "queue" }
@@ -63,24 +60,27 @@ export function reduceAddToPlaylist(
     case "open":
       if (state.phase !== "idle" && state.phase !== "closed") return state;
 
-      return { error: null, phase: "picking", returnTo: event.returnTo, target: event.target };
+      return {
+        error: null,
+        phase: "picking",
+        target: event.target,
+      };
     case "pick":
       if (state.phase !== "picking") return state;
 
       return {
         destination: event.destination,
         phase: "checking",
-        returnTo: state.returnTo,
         target: state.target,
       };
     case "createInstead":
       if (state.phase !== "picking") return state;
 
-      return { last: state, phase: "closed", returnFocus: false };
+      return { last: state, phase: "closed" };
     case "queue":
       if (state.phase !== "picking") return state;
 
-      return { last: state, phase: "closed", returnFocus: true };
+      return { last: state, phase: "closed" };
     case "choose":
       if (state.phase !== "confirmingDuplicates") return state;
 
@@ -88,11 +88,11 @@ export function reduceAddToPlaylist(
 
       return { ...state, mode: event.mode, phase: "adding" };
     case "settled":
-      if (state.phase === "adding") return { last: state, phase: "closed", returnFocus: true };
+      if (state.phase === "adding") return { last: state, phase: "closed" };
 
       if (state.phase !== "checking") return state;
 
-      if (event.result.kind === "added") return { last: state, phase: "closed", returnFocus: true };
+      if (event.result.kind === "added") return { last: state, phase: "closed" };
 
       return {
         destination: state.destination,
@@ -102,7 +102,6 @@ export function reduceAddToPlaylist(
         },
         error: null,
         phase: "confirmingDuplicates",
-        returnTo: state.returnTo,
         target: state.target,
       };
     case "failed":
@@ -110,7 +109,6 @@ export function reduceAddToPlaylist(
         return {
           error: event.message,
           phase: "picking",
-          returnTo: state.returnTo,
           target: state.target,
         };
       }
@@ -121,7 +119,6 @@ export function reduceAddToPlaylist(
           duplicates: state.duplicates,
           error: event.message,
           phase: "confirmingDuplicates",
-          returnTo: state.returnTo,
           target: state.target,
         };
       }
@@ -130,7 +127,7 @@ export function reduceAddToPlaylist(
     case "dismiss":
       if (state.phase !== "picking" && state.phase !== "confirmingDuplicates") return state;
 
-      return { last: state, phase: "closed", returnFocus: true };
+      return { last: state, phase: "closed" };
     case "exited":
       return state.phase === "closed" ? idleFlow : state;
   }

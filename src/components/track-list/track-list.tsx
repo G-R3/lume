@@ -2,6 +2,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -15,16 +16,10 @@ import type { SortField, TrackRow as TrackListItem, TrackSort } from "@/lib/trac
 import { isListBackgroundPointerDown } from "@/components/track-list/list-background-pointer";
 import { FloatingSelectionBar } from "@/components/track-list/selection/selection-bar";
 import {
-  isSelectionAction,
   matchSelectionShortcut,
   type SelectionAction,
 } from "@/components/track-list/selection/selection-shortcuts";
-import type { FocusReturn } from "@/components/track-list/actions/add-to-playlist-flow";
-import {
-  focusReturnTarget,
-  type TrackAction,
-  useTrackActions,
-} from "@/components/track-list/actions/track-actions";
+import { useTrackActions } from "@/components/track-list/actions/track-actions";
 import { TrackListBody, type TrackListBodyHandle } from "@/components/track-list/track-list-body";
 import { TrackListHead } from "@/components/track-list/track-list-head";
 import { TrackRow, type TrackRowActions } from "@/components/track-list/track-row";
@@ -64,6 +59,8 @@ function rowOf(target: EventTarget) {
   return target instanceof Element ? target.closest("tr[data-entry-id]") : null;
 }
 
+const popupRoles = "[role='menu'], [role='dialog'], [role='alertdialog']";
+
 export function TrackList({
   caption,
   items,
@@ -78,12 +75,11 @@ export function TrackList({
     usePlayback();
 
   const canQueue = queue !== null;
-  const focusReturnOwnerRef = useRef<symbol | null>(null);
   const [selection, dispatchSelection] = useTrackSelection({ context: source, rows: items });
   const bodyRef = useRef<TrackListBodyHandle>(null);
   const regionRef = useRef<HTMLDivElement>(null);
   const listOwnsFocusRef = useRef(false);
-  const { playlistPicker, run: runAction } = useTrackActions(source, regionRef);
+  const { playlistPicker, run } = useTrackActions(source);
   const playlistId = source.kind === "playlist" ? source.playlistId : null;
   const playlistTitle = source.kind === "playlist" ? source.title : null;
   const isPlaylist = playlistId !== null;
@@ -92,26 +88,12 @@ export function TrackList({
     bodyRef.current?.scrollToTop();
   }, [sort]);
 
-  const run = (action: TrackAction) => {
-    const dialogTakesFocus = action.kind === "addToPlaylist" || action.kind === "createPlaylist";
-
-    if (dialogTakesFocus) {
-      focusReturnOwnerRef.current = null;
-    }
-
-    runAction(action);
-  };
-
-  const runOnSelection = (kind: SelectionAction, returnTo: FocusReturn = kind) => {
+  const runOnSelection = (kind: SelectionAction) => {
     const target = captureSelectionInDisplayedOrder(selection);
 
     if (!target) return false;
 
-    if (kind === "addToPlaylist" || kind === "createPlaylist") {
-      run({ kind, returnTo, target });
-    } else {
-      run({ kind, target });
-    }
+    run({ kind, target });
 
     return true;
   };
@@ -132,8 +114,22 @@ export function TrackList({
   const showsBar = summary.count >= 2;
   const [lastInput, setLastInput] = useState<"keyboard" | "pointer">("pointer");
 
+  useEffect(() => {
+    const followFocus = (event: FocusEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Element) || target.closest(popupRoles)) return;
+
+      listOwnsFocusRef.current = regionRef.current?.contains(target) ?? false;
+    };
+
+    document.addEventListener("focusin", followFocus);
+
+    return () => document.removeEventListener("focusin", followFocus);
+  }, []);
+
   useLayoutEffect(() => {
-    if (!listOwnsFocusRef.current || focusedId === null || focusedIndex < 0) return;
+    if (!listOwnsFocusRef.current || tabStopEntryId === undefined) return;
 
     const active = document.activeElement;
     const focusIsLost = !active || active === document.body;
@@ -141,21 +137,15 @@ export function TrackList({
     const focusIsOnAnotherRow =
       active instanceof HTMLTableRowElement &&
       regionRef.current?.contains(active) &&
-      active.dataset.entryId !== String(focusedId);
+      active.dataset.entryId !== String(tabStopEntryId);
 
-    if (focusIsLost || focusIsOnAnotherRow) bodyRef.current?.focusRow(focusedIndex, focusedId);
-  }, [focusedId, focusedIndex, items]);
+    const focusIsInHiddenToolbar =
+      !showsBar && regionRef.current?.querySelector("[role='toolbar']")?.contains(active);
 
-  useLayoutEffect(() => {
-    if (showsBar || !listOwnsFocusRef.current || tabStopEntryId === undefined) return;
-
-    const active = document.activeElement;
-    const toolbar = regionRef.current?.querySelector("[role='toolbar']");
-
-    if (!active || active === document.body || toolbar?.contains(active)) {
+    if (focusIsLost || focusIsOnAnotherRow || focusIsInHiddenToolbar) {
       bodyRef.current?.focusRow(tabStopIndex, tabStopEntryId);
     }
-  }, [showsBar, tabStopEntryId, tabStopIndex]);
+  }, [items, showsBar, tabStopEntryId, tabStopIndex]);
 
   const isSelectedAt = (index: number) => {
     const item = items[index];
@@ -171,12 +161,8 @@ export function TrackList({
     return indexById.has(entryId) ? entryId : null;
   };
 
-  const openMenu = (entryId: number, trigger: RowMenuTrigger) => {
-    const focusToken = Symbol("row menu");
-
-    focusReturnOwnerRef.current = focusToken;
-    dispatchSelection({ entryId, focusToken, trigger, type: "openMenu" });
-  };
+  const openMenu = (entryId: number, trigger: RowMenuTrigger) =>
+    dispatchSelection({ entryId, trigger, type: "openMenu" });
 
   const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target;
@@ -208,14 +194,7 @@ export function TrackList({
       : matchSelectionShortcut(event, isMac, { playlist: isPlaylist, queue: canQueue });
 
     if (shortcut) {
-      const barAction = target.closest<HTMLElement>("[data-bar-action]")?.dataset.barAction;
-
-      const returnTo =
-        barAction !== undefined && isSelectionAction(barAction)
-          ? barAction
-          : (entryIdOfRow(target, event.currentTarget) ?? focusedId);
-
-      if (event.repeat || runOnSelection(shortcut, returnTo)) event.preventDefault();
+      if (event.repeat || runOnSelection(shortcut)) event.preventDefault();
 
       return;
     }
@@ -289,23 +268,7 @@ export function TrackList({
   // Every mounted row receives these actions. If they read `items`, the compiler rebuilds them on
   // every library change and a like re-renders every row.
   const rowActions: TrackRowActions = {
-    closeMenu: (entryId, trigger, reason, focusToken) => {
-      const ownsFocusReturn = focusReturnOwnerRef.current === focusToken;
-
-      if (ownsFocusReturn && (reason === "outside-press" || reason === "focus-out")) {
-        focusReturnOwnerRef.current = null;
-      }
-
-      dispatchSelection({ entryId, trigger, type: "closeMenu" });
-    },
-    menuFinalFocus: (entryId, focusToken) => {
-      const active = document.activeElement;
-      const focusMovedOn = active && active !== document.body && !active.closest("[role='menu']");
-
-      return focusToken !== null && focusReturnOwnerRef.current === focusToken && !focusMovedOn
-        ? focusReturnTarget(regionRef.current, entryId)
-        : false;
-    },
+    closeMenu: (entryId, trigger) => dispatchSelection({ entryId, trigger, type: "closeMenu" }),
     openMenu,
     run,
     toggleLike: (entry) => run({ kind: "like", target: { context: source, entries: [entry] } }),
@@ -344,16 +307,6 @@ export function TrackList({
   return (
     <div
       className="relative flex min-h-0 flex-1 flex-col"
-      onBlur={(event) => {
-        const next = event.relatedTarget;
-
-        if (next instanceof Node && !event.currentTarget.contains(next)) {
-          listOwnsFocusRef.current = false;
-        }
-      }}
-      onFocus={(event) => {
-        if (event.currentTarget.contains(event.target)) listOwnsFocusRef.current = true;
-      }}
       onKeyDown={handleListKeyDown}
       onKeyDownCapture={() => setLastInput("keyboard")}
       onPointerDownCapture={() => setLastInput("pointer")}

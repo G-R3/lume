@@ -26,7 +26,7 @@ const mix = { playlistId: 7, title: "Mix" };
 
 const road = { playlistId: 8, title: "Road" };
 
-const open = { returnTo: 1, target, type: "open" } as const;
+const open = { target, type: "open" } as const;
 
 const pick = (destination = mix) => ({ destination, type: "pick" }) as const;
 
@@ -57,10 +57,10 @@ it("checks the picked playlist with the whole ordered target, repeats included",
   });
 });
 
-it("closes and returns focus when the check adds without duplicates", () => {
+it("closes when the check adds without duplicates", () => {
   const state = run(open, pick(), added);
 
-  expect(state).toMatchObject({ phase: "closed", returnFocus: true });
+  expect(state).toMatchObject({ phase: "closed" });
   expect(requestOf(state)).toBeNull();
 });
 
@@ -81,7 +81,7 @@ it("asks about duplicates, then adds only the new tracks", () => {
     duplicates: "skip",
     trackIds: [10, 20, 10, 30],
   });
-  expect(send(adding, added)).toMatchObject({ phase: "closed", returnFocus: true });
+  expect(send(adding, added)).toMatchObject({ phase: "closed" });
 });
 
 it("adds the whole target anyway when chosen", () => {
@@ -118,29 +118,27 @@ it("cannot be dismissed while a request is in flight", () => {
   expect(send(adding, { type: "dismiss" })).toBe(adding);
 });
 
-it("cancels the duplicate question without writing and returns focus", () => {
+it("cancels the duplicate question without writing", () => {
   const state = run(open, pick(), duplicate(2, 2), { type: "dismiss" });
 
-  expect(state).toMatchObject({ phase: "closed", returnFocus: true });
+  expect(state).toMatchObject({ phase: "closed" });
   expect(requestOf(state)).toBeNull();
 });
 
-it("hands off to creation from the picker without returning focus", () => {
+it("hands off to creation from the picker", () => {
   expect(run(open, { type: "createInstead" })).toMatchObject({
     last: { phase: "picking", target },
     phase: "closed",
-    returnFocus: false,
   });
   expect(run(open, pick(), { type: "createInstead" }).phase).toBe("checking");
 });
 
-it("closes the picker for the queue and returns focus without a playlist request", () => {
+it("closes the picker for the queue without a playlist request", () => {
   const state = run(open, { type: "queue" });
 
   expect(state).toMatchObject({
-    last: { phase: "picking", returnTo: 1, target },
+    last: { phase: "picking", target },
     phase: "closed",
-    returnFocus: true,
   });
   expect(requestOf(state)).toBeNull();
   expect(run(open, pick(), { type: "queue" }).phase).toBe("checking");

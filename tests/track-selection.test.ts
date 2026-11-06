@@ -364,7 +364,7 @@ it("captures a range made upward with Shift-click in displayed order", () => {
 });
 
 const openMenu = (entryId: number, trigger: "context" | "overflow" = "context") =>
-  ({ entryId, focusToken: Symbol("row menu"), trigger, type: "openMenu" }) as const;
+  ({ entryId, trigger, type: "openMenu" }) as const;
 
 const targetIds = (state: SelectionState) =>
   state.menu?.target.entries.map((entry) => entry.sourceEntryId);

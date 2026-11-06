@@ -21,18 +21,8 @@ import type {
   TargetEntry,
 } from "@/components/track-list/selection/track-selection";
 
-export type MenuCloseReason = Parameters<
-  NonNullable<ContextMenu.Root.Props["onOpenChange"]>
->[1]["reason"];
-
 export type TrackRowActions = {
-  closeMenu: (
-    entryId: number,
-    trigger: RowMenuTrigger,
-    reason: MenuCloseReason,
-    focusToken: symbol | null,
-  ) => void;
-  menuFinalFocus: (entryId: number, focusToken: symbol | null) => HTMLElement | false;
+  closeMenu: (entryId: number, trigger: RowMenuTrigger) => void;
   openMenu: (entryId: number, trigger: RowMenuTrigger) => void;
   run: (action: TrackAction) => void;
   toggleLike: (entry: TargetEntry) => void;
@@ -82,17 +72,13 @@ export const TrackRow = memo(function TrackRow({
     />
   );
 
-  const focusToken = menuTarget?.focusToken ?? null;
-
   const menuProps = (trigger: RowMenuTrigger) => ({
-    onOpenChange: (open: boolean, details: { reason: MenuCloseReason }) => {
+    onOpenChange: (open: boolean) => {
       if (open) actions.openMenu(sourceEntryId, trigger);
-      else actions.closeMenu(sourceEntryId, trigger, details.reason, focusToken);
+      else actions.closeMenu(sourceEntryId, trigger);
     },
     open: menuTarget?.open === true && menuTarget.trigger === trigger,
   });
-
-  const menuFinalFocus = () => actions.menuFinalFocus(sourceEntryId, focusToken);
 
   const metadataColor = track.available ? "text-secondary" : "text-disabled";
 
@@ -173,7 +159,7 @@ export const TrackRow = memo(function TrackRow({
                 >
                   <DotsThreeIcon aria-hidden="true" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-w-80" finalFocus={menuFinalFocus}>
+                <DropdownMenuContent align="end" className="max-w-80" finalFocus>
                   {menuItems}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -217,12 +203,7 @@ export const TrackRow = memo(function TrackRow({
           {formatDuration(track.duration)}
         </td>
       </ContextMenu.Trigger>
-      <DropdownMenuContent
-        className="max-w-80"
-        finalFocus={menuFinalFocus}
-        side="right"
-        sideOffset={0}
-      >
+      <DropdownMenuContent className="max-w-80" finalFocus side="right" sideOffset={0}>
         {menuItems}
       </DropdownMenuContent>
     </ContextMenu.Root>
