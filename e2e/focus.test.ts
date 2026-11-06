@@ -307,6 +307,27 @@ it("returns focus to where a playlist dialog was opened from", async () => {
   await expect.poll(() => isFocused(addButton)).toBe(true);
 });
 
+it("moves focus to the new playlist's sidebar link after creating one", async () => {
+  const window = await launchWithLibrary("lume-electron-create-", letters);
+  const { row } = trackGrid(window);
+  const creation = window.getByRole("dialog", { name: /^New playlist/ });
+  await row("echo").waitFor();
+
+  await row("bravo").click();
+  await window.keyboard.press("Shift+F10");
+  await window.getByRole("menuitem", { name: "New playlist" }).click();
+  await creation.getByLabel("Title").fill("Road");
+  await window.keyboard.press("Enter");
+  await creation.waitFor({ state: "detached" });
+  await expect.poll(() => isFocused(window.getByRole("link", { name: /^Road/ }))).toBe(true);
+
+  await window.getByRole("button", { name: "Create playlist" }).click();
+  await creation.getByLabel("Title").fill("Night");
+  await window.keyboard.press("Enter");
+  await creation.waitFor({ state: "detached" });
+  await expect.poll(() => isFocused(window.getByRole("link", { name: /^Night/ }))).toBe(true);
+});
+
 it("moves focus to a surviving control after a playlist is deleted", async () => {
   const window = await launchWithLibrary("lume-electron-delete-", letters, {
     One: ["alpha"],
@@ -329,7 +350,7 @@ it("moves focus to a surviving control after a playlist is deleted", async () =>
   await window.getByRole("menuitem", { name: "Delete playlist" }).click();
   await alert.getByRole("button", { name: /Delete playlist/ }).click();
   await window.getByRole("heading", { exact: true, name: "Tracks" }).waitFor();
-  await expect.poll(() => focusedName(window)).toBe("Tracks");
+  await expect.poll(() => isFocused(window.getByRole("link", { name: /^Tracks/ }))).toBe(true);
 
   await window.getByRole("link", { name: "One" }).click({ button: "right" });
   await window.getByRole("menuitem", { name: "Delete playlist" }).click();

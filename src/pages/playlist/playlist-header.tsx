@@ -130,7 +130,9 @@ function PlaylistMenu({ playlist }: { playlist: PlaylistDetails }) {
       </DropdownMenu>
       <DeletePlaylistDialog
         finalFocus={menuTriggerRef}
-        focusAfterDelete={() => document.querySelector<HTMLElement>("[data-slot=page-title]")}
+        focusAfterDelete={() =>
+          document.querySelector<HTMLElement>('[data-sidebar="menu-button"][data-active]')
+        }
         onOpenChange={setDeleteOpen}
         open={deleteOpen}
         playlist={{ ...playlist, trackCount: playlist.tracks.length }}
