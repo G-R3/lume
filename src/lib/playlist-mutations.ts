@@ -104,7 +104,6 @@ function commitPlaylistAddition(
   tracks: readonly PlaylistTrack[],
 ) {
   const options = playlistQueryOptions(playlistId);
-  void queryClient.cancelQueries({ queryKey: options.queryKey });
   const playlist = queryClient.getQueryData(options.queryKey);
 
   if (!playlist) return;
@@ -125,7 +124,6 @@ function commitPlaylistRemoval(
   playlistTrackIds: readonly number[],
 ) {
   const options = playlistQueryOptions(playlistId);
-  void queryClient.cancelQueries({ queryKey: options.queryKey });
   const removedIds = new Set(playlistTrackIds);
 
   queryClient.setQueryData(
@@ -140,6 +138,5 @@ function commitPlaylistRemoval(
 
 function commitPlaylistDeletion(queryClient: QueryClient, playlistId: number) {
   const options = playlistQueryOptions(playlistId);
-  void queryClient.cancelQueries({ queryKey: options.queryKey });
   queryClient.setQueryData(options.queryKey, null);
 }

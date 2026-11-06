@@ -13,7 +13,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { act, StrictMode, type ReactNode } from "react";
+import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import {
@@ -34,11 +34,15 @@ import {
 } from "../../shared/lib";
 import { AppRoot } from "@/App";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { applyLibraryUpdate, libraryQueryOptions, setTracksLikedMutation } from "./library-query";
+import {
+  applyLibraryUpdate,
+  libraryCommandMutation,
+  libraryQueryOptions,
+  setTracksLikedMutation,
+  useLibraryQuery,
+} from "./library-query";
 
 const libraryKey = libraryQueryOptions.queryKey;
-
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -74,16 +78,41 @@ describe("library updates", () => {
     expect(lume.loads).toHaveLength(1);
   });
 
-  it("applies a push received during the first load to that load's result", async () => {
+  it("lets the first read replace a sources push that arrived during it", async () => {
     const lume = createLume();
     const client = observedClient();
 
-    applyLibraryUpdate(client, { kind: "sources", sources: [source(2)] });
+    applyLibraryUpdate(client, { kind: "sources", sources: [source(1)] });
     expect(client.getQueryData(libraryKey)).toBeUndefined();
-    lume.respond(0, library([source(1)]));
+    lume.respond(0, library([source(2)]));
     await settle(client);
 
     expect(libraryOf(client)).toEqual(library([source(2)]));
+    expect(lume.loads).toHaveLength(1);
+  });
+
+  it("lets the first read replace a snapshot push that arrived during it", async () => {
+    const lume = createLume();
+    const client = observedClient();
+
+    applyLibraryUpdate(client, { kind: "snapshot", library: json(library([source(1)])) });
+    lume.respond(0, library([source(2)]));
+    await settle(client);
+
+    expect(libraryOf(client)).toEqual(library([source(2)]));
+    expect(lume.loads).toHaveLength(1);
+  });
+
+  it("recovers from a failed first load with a snapshot push", async () => {
+    const lume = createLume();
+    const client = observedClient();
+    lume.loads[0].reject(new Error("read failed"));
+    await settle(client);
+
+    applyLibraryUpdate(client, { kind: "snapshot", library: json(library([source(2)])) });
+
+    expect(libraryOf(client)).toEqual(library([source(2)]));
+    expect(client.getQueryState(libraryKey)?.status).toBe("success");
     expect(lume.loads).toHaveLength(1);
   });
 
@@ -133,7 +162,61 @@ describe("library updates", () => {
 });
 
 describe("track likes", () => {
-  it("rolls back only the tracks a failed write still owns, then rereads the library", async () => {
+  it("keeps showing a pending like through a snapshot push", async () => {
+    const { client, writes } = await likedLibrary([track(1)]);
+
+    const likeTrack = like(client, { liked: true, trackIds: [1] });
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    applyLibraryUpdate(client, {
+      kind: "snapshot",
+      library: json({ ...library([source(2)]), tracks: [track(1)] }),
+    });
+    await vi.waitFor(() => expect(shownLibrary(client).sources).toEqual([source(2)]));
+    expect(likedAtOf(client, 1)).not.toBeNull();
+
+    writes[0].resolve([{ likedAt: 100, trackId: 1 }]);
+    await likeTrack;
+    await vi.waitFor(() => expect(likedAtOf(client, 1)).toBe(100));
+  });
+
+  it("keeps showing a like queued behind a rescan through the rescan's snapshot", async () => {
+    const { client, writes } = await likedLibrary([track(1)]);
+    const rescan = createDeferred<LibrarySnapshotJson>();
+    Object.assign(window.lume, { rescanSources: () => rescan.promise });
+    void new MutationObserver(client, libraryCommandMutation(client)).mutate({ kind: "rescan-sources" });
+
+    const likeTrack = like(client, { liked: true, trackIds: [1] });
+    await vi.waitFor(() => expect(likedAtOf(client, 1)).not.toBeNull());
+    expect(writes).toHaveLength(0);
+    rescan.resolve(json({ ...library([source(2)]), tracks: [track(1)] }));
+    await vi.waitFor(() => expect(shownLibrary(client).sources).toEqual([source(2)]));
+    expect(likedAtOf(client, 1)).not.toBeNull();
+
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    writes[0].resolve([{ likedAt: 100, trackId: 1 }]);
+    await likeTrack;
+    await vi.waitFor(() => expect(likedAtOf(client, 1)).toBe(100));
+  });
+
+  it("keeps a refetch that was in flight when a like started", async () => {
+    const { client, lume, writes } = await likedLibrary([track(1)]);
+    void client.invalidateQueries({ queryKey: libraryKey });
+    await vi.waitFor(() => expect(lume.loads).toHaveLength(2));
+
+    void like(client, { liked: true, trackIds: [1] });
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    const refreshed = library([source(1)]);
+    lume.respond(1, {
+      ...refreshed,
+      playlists: [{ ...refreshed.playlists[0], trackCount: 2 }],
+      tracks: [track(1)],
+    });
+
+    await vi.waitFor(() => expect(shownLibrary(client).playlists[0].trackCount).toBe(2));
+    expect(likedAtOf(client, 1)).not.toBeNull();
+  });
+
+  it("drops a failed write's likes, keeps a newer one, and rereads the library", async () => {
     const { client, lume, writes } = await likedLibrary([liked(1, 5), liked(2, 5)]);
 
     const unlikeBoth = like(client, { liked: false, trackIds: [1, 2] });
@@ -143,11 +226,12 @@ describe("track likes", () => {
     const newerIntent = likedAtOf(client, 2);
 
     writes[0].reject(new Error("write failed"));
+    await vi.waitFor(() => expect(lume.loads).toHaveLength(2));
+    lume.respond(1, { ...library([source(1)]), tracks: [liked(1, 5), liked(2, 5)] });
     await expect(unlikeBoth).rejects.toThrow("write failed");
 
-    expect(likedAtOf(client, 1)).toBe(5);
+    await vi.waitFor(() => expect(likedAtOf(client, 1)).toBe(5));
     expect(likedAtOf(client, 2)).toBe(newerIntent);
-    expect(lume.loads).toHaveLength(2);
   });
 
   it("keeps a newer intent for the same track when an older write succeeds", async () => {
@@ -160,11 +244,12 @@ describe("track likes", () => {
 
     writes[0].resolve([{ likedAt: 100, trackId: 1 }]);
     await likeTrack;
+    await vi.waitFor(() => expect(writes).toHaveLength(2));
     expect(likedAtOf(client, 1)).toBeNull();
 
-    await vi.waitFor(() => expect(writes).toHaveLength(2));
     writes[1].resolve([{ likedAt: null, trackId: 1 }]);
     await unlikeTrack;
+    await vi.waitFor(() => expect(client.isMutating()).toBe(0));
     expect(likedAtOf(client, 1)).toBeNull();
   });
 
@@ -173,10 +258,9 @@ describe("track likes", () => {
 
     const likeTracks = like(client, { liked: true, trackIds: [1, 2] });
     await vi.waitFor(() => expect(writes).toHaveLength(1));
-    const [first, , third] = libraryOf(client).tracks;
     applyLibraryUpdate(client, {
       kind: "snapshot",
-      library: json({ ...library([source(1)]), tracks: [first, third] }),
+      library: json({ ...library([source(1)]), tracks: [track(1), track(3)] }),
     });
 
     writes[0].resolve([
@@ -185,10 +269,12 @@ describe("track likes", () => {
     ]);
     await likeTracks;
 
-    expect(libraryOf(client).tracks.map(({ id, likedAt }) => ({ id, likedAt }))).toEqual([
-      { id: 1, likedAt: 100 },
-      { id: 3, likedAt: null },
-    ]);
+    await vi.waitFor(() =>
+      expect(shownLibrary(client).tracks.map(({ id, likedAt }) => ({ id, likedAt }))).toEqual([
+        { id: 1, likedAt: 100 },
+        { id: 3, likedAt: null },
+      ]),
+    );
   });
 });
 
@@ -205,11 +291,39 @@ async function likedLibrary(tracks: Track[]) {
     },
   });
 
-  const client = observedClient();
+  const client = new QueryClient();
+  mountLibraryView(client);
+  await vi.waitFor(() => expect(lume.loads).toHaveLength(1));
   lume.respond(0, { ...library([source(1)]), tracks });
-  await settle(client);
+  await vi.waitFor(() => shownLibrary(client));
 
   return { client, lume, writes };
+}
+
+const shownLibraries = new WeakMap<QueryClient, LibrarySnapshot | undefined>();
+
+function mountLibraryView(client: QueryClient) {
+  function LibraryView() {
+    shownLibraries.set(client, useLibraryQuery().library);
+
+    return null;
+  }
+
+  const root = createRoot(document.body.appendChild(document.createElement("div")));
+  root.render(
+    <QueryClientProvider client={client}>
+      <LibraryView />
+    </QueryClientProvider>,
+  );
+  onTestFinished(() => root.unmount());
+}
+
+function shownLibrary(client: QueryClient) {
+  const shown = shownLibraries.get(client);
+
+  if (shown?.kind !== "library") throw new Error("Expected a shown library");
+
+  return shown;
 }
 
 function like(client: QueryClient, input: SetTracksLikedInput) {
@@ -217,7 +331,7 @@ function like(client: QueryClient, input: SetTracksLikedInput) {
 }
 
 function likedAtOf(client: QueryClient, trackId: number) {
-  return libraryOf(client).tracks.find((entry) => entry.id === trackId)?.likedAt;
+  return shownLibrary(client).tracks.find((entry) => entry.id === trackId)?.likedAt;
 }
 
 function liked(id: number, likedAt: number): Track {
@@ -226,16 +340,17 @@ function liked(id: number, likedAt: number): Track {
 
 describe("app startup order", () => {
   it.each([{ strict: false }, { strict: true }])(
-    "applies a push sent before the app listens to the first load (strict mode: $strict)",
+    "delivers a push sent before the app listens without a second read (strict mode: $strict)",
     async ({ strict }) => {
       const lume = createLume();
-      lume.push({ kind: "sources", sources: [source(2)] });
+      lume.push({ kind: "sources", sources: [source(1)] });
       const client = new QueryClient();
       const root = createRoot(document.body.appendChild(document.createElement("div")));
-      onTestFinished(() => act(() => root.unmount()));
+      onTestFinished(() => root.unmount());
 
-      await act(async () => root.render(renderApp(client, strict)));
-      await act(async () => lume.respond(0, library([source(1)])));
+      root.render(renderApp(client, strict));
+      await vi.waitFor(() => expect(lume.loads).toHaveLength(1));
+      lume.respond(0, library([source(2)]));
 
       await vi.waitFor(() => expect(document.body.textContent).toContain("sources 1:2"));
       expect(lume.loads).toHaveLength(1);
@@ -247,7 +362,7 @@ function createLume() {
   const loads: ReturnType<typeof createDeferred<LibrarySnapshotJson>>[] = [];
   const updates = createBufferedListeners<LibraryUpdate>();
 
-  const lume: Pick<LumeApi, "isMac" | "loadLibrary" | "onLibraryUpdate"> = {
+  const lume: Pick<LumeApi, "isMac" | "loadLibrary" | "onLibraryUpdate" | "rescanSources"> = {
     isMac: false,
     loadLibrary: () => {
       const load = createDeferred<LibrarySnapshotJson>();
@@ -256,6 +371,7 @@ function createLume() {
       return load.promise;
     },
     onLibraryUpdate: updates.subscribe,
+    rescanSources: () => Promise.reject(new Error("Unexpected rescan")),
   };
 
   Object.defineProperty(window, "lume", { configurable: true, value: lume });

@@ -3,11 +3,12 @@ import {
   queryOptions,
   type QueryClient,
   useMutation,
+  useMutationState,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
   type LibrarySnapshot,
-  type LibrarySource,
   type LibraryUpdate,
   parseLibrarySnapshot,
   type SetTracksLikedInput,
@@ -28,47 +29,25 @@ export const libraryMutationOptions = {
 
 const libraryQueryKey = ["library"];
 
-type FirstLoad = { sources?: LibrarySource[] };
-
-const firstLoads = new WeakMap<QueryClient, FirstLoad>();
+const setTracksLikedKey = ["library", "set-tracks-liked"];
 
 export const libraryQueryOptions = queryOptions({
   networkMode: "always",
   queryKey: libraryQueryKey,
-  queryFn: async ({ client }) => {
-    if (client.getQueryData(libraryQueryKey) !== undefined) return loadLibrary();
-
-    const firstLoad: FirstLoad = {};
-    firstLoads.set(client, firstLoad);
-
-    try {
-      const library = await loadLibrary();
-
-      if (!firstLoad.sources || library.kind !== "library") return library;
-
-      return { ...library, sources: firstLoad.sources };
-    } finally {
-      firstLoads.delete(client);
-    }
-  },
+  queryFn: async () => parseLibrarySnapshot(await window.lume.loadLibrary()),
   retry: false,
   staleTime: Infinity,
 });
 
-async function loadLibrary() {
-  return parseLibrarySnapshot(await window.lume.loadLibrary());
-}
-
+// Main builds every library payload synchronously and Electron delivers replies and pushes in send
+// order, so whichever payload arrives last is the newest. A push that lands during a read is older
+// than that read's result, so the read may replace it.
 export function applyLibraryUpdate(queryClient: QueryClient, update: LibraryUpdate) {
   if (update.kind === "snapshot") {
-    queryClient.setQueryData(libraryQueryOptions.queryKey, parseLibrarySnapshot(update.library));
+    queryClient.setQueryData(libraryQueryKey, parseLibrarySnapshot(update.library));
 
     return;
   }
-
-  const firstLoad = firstLoads.get(queryClient);
-
-  if (firstLoad) firstLoad.sources = update.sources;
 
   const current = queryClient.getQueryData(libraryQueryOptions.queryKey);
 
@@ -82,70 +61,78 @@ export function applyLibraryUpdate(queryClient: QueryClient, update: LibraryUpda
     return;
   }
 
-  if (!firstLoad) {
-    void queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
-  }
+  void queryClient.invalidateQueries({ queryKey: libraryQueryKey }, { cancelRefetch: false });
 }
 
-export function useLibraryMutation() {
-  const queryClient = useQueryClient();
+export function useLibraryQuery() {
+  const query = useQuery(libraryQueryOptions);
 
-  return useMutation({
+  const pendingLikes = useMutationState({
+    filters: { mutationKey: setTracksLikedKey, status: "pending" },
+    // SAFETY: only `setTracksLikedMutation` uses `setTracksLikedKey`.
+    select: (mutation) => ({
+      input: mutation.state.variables as SetTracksLikedInput,
+      submittedAt: mutation.state.submittedAt,
+    }),
+  });
+
+  return {
+    error: query.error,
+    library: query.data && withPendingLikes(query.data, pendingLikes),
+    refetch: query.refetch,
+  };
+}
+
+type PendingLike = { input: SetTracksLikedInput; submittedAt: number };
+
+// The cache holds only what main stored. Pending writes show over it, newest last, so neither a
+// snapshot nor an older write's result can hide a like the user has not seen settle.
+function withPendingLikes(library: LibrarySnapshot, pendingLikes: readonly PendingLike[]) {
+  if (library.kind === "first-run" || pendingLikes.length === 0) return library;
+
+  const likedAtById = new Map<number, number | null>();
+
+  for (const { input, submittedAt } of pendingLikes) {
+    for (const trackId of input.trackIds) likedAtById.set(trackId, input.liked ? submittedAt : null);
+  }
+
+  return {
+    ...library,
+    tracks: library.tracks.map((track) => {
+      const likedAt = likedAtById.get(track.id);
+
+      return likedAt === undefined || likedAt === track.likedAt ? track : { ...track, likedAt };
+    }),
+  };
+}
+
+export function libraryCommandMutation(queryClient: QueryClient) {
+  return mutationOptions({
     ...libraryMutationOptions,
     mutationFn: async (command: LibraryCommand) =>
       parseLibrarySnapshot(await runLibraryCommand(command)),
-    onSuccess: (library) => queryClient.setQueryData(libraryQueryOptions.queryKey, library),
+    onSuccess: (library) => queryClient.setQueryData(libraryQueryKey, library),
   });
 }
 
-type LikeWrite = { previousLikedAt: Map<number, number | null> };
-
-const newestLikeWrites = new WeakMap<QueryClient, Map<number, LikeWrite>>();
+export function useLibraryMutation() {
+  return useMutation(libraryCommandMutation(useQueryClient()));
+}
 
 export function setTracksLikedMutation(queryClient: QueryClient) {
-  const newestWrites = newestLikeWrites.get(queryClient) ?? new Map<number, LikeWrite>();
-  newestLikeWrites.set(queryClient, newestWrites);
-
-  const settle = (write: LikeWrite, likedAtOf: (trackId: number) => number | null | undefined) => {
-    updateLibraryTracks(queryClient, (track) => {
-      const likedAt = newestWrites.get(track.id) === write ? likedAtOf(track.id) : undefined;
-
-      return likedAt === undefined ? track : { ...track, likedAt };
-    });
-
-    for (const trackId of write.previousLikedAt.keys()) {
-      if (newestWrites.get(trackId) === write) newestWrites.delete(trackId);
-    }
-  };
-
   return mutationOptions({
     ...libraryMutationOptions,
+    mutationKey: setTracksLikedKey,
     mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
-    onMutate: async (input): Promise<LikeWrite> => {
-      await queryClient.cancelQueries({ queryKey: libraryQueryOptions.queryKey });
-
-      const likedAt = input.liked ? Date.now() : null;
-      const trackIds = new Set(input.trackIds);
-      const write: LikeWrite = { previousLikedAt: new Map() };
+    onError: () => queryClient.invalidateQueries({ queryKey: libraryQueryKey }),
+    onSuccess: (results) => {
+      const likedAtById = new Map(results.map((result) => [result.trackId, result.likedAt]));
 
       updateLibraryTracks(queryClient, (track) => {
-        if (!trackIds.has(track.id)) return track;
+        const likedAt = likedAtById.get(track.id);
 
-        write.previousLikedAt.set(track.id, track.likedAt);
-        newestWrites.set(track.id, write);
-
-        return { ...track, likedAt };
+        return likedAt === undefined ? track : { ...track, likedAt };
       });
-
-      return write;
-    },
-    onError: (_error, _input, write) => {
-      if (write) settle(write, (trackId) => write.previousLikedAt.get(trackId));
-      void queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
-    },
-    onSuccess: (results, _input, write) => {
-      const likedAtById = new Map(results.map((result) => [result.trackId, result.likedAt]));
-      settle(write, (trackId) => likedAtById.get(trackId));
     },
   });
 }
