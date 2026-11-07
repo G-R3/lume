@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 describe("a pending like", () => {
-  it("stays shown when a folder command queued ahead of it returns", async () => {
+  it("stays shown when a folder command returns a library read before the write", async () => {
     const app = await startApp(stored({ likedAt: null }));
     const rescan = app.lume.rescanSources.next();
     await app.do.rescanSources();
@@ -123,6 +123,23 @@ describe("a pending like", () => {
 
     expect(app.likedAtOf(1)).toBe(100);
     expect(rowOf(2)).toBeNull();
+  });
+});
+
+describe("a like during a folder command", () => {
+  it("is saved without waiting for the command to finish", async () => {
+    const app = await startApp(stored({ likedAt: null }));
+    const rescan = app.lume.rescanSources.next();
+    await app.do.rescanSources();
+
+    await app.do.like(1);
+    await app.answer(await app.lume.likes.call(0), [{ likedAt: 100, trackId: 1 }]);
+    expect(app.likedAtOf(1)).toBe(100);
+
+    await app.answer(rescan, json(stored({ likedAt: 100, title: "Rescanned" })));
+
+    expect(app.titleOf(1)).toBe("Rescanned");
+    expect(app.historyOf(1)).toEqual(["unliked", "liked"]);
   });
 });
 

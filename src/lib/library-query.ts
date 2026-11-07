@@ -138,9 +138,11 @@ export function useLibraryMutation() {
 export function useSetTracksLiked() {
   const queryClient = useQueryClient();
 
+  // No library scope: the stored times reach the cache through `confirmLikes`, and a library computed
+  // after this write already contains them, so a like need not wait for folder or playlist commands.
   return useMutation({
-    ...libraryMutationOptions,
     mutationKey: setTracksLikedKey,
+    networkMode: "always",
     mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
     // Runs before the mutation stops being pending, so the stored time replaces the intent with no gap.
     onSuccess: (results) => confirmLikes(queryClient, results),
