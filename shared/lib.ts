@@ -262,35 +262,6 @@ function trackFromTuple(track: TrackTuple) {
   } satisfies Track;
 }
 
-export function createBufferedListeners<Value>() {
-  const listeners = new Set<(value: Value) => void>();
-  let pending: Value | undefined;
-
-  return {
-    publish: (value: Value) => {
-      if (listeners.size === 0) {
-        pending = value;
-
-        return;
-      }
-
-      listeners.forEach((listener) => listener(value));
-    },
-    subscribe: (listener: (value: Value) => void) => {
-      listeners.add(listener);
-
-      if (pending !== undefined) {
-        listener(pending);
-        pending = undefined;
-      }
-
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
-}
-
 export type LibraryUpdate =
   | { kind: "snapshot"; library: LibrarySnapshotJson }
   | { kind: "sources"; sources: LibrarySource[] };
@@ -308,6 +279,7 @@ export type PlaylistCreationResult = {
 export type LumeInvokeApi = {
   addSource: () => Promise<LibrarySnapshotJson>;
   addTracksToPlaylist: (input: AddTracksToPlaylistInput) => Promise<AddTracksToPlaylistResult>;
+  awaitStartupScan: () => Promise<LibraryUpdate | null>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   deletePlaylist: (playlistId: number) => Promise<LibrarySnapshotJson>;
   disableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
@@ -335,7 +307,6 @@ export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
     save: LumeInvokeApi["savePlaybackSession"];
     savePosition: LumeInvokeApi["savePlaybackPosition"];
   };
-  onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   isMac: boolean;
 };
 
@@ -343,6 +314,7 @@ export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
 export const lumeChannels = {
   addSource: "lume:add-source",
   addTracksToPlaylist: "lume:add-tracks-to-playlist",
+  awaitStartupScan: "lume:await-startup-scan",
   createPlaylist: "lume:create-playlist",
   deletePlaylist: "lume:delete-playlist",
   disableSource: "lume:disable-source",
@@ -363,7 +335,6 @@ export const lumeChannels = {
 
 export const lumeEventChannels = {
   flushPlaybackSession: "lume:flush-playback-session",
-  libraryUpdated: "lume:library-updated",
 } as const;
 
 export const appScheme = "lume";

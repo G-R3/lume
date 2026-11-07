@@ -33,7 +33,7 @@ type SourceWriter = Pick<LibraryDatabase, "update">;
 
 type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
 
-type LibraryScanResult = "changed" | "none" | "unchanged";
+export type LibraryScanResult = "changed" | "none" | "unchanged";
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
 

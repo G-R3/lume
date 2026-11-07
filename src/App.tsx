@@ -1,18 +1,16 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation } from "@tanstack/react-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FirstRunScreen } from "@/components/library-onboarding";
 import { Button } from "@/components/ui/button";
 import { FirstScanContext } from "@/hooks/use-first-scan";
 import { playFirstScan } from "@/lib/first-scan";
 import { cn } from "@/lib/utils";
-import { applyLibraryUpdate, libraryQueryOptions, useLibraryMutation } from "@/lib/library-query";
+import { useLibrary, useLibraryMutation } from "@/lib/library-query";
 import { MusicLibraryContext } from "@/hooks/use-music-library";
 
 export function AppRoot() {
   const pathname = useLocation({ select: (location) => location.pathname });
-  const queryClient = useQueryClient();
-  const library = useQuery(libraryQueryOptions);
+  const { error, library, refetch } = useLibrary();
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [isAddingFirstFolder, setIsAddingFirstFolder] = useState(false);
 
@@ -21,35 +19,27 @@ export function AppRoot() {
 
   const reveal = useMemo(
     () => ({
-      isRevealing: isAddingFirstFolder && library.data?.kind === "library" && Boolean(readyList),
+      isRevealing: isAddingFirstFolder && library?.kind === "library" && Boolean(readyList),
       onListReady: setReadyList,
     }),
-    [isAddingFirstFolder, library.data?.kind, readyList],
+    [isAddingFirstFolder, library?.kind, readyList],
   );
 
-  useEffect(
-    () =>
-      window.lume.onLibraryUpdate((update) => {
-        applyLibraryUpdate(queryClient, update);
-      }),
-    [queryClient],
-  );
-
-  if (library.data === undefined) {
-    if (!library.error) return <div className="min-h-screen bg-page" />;
+  if (library === undefined) {
+    if (!error) return <div className="min-h-screen bg-page" />;
 
     return (
       <main className="flex min-h-screen justify-center bg-page px-6 pt-66 text-primary">
         <div className="flex w-100 max-w-full flex-col items-start">
           <h1 className="text-display font-semibold">Lume could not load your library</h1>
           <p className="pt-2 text-copy text-danger" role="alert">
-            {recoveryError ?? library.error.message}
+            {recoveryError ?? error.message}
           </p>
           <div className="flex items-center gap-2 pt-6">
             <Button
               onClick={() => {
                 setRecoveryError(null);
-                void library.refetch();
+                void refetch();
               }}
               type="button"
               variant="primary"
@@ -72,12 +62,12 @@ export function AppRoot() {
     );
   }
 
-  const isFirstRun = library.data.kind === "first-run";
+  const isFirstRun = library.kind === "first-run";
 
   return (
     <FirstScanContext.Provider value={reveal}>
-      {library.data.kind === "library" && (
-        <MusicLibraryContext.Provider value={library.data}>
+      {library.kind === "library" && (
+        <MusicLibraryContext.Provider value={library}>
           <Outlet />
         </MusicLibraryContext.Provider>
       )}
