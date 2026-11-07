@@ -15,6 +15,7 @@ import {
   type SetTracksLikedInput,
   type TrackLikeResult,
 } from "../../shared/lib";
+import { z } from "zod";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -23,14 +24,14 @@ type LibraryCommand =
   | { kind: "rescan-sources" }
   | { enabled: boolean; kind: "set-source-enabled"; sourceId: number };
 
-export const libraryMutationOptions = {
+export const libraryCommandOptions = {
   networkMode: "always",
   scope: { id: "library" },
 } as const;
 
-// Holds only libraries main sent. Every payload arrives as an invoke reply, so the last one applied
-// is the newest as long as replies arrive in the order main computed them. Electron does not
-// document that order; `pnpm probe:ipc-order` checks it and should be rerun after an upgrade.
+// Every payload arrives as an invoke reply, so the last one applied is the newest as long as
+// replies arrive in the order main computed them. Electron does not document that order;
+// `pnpm probe:ipc-order` checks it and should be rerun after an upgrade.
 const libraryQueryOptions = queryOptions({
   networkMode: "always",
   queryKey: ["library"],
@@ -43,16 +44,19 @@ const setTracksLikedKey = ["set-tracks-liked"];
 
 type PendingLike = { input: SetTracksLikedInput; submittedAt: number };
 
+const setTracksLikedInputSchema = z.object({
+  liked: z.boolean(),
+  trackIds: z.array(z.number()),
+}) satisfies z.ZodType<SetTracksLikedInput>;
+
 const pendingLikesOptions = {
   filters: { mutationKey: setTracksLikedKey, status: "pending" },
-  // SAFETY: only `useSetTracksLiked` uses `setTracksLikedKey`, and a pending mutation has its variables.
   select: (mutation: Mutation): PendingLike => ({
-    input: mutation.state.variables as SetTracksLikedInput,
+    input: setTracksLikedInputSchema.parse(mutation.state.variables),
     submittedAt: mutation.state.submittedAt,
   }),
 } as const;
 
-/** The library to show: what main confirmed, with each pending like's intent on top. */
 export function useLibrary() {
   const queryClient = useQueryClient();
   const query = useQuery(libraryQueryOptions);
@@ -129,7 +133,7 @@ export function useLibraryMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    ...libraryMutationOptions,
+    ...libraryCommandOptions,
     mutationFn: async (command: LibraryCommand) =>
       parseLibrarySnapshot(await runLibraryCommand(command)),
     onSuccess: (library) => replaceLibrary(queryClient, library),
@@ -139,8 +143,6 @@ export function useLibraryMutation() {
 export function useSetTracksLiked() {
   const queryClient = useQueryClient();
 
-  // No library scope: the stored times reach the cache through `confirmLikes`, and a library computed
-  // after this write already contains them, so a like need not wait for folder or playlist commands.
   return useMutation({
     mutationKey: setTracksLikedKey,
     networkMode: "always",

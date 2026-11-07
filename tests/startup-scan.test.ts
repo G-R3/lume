@@ -9,13 +9,17 @@ import { lumeChannels, parseLibrarySnapshot, type LibraryUpdate } from "../share
 
 type IpcEvent = { sender: { mainFrame: { url: string } }; senderFrame: { url: string } };
 
-// Only the startup scan handler is called, so the map holds its signature.
-const handlers = new Map<string, (event: IpcEvent) => Promise<LibraryUpdate | null>>();
+let startupScanHandler: ((event: IpcEvent) => Promise<LibraryUpdate | null>) | undefined;
 
 vi.mock("electron", () => ({
   BrowserWindow: { fromWebContents: () => ({ isDestroyed: () => false }) },
   dialog: {},
-  ipcMain: { handle: (channel: string, handler: never) => handlers.set(channel, handler), on: () => {} },
+  ipcMain: {
+    handle: (channel: string, handler: never) => {
+      if (channel === lumeChannels.awaitStartupScan) startupScanHandler = handler;
+    },
+    on: () => {},
+  },
   shell: {},
 }));
 
@@ -44,7 +48,7 @@ it("replies with the stored library when the scan fails after committing a sourc
   startupScan.catch(() => {});
   registerIpc({ rendererUrl, startupScan, userDataDirectory: "/tmp" });
 
-  const reply = await handlers.get(lumeChannels.awaitStartupScan)?.(event);
+  const reply = await startupScanHandler?.(event);
 
   expect(reply?.kind).toBe("snapshot");
 

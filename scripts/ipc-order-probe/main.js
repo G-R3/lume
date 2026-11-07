@@ -42,9 +42,7 @@ app.whenReady().then(async () => {
   ipcMain.on("done", (_event, result) => {
     clearInterval(pushes);
     console.log(JSON.stringify(result));
-    // Lume's renderer relies on invoke replies arriving in the order main computed them.
-    // Pushes reordering against replies is expected and is why the library has no push.
-    app.exit(result.replyVsReply === 0 ? 0 : 1);
+    app.exit(result.repliesOutOfOrder === 0 ? 0 : 1);
   });
 
   await window.loadFile(path.join(__dirname, "index.html"), { query: { rounds: String(rounds) } });

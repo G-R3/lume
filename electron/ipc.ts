@@ -109,10 +109,8 @@ export function registerIpc(options: {
     },
     addTracksToPlaylist: (_window, input) =>
       addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
-    // Computed after the scan settles and sent like every other reply, so it is ordered with them.
-    // A failed scan may have committed some sources first, so it replies with the whole stored library.
     awaitStartupScan: () =>
-      options.startupScan.catch(() => "changed" as const).then(getLibraryUpdate),
+      options.startupScan.catch(() => "failed" as const).then(getLibraryUpdate),
     createPlaylist: (_window, input) => {
       const playlist = createPlaylist(playlistCreationSchema.parse(input));
 

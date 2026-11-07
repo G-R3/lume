@@ -373,7 +373,7 @@ export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<Li
   return results.every((result) => result === "unchanged") ? "unchanged" : "changed";
 }
 
-export function getLibraryUpdate(result: LibraryScanResult): LibraryUpdate | null {
+export function getLibraryUpdate(result: LibraryScanResult | "failed"): LibraryUpdate | null {
   if (result === "none") return null;
 
   if (result === "unchanged") return { kind: "sources", sources: getSources() };

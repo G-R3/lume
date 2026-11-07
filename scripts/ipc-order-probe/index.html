@@ -7,14 +7,14 @@
   let last = 0;
   let lastKind = "";
   let lastReply = 0;
-  let replyVsReply = 0;
+  let repliesOutOfOrder = 0;
   let violations = 0;
 
   function apply(kind, value) {
     applied++;
 
     if (kind !== "push") {
-      if (value < lastReply) replyVsReply++;
+      if (value < lastReply) repliesOutOfOrder++;
       else lastReply = value;
     }
 
@@ -55,6 +55,6 @@
     }
 
     await Promise.all(pending);
-    window.lume.done({ applied, byKind, replyVsReply, rounds, violations });
+    window.lume.done({ applied, byKind, repliesOutOfOrder, rounds, violations });
   })();
 </script>
