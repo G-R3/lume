@@ -28,8 +28,9 @@ export const libraryMutationOptions = {
   scope: { id: "library" },
 } as const;
 
-// Holds only libraries main sent. Every payload arrives as an invoke reply, and Electron delivers
-// replies in the order main computed them, so the last one applied is the newest.
+// Holds only libraries main sent. Every payload arrives as an invoke reply, so the last one applied
+// is the newest as long as replies arrive in the order main computed them. Electron does not
+// document that order; `pnpm probe:ipc-order` checks it and should be rerun after an upgrade.
 const libraryQueryOptions = queryOptions({
   networkMode: "always",
   queryKey: ["library"],

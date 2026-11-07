@@ -9,6 +9,7 @@
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "db:drop": "node scripts/drop-dev-database.mjs && pnpm dev",
+    "probe:ipc-order": "electron scripts/ipc-order-probe",
     "build": "tsc -b && electron-vite build",
     "check": "tsc -b && vp lint && vitest run",
     "format": "vp fmt",
