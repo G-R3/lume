@@ -1,10 +1,10 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, protocol, session, shell } from "electron";
-import { appScheme, lumeEventChannels } from "../shared/lib";
+import { appScheme } from "../shared/lib";
 import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
 import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
 import { registerIpc } from "./ipc";
-import { getLibraryUpdate, scanEnabledSources } from "./library";
+import { scanEnabledSources } from "./library";
 
 app.enableSandbox();
 
@@ -78,7 +78,10 @@ async function startApp() {
   });
   app.once("will-quit", closeDatabase);
 
-  registerIpc({ rendererUrl, userDataDirectory });
+  const startupScan = scanEnabledSources();
+  startupScan.catch((error) => console.error("Could not scan the music library", error));
+
+  registerIpc({ rendererUrl, startupScan, userDataDirectory });
 
   registerProtocolHandler(rendererDirectory);
 
@@ -87,15 +90,7 @@ async function startApp() {
     callback(false),
   );
 
-  const window = createWindow();
-
-  void scanEnabledSources()
-    .then((result) => {
-      const update = window.isDestroyed() ? null : getLibraryUpdate(result);
-
-      if (update) window.webContents.send(lumeEventChannels.libraryUpdated, update);
-    })
-    .catch((error) => console.error("Could not scan the music library", error));
+  createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
