@@ -9,11 +9,15 @@ import {
 } from "@tanstack/react-query";
 import { useEffect } from "react";
 import {
+  type FirstRunLibrary,
+  type LibraryRevision,
   type LibrarySnapshot,
   type LibraryUpdate,
+  type MusicLibrary,
   parseLibrarySnapshot,
   type SetTracksLikedInput,
-  type TrackLikeResult,
+  type Track,
+  type TracksLikedResult,
 } from "../../shared/lib";
 import { z } from "zod";
 
@@ -29,14 +33,28 @@ export const libraryCommandOptions = {
   scope: { id: "library" },
 } as const;
 
-// Every payload arrives as an invoke reply, so the last one applied is the newest as long as
-// replies arrive in the order main computed them. Electron does not document that order;
-// `pnpm probe:ipc-order` checks it and should be rerun after an upgrade.
+type ConfirmedLibrary = {
+  likes: ReadonlyMap<Track["id"], ConfirmedLike>;
+  snapshot: LibrarySnapshot;
+  sources: RevisedSources | null;
+};
+
+type RevisedSources = { revision: LibraryRevision; sources: MusicLibrary["sources"] };
+
+type ConfirmedLike = { likedAt: Track["likedAt"]; revision: LibraryRevision };
+
+type ShownLibrary = MusicLibrary | FirstRunLibrary;
+
 const libraryQueryOptions = queryOptions({
   networkMode: "always",
   queryKey: ["library"],
-  queryFn: async () => parseLibrarySnapshot(await window.lume.loadLibrary()),
+  queryFn: async ({ client, queryKey }) => {
+    const snapshot = parseLibrarySnapshot(await window.lume.loadLibrary());
+
+    return withNewerSnapshot(client.getQueryData<ConfirmedLibrary>(queryKey), snapshot);
+  },
   retry: false,
+  select: showConfirmedLibrary,
   staleTime: Infinity,
 });
 
@@ -75,8 +93,10 @@ export function useLibrary() {
   };
 }
 
-export function replaceLibrary(queryClient: QueryClient, library: LibrarySnapshot) {
-  queryClient.setQueryData(libraryQueryOptions.queryKey, library);
+export function replaceLibrary(queryClient: QueryClient, snapshot: LibrarySnapshot) {
+  queryClient.setQueryData(libraryQueryOptions.queryKey, (confirmed) =>
+    withNewerSnapshot(confirmed, snapshot),
+  );
 }
 
 export function refreshLibrary(queryClient: QueryClient) {
@@ -90,10 +110,10 @@ function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
     return;
   }
 
-  const current = queryClient.getQueryData(libraryQueryOptions.queryKey);
+  const confirmed = queryClient.getQueryData(libraryQueryOptions.queryKey);
 
-  if (current?.kind === "library") {
-    replaceLibrary(queryClient, { ...current, sources: update.sources });
+  if (confirmed?.snapshot.kind === "library") {
+    queryClient.setQueryData(libraryQueryOptions.queryKey, withNewerSources(confirmed, update));
 
     return;
   }
@@ -101,10 +121,63 @@ function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
   void refreshLibrary(queryClient);
 }
 
+function withNewerSnapshot(
+  confirmed: ConfirmedLibrary | undefined,
+  snapshot: LibrarySnapshot,
+): ConfirmedLibrary {
+  if (confirmed && snapshot.revision <= confirmed.snapshot.revision) return confirmed;
+
+  const isNewerThanSnapshot = (part: { revision: LibraryRevision }) =>
+    part.revision > snapshot.revision;
+
+  return {
+    likes: new Map([...(confirmed?.likes ?? [])].filter(([, like]) => isNewerThanSnapshot(like))),
+    snapshot,
+    sources:
+      confirmed?.sources && isNewerThanSnapshot(confirmed.sources) ? confirmed.sources : null,
+  };
+}
+
+function withNewerSources(confirmed: ConfirmedLibrary, update: RevisedSources): ConfirmedLibrary {
+  const newestSources = confirmed.sources ?? confirmed.snapshot;
+
+  return update.revision > newestSources.revision ? { ...confirmed, sources: update } : confirmed;
+}
+
+function withNewerLikes(confirmed: ConfirmedLibrary, result: TracksLikedResult): ConfirmedLibrary {
+  const likes = new Map(confirmed.likes);
+  let changed = false;
+
+  for (const { likedAt, trackId } of result.likes) {
+    const newestLike = likes.get(trackId) ?? confirmed.snapshot;
+
+    if (result.revision <= newestLike.revision) continue;
+
+    likes.set(trackId, { likedAt, revision: result.revision });
+    changed = true;
+  }
+
+  return changed ? { ...confirmed, likes } : confirmed;
+}
+
+function showConfirmedLibrary({ likes, snapshot, sources }: ConfirmedLibrary): ShownLibrary {
+  if (snapshot.kind === "first-run") return snapshot;
+
+  const library = sources ? { ...snapshot, sources: sources.sources } : snapshot;
+
+  if (likes.size === 0) return library;
+
+  return withLikedAt(library, (track) => {
+    const like = likes.get(track.id);
+
+    return like ? like.likedAt : track.likedAt;
+  });
+}
+
 function withPendingLikes(
-  library: LibrarySnapshot | undefined,
+  library: ShownLibrary | undefined,
   pendingLikes: readonly PendingLike[],
-): LibrarySnapshot | undefined {
+): ShownLibrary | undefined {
   if (pendingLikes.length === 0 || library?.kind !== "library") return library;
 
   // Mutation cache order is call order, so the newest intent for a track wins.
@@ -114,16 +187,28 @@ function withPendingLikes(
     for (const trackId of input.trackIds) intents.set(trackId, input.liked ? submittedAt : null);
   }
 
+  return withLikedAt(library, (track) => {
+    const intent = intents.get(track.id);
+    const keepsStoredState = intent === undefined || (intent === null) === (track.likedAt === null);
+
+    return keepsStoredState ? track.likedAt : intent;
+  });
+}
+
+function withLikedAt(
+  library: MusicLibrary,
+  likedAtOf: (track: Track) => Track["likedAt"],
+): MusicLibrary {
   let changed = false;
 
   const tracks = library.tracks.map((track) => {
-    const intent = intents.get(track.id);
+    const likedAt = likedAtOf(track);
 
-    if (intent === undefined || (intent === null) === (track.likedAt === null)) return track;
+    if (likedAt === track.likedAt) return track;
 
     changed = true;
 
-    return { ...track, likedAt: intent };
+    return { ...track, likedAt };
   });
 
   return changed ? { ...library, tracks } : library;
@@ -148,29 +233,13 @@ export function useSetTracksLiked() {
     networkMode: "always",
     mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
     // Runs before the mutation stops being pending, so the stored time replaces the intent with no gap.
-    onSuccess: (results) => confirmLikes(queryClient, results),
+    onSuccess: (result) => {
+      queryClient.setQueryData(
+        libraryQueryOptions.queryKey,
+        (confirmed) => confirmed && withNewerLikes(confirmed, result),
+      );
+    },
   });
-}
-
-function confirmLikes(queryClient: QueryClient, results: readonly TrackLikeResult[]) {
-  const library = queryClient.getQueryData(libraryQueryOptions.queryKey);
-
-  if (library?.kind !== "library") return;
-
-  const likedAtById = new Map(results.map((result) => [result.trackId, result.likedAt]));
-  let changed = false;
-
-  const tracks = library.tracks.map((track) => {
-    const likedAt = likedAtById.get(track.id);
-
-    if (likedAt === undefined || likedAt === track.likedAt) return track;
-
-    changed = true;
-
-    return { ...track, likedAt };
-  });
-
-  if (changed) replaceLibrary(queryClient, { ...library, tracks });
 }
 
 function runLibraryCommand(command: LibraryCommand) {

@@ -462,7 +462,7 @@ describe("track likes", () => {
     const first = await addTrack("Left");
     const second = await addTrack("Right");
 
-    const liked = setTracksLiked({ liked: true, trackIds: [first.id, second.id, first.id] });
+    const liked = setTracksLiked({ liked: true, trackIds: [first.id, second.id, first.id] }).likes;
 
     expect(liked).toEqual([
       { likedAt: expect.any(Number), trackId: first.id },
@@ -473,7 +473,7 @@ describe("track likes", () => {
       liked[0].likedAt,
     ]);
 
-    expect(setTracksLiked({ liked: false, trackIds: [second.id, first.id] })).toEqual([
+    expect(setTracksLiked({ liked: false, trackIds: [second.id, first.id] }).likes).toEqual([
       { likedAt: null, trackId: second.id },
       { likedAt: null, trackId: first.id },
     ]);

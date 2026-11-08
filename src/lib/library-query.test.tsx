@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/t
 import {
   type AddTracksToPlaylistResult,
   getTrackUrl,
+  type LibraryRevision,
   type LibrarySnapshotJson,
   type LibrarySource,
   type LibraryUpdate,
@@ -21,7 +22,7 @@ import {
   type PlaylistDetails,
   stringifyLibrary,
   type Track,
-  type TrackLikeResult,
+  type TracksLikedResult,
   type TrackTuple,
 } from "../../shared/lib";
 import { AppRoot } from "@/App";
@@ -41,7 +42,7 @@ afterEach(() => {
 
 describe("a pending like", () => {
   it("stays shown when a folder command returns a library read before the write", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
     const rescan = app.lume.rescanSources.next();
     await app.do.rescanSources();
     await vi.waitFor(() => expect(app.lume.rescanSources.calls).toHaveLength(1));
@@ -49,15 +50,15 @@ describe("a pending like", () => {
     await app.do.like(1);
     await app.shows(1, "liked");
 
-    await app.answer(rescan, json(stored({ likedAt: null })));
-    await app.answer(await app.lume.likes.call(0), [{ likedAt: 100, trackId: 1 }]);
+    await app.answer(rescan, json(stored({ likedAt: null, revision: 2 })));
+    await app.answer(await app.lume.likes.call(0), liked(3, [1, 100]));
 
     expect(app.historyOf(1)).toEqual(["unliked", "liked"]);
     expect(app.likedAtOf(1)).toBe(100);
   });
 
   it("stays shown when the startup scan returns a library read before the write", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
     await app.do.like(1);
     await app.shows(1, "liked");
@@ -65,9 +66,9 @@ describe("a pending like", () => {
 
     await app.finishScan({
       kind: "snapshot",
-      library: json(stored({ likedAt: null, title: "Scanned" })),
+      library: json(stored({ likedAt: null, revision: 2, title: "Scanned" })),
     });
-    await app.answer(write, [{ likedAt: 100, trackId: 1 }]);
+    await app.answer(write, liked(3, [1, 100]));
 
     expect(app.titleOf(1)).toBe("Scanned");
     expect(app.historyOf(1)).toEqual(["unliked", "liked"]);
@@ -75,7 +76,7 @@ describe("a pending like", () => {
   });
 
   it("stays shown when an older write for another track fails", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
     await app.do.like(1);
     const failing = await app.lume.likes.call(0);
@@ -83,7 +84,7 @@ describe("a pending like", () => {
     await app.shows(2, "liked");
 
     await app.fail(failing, new Error("disk full"));
-    await app.answer(await app.lume.likes.call(1), [{ likedAt: 200, trackId: 2 }]);
+    await app.answer(await app.lume.likes.call(1), liked(2, [2, 200]));
 
     expect(app.historyOf(1)).toEqual(["unliked", "liked", "unliked"]);
     expect(app.historyOf(2)).toEqual(["unliked", "liked"]);
@@ -91,35 +92,32 @@ describe("a pending like", () => {
   });
 
   it("keeps the newest intent for a track when an older write succeeds", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
     await app.do.like(1);
     const likeWrite = await app.lume.likes.call(0);
     await app.do.unlike(1);
     await app.shows(1, "unliked");
 
-    await app.answer(likeWrite, [{ likedAt: 100, trackId: 1 }]);
+    await app.answer(likeWrite, liked(2, [1, 100]));
     expect(app.historyOf(1)).toEqual(["unliked", "liked", "unliked"]);
 
-    await app.answer(await app.lume.likes.call(1), [{ likedAt: null, trackId: 1 }]);
+    await app.answer(await app.lume.likes.call(1), liked(3, [1, null]));
     expect(app.historyOf(1)).toEqual(["unliked", "liked", "unliked"]);
   });
 
   it("does not bring back a track that a newer library removed", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
     await app.do.like(1, 2);
     const write = await app.lume.likes.call(0);
-    const withoutTrack2 = stored({ likedAt: null });
+    const withoutTrack2 = stored({ likedAt: null, revision: 2 });
     await app.finishScan({
       kind: "snapshot",
       library: json({ ...withoutTrack2, tracks: withoutTrack2.tracks.slice(0, 1) }),
     });
 
-    await app.answer(write, [
-      { likedAt: 100, trackId: 1 },
-      { likedAt: 100, trackId: 2 },
-    ]);
+    await app.answer(write, liked(3, [1, 100], [2, 100]));
 
     expect(app.likedAtOf(1)).toBe(100);
     expect(rowOf(2)).toBeNull();
@@ -128,15 +126,15 @@ describe("a pending like", () => {
 
 describe("a like during a folder command", () => {
   it("is saved without waiting for the command to finish", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
     const rescan = app.lume.rescanSources.next();
     await app.do.rescanSources();
 
     await app.do.like(1);
-    await app.answer(await app.lume.likes.call(0), [{ likedAt: 100, trackId: 1 }]);
+    await app.answer(await app.lume.likes.call(0), liked(2, [1, 100]));
     expect(app.likedAtOf(1)).toBe(100);
 
-    await app.answer(rescan, json(stored({ likedAt: 100, title: "Rescanned" })));
+    await app.answer(rescan, json(stored({ likedAt: 100, revision: 3, title: "Rescanned" })));
 
     expect(app.titleOf(1)).toBe("Rescanned");
     expect(app.historyOf(1)).toEqual(["unliked", "liked"]);
@@ -145,7 +143,7 @@ describe("a like during a folder command", () => {
 
 describe("a library read that overlaps a like", () => {
   it("still lands when the like starts while it is in flight", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
     const added = app.lume.addTracks.next();
     await app.do.addToPlaylist(2);
     await app.answer(added, {
@@ -157,8 +155,8 @@ describe("a library read that overlaps a like", () => {
     await app.do.like(1);
     await app.shows(1, "liked");
 
-    await app.answer(refetch, json(stored({ likedAt: null, playlistTracks: 2 })));
-    await app.answer(await app.lume.likes.call(0), [{ likedAt: 100, trackId: 1 }]);
+    await app.answer(refetch, json(stored({ likedAt: null, playlistTracks: 2, revision: 2 })));
+    await app.answer(await app.lume.likes.call(0), liked(3, [1, 100]));
 
     expect(app.playlistTrackCount()).toBe(2);
     expect(app.historyOf(1)).toEqual(["unliked", "liked"]);
@@ -168,14 +166,14 @@ describe("a library read that overlaps a like", () => {
 
 describe("after a failed write", () => {
   it("shows the stored like time, not another write's guess", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
     await app.do.like(1);
     await app.shows(1, "liked");
     const first = await app.lume.likes.call(0);
     await app.do.like(1, 2);
 
-    await app.answer(first, [{ likedAt: 100, trackId: 1 }]);
+    await app.answer(first, liked(2, [1, 100]));
     await app.fail(await app.lume.likes.call(1), new Error("disk full"));
     expect(app.likedAtOf(1)).toBe(100);
     expect(app.likedAtOf(2)).toBeNull();
@@ -188,8 +186,11 @@ describe("startup", () => {
     async ({ strict }) => {
       const app = await startApp(null, { strict });
 
-      await app.finishScan({ kind: "sources", sources: [source({ lastScannedAt: 2 })] });
-      await app.answer(app.lume.loads.calls[0], json(stored({ likedAt: null, scannedAt: 3 })));
+      await app.finishScan(sourcesUpdate({ lastScannedAt: 2, revision: 2 }));
+      await app.answer(
+        app.lume.loads.calls[0],
+        json(stored({ likedAt: null, revision: 3, scannedAt: 3 })),
+      );
 
       await vi.waitFor(() => expect(app.scannedAt()).toBe("3"));
       expect(app.lume.loads.calls).toHaveLength(1);
@@ -197,9 +198,9 @@ describe("startup", () => {
   );
 
   it("patches only the folders when the scan finishes after the first read", async () => {
-    const app = await startApp(stored({ likedAt: null }));
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
-    await app.finishScan({ kind: "sources", sources: [source({ lastScannedAt: 2 })] });
+    await app.finishScan(sourcesUpdate({ lastScannedAt: 2, revision: 2 }));
 
     expect(app.scannedAt()).toBe("2");
     expect(probe.trackLists.size).toBe(1);
@@ -211,8 +212,8 @@ describe("startup", () => {
     await app.fail(app.lume.loads.calls[0], new Error("locked"));
     expect(document.body.textContent).toContain("Lume could not load your library");
 
-    await app.finishScan({ kind: "sources", sources: [source({ lastScannedAt: 2 })] });
-    await app.answer(await app.lume.loads.call(1), json(stored({ likedAt: null })));
+    await app.finishScan(sourcesUpdate({ lastScannedAt: 2, revision: 2 }));
+    await app.answer(await app.lume.loads.call(1), json(stored({ likedAt: null, revision: 3 })));
 
     await app.shows(1, "unliked");
   });
@@ -222,9 +223,96 @@ describe("startup", () => {
     await app.fail(app.lume.loads.calls[0], new Error("locked"));
 
     await step(() => findButton("Try again").click());
-    await app.answer(await app.lume.loads.call(1), json(stored({ likedAt: null })));
+    await app.answer(await app.lume.loads.call(1), json(stored({ likedAt: null, revision: 2 })));
 
     await app.shows(1, "unliked");
+  });
+});
+
+describe("replies that arrive out of revision order", () => {
+  it("keep a newer library when an older read arrives after it", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const added = app.lume.addTracks.next();
+    await app.do.addToPlaylist(2);
+    await app.answer(added, {
+      kind: "added",
+      tracks: [{ addedAt: 1, id: 9, position: 1, trackId: 2 }],
+    });
+    const refetch = await app.lume.loads.call(1);
+
+    await app.finishScan({
+      kind: "snapshot",
+      library: json(stored({ likedAt: null, playlistTracks: 3, revision: 3, title: "Scanned" })),
+    });
+    await app.answer(refetch, json(stored({ likedAt: null, playlistTracks: 2, revision: 2 })));
+
+    expect(app.titleOf(1)).toBe("Scanned");
+    expect(app.playlistTrackCount()).toBe(3);
+  });
+
+  it("keep a newer library when an older folder command reply arrives after it", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const rescan = app.lume.rescanSources.next();
+    await app.do.rescanSources();
+
+    await app.finishScan({
+      kind: "snapshot",
+      library: json(stored({ likedAt: null, revision: 3, title: "Scanned" })),
+    });
+    await app.answer(rescan, json(stored({ likedAt: null, revision: 2, title: "Rescanned" })));
+
+    expect(app.titleOf(1)).toBe("Scanned");
+  });
+
+  it("keep a newer like when an older library arrives after it", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const rescan = app.lume.rescanSources.next();
+    await app.do.rescanSources();
+
+    await app.do.like(1);
+    await app.answer(await app.lume.likes.call(0), liked(3, [1, 100]));
+    await app.answer(rescan, json(stored({ likedAt: null, revision: 2, title: "Rescanned" })));
+
+    expect(app.titleOf(1)).toBe("Rescanned");
+    expect(app.historyOf(1)).toEqual(["unliked", "liked"]);
+    expect(app.likedAtOf(1)).toBe(100);
+  });
+
+  it("show a newer library over an older like", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const rescan = app.lume.rescanSources.next();
+    await app.do.rescanSources();
+
+    await app.do.like(1);
+    await app.answer(await app.lume.likes.call(0), liked(2, [1, 100]));
+    await app.answer(rescan, json(stored({ likedAt: 300, revision: 3 })));
+
+    expect(app.likedAtOf(1)).toBe(300);
+  });
+
+  it("show a newer library when an older like arrives after it", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+
+    await app.do.like(1);
+    const write = await app.lume.likes.call(0);
+    await app.finishScan({
+      kind: "snapshot",
+      library: json(stored({ likedAt: 300, revision: 3 })),
+    });
+    await app.answer(write, liked(2, [1, 100]));
+
+    expect(app.likedAtOf(1)).toBe(300);
+  });
+
+  it("keep a newer library when an older folder update arrives after it", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const rescan = app.lume.rescanSources.next();
+    await app.do.rescanSources();
+
+    await app.answer(rescan, json(stored({ likedAt: null, revision: 3, scannedAt: 3 })));
+    await app.finishScan(sourcesUpdate({ lastScannedAt: 2, revision: 2 }));
+
+    expect(app.scannedAt()).toBe("3");
   });
 });
 
@@ -286,7 +374,7 @@ function SyncProbe() {
   );
 }
 
-async function startApp(firstRead: MusicLibrary | null, { strict = false } = {}) {
+async function startApp(firstRead: StoredLibrary | null, { strict = false } = {}) {
   probe.history = new Map();
   probe.trackLists = new Set();
   const lume = createLume();
@@ -364,7 +452,7 @@ function rowOf(trackId: number) {
 function createLume() {
   const scans = createCalls<LibraryUpdate | null>();
   const loads = createCalls<LibrarySnapshotJson>();
-  const likes = createCalls<TrackLikeResult[]>();
+  const likes = createCalls<TracksLikedResult>();
   const rescanSources = createCalls<LibrarySnapshotJson>();
   const addTracks = createCalls<AddTracksToPlaylistResult>();
   const playlists = createCalls<PlaylistDetails | null>();
@@ -441,17 +529,20 @@ function renderApp(client: QueryClient, strict: boolean) {
 function stored({
   likedAt,
   playlistTracks = 1,
+  revision,
   scannedAt = 1,
   title = "Song",
 }: {
   likedAt: number | null;
   playlistTracks?: number;
+  revision: LibraryRevision;
   scannedAt?: number;
   title?: string;
-}): MusicLibrary {
+}): StoredLibrary {
   return {
     kind: "library",
     playlists: [{ description: null, id: 1, title: "Mix", trackCount: playlistTracks }],
+    revision,
     sources: [source({ lastScannedAt: scannedAt })],
     tracks: [
       { ...track(1), likedAt, title },
@@ -461,11 +552,42 @@ function stored({
 }
 
 function source({ lastScannedAt }: { lastScannedAt: number }): LibrarySource {
-  return { enabled: true, id: 1, lastScanError: null, lastScannedAt, path: "/music", trackCount: 2 };
+  return {
+    enabled: true,
+    id: 1,
+    lastScanError: null,
+    lastScannedAt,
+    path: "/music",
+    trackCount: 2,
+  };
 }
 
-function json(library: MusicLibrary) {
-  return stringifyLibrary(library.playlists, library.sources, library.tracks.map(tupleOf));
+type StoredLibrary = MusicLibrary & { revision: LibraryRevision };
+
+function json(library: StoredLibrary) {
+  return stringifyLibrary(
+    library.revision,
+    library.playlists,
+    library.sources,
+    library.tracks.map(tupleOf),
+  );
+}
+
+function sourcesUpdate({
+  lastScannedAt,
+  revision,
+}: {
+  lastScannedAt: number;
+  revision: LibraryRevision;
+}): LibraryUpdate {
+  return { kind: "sources", revision, sources: [source({ lastScannedAt })] };
+}
+
+function liked(
+  revision: LibraryRevision,
+  ...likes: [trackId: number, likedAt: number | null][]
+): TracksLikedResult {
+  return { likes: likes.map(([trackId, likedAt]) => ({ likedAt, trackId })), revision };
 }
 
 function tupleOf(track: Track): TrackTuple {

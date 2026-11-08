@@ -6,6 +6,7 @@ import { createTemporaryFolder } from "./helpers/temp-folder";
 import {
   disableSource,
   getLibrarySnapshotJson,
+  getLibraryUpdate,
   saveSource,
   setTracksLiked,
 } from "../electron/library";
@@ -17,7 +18,30 @@ describe("library transport from stored rows", () => {
   it("sends first-run before any source exists", async () => {
     await openTestDatabase();
 
-    expect(parseLibrarySnapshot(getLibrarySnapshotJson())).toStrictEqual({ kind: "first-run" });
+    expect(parseLibrarySnapshot(getLibrarySnapshotJson())).toStrictEqual({
+      kind: "first-run",
+      revision: expect.any(Number),
+    });
+  });
+
+  it("numbers every payload above the ones built before it", async () => {
+    await openTestDatabase();
+    const firstRun = parseLibrarySnapshot(getLibrarySnapshotJson());
+    const folder = await createTemporaryFolder("lume-source-");
+    const source = await saveSource(folder);
+    await scanWith(source.id, [scannedTrack(join(folder, "song.mp3"), {})]);
+    const song = trackTitled("song");
+    const library = parseLibrarySnapshot(getLibrarySnapshotJson());
+    const like = setTracksLiked({ liked: true, trackIds: [song.id] });
+    const sources = getLibraryUpdate("unchanged");
+    const reread = parseLibrarySnapshot(getLibrarySnapshotJson());
+
+    if (sources?.kind !== "sources") throw new Error("Expected a sources update");
+
+    const revisions = [firstRun, library, like, sources, reread].map((payload) => payload.revision);
+
+    expect(revisions).toStrictEqual(revisions.toSorted((left, right) => left - right));
+    expect(new Set(revisions).size).toBe(revisions.length);
   });
 
   it("sends every stored field in its own position", async () => {

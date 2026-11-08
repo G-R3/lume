@@ -230,14 +230,18 @@ describe("startup scan update", () => {
     const result = await scanEnabledSources();
 
     expect(result).toBe("unchanged");
-    expect(getLibraryUpdate(result)).toEqual({ kind: "sources", sources: getSources() });
+    expect(getLibraryUpdate(result)).toEqual({
+      kind: "sources",
+      revision: expect.any(Number),
+      sources: getSources(),
+    });
     expect(getActiveSource(source.id).lastScannedAt).toBeGreaterThan(1);
 
     const after = readLibrary();
 
     if (before.kind !== "library" || after.kind !== "library")
       throw new Error("Expected a library");
-    expect({ ...after, sources: before.sources }).toEqual(before);
+    expect({ ...after, revision: before.revision, sources: before.sources }).toEqual(before);
     expect(after.sources).toEqual([{ ...before.sources[0], lastScannedAt: expect.any(Number) }]);
   });
 
@@ -251,6 +255,7 @@ describe("startup scan update", () => {
     expect(result).toBe("unchanged");
     expect(getLibraryUpdate(result)).toEqual({
       kind: "sources",
+      revision: expect.any(Number),
       sources: [expect.objectContaining({ id: source.id, lastScanError: null, trackCount: 0 })],
     });
   });
@@ -296,7 +301,10 @@ describe("startup scan update", () => {
     const update = getLibraryUpdate(result);
 
     if (update?.kind !== "snapshot") throw new Error("Expected a snapshot update");
-    expect(parseLibrarySnapshot(update.library)).toStrictEqual(readLibrary());
+    expect(parseLibrarySnapshot(update.library)).toStrictEqual({
+      ...readLibrary(),
+      revision: expect.any(Number),
+    });
   });
 
   it("sends the full snapshot when any one source changed", async () => {

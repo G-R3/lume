@@ -38,6 +38,14 @@ export type TrackLikeResult = {
   trackId: Track["id"];
 };
 
+/** Main numbers every library payload in the order it built them. A higher revision saw a newer database. */
+export type LibraryRevision = number;
+
+export type TracksLikedResult = {
+  likes: TrackLikeResult[];
+  revision: LibraryRevision;
+};
+
 export type LibrarySource = {
   enabled: boolean;
   id: number;
@@ -102,7 +110,9 @@ export type MusicLibrary = {
   tracks: Track[];
 };
 
-export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
+export type FirstRunLibrary = { kind: "first-run" };
+
+export type LibrarySnapshot = (MusicLibrary | FirstRunLibrary) & { revision: LibraryRevision };
 
 // The library as a JSON string. This is what main sends to the renderer.
 export type LibrarySnapshotJson = string;
@@ -147,20 +157,22 @@ type TupleValues<Keys extends readonly TrackTupleKey[]> = {
 
 export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
-type LibraryWithTrackTuples =
-  | { kind: "first-run" }
+type LibraryWithTrackTuples = { revision: LibraryRevision } & (
+  | FirstRunLibrary
   | {
       kind: "library";
       playlists: PlaylistSummary[];
       sources: LibrarySource[];
       tracks: TrackTuple[];
-    };
+    }
+);
 
-export function stringifyFirstRunLibrary(): LibrarySnapshotJson {
-  return JSON.stringify({ kind: "first-run" } satisfies LibrarySnapshot);
+export function stringifyFirstRunLibrary(revision: LibraryRevision): LibrarySnapshotJson {
+  return JSON.stringify({ kind: "first-run", revision } satisfies LibrarySnapshot);
 }
 
 export function stringifyLibrary(
+  revision: LibraryRevision,
   playlists: PlaylistSummary[],
   sources: LibrarySource[],
   tracks: TrackTuple[],
@@ -168,6 +180,7 @@ export function stringifyLibrary(
   const library = {
     kind: "library",
     playlists,
+    revision,
     sources,
     tracks,
   } satisfies LibraryWithTrackTuples;
@@ -204,7 +217,13 @@ export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot
     releasedTracks[index] = null;
   }
 
-  return { kind: "library", playlists: library.playlists, sources: library.sources, tracks };
+  return {
+    kind: "library",
+    playlists: library.playlists,
+    revision: library.revision,
+    sources: library.sources,
+    tracks,
+  };
 }
 
 function trackFromTuple(track: TrackTuple) {
@@ -264,7 +283,7 @@ function trackFromTuple(track: TrackTuple) {
 
 export type LibraryUpdate =
   | { kind: "snapshot"; library: LibrarySnapshotJson }
-  | { kind: "sources"; sources: LibrarySource[] };
+  | { kind: "sources"; revision: LibraryRevision; sources: LibrarySource[] };
 
 export type SavedPlaybackSession = {
   payload: string;
@@ -295,7 +314,7 @@ export type LumeInvokeApi = {
   rescanSources: () => Promise<LibrarySnapshotJson>;
   savePlaybackPosition: (position: number) => Promise<void>;
   savePlaybackSession: (session: SavedPlaybackSession) => Promise<void>;
-  setTracksLiked: (input: SetTracksLikedInput) => Promise<TrackLikeResult[]>;
+  setTracksLiked: (input: SetTracksLikedInput) => Promise<TracksLikedResult>;
 };
 
 type PlaybackSessionMethod = "loadPlaybackSession" | "savePlaybackPosition" | "savePlaybackSession";
