@@ -246,6 +246,24 @@ describe("startup", () => {
     await app.shows(1, "unliked");
   });
 
+  it.each([{ strict: false }, { strict: true }])(
+    "rereads when the first read fails after the scan finished (strict mode: $strict)",
+    async ({ strict }) => {
+      const app = await startApp(null, { strict });
+
+      await app.finishScan(sourcesUpdate({ lastScannedAt: 2, revision: 2 }));
+      await app.fail(app.lume.loads.calls[0], new Error("locked"));
+      await app.answer(
+        await app.lume.loads.call(1),
+        json(stored({ likedAt: null, revision: 3, scannedAt: 3 })),
+      );
+
+      await app.shows(1, "unliked");
+      expect(app.scannedAt()).toBe("3");
+      expect(app.lume.loads.calls).toHaveLength(2);
+    },
+  );
+
   it("rereads when the user tries again after a failed first read", async () => {
     const app = await startApp(null);
     await app.fail(app.lume.loads.calls[0], new Error("locked"));

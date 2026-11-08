@@ -106,12 +106,22 @@ function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
     withNewerSources(current, update),
   );
 
-  if (confirmed?.snapshot?.kind !== "library") {
-    void queryClient.invalidateQueries(
-      { queryKey: libraryQueryOptions.queryKey },
-      { cancelRefetch: false },
-    );
+  if (!hasLibrary(confirmed)) void readLibraryAfterScan(queryClient);
+}
+
+async function readLibraryAfterScan(queryClient: QueryClient) {
+  const filters = { queryKey: libraryQueryOptions.queryKey };
+  const joinsEarlierRead = queryClient.isFetching(filters) > 0;
+
+  await queryClient.invalidateQueries(filters, { cancelRefetch: false });
+
+  if (joinsEarlierRead && !hasLibrary(queryClient.getQueryData(filters.queryKey))) {
+    await queryClient.invalidateQueries(filters, { cancelRefetch: false });
   }
+}
+
+function hasLibrary(confirmed: ConfirmedLibrary | undefined) {
+  return confirmed?.snapshot?.kind === "library";
 }
 
 function withPendingLikes(
