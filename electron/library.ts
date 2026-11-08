@@ -469,11 +469,14 @@ export async function scanSource(
     let scannedTracks: ScannedTrack[];
 
     try {
-      scannedTracks = await scanFiles(
-        sourcePath,
-        getStoredTrackFingerprints(database, sourceId),
-        scan.controller.signal,
-      );
+      scannedTracks = await Promise.race([
+        scanFiles(
+          sourcePath,
+          getStoredTrackFingerprints(database, sourceId),
+          scan.controller.signal,
+        ),
+        rejectWhenStopped(scan.controller.signal),
+      ]);
     } catch (error) {
       if (scan.stoppedBy) return { kind: "dropped", reason: scan.stoppedBy };
 
@@ -492,6 +495,13 @@ export async function scanSource(
   } finally {
     finishSourceScan(database, sourceId, scan);
   }
+}
+
+// Metadata reads already in progress can't be cancelled, so a stopped scan stops waiting for them.
+function rejectWhenStopped(signal: AbortSignal) {
+  return new Promise<never>((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
 }
 
 function commitScanFailure(database: LibraryDatabase, sourceId: number, error: string) {

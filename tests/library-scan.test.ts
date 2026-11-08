@@ -487,6 +487,32 @@ describe("scan ownership", () => {
     ]);
   });
 
+  it("moves on to the next folder when a stalled read is stopped", async () => {
+    const database = await openTestDatabase();
+    const stalled = await createSource([]);
+    const next = await createSource([]);
+    database.$client
+      .prepare("UPDATE library_sources SET created_at = ? WHERE id = ?")
+      .run(0, stalled.id);
+    const scannedFolders: string[] = [];
+
+    const batch = scanEnabledSources(async (folder) => {
+      scannedFolders.push(folder);
+
+      if (folder === stalled.path) {
+        queueMicrotask(() => disableSource(stalled.id));
+
+        return new Promise<never>(() => {});
+      }
+
+      return [];
+    });
+
+    await expect(batch).resolves.toBe("tracks-unchanged");
+    expect(scannedFolders).toEqual([stalled.path, next.path]);
+    expect(getActiveSource(next.id).lastScannedAt).toEqual(expect.any(Number));
+  });
+
   it("rejects a folder read whose scan already stopped", async () => {
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
