@@ -212,6 +212,19 @@ describe("startup", () => {
     },
   );
 
+  it("keeps the scan's folders when an older first read arrives after the scan", async () => {
+    const app = await startApp(null);
+
+    await app.finishScan(sourcesUpdate({ lastScannedAt: 2, revision: 2 }));
+    await app.answer(
+      app.lume.loads.calls[0],
+      json(stored({ likedAt: null, revision: 1, scannedAt: 1 })),
+    );
+
+    await vi.waitFor(() => expect(app.scannedAt()).toBe("2"));
+    expect(app.lume.loads.calls).toHaveLength(1);
+  });
+
   it("patches only the folders when the scan finishes after the first read", async () => {
     const app = await startApp(stored({ likedAt: null, revision: 1 }));
 

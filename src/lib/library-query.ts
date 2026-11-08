@@ -35,9 +35,11 @@ export const libraryCommandOptions = {
 
 type ConfirmedLibrary = {
   likes: ReadonlyMap<Track["id"], ConfirmedLike>;
-  snapshot: LibrarySnapshot;
+  snapshot: LibrarySnapshot | null;
   sources: RevisedSources | null;
 };
+
+const unconfirmedLibrary: ConfirmedLibrary = { likes: new Map(), snapshot: null, sources: null };
 
 type RevisedSources = { revision: LibraryRevision; sources: MusicLibrary["sources"] };
 
@@ -110,38 +112,44 @@ function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
     return;
   }
 
-  const confirmed = queryClient.getQueryData(libraryQueryOptions.queryKey);
+  const confirmed = queryClient.setQueryData(libraryQueryOptions.queryKey, (current) =>
+    withNewerSources(current, update),
+  );
 
-  if (confirmed?.snapshot.kind === "library") {
-    queryClient.setQueryData(libraryQueryOptions.queryKey, withNewerSources(confirmed, update));
-
-    return;
+  if (confirmed?.snapshot?.kind !== "library") {
+    // Join an in-flight first read rather than cancel it, since the stored sources outrank its older folders.
+    void queryClient.invalidateQueries(
+      { queryKey: libraryQueryOptions.queryKey },
+      { cancelRefetch: false },
+    );
   }
-
-  void refreshLibrary(queryClient);
 }
 
 function withNewerSnapshot(
-  confirmed: ConfirmedLibrary | undefined,
+  confirmed = unconfirmedLibrary,
   snapshot: LibrarySnapshot,
 ): ConfirmedLibrary {
-  if (confirmed && snapshot.revision <= confirmed.snapshot.revision) return confirmed;
+  if (snapshot.revision <= revisionOf(confirmed.snapshot)) return confirmed;
 
   const isNewerThanSnapshot = (part: { revision: LibraryRevision }) =>
     part.revision > snapshot.revision;
 
   return {
-    likes: new Map([...(confirmed?.likes ?? [])].filter(([, like]) => isNewerThanSnapshot(like))),
+    likes: new Map([...confirmed.likes].filter(([, like]) => isNewerThanSnapshot(like))),
     snapshot,
-    sources:
-      confirmed?.sources && isNewerThanSnapshot(confirmed.sources) ? confirmed.sources : null,
+    sources: confirmed.sources && isNewerThanSnapshot(confirmed.sources) ? confirmed.sources : null,
   };
 }
 
-function withNewerSources(confirmed: ConfirmedLibrary, update: RevisedSources): ConfirmedLibrary {
+function withNewerSources(
+  confirmed = unconfirmedLibrary,
+  update: RevisedSources,
+): ConfirmedLibrary {
   const newestSources = confirmed.sources ?? confirmed.snapshot;
 
-  return update.revision > newestSources.revision ? { ...confirmed, sources: update } : confirmed;
+  return update.revision > revisionOf(newestSources)
+    ? { ...confirmed, sources: update }
+    : confirmed;
 }
 
 function withNewerLikes(confirmed: ConfirmedLibrary, result: TracksLikedResult): ConfirmedLibrary {
@@ -149,9 +157,7 @@ function withNewerLikes(confirmed: ConfirmedLibrary, result: TracksLikedResult):
   let changed = false;
 
   for (const { likedAt, trackId } of result.likes) {
-    const newestLike = likes.get(trackId) ?? confirmed.snapshot;
-
-    if (result.revision <= newestLike.revision) continue;
+    if (result.revision <= revisionOf(likes.get(trackId) ?? confirmed.snapshot)) continue;
 
     likes.set(trackId, { likedAt, revision: result.revision });
     changed = true;
@@ -160,8 +166,16 @@ function withNewerLikes(confirmed: ConfirmedLibrary, result: TracksLikedResult):
   return changed ? { ...confirmed, likes } : confirmed;
 }
 
-function showConfirmedLibrary({ likes, snapshot, sources }: ConfirmedLibrary): ShownLibrary {
-  if (snapshot.kind === "first-run") return snapshot;
+function revisionOf(part: { revision: LibraryRevision } | null) {
+  return part?.revision ?? -Infinity;
+}
+
+function showConfirmedLibrary({
+  likes,
+  snapshot,
+  sources,
+}: ConfirmedLibrary): ShownLibrary | undefined {
+  if (snapshot?.kind !== "library") return snapshot ?? undefined;
 
   const library = sources ? { ...snapshot, sources: sources.sources } : snapshot;
 
