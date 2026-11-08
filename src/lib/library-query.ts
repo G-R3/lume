@@ -9,17 +9,21 @@ import {
 } from "@tanstack/react-query";
 import { useEffect } from "react";
 import {
-  type FirstRunLibrary,
-  type LibraryRevision,
   type LibrarySnapshot,
   type LibraryUpdate,
-  type MusicLibrary,
   parseLibrarySnapshot,
   type SetTracksLikedInput,
-  type Track,
-  type TracksLikedResult,
 } from "../../shared/lib";
 import { z } from "zod";
+import {
+  type ConfirmedLibrary,
+  type ShownLibrary,
+  showConfirmedLibrary,
+  withLikedAt,
+  withNewerLikes,
+  withNewerSnapshot,
+  withNewerSources,
+} from "@/lib/confirmed-library";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -32,20 +36,6 @@ export const libraryCommandOptions = {
   networkMode: "always",
   scope: { id: "library" },
 } as const;
-
-type ConfirmedLibrary = {
-  likes: ReadonlyMap<Track["id"], ConfirmedLike>;
-  snapshot: LibrarySnapshot | null;
-  sources: RevisedSources | null;
-};
-
-const unconfirmedLibrary: ConfirmedLibrary = { likes: new Map(), snapshot: null, sources: null };
-
-type RevisedSources = { revision: LibraryRevision; sources: MusicLibrary["sources"] };
-
-type ConfirmedLike = { likedAt: Track["likedAt"]; revision: LibraryRevision };
-
-type ShownLibrary = MusicLibrary | FirstRunLibrary;
 
 const libraryQueryOptions = queryOptions({
   networkMode: "always",
@@ -124,69 +114,6 @@ function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
   }
 }
 
-function withNewerSnapshot(
-  confirmed = unconfirmedLibrary,
-  snapshot: LibrarySnapshot,
-): ConfirmedLibrary {
-  if (snapshot.revision <= revisionOf(confirmed.snapshot)) return confirmed;
-
-  const isNewerThanSnapshot = (part: { revision: LibraryRevision }) =>
-    part.revision > snapshot.revision;
-
-  return {
-    likes: new Map([...confirmed.likes].filter(([, like]) => isNewerThanSnapshot(like))),
-    snapshot,
-    sources: confirmed.sources && isNewerThanSnapshot(confirmed.sources) ? confirmed.sources : null,
-  };
-}
-
-function withNewerSources(
-  confirmed = unconfirmedLibrary,
-  update: RevisedSources,
-): ConfirmedLibrary {
-  const newestSources = confirmed.sources ?? confirmed.snapshot;
-
-  return update.revision > revisionOf(newestSources)
-    ? { ...confirmed, sources: update }
-    : confirmed;
-}
-
-function withNewerLikes(confirmed: ConfirmedLibrary, result: TracksLikedResult): ConfirmedLibrary {
-  const likes = new Map(confirmed.likes);
-  let changed = false;
-
-  for (const { likedAt, trackId } of result.likes) {
-    if (result.revision <= revisionOf(likes.get(trackId) ?? confirmed.snapshot)) continue;
-
-    likes.set(trackId, { likedAt, revision: result.revision });
-    changed = true;
-  }
-
-  return changed ? { ...confirmed, likes } : confirmed;
-}
-
-function revisionOf(part: { revision: LibraryRevision } | null) {
-  return part?.revision ?? -Infinity;
-}
-
-function showConfirmedLibrary({
-  likes,
-  snapshot,
-  sources,
-}: ConfirmedLibrary): ShownLibrary | undefined {
-  if (snapshot?.kind !== "library") return snapshot ?? undefined;
-
-  const library = sources ? { ...snapshot, sources: sources.sources } : snapshot;
-
-  if (likes.size === 0) return library;
-
-  return withLikedAt(library, (track) => {
-    const like = likes.get(track.id);
-
-    return like ? like.likedAt : track.likedAt;
-  });
-}
-
 function withPendingLikes(
   library: ShownLibrary | undefined,
   pendingLikes: readonly PendingLike[],
@@ -206,25 +133,6 @@ function withPendingLikes(
 
     return keepsStoredState ? track.likedAt : intent;
   });
-}
-
-function withLikedAt(
-  library: MusicLibrary,
-  likedAtOf: (track: Track) => Track["likedAt"],
-): MusicLibrary {
-  let changed = false;
-
-  const tracks = library.tracks.map((track) => {
-    const likedAt = likedAtOf(track);
-
-    if (likedAt === track.likedAt) return track;
-
-    changed = true;
-
-    return { ...track, likedAt };
-  });
-
-  return changed ? { ...library, tracks } : library;
 }
 
 export function useLibraryMutation() {
