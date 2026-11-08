@@ -159,6 +159,8 @@ export function useLibraryMutation() {
     ...libraryCommandOptions,
     mutationFn: async (command: LibraryCommand) =>
       parseLibrarySnapshot(await runLibraryCommand(command)),
+    // A scan can fail after main committed the folder change or earlier sources, so reread what it stored.
+    onError: () => refreshLibrary(queryClient),
     onSuccess: (library) => replaceLibrary(queryClient, library),
   });
 }
