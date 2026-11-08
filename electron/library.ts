@@ -35,8 +35,6 @@ type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
 
 export type LibraryScanResult = "changed" | "none" | "unchanged";
 
-// Payloads are built synchronously against synchronous SQLite, so build order is database order.
-// The renderer keeps the newest of each part by this number, whatever order the replies arrive in.
 let libraryRevision = 0;
 
 function nextLibraryRevision() {

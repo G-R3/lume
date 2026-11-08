@@ -117,7 +117,6 @@ function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
   );
 
   if (confirmed?.snapshot?.kind !== "library") {
-    // Join an in-flight first read rather than cancel it, since the stored sources outrank its older folders.
     void queryClient.invalidateQueries(
       { queryKey: libraryQueryOptions.queryKey },
       { cancelRefetch: false },
@@ -245,7 +244,6 @@ export function useSetTracksLiked() {
   return useMutation({
     mutationKey: setTracksLikedKey,
     networkMode: "always",
-    // Main commits likes in call order only if each starts after the previous one is saved.
     scope: { id: "likes" },
     mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
     // Runs before the mutation stops being pending, so the stored time replaces the intent with no gap.
