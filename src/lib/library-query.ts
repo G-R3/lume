@@ -16,14 +16,14 @@ import {
 } from "../../shared/lib";
 import { z } from "zod";
 import {
-  type ConfirmedLibrary,
+  type SavedLibrary,
   type ShownLibrary,
-  showConfirmedLibrary,
+  showSavedLibrary,
   withLikedAt,
   withNewerLikes,
   withNewerSnapshot,
   withNewerSources,
-} from "@/lib/confirmed-library";
+} from "@/lib/saved-library";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -43,10 +43,10 @@ const libraryQueryOptions = queryOptions({
   queryFn: async ({ client, queryKey }) => {
     const snapshot = parseLibrarySnapshot(await window.lume.loadLibrary());
 
-    return withNewerSnapshot(client.getQueryData<ConfirmedLibrary>(queryKey), snapshot);
+    return withNewerSnapshot(client.getQueryData<SavedLibrary>(queryKey), snapshot);
   },
   retry: false,
-  select: showConfirmedLibrary,
+  select: showSavedLibrary,
   staleTime: Infinity,
 });
 
@@ -93,8 +93,8 @@ export function useLibrary() {
 }
 
 export function replaceLibrary(queryClient: QueryClient, snapshot: LibrarySnapshot) {
-  queryClient.setQueryData(libraryQueryOptions.queryKey, (confirmed) =>
-    withNewerSnapshot(confirmed, snapshot),
+  queryClient.setQueryData(libraryQueryOptions.queryKey, (saved) =>
+    withNewerSnapshot(saved, snapshot),
   );
 }
 
@@ -109,11 +109,11 @@ function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
     return;
   }
 
-  const confirmed = queryClient.setQueryData(libraryQueryOptions.queryKey, (current) =>
+  const saved = queryClient.setQueryData(libraryQueryOptions.queryKey, (current) =>
     withNewerSources(current, update),
   );
 
-  if (!hasLibrary(confirmed)) void readLibraryAfterScan(queryClient);
+  if (!hasLibrary(saved)) void readLibraryAfterScan(queryClient);
 }
 
 async function readLibraryAfterScan(queryClient: QueryClient) {
@@ -127,8 +127,8 @@ async function readLibraryAfterScan(queryClient: QueryClient) {
   }
 }
 
-function hasLibrary(confirmed: ConfirmedLibrary | undefined) {
-  return confirmed?.snapshot?.kind === "library";
+function hasLibrary(saved: SavedLibrary | undefined) {
+  return saved?.snapshot?.kind === "library";
 }
 
 function withPendingLikes(
@@ -175,7 +175,7 @@ export function useSetTracksLiked() {
     onSuccess: (result) => {
       queryClient.setQueryData(
         libraryQueryOptions.queryKey,
-        (confirmed) => confirmed && withNewerLikes(confirmed, result),
+        (saved) => saved && withNewerLikes(saved, result),
       );
     },
   });

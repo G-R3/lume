@@ -7,14 +7,14 @@ import {
   type TracksLikedResult,
 } from "../../shared/lib";
 import {
-  type ConfirmedLibrary,
+  type SavedLibrary,
   type RevisedSources,
-  showConfirmedLibrary,
-  unconfirmedLibrary,
+  showSavedLibrary,
+  emptySavedLibrary,
   withNewerLikes,
   withNewerSnapshot,
   withNewerSources,
-} from "@/lib/confirmed-library";
+} from "@/lib/saved-library";
 
 type Payload =
   | { kind: "likes"; result: TracksLikedResult }
@@ -41,7 +41,7 @@ const secondLikes = likes(5, [2, null], [3, 500]);
 
 const payloads = [firstSnapshot, firstLikes, sourcesUpdate, secondSnapshot, secondLikes];
 
-describe("the confirmed library", () => {
+describe("the saved library", () => {
   const inRevisionOrder = shownAfter(payloads);
 
   it.each(permutationsOf(payloads).map((order) => [order.map(nameOf).join(", "), order] as const))(
@@ -70,17 +70,17 @@ describe("the confirmed library", () => {
 });
 
 function shownAfter(order: readonly Payload[]) {
-  return showConfirmedLibrary(order.reduce(applied, unconfirmedLibrary));
+  return showSavedLibrary(order.reduce(applied, emptySavedLibrary));
 }
 
-function applied(confirmed: ConfirmedLibrary, payload: Payload) {
+function applied(saved: SavedLibrary, payload: Payload) {
   switch (payload.kind) {
     case "likes":
-      return withNewerLikes(confirmed, payload.result);
+      return withNewerLikes(saved, payload.result);
     case "snapshot":
-      return withNewerSnapshot(confirmed, payload.snapshot);
+      return withNewerSnapshot(saved, payload.snapshot);
     case "sources":
-      return withNewerSources(confirmed, payload.update);
+      return withNewerSources(saved, payload.update);
   }
 }
 

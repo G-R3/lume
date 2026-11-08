@@ -7,77 +7,69 @@ import type {
   TracksLikedResult,
 } from "../../shared/lib";
 
-export type ConfirmedLibrary = {
-  likes: ReadonlyMap<Track["id"], ConfirmedLike>;
+export type SavedLibrary = {
+  likes: ReadonlyMap<Track["id"], SavedLike>;
   snapshot: LibrarySnapshot | null;
   sources: RevisedSources | null;
 };
 
 export type RevisedSources = { revision: LibraryRevision; sources: MusicLibrary["sources"] };
 
-type ConfirmedLike = { likedAt: Track["likedAt"]; revision: LibraryRevision };
+type SavedLike = { likedAt: Track["likedAt"]; revision: LibraryRevision };
 
 export type ShownLibrary = MusicLibrary | FirstRunLibrary;
 
-export const unconfirmedLibrary: ConfirmedLibrary = {
+export const emptySavedLibrary: SavedLibrary = {
   likes: new Map(),
   snapshot: null,
   sources: null,
 };
 
 export function withNewerSnapshot(
-  confirmed = unconfirmedLibrary,
+  saved = emptySavedLibrary,
   snapshot: LibrarySnapshot,
-): ConfirmedLibrary {
-  if (snapshot.revision <= revisionOf(confirmed.snapshot)) return confirmed;
+): SavedLibrary {
+  if (snapshot.revision <= revisionOf(saved.snapshot)) return saved;
 
   const isNewerThanSnapshot = (part: { revision: LibraryRevision }) =>
     part.revision > snapshot.revision;
 
   return {
-    likes: new Map([...confirmed.likes].filter(([, like]) => isNewerThanSnapshot(like))),
+    likes: new Map([...saved.likes].filter(([, like]) => isNewerThanSnapshot(like))),
     snapshot,
-    sources: confirmed.sources && isNewerThanSnapshot(confirmed.sources) ? confirmed.sources : null,
+    sources: saved.sources && isNewerThanSnapshot(saved.sources) ? saved.sources : null,
   };
 }
 
-export function withNewerSources(
-  confirmed = unconfirmedLibrary,
-  update: RevisedSources,
-): ConfirmedLibrary {
-  const newestSources = confirmed.sources ?? confirmed.snapshot;
+export function withNewerSources(saved = emptySavedLibrary, update: RevisedSources): SavedLibrary {
+  const newestSources = saved.sources ?? saved.snapshot;
 
-  return update.revision > revisionOf(newestSources)
-    ? { ...confirmed, sources: update }
-    : confirmed;
+  return update.revision > revisionOf(newestSources) ? { ...saved, sources: update } : saved;
 }
 
-export function withNewerLikes(
-  confirmed: ConfirmedLibrary,
-  result: TracksLikedResult,
-): ConfirmedLibrary {
-  const likes = new Map(confirmed.likes);
+export function withNewerLikes(saved: SavedLibrary, result: TracksLikedResult): SavedLibrary {
+  const likes = new Map(saved.likes);
   let changed = false;
 
   for (const { likedAt, trackId } of result.likes) {
-    if (result.revision <= revisionOf(likes.get(trackId) ?? confirmed.snapshot)) continue;
+    if (result.revision <= revisionOf(likes.get(trackId) ?? saved.snapshot)) continue;
 
     likes.set(trackId, { likedAt, revision: result.revision });
     changed = true;
   }
 
-  return changed ? { ...confirmed, likes } : confirmed;
+  return changed ? { ...saved, likes } : saved;
 }
 
 function revisionOf(part: { revision: LibraryRevision } | null) {
   return part?.revision ?? -Infinity;
 }
 
-export function showConfirmedLibrary({
+export function showSavedLibrary({
   likes,
   snapshot,
   sources,
-}: ConfirmedLibrary): ShownLibrary | undefined {
+}: SavedLibrary): ShownLibrary | undefined {
   if (snapshot?.kind !== "library") return snapshot ?? undefined;
 
   const library = sources ? { ...snapshot, sources: sources.sources } : snapshot;
