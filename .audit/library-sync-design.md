@@ -10,7 +10,7 @@ On main, the `["library"]` query had five writers. Reads, scan pushes, and comma
 - `cancelQueries` dropped reads that should have landed. A playlist's new track count never showed.
 - Rollback restored whatever the cache held, which could be another like's guess.
 
-Two constraints shaped the fix. First, `onMutate` runs at click time, outside the mutation scope, while only `mutationFn` waits. Second, Electron delivers `webContents.send` pushes and `invoke` replies on different paths, and they reorder. `scripts/ipc-order-probe` measured 689 push-vs-reply inversions in 8,000 rounds on Electron 43.8.3.
+"The last write wins" also assumed replies arrive in the order main built them. A throwaway probe on Electron 43.8.3 measured 642 and 689 push-vs-reply inversions in two 8,000-round runs. Invoke replies never reordered in those runs, but Electron does not document that, so the design does not rely on arrival order at all.
 
 ## Usage
 
@@ -31,82 +31,71 @@ Pages below `AppRoot` keep reading `useMusicLibrary()`.
 
 ## Shape
 
-There are two stores, each with one owner. They meet only when the library is read.
+Main keeps one counter in `electron/library.ts` and stamps every library payload with the next value when it builds it. Payloads are built synchronously against synchronous SQLite, so a higher revision always saw a newer database. Three places build payloads: `getLibrarySnapshotJson` (full libraries), the sources branch of `getLibraryUpdate`, and `setTracksLiked`.
 
-- **Confirmed library.** The `["library"]` query in `src/lib/library-query.ts`. It holds only libraries main sent: reads, the startup scan update, command results, and stored like times. Only this module writes it. Other modules call `replaceLibrary` and `refreshLibrary`.
-- **Pending likes.** TanStack's mutation cache, filtered to the `["set-tracks-liked"]` key and `pending` status. A like is pending from click time until its `onSuccess` returns. Nothing copies this state.
-- **Shown library.** `withPendingLikes(confirmed, pendingLikes)`. Intents apply in call order, so the newest intent for a track wins. Tracks that a confirmed library removed are not brought back. With no pending likes, it returns the confirmed object unchanged.
+The renderer has two stores, each with one owner. They meet only when the library is read.
+
+- **Confirmed library.** The `["library"]` query in `src/lib/library-query.ts` holds a `ConfirmedLibrary`: the newest snapshot, a sources update newer than it, and per-track like results newer than it. Each part carries the revision main gave it. Only this module writes it, through one pure merge per payload kind (`withNewerSnapshot`, `withNewerSources`, `withNewerLikes`). Reads, `replaceLibrary`, the startup scan, and like confirmations all go through those merges.
+- **Pending likes.** TanStack's mutation cache, filtered to the `["set-tracks-liked"]` key and `pending` status. A like is pending from click time until its `onSuccess` returns.
+- **Shown library.** The snapshot, with kept sources and likes laid over it, then pending intents over that. With nothing kept, the snapshot object itself is shown, so track identities survive.
 
 The policy:
 
-1. **The last confirmed library applied wins.** Every library payload is an invoke reply, so this holds as long as replies arrive in the order main computed them. Main computes each payload synchronously right after its commit.
-2. **A pending like wins over confirmed data for its tracks until main answers.** On success, the stored time is written to the confirmed library before the like stops being pending. On failure, nothing is written, so stored truth shows again.
-3. **The startup scan is pulled, not pushed.** `awaitStartupScan` resolves when the scan settles and is computed at reply time. A failed scan replies with the whole stored library, because earlier sources may have committed.
-4. **Likes do not wait for folder or playlist commands.** Main runs each like as one synchronous transaction, so any library computed after it already contains it. Folder and playlist commands still share `libraryCommandOptions`, which serializes them.
+1. **The newest revision wins, for each part.** An older snapshot is ignored. A newer snapshot drops every kept part older than it. A sources update or a like result is kept only if newer than what it would cover. Arrival order never matters.
+2. **A pending like wins over confirmed data for its tracks until main answers.** On success, the stored time is merged before the like stops being pending. On failure, nothing is written, so stored truth shows again.
+3. **Likes run one at a time, in their own scope.** So main commits them in click order, and a slow earlier like can never show over a later one. They do not wait for folder or playlist commands, which share the separate `library` scope.
+4. **The startup scan is pulled, not pushed.** `awaitStartupScan` resolves when the scan settles. A failed scan replies with the whole stored library, because earlier sources may have committed. A sources update that arrives before the first read is kept and outranks that read's older folders.
 
 ## Transition table
 
-C is the confirmed library (∅ means none yet). F is a read in flight. P is the set of pending likes. The user sees `withPendingLikes(C, P)`.
+S is the confirmed snapshot with revision s (∅ means none yet). K is the kept sources and likes. P is the set of pending likes. The user sees S with K and P on top.
 
 | State | Event | Next state | User sees |
 | --- | --- | --- | --- |
-| ∅, F | first read returns R | C = R | library R |
-| ∅, F | first read fails | ∅, error | the "could not load" screen |
-| ∅, F | scan returns a snapshot U | C = U, then R replaces it when R lands | U, then R |
-| ∅, F | scan returns sources only | the refresh joins F | R, which already has those sources |
-| ∅, error | scan returns sources only | a new read starts | error screen, then library |
+| ∅ | first read returns R | S = R | library R |
+| ∅ | first read fails | ∅, error | the "could not load" screen |
+| ∅ | scan returns sources at r | K keeps them, a read joins or starts | loading, then the read with these folders |
+| S, any | snapshot X with revision > s | S = X, K drops parts older than X | X with newer K and P on top |
+| S, any | snapshot X with revision ≤ s | unchanged | unchanged |
+| S library | scan returns sources at r > s | K keeps them, same track objects | new folder status only |
+| S, P | like starts | P gains the intent | heart changes now |
+| S, P | like succeeds at r > s | K keeps the stored time, then the intent leaves P | heart stays, time becomes the stored one |
+| S, P | like succeeds at r ≤ s | unchanged, then the intent leaves P | S already has the like |
+| S, P | like fails | the intent leaves P | stored truth, or a newer pending intent |
+| S, P | second like for a track | waits for the first to finish | heart follows the newest click |
 | ∅, error | user clicks **Try again** | a new read starts | error screen, then library |
-| C, any | scan returns a snapshot U | C = U | U with P on top |
-| C library | scan returns sources S | C.sources = S, same track objects | new folder status only |
-| C, P | folder or playlist result X | C = X | X with P on top |
-| C, P | playlist add or remove succeeds | detail patched, refresh starts | new track count when the read lands |
-| C, P | refetch returns R | C = R, never cancelled | R with P on top |
-| C, P | like starts | P gains the intent | heart changes now |
-| C, P | like succeeds | stored times go into C, then the intent leaves P | heart stays, time becomes the stored one |
-| C, P | like fails | the intent leaves P | stored truth, or a newer pending intent |
 
-## Synthesis decision
+## Design history
 
-Two runners competed. Opus proposed this shape. GPT-6.1 Sol proposed a private reducer that owned confirmed data, like receipts, and a command queue, with main stamping every commit with a revision. The GPT-6.1 Sol judge preferred the reducer, because it removes the reply-order assumption.
+Two runners competed first. Opus proposed the overlay shape with arrival order. GPT-6.1 Sol proposed a reducer with revision stamps from main. I picked the Opus shape, because the stamps looked like they needed every main-process writer to bump a revision.
 
-The base is the Opus shape. It deleted far more code, and it came with a working prototype, while the reducer was still a sketch. The reducer's guarantee depends on every main-process writer bumping a revision. No type or test enforces that, so a missed writer would break it silently.
-
-One graft came from the judge's ownership criterion: a single module writes the library cache. I rejected one suggestion, an automatic follow-up read when a scan update joins a first read that then fails. The **Try again** button already recovers, as it did on main.
+That objection was wrong. Every payload is built in three functions, so stamping where payloads are built covers every writer. With no users to protect, the stamps replaced the arrival-order assumption and the probe that watched it. A GPT-6.1 Sol review of the stamp design then found two holes, both fixed with tests: an older pending like could show over a newer confirmed unlike (fixed by rule 3), and a sources update that beat the first read was lost (fixed by keeping parts without a snapshot).
 
 ## Tradeoffs accepted
 
-- We rely on one undocumented order, invoke replies in compute order, in exchange for no revision plumbing. If Electron breaks it, a stale confirmed library can linger until the next confirmed write. Pending likes are not affected.
+- Likes on the same or different tracks save one at a time. Each save is one SQLite transaction, so the wait is short, and hearts still change on click.
+- Kept likes stay as an overlay until the next snapshot. Laying them over the library maps every track, the same cost as the pending overlay.
 - We keep a long-lived `awaitStartupScan` request in exchange for deleting the push, its buffer, and the case where a push is lost before the preload exists.
 - The click time shows as the like time until main answers.
-- The overlay maps every track while a like is pending. That is the same cost as the optimistic write it replaced.
+- The revision counter lives in memory. It restarts with main, and the renderer restarts with main.
 
 ## Alternatives considered
 
-- **Revision stamps from main with a reducer.** Covered in the synthesis decision.
-- **Keep the push and order it in the renderer.** Rejected on the probe evidence.
-- **Push only a "scan done" signal and refetch.** It turns every unchanged scan into a full 20k-track read and drops the cheap sources-only path.
-- **Store pending likes in their own query.** It duplicates mutation state and needs its own cleanup, which is the ownership map again.
+- **Arrival order plus a probe.** The previous version of this branch. Rejected because it rested on undocumented Electron behavior that only a manual probe checked.
+- **Bump the snapshot revision on a like or sources update.** A late older snapshot would then be dropped and lose its changes. Keeping each part with its own revision handles both orders.
+- **Send a full snapshot for every scan and like.** Removes the kept parts, but turns every like and unchanged scan into a 20k-track read and breaks track identity.
+- **Push only a "scan done" signal and refetch.** Same cost problem for unchanged scans.
 
 ## Open questions
 
 - Should the playlist detail cache refresh when a library snapshot lands? Today it does not, on main or here.
 - Should a failed startup scan show a message? It sends the stored library and logs the error.
 
-## Evidence for the ordering probe
-
-The probe counts order, not speed, so only part of the benchmark checklist applies.
-
-- **Did the work happen?** Each run reports `applied`, the count of messages the renderer handled. It was about 1.6 per round, which matches reads, slow replies, and pushes.
-- **Errors.** A run exits 1 only when replies arrive out of order. Push inversions are reported, not counted as failures.
-- **Repeatability.** Runs at 8,000 (twice), 4,000 (twice), and 2,000 (twice) rounds all gave 0 reply-vs-reply inversions. The first 8,000-round run gave 642 push-vs-reply inversions and the second 689. The 25 inversions where an older read landed after a newer push come from the second.
-- **Relevance.** The probe uses Lume's window settings (`contextIsolation`, `sandbox`) and renderer chains of 1 to 40 microtasks. It does not drive TanStack itself. So the reply-order claim is measured for the transport and inferred for the app.
-
 ## Verification checklist
 
 Another engineer or model can follow these steps from the repository root on branch `library-sync-v2`:
 
-1. Run `pnpm check`. Expect exit 0.
-2. Run `pnpm vitest run src/lib/library-query.test.tsx tests/startup-scan.test.ts`. Expect every test to pass.
-3. Run `ROUNDS=4000 pnpm probe:ipc-order`. Expect exit 0 and `"repliesOutOfOrder":0` in the output.
-4. Run `pnpm build`. Then run the verify-lume journey `like-during-rescan`. Expect the heart transitions to be unliked, then liked, with no later unliked. Expect one liked row in `track_state`.
-5. Manual check. Add a folder with many files. Start **Rescan** in Settings. Go to Tracks and like a track before the scan ends. The heart must not flicker. Quit and reopen the app. The like must still be there.
+1. Run `pnpm check`. Expect exit 0. The ordering cases are in `src/lib/library-query.test.tsx` under "replies that arrive out of revision order", and the main-side numbering test is in `tests/library-json.test.ts`.
+2. Run `pnpm build`, then `pnpm test:e2e`. Expect exit 0.
+3. Run the verify-lume journey `like-during-rescan`. Expect the heart transitions to be unliked, then liked, with no later unliked. Expect one liked row in `track_state`.
+4. Manual check. Add a folder with many files. Start **Rescan** in Settings. Go to Tracks and like a track before the scan ends. The heart must not flicker. Quit and reopen the app. The like must still be there.
