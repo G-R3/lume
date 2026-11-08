@@ -4,7 +4,7 @@ import { and, count, eq, inArray, isNotNull, isNull, notExists, sql, type SQL } 
 import {
   type LibraryUpdate,
   type SetTracksLikedInput,
-  type TrackLikeResult,
+  type TracksLikedResult,
   type TrackTuple,
   type TrackTupleKey,
   albumArtistsIfDifferent,
@@ -33,7 +33,15 @@ type SourceWriter = Pick<LibraryDatabase, "update">;
 
 type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
 
-type LibraryScanResult = "changed" | "none" | "unchanged";
+export type LibraryScanResult = "changed" | "none" | "unchanged";
+
+let libraryRevision = 0;
+
+function nextLibraryRevision() {
+  libraryRevision += 1;
+
+  return libraryRevision;
+}
 
 const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
 
@@ -87,7 +95,7 @@ export function getLibrarySnapshotJson() {
   const sources = getSources();
 
   if (sources.length === 0 && !hasForgottenSources()) {
-    return stringifyFirstRunLibrary();
+    return stringifyFirstRunLibrary(nextLibraryRevision());
   }
 
   // SAFETY: Drizzle returns `.values()` rows untyped.
@@ -100,7 +108,12 @@ export function getLibrarySnapshotJson() {
     .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
     .values() as StoredTrackRow[];
 
-  return stringifyLibrary(getPlaylists(), sources, rows.map(trackTupleFromRow));
+  return stringifyLibrary(
+    nextLibraryRevision(),
+    getPlaylists(),
+    sources,
+    rows.map(trackTupleFromRow),
+  );
 }
 
 function trackTupleFromRow(row: StoredTrackRow): TrackTuple {
@@ -164,7 +177,7 @@ function trackTupleFromRow(row: StoredTrackRow): TrackTuple {
   ];
 }
 
-export function setTracksLiked(input: SetTracksLikedInput): TrackLikeResult[] {
+export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
   const trackIds = [...new Set(input.trackIds)];
 
   return runImmediateTransaction(getDatabase(), (transaction) => {
@@ -190,7 +203,10 @@ export function setTracksLiked(input: SetTracksLikedInput): TrackLikeResult[] {
       }
     }
 
-    return trackIds.map((trackId) => ({ likedAt, trackId }));
+    return {
+      likes: trackIds.map((trackId) => ({ likedAt, trackId })),
+      revision: nextLibraryRevision(),
+    };
   });
 }
 
@@ -373,10 +389,12 @@ export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<Li
   return results.every((result) => result === "unchanged") ? "unchanged" : "changed";
 }
 
-export function getLibraryUpdate(result: LibraryScanResult): LibraryUpdate | null {
+export function getLibraryUpdate(result: LibraryScanResult | "failed"): LibraryUpdate | null {
   if (result === "none") return null;
 
-  if (result === "unchanged") return { kind: "sources", sources: getSources() };
+  if (result === "unchanged") {
+    return { kind: "sources", revision: nextLibraryRevision(), sources: getSources() };
+  }
 
   return { kind: "snapshot", library: getLibrarySnapshotJson() };
 }

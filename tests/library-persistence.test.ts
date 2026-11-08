@@ -150,7 +150,7 @@ describe("track likes", () => {
 
     if (!track) throw new Error("Expected a scanned track");
 
-    const [liked] = setTracksLiked({ liked: true, trackIds: [track.id] });
+    const [liked] = setTracksLiked({ liked: true, trackIds: [track.id] }).likes;
 
     expect(liked).toEqual({ likedAt: expect.any(Number), trackId: track.id });
 
@@ -159,7 +159,7 @@ describe("track likes", () => {
     if (likedLibrary.kind !== "library") throw new Error("Expected a library snapshot");
 
     expect(likedLibrary.tracks).toMatchObject([{ id: track.id, likedAt: liked.likedAt }]);
-    expect(setTracksLiked({ liked: false, trackIds: [track.id] })).toEqual([
+    expect(setTracksLiked({ liked: false, trackIds: [track.id] }).likes).toEqual([
       { likedAt: null, trackId: track.id },
     ]);
 

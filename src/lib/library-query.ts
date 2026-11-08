@@ -1,18 +1,29 @@
 import {
-  mutationOptions,
+  type Mutation,
   queryOptions,
   type QueryClient,
   useMutation,
+  useMutationState,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 import {
   type LibrarySnapshot,
-  type LibrarySource,
   type LibraryUpdate,
   parseLibrarySnapshot,
   type SetTracksLikedInput,
-  type Track,
 } from "../../shared/lib";
+import { z } from "zod";
+import {
+  type SavedLibrary,
+  type ShownLibrary,
+  showSavedLibrary,
+  withLikedAt,
+  withNewerLikes,
+  withNewerSnapshot,
+  withNewerSources,
+} from "@/lib/saved-library";
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -21,153 +32,152 @@ type LibraryCommand =
   | { kind: "rescan-sources" }
   | { enabled: boolean; kind: "set-source-enabled"; sourceId: number };
 
-export const libraryMutationOptions = {
+export const libraryCommandOptions = {
   networkMode: "always",
   scope: { id: "library" },
 } as const;
 
-const libraryQueryKey = ["library"];
-
-type FirstLoad = { sources?: LibrarySource[] };
-
-const firstLoads = new WeakMap<QueryClient, FirstLoad>();
-
-export const libraryQueryOptions = queryOptions({
+const libraryQueryOptions = queryOptions({
   networkMode: "always",
-  queryKey: libraryQueryKey,
-  queryFn: async ({ client }) => {
-    if (client.getQueryData(libraryQueryKey) !== undefined) return loadLibrary();
+  queryKey: ["library"],
+  queryFn: async ({ client, queryKey }) => {
+    const snapshot = parseLibrarySnapshot(await window.lume.loadLibrary());
 
-    const firstLoad: FirstLoad = {};
-    firstLoads.set(client, firstLoad);
-
-    try {
-      const library = await loadLibrary();
-
-      if (!firstLoad.sources || library.kind !== "library") return library;
-
-      return { ...library, sources: firstLoad.sources };
-    } finally {
-      firstLoads.delete(client);
-    }
+    return withNewerSnapshot(client.getQueryData<SavedLibrary>(queryKey), snapshot);
   },
   retry: false,
+  select: showSavedLibrary,
   staleTime: Infinity,
 });
 
-async function loadLibrary() {
-  return parseLibrarySnapshot(await window.lume.loadLibrary());
+const setTracksLikedKey = ["set-tracks-liked"];
+
+const likesInClickOrder = { id: "likes" };
+
+type PendingLike = { input: SetTracksLikedInput; submittedAt: number };
+
+const setTracksLikedInputSchema = z.object({
+  liked: z.boolean(),
+  trackIds: z.array(z.number()),
+}) satisfies z.ZodType<SetTracksLikedInput>;
+
+const pendingLikesOptions = {
+  filters: { mutationKey: setTracksLikedKey, status: "pending" },
+  select: (mutation: Mutation): PendingLike => ({
+    input: setTracksLikedInputSchema.parse(mutation.state.variables),
+    submittedAt: mutation.state.submittedAt,
+  }),
+} as const;
+
+export function useLibrary() {
+  const queryClient = useQueryClient();
+  const query = useQuery(libraryQueryOptions);
+  const pendingLikes = useMutationState(pendingLikesOptions);
+
+  const library = useMemo(
+    () => withPendingLikes(query.data, pendingLikes),
+    [query.data, pendingLikes],
+  );
+
+  useEffect(() => {
+    void window.lume.awaitStartupScan().then((update) => {
+      if (update) applyStartupScan(queryClient, update);
+    });
+  }, [queryClient]);
+
+  return {
+    error: query.error,
+    library,
+    refetch: query.refetch,
+  };
 }
 
-export function applyLibraryUpdate(queryClient: QueryClient, update: LibraryUpdate) {
+export function replaceLibrary(queryClient: QueryClient, snapshot: LibrarySnapshot) {
+  queryClient.setQueryData(libraryQueryOptions.queryKey, (saved) =>
+    withNewerSnapshot(saved, snapshot),
+  );
+}
+
+export function refreshLibrary(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
+}
+
+function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
   if (update.kind === "snapshot") {
-    queryClient.setQueryData(libraryQueryOptions.queryKey, parseLibrarySnapshot(update.library));
+    replaceLibrary(queryClient, parseLibrarySnapshot(update.library));
 
     return;
   }
 
-  const firstLoad = firstLoads.get(queryClient);
+  const saved = queryClient.setQueryData(libraryQueryOptions.queryKey, (current) =>
+    withNewerSources(current, update),
+  );
 
-  if (firstLoad) firstLoad.sources = update.sources;
+  if (!hasLibrary(saved)) void readLibraryAfterScan(queryClient);
+}
 
-  const current = queryClient.getQueryData(libraryQueryOptions.queryKey);
+async function readLibraryAfterScan(queryClient: QueryClient) {
+  const filters = { queryKey: libraryQueryOptions.queryKey };
+  const joinsEarlierRead = queryClient.isFetching(filters) > 0;
 
-  if (current?.kind === "library") {
-    // Pass a function: TanStack's `setQueryData` rejects the narrowed `MusicLibrary` as a plain value.
-    queryClient.setQueryData(libraryQueryOptions.queryKey, () => ({
-      ...current,
-      sources: update.sources,
-    }));
+  await queryClient.invalidateQueries(filters, { cancelRefetch: false });
 
-    return;
+  if (joinsEarlierRead && !hasLibrary(queryClient.getQueryData(filters.queryKey))) {
+    await queryClient.invalidateQueries(filters, { cancelRefetch: false });
+  }
+}
+
+function hasLibrary(saved: SavedLibrary | undefined) {
+  return saved?.snapshot?.kind === "library";
+}
+
+function withPendingLikes(
+  library: ShownLibrary | undefined,
+  pendingLikes: readonly PendingLike[],
+): ShownLibrary | undefined {
+  if (pendingLikes.length === 0 || library?.kind !== "library") return library;
+
+  // Mutation cache order is call order, so the newest intent for a track wins.
+  const intents = new Map<number, number | null>();
+
+  for (const { input, submittedAt } of pendingLikes) {
+    for (const trackId of input.trackIds) intents.set(trackId, input.liked ? submittedAt : null);
   }
 
-  if (!firstLoad) {
-    void queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
-  }
+  return withLikedAt(library, (track) => {
+    const intent = intents.get(track.id);
+    const keepsStoredState = intent === undefined || (intent === null) === (track.likedAt === null);
+
+    return keepsStoredState ? track.likedAt : intent;
+  });
 }
 
 export function useLibraryMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    ...libraryMutationOptions,
+    ...libraryCommandOptions,
     mutationFn: async (command: LibraryCommand) =>
       parseLibrarySnapshot(await runLibraryCommand(command)),
-    onSuccess: (library) => queryClient.setQueryData(libraryQueryOptions.queryKey, library),
-  });
-}
-
-type LikeWrite = { previousLikedAt: Map<number, number | null> };
-
-const newestLikeWrites = new WeakMap<QueryClient, Map<number, LikeWrite>>();
-
-export function setTracksLikedMutation(queryClient: QueryClient) {
-  const newestWrites = newestLikeWrites.get(queryClient) ?? new Map<number, LikeWrite>();
-  newestLikeWrites.set(queryClient, newestWrites);
-
-  const settle = (write: LikeWrite, likedAtOf: (trackId: number) => number | null | undefined) => {
-    updateLibraryTracks(queryClient, (track) => {
-      const likedAt = newestWrites.get(track.id) === write ? likedAtOf(track.id) : undefined;
-
-      return likedAt === undefined ? track : { ...track, likedAt };
-    });
-
-    for (const trackId of write.previousLikedAt.keys()) {
-      if (newestWrites.get(trackId) === write) newestWrites.delete(trackId);
-    }
-  };
-
-  return mutationOptions({
-    ...libraryMutationOptions,
-    mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
-    onMutate: async (input): Promise<LikeWrite> => {
-      await queryClient.cancelQueries({ queryKey: libraryQueryOptions.queryKey });
-
-      const likedAt = input.liked ? Date.now() : null;
-      const trackIds = new Set(input.trackIds);
-      const write: LikeWrite = { previousLikedAt: new Map() };
-
-      updateLibraryTracks(queryClient, (track) => {
-        if (!trackIds.has(track.id)) return track;
-
-        write.previousLikedAt.set(track.id, track.likedAt);
-        newestWrites.set(track.id, write);
-
-        return { ...track, likedAt };
-      });
-
-      return write;
-    },
-    onError: (_error, _input, write) => {
-      if (write) settle(write, (trackId) => write.previousLikedAt.get(trackId));
-      void queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
-    },
-    onSuccess: (results, _input, write) => {
-      const likedAtById = new Map(results.map((result) => [result.trackId, result.likedAt]));
-      settle(write, (trackId) => likedAtById.get(trackId));
-    },
+    onSuccess: (library) => replaceLibrary(queryClient, library),
   });
 }
 
 export function useSetTracksLiked() {
-  return useMutation(setTracksLikedMutation(useQueryClient()));
-}
+  const queryClient = useQueryClient();
 
-function updateLibraryTracks(queryClient: QueryClient, update: (track: Track) => Track) {
-  queryClient.setQueryData<LibrarySnapshot>(libraryQueryOptions.queryKey, (library) => {
-    if (!library || library.kind === "first-run") return library;
-
-    let changed = false;
-
-    const tracks = library.tracks.map((track) => {
-      const next = update(track);
-      changed ||= next !== track;
-
-      return next;
-    });
-
-    return changed ? { ...library, tracks } : library;
+  return useMutation({
+    mutationKey: setTracksLikedKey,
+    networkMode: "always",
+    scope: likesInClickOrder,
+    mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
+    // Runs before the mutation stops being pending, so the stored time replaces the intent with no gap.
+    onSuccess: (result) => {
+      queryClient.setQueryData(
+        libraryQueryOptions.queryKey,
+        (saved) => saved && withNewerLikes(saved, result),
+      );
+    },
   });
 }
 

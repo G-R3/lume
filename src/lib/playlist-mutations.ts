@@ -7,7 +7,7 @@ import {
   type RemovePlaylistTracksInput,
 } from "../../shared/lib";
 import { usePlayback } from "@/hooks/use-playback";
-import { libraryMutationOptions, libraryQueryOptions } from "@/lib/library-query";
+import { libraryCommandOptions, refreshLibrary, replaceLibrary } from "@/lib/library-query";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { forgetViewSort } from "@/lib/view-sort";
 
@@ -15,7 +15,7 @@ export function useCreatePlaylistMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    ...libraryMutationOptions,
+    ...libraryCommandOptions,
     mutationFn: async (input: PlaylistCreationInput) => {
       const result = await window.lume.createPlaylist(input);
 
@@ -24,7 +24,7 @@ export function useCreatePlaylistMutation() {
     onSuccess: (result) => {
       forgetViewSort({ kind: "playlist", playlistId: result.playlist.id });
       queryClient.setQueryData(playlistQueryOptions(result.playlist.id).queryKey, result.playlist);
-      queryClient.setQueryData(libraryQueryOptions.queryKey, result.library);
+      replaceLibrary(queryClient, result.library);
     },
   });
 }
@@ -34,14 +34,14 @@ export function useDeletePlaylistMutation() {
   const playback = usePlayback();
 
   return useMutation({
-    ...libraryMutationOptions,
+    ...libraryCommandOptions,
     mutationFn: async (playlistId: number) =>
       parseLibrarySnapshot(await window.lume.deletePlaylist(playlistId)),
     onSuccess: (library, playlistId) => {
       forgetViewSort({ kind: "playlist", playlistId });
       commitPlaylistDeletion(queryClient, playlistId);
       playback.applySourceChange({ type: "sourceDeleted", playlistId });
-      queryClient.setQueryData(libraryQueryOptions.queryKey, library);
+      replaceLibrary(queryClient, library);
     },
   });
 }
@@ -51,7 +51,7 @@ export function useAddTracksToPlaylistMutation() {
   const playback = usePlayback();
 
   return useMutation({
-    ...libraryMutationOptions,
+    ...libraryCommandOptions,
     mutationFn: (input: AddTracksToPlaylistInput) => window.lume.addTracksToPlaylist(input),
     onSuccess: (result, input) => {
       if (result.kind === "duplicate" || result.tracks.length === 0) return;
@@ -76,7 +76,7 @@ export function useRemovePlaylistTracksMutation() {
   const playback = usePlayback();
 
   return useMutation({
-    ...libraryMutationOptions,
+    ...libraryCommandOptions,
     mutationFn: (input: RemovePlaylistTracksInput) => window.lume.removePlaylistTracks(input),
     onSuccess: (_result, input) => {
       commitPlaylistRemoval(queryClient, input.playlistId, input.playlistTrackIds);
@@ -93,7 +93,7 @@ export function useRemovePlaylistTracksMutation() {
 
 function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey }),
+    refreshLibrary(queryClient),
     queryClient.invalidateQueries({ queryKey: playlistQueryOptions(playlistId).queryKey }),
   ]);
 }

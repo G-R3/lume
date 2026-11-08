@@ -22,6 +22,8 @@ import {
   enableSource,
   forgetSource,
   getLibrarySnapshotJson,
+  getLibraryUpdate,
+  type LibraryScanResult,
   getSources,
   hasTrackFile,
   saveSource,
@@ -82,7 +84,11 @@ type LumeHandlers = {
   ) => ReturnType<LumeInvokeApi[Method]> | Awaited<ReturnType<LumeInvokeApi[Method]>>;
 };
 
-export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
+export function registerIpc(options: {
+  rendererUrl: string;
+  startupScan: Promise<LibraryScanResult>;
+  userDataDirectory: string;
+}) {
   const handlers = {
     addSource: async (window) => {
       const result = await dialog.showOpenDialog(window, {
@@ -103,6 +109,8 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     },
     addTracksToPlaylist: (_window, input) =>
       addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
+    awaitStartupScan: () =>
+      options.startupScan.catch(() => "failed" as const).then(getLibraryUpdate),
     createPlaylist: (_window, input) => {
       const playlist = createPlaylist(playlistCreationSchema.parse(input));
 

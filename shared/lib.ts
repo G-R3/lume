@@ -38,6 +38,14 @@ export type TrackLikeResult = {
   trackId: Track["id"];
 };
 
+/** Main numbers every library payload in the order it built them. A higher revision saw a newer database. */
+export type LibraryRevision = number;
+
+export type TracksLikedResult = {
+  likes: TrackLikeResult[];
+  revision: LibraryRevision;
+};
+
 export type LibrarySource = {
   enabled: boolean;
   id: number;
@@ -102,7 +110,9 @@ export type MusicLibrary = {
   tracks: Track[];
 };
 
-export type LibrarySnapshot = MusicLibrary | { kind: "first-run" };
+export type FirstRunLibrary = { kind: "first-run" };
+
+export type LibrarySnapshot = (MusicLibrary | FirstRunLibrary) & { revision: LibraryRevision };
 
 // The library as a JSON string. This is what main sends to the renderer.
 export type LibrarySnapshotJson = string;
@@ -147,20 +157,22 @@ type TupleValues<Keys extends readonly TrackTupleKey[]> = {
 
 export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
-type LibraryWithTrackTuples =
-  | { kind: "first-run" }
+type LibraryWithTrackTuples = { revision: LibraryRevision } & (
+  | FirstRunLibrary
   | {
       kind: "library";
       playlists: PlaylistSummary[];
       sources: LibrarySource[];
       tracks: TrackTuple[];
-    };
+    }
+);
 
-export function stringifyFirstRunLibrary(): LibrarySnapshotJson {
-  return JSON.stringify({ kind: "first-run" } satisfies LibrarySnapshot);
+export function stringifyFirstRunLibrary(revision: LibraryRevision): LibrarySnapshotJson {
+  return JSON.stringify({ kind: "first-run", revision } satisfies LibrarySnapshot);
 }
 
 export function stringifyLibrary(
+  revision: LibraryRevision,
   playlists: PlaylistSummary[],
   sources: LibrarySource[],
   tracks: TrackTuple[],
@@ -168,6 +180,7 @@ export function stringifyLibrary(
   const library = {
     kind: "library",
     playlists,
+    revision,
     sources,
     tracks,
   } satisfies LibraryWithTrackTuples;
@@ -204,7 +217,13 @@ export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot
     releasedTracks[index] = null;
   }
 
-  return { kind: "library", playlists: library.playlists, sources: library.sources, tracks };
+  return {
+    kind: "library",
+    playlists: library.playlists,
+    revision: library.revision,
+    sources: library.sources,
+    tracks,
+  };
 }
 
 function trackFromTuple(track: TrackTuple) {
@@ -262,38 +281,9 @@ function trackFromTuple(track: TrackTuple) {
   } satisfies Track;
 }
 
-export function createBufferedListeners<Value>() {
-  const listeners = new Set<(value: Value) => void>();
-  let pending: Value | undefined;
-
-  return {
-    publish: (value: Value) => {
-      if (listeners.size === 0) {
-        pending = value;
-
-        return;
-      }
-
-      listeners.forEach((listener) => listener(value));
-    },
-    subscribe: (listener: (value: Value) => void) => {
-      listeners.add(listener);
-
-      if (pending !== undefined) {
-        listener(pending);
-        pending = undefined;
-      }
-
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
-}
-
 export type LibraryUpdate =
   | { kind: "snapshot"; library: LibrarySnapshotJson }
-  | { kind: "sources"; sources: LibrarySource[] };
+  | { kind: "sources"; revision: LibraryRevision; sources: LibrarySource[] };
 
 export type SavedPlaybackSession = {
   payload: string;
@@ -308,6 +298,7 @@ export type PlaylistCreationResult = {
 export type LumeInvokeApi = {
   addSource: () => Promise<LibrarySnapshotJson>;
   addTracksToPlaylist: (input: AddTracksToPlaylistInput) => Promise<AddTracksToPlaylistResult>;
+  awaitStartupScan: () => Promise<LibraryUpdate | null>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   deletePlaylist: (playlistId: number) => Promise<LibrarySnapshotJson>;
   disableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
@@ -323,7 +314,7 @@ export type LumeInvokeApi = {
   rescanSources: () => Promise<LibrarySnapshotJson>;
   savePlaybackPosition: (position: number) => Promise<void>;
   savePlaybackSession: (session: SavedPlaybackSession) => Promise<void>;
-  setTracksLiked: (input: SetTracksLikedInput) => Promise<TrackLikeResult[]>;
+  setTracksLiked: (input: SetTracksLikedInput) => Promise<TracksLikedResult>;
 };
 
 type PlaybackSessionMethod = "loadPlaybackSession" | "savePlaybackPosition" | "savePlaybackSession";
@@ -335,7 +326,6 @@ export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
     save: LumeInvokeApi["savePlaybackSession"];
     savePosition: LumeInvokeApi["savePlaybackPosition"];
   };
-  onLibraryUpdate: (listener: (update: LibraryUpdate) => void) => () => void;
   isMac: boolean;
 };
 
@@ -343,6 +333,7 @@ export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
 export const lumeChannels = {
   addSource: "lume:add-source",
   addTracksToPlaylist: "lume:add-tracks-to-playlist",
+  awaitStartupScan: "lume:await-startup-scan",
   createPlaylist: "lume:create-playlist",
   deletePlaylist: "lume:delete-playlist",
   disableSource: "lume:disable-source",
@@ -363,7 +354,6 @@ export const lumeChannels = {
 
 export const lumeEventChannels = {
   flushPlaybackSession: "lume:flush-playback-session",
-  libraryUpdated: "lume:library-updated",
 } as const;
 
 export const appScheme = "lume";
