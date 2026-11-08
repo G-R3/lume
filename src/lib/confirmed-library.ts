@@ -91,6 +91,8 @@ export function showConfirmedLibrary({
   });
 }
 
+const lastProjections = new WeakMap<Track, Track>();
+
 export function withLikedAt(
   library: MusicLibrary,
   likedAtOf: (track: Track) => Track["likedAt"],
@@ -104,7 +106,14 @@ export function withLikedAt(
 
     changed = true;
 
-    return { ...track, likedAt };
+    const lastProjection = lastProjections.get(track);
+
+    if (lastProjection?.likedAt === likedAt) return lastProjection;
+
+    const projection = { ...track, likedAt };
+    lastProjections.set(track, projection);
+
+    return projection;
   });
 
   return changed ? { ...library, tracks } : library;

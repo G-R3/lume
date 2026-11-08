@@ -7,7 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   type LibrarySnapshot,
   type LibraryUpdate,
@@ -72,6 +72,11 @@ export function useLibrary() {
   const query = useQuery(libraryQueryOptions);
   const pendingLikes = useMutationState(pendingLikesOptions);
 
+  const library = useMemo(
+    () => withPendingLikes(query.data, pendingLikes),
+    [query.data, pendingLikes],
+  );
+
   useEffect(() => {
     void window.lume.awaitStartupScan().then((update) => {
       if (update) applyStartupScan(queryClient, update);
@@ -80,7 +85,7 @@ export function useLibrary() {
 
   return {
     error: query.error,
-    library: withPendingLikes(query.data, pendingLikes),
+    library,
     refetch: query.refetch,
   };
 }

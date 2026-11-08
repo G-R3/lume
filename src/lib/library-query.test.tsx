@@ -75,6 +75,18 @@ describe("a pending like", () => {
     expect(app.likedAtOf(1)).toBe(100);
   });
 
+  it("keeps the same track object when another track is liked", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+
+    await app.do.like(1);
+    await app.shows(1, "liked");
+    const pendingTrack = app.trackOf(1);
+    await app.do.like(2);
+    await app.shows(2, "liked");
+
+    expect(app.trackOf(1)).toBe(pendingTrack);
+  });
+
   it("stays shown when an older write for another track fails", async () => {
     const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
@@ -375,9 +387,10 @@ type Probe = {
   actions?: Actions;
   history: Map<number, LikedState[]>;
   trackLists: Set<readonly Track[]>;
+  tracks: Map<number, Track>;
 };
 
-const probe: Probe = { history: new Map(), trackLists: new Set() };
+const probe: Probe = { history: new Map(), trackLists: new Set(), tracks: new Map() };
 
 function SyncProbe() {
   const library = useMusicLibrary();
@@ -402,6 +415,7 @@ function SyncProbe() {
 
       if (history.at(-1) !== state) history.push(state);
       probe.history.set(track.id, history);
+      probe.tracks.set(track.id, track);
     }
   });
 
@@ -423,6 +437,7 @@ function SyncProbe() {
 async function startApp(firstRead: StoredLibrary | null, { strict = false } = {}) {
   probe.history = new Map();
   probe.trackLists = new Set();
+  probe.tracks = new Map();
   const lume = createLume();
   const client = new QueryClient();
   const root = createRoot(document.body.appendChild(document.createElement("div")));
@@ -462,6 +477,7 @@ async function startApp(firstRead: StoredLibrary | null, { strict = false } = {}
     shows: (trackId: number, state: LikedState) =>
       vi.waitFor(() => expect(rowOf(trackId)?.textContent).toMatch(new RegExp(` ${state}$`))),
     titleOf: (trackId: number) => rowOf(trackId)?.textContent?.replace(/ (un)?liked$/, ""),
+    trackOf: (trackId: number) => probe.tracks.get(trackId),
   };
 
   if (firstRead) {
