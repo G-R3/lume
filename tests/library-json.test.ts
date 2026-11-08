@@ -33,7 +33,7 @@ describe("library transport from stored rows", () => {
     const song = trackTitled("song");
     const library = parseLibrarySnapshot(getLibrarySnapshotJson());
     const like = setTracksLiked({ liked: true, trackIds: [song.id] });
-    const sources = getLibraryUpdate("unchanged");
+    const sources = getLibraryUpdate("tracks-unchanged");
     const reread = parseLibrarySnapshot(getLibrarySnapshotJson());
 
     if (sources?.kind !== "sources") throw new Error("Expected a sources update");

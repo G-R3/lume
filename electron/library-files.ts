@@ -51,11 +51,14 @@ export type StoredTrackFingerprint = Pick<
 export async function scanAudioFiles(
   folder: string,
   storedTracks: ReadonlyMap<string, StoredTrackFingerprint> = new Map(),
+  signal?: AbortSignal,
 ): Promise<ScannedTrack[]> {
   const entries = await readdir(folder, {
     recursive: true,
     withFileTypes: true,
   });
+
+  signal?.throwIfAborted();
 
   const audioPaths = entries
     .filter((entry) => entry.isFile() && audioContentTypes.has(extname(entry.name).toLowerCase()))
@@ -66,10 +69,11 @@ export async function scanAudioFiles(
 
   // Node streams reject null chunks, so keep nullable scan results inside an object.
   const results = await Readable.from(audioPaths)
-    .map(async (path) => ({ track: await scanTrack(path, storedTracks.get(path)) }), {
+    .map(async (path) => ({ track: await scanTrack(path, storedTracks.get(path), signal) }), {
       concurrency: 8,
+      signal,
     })
-    .toArray();
+    .toArray({ signal });
 
   return results.flatMap((result) => (result.track ? [result.track] : []));
 }
@@ -77,6 +81,7 @@ export async function scanAudioFiles(
 async function scanTrack(
   path: string,
   storedTrack: StoredTrackFingerprint | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<ScannedTrack | null> {
   const file = await stat(path).catch((error: Error) => {
     console.warn("Could not read audio file", { error, path });
@@ -96,6 +101,8 @@ async function scanTrack(
   ) {
     return { kind: "unchanged", path };
   }
+
+  if (signal?.aborted) return null;
 
   const metadata = await parseTrackMetadata(path, basename(path, extension));
 

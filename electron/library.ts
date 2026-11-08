@@ -31,9 +31,19 @@ import { getPlaylists, requireTracks } from "./playlists";
 
 type SourceWriter = Pick<LibraryDatabase, "update">;
 
-type SourceScanResult = "changed" | "skipped" | "superseded" | "unchanged";
+type ScanFiles = typeof scanAudioFiles;
 
-export type LibraryScanResult = "changed" | "none" | "unchanged";
+type SourceScanStop = "superseded" | "disabled";
+
+export type SourceScanOutcome =
+  | { kind: "committed"; tracksChanged: boolean }
+  | { kind: "dropped"; reason: "not-enabled" | SourceScanStop };
+
+export type LibraryScanOutcome = "no-enabled-sources" | "tracks-changed" | "tracks-unchanged";
+
+// A scan may commit only while it is still its source's entry here. A newer scan replaces it,
+// and disabling or forgetting the source removes it, so a read from an earlier enabled lifetime never commits.
+type SourceScan = { controller: AbortController; stoppedBy: SourceScanStop | null };
 
 let libraryRevision = 0;
 
@@ -43,7 +53,40 @@ function nextLibraryRevision() {
   return libraryRevision;
 }
 
-const scanVersions = new WeakMap<LibraryDatabase, Map<number, number>>();
+const runningScans = new WeakMap<LibraryDatabase, Map<number, SourceScan>>();
+
+function runningScansOf(database: LibraryDatabase) {
+  const scans = runningScans.get(database) ?? new Map<number, SourceScan>();
+  runningScans.set(database, scans);
+
+  return scans;
+}
+
+function startSourceScan(database: LibraryDatabase, sourceId: number) {
+  stopSourceScan(database, sourceId, "superseded");
+
+  const scan: SourceScan = { controller: new AbortController(), stoppedBy: null };
+  runningScansOf(database).set(sourceId, scan);
+
+  return scan;
+}
+
+function stopSourceScan(database: LibraryDatabase, sourceId: number, reason: SourceScanStop) {
+  const scans = runningScansOf(database);
+  const scan = scans.get(sourceId);
+
+  if (!scan) return;
+
+  scans.delete(sourceId);
+  scan.stoppedBy = reason;
+  scan.controller.abort(reason);
+}
+
+function finishSourceScan(database: LibraryDatabase, sourceId: number, scan: SourceScan) {
+  const scans = runningScansOf(database);
+
+  if (scans.get(sourceId) === scan) scans.delete(sourceId);
+}
 
 function displayAlbumArtists(albumArtists: string[], artists: string[]) {
   return albumArtists.length > 0 ? albumArtists : artists;
@@ -329,9 +372,10 @@ export function enableSource(sourceId: number) {
 }
 
 export function disableSource(sourceId: number) {
+  const database = getDatabase();
   const now = Date.now();
 
-  runImmediateTransaction(getDatabase(), (transaction) => {
+  runImmediateTransaction(database, (transaction) => {
     const source = transaction
       .update(librarySources)
       .set({
@@ -349,12 +393,15 @@ export function disableSource(sourceId: number) {
 
     markSourceTracksUnavailable(transaction, sourceId, now);
   });
+
+  stopSourceScan(database, sourceId, "disabled");
 }
 
 export function forgetSource(sourceId: number) {
+  const database = getDatabase();
   const now = Date.now();
 
-  runImmediateTransaction(getDatabase(), (transaction) => {
+  runImmediateTransaction(database, (transaction) => {
     const source = transaction
       .update(librarySources)
       .set({
@@ -373,26 +420,34 @@ export function forgetSource(sourceId: number) {
 
     markSourceTracksUnavailable(transaction, sourceId, now);
   });
+
+  stopSourceScan(database, sourceId, "disabled");
 }
 
-export async function scanEnabledSources(scanFiles = scanAudioFiles): Promise<LibraryScanResult> {
+export async function scanEnabledSources(
+  scanFiles: ScanFiles = scanAudioFiles,
+): Promise<LibraryScanOutcome> {
   const sources = getEnabledSources();
 
-  if (sources.length === 0) return "none";
+  if (sources.length === 0) return "no-enabled-sources";
 
-  const results: SourceScanResult[] = [];
+  let tracksChanged = false;
 
   for (const source of sources) {
-    results.push(await scanSource(source.id, scanFiles));
+    const outcome = await scanSource(source.id, scanFiles);
+
+    if (outcome.kind === "committed" && outcome.tracksChanged) tracksChanged = true;
   }
 
-  return results.every((result) => result === "unchanged") ? "unchanged" : "changed";
+  return tracksChanged ? "tracks-changed" : "tracks-unchanged";
 }
 
-export function getLibraryUpdate(result: LibraryScanResult | "failed"): LibraryUpdate | null {
-  if (result === "none") return null;
+// A dropped scan wrote nothing, and whatever dropped it replied with its own snapshot,
+// so only committed track changes need a full snapshot here.
+export function getLibraryUpdate(outcome: LibraryScanOutcome | "failed"): LibraryUpdate | null {
+  if (outcome === "no-enabled-sources") return null;
 
-  if (result === "unchanged") {
+  if (outcome === "tracks-unchanged") {
     return { kind: "sources", revision: nextLibraryRevision(), sources: getSources() };
   }
 
@@ -401,52 +456,56 @@ export function getLibraryUpdate(result: LibraryScanResult | "failed"): LibraryU
 
 export async function scanSource(
   sourceId: number,
-  scanFiles = scanAudioFiles,
-): Promise<SourceScanResult> {
+  scanFiles: ScanFiles = scanAudioFiles,
+): Promise<SourceScanOutcome> {
   const database = getDatabase();
   const sourcePath = getEnabledSourcePath(database, sourceId);
 
-  if (sourcePath === null) return "skipped";
+  if (sourcePath === null) return { kind: "dropped", reason: "not-enabled" };
 
-  const versions = scanVersions.get(database) ?? new Map<number, number>();
-  scanVersions.set(database, versions);
-  const version = (versions.get(sourceId) ?? 0) + 1;
-  versions.set(sourceId, version);
-  let scannedTracks: ScannedTrack[];
+  const scan = startSourceScan(database, sourceId);
 
   try {
-    scannedTracks = await scanFiles(sourcePath, getStoredTrackFingerprints(sourceId));
-  } catch (error) {
-    if (versions.get(sourceId) !== version) return "superseded";
+    let scannedTracks: ScannedTrack[];
 
-    console.warn("Could not read library source", { error, sourceId });
-    const message = error instanceof Error ? describeFolderReadError(error) : String(error);
+    try {
+      scannedTracks = await scanFiles(
+        sourcePath,
+        getStoredTrackFingerprints(database, sourceId),
+        scan.controller.signal,
+      );
+    } catch (error) {
+      if (scan.stoppedBy) return { kind: "dropped", reason: scan.stoppedBy };
 
-    return applyScanFailure(sourceId, message) ? "changed" : "skipped";
+      console.warn("Could not read library source", { error, sourceId });
+      const message = error instanceof Error ? describeFolderReadError(error) : String(error);
+
+      return { kind: "committed", tracksChanged: commitScanFailure(database, sourceId, message) };
+    }
+
+    if (scan.stoppedBy) return { kind: "dropped", reason: scan.stoppedBy };
+
+    return {
+      kind: "committed",
+      tracksChanged: commitSourceScan(database, sourceId, scannedTracks),
+    };
+  } finally {
+    finishSourceScan(database, sourceId, scan);
   }
-
-  if (versions.get(sourceId) !== version) return "superseded";
-
-  return applySourceScan(sourceId, scannedTracks);
 }
 
-function applyScanFailure(sourceId: number, error: string) {
-  const database = getDatabase();
-
-  if (getEnabledSourcePath(database, sourceId) === null) return false;
-
+function commitScanFailure(database: LibraryDatabase, sourceId: number, error: string) {
   const now = Date.now();
 
-  runImmediateTransaction(database, (transaction) => {
-    markSourceTracksUnavailable(transaction, sourceId, now);
+  return runImmediateTransaction(database, (transaction) => {
     transaction
       .update(librarySources)
       .set({ lastScanError: error, updatedAt: now })
       .where(eq(librarySources.id, sourceId))
       .run();
-  });
 
-  return true;
+    return markSourceTracksUnavailable(transaction, sourceId, now);
+  });
 }
 
 export function getArtworkData(artworkId: string): ArtworkData | null {
@@ -483,9 +542,9 @@ export async function hasTrackFile(trackId: number) {
   );
 }
 
-function getStoredTrackFingerprints(sourceId: number) {
+function getStoredTrackFingerprints(database: LibraryDatabase, sourceId: number) {
   return new Map(
-    getDatabase()
+    database
       .select({
         fileSize: tracks.fileSize,
         metadataVersion: tracks.metadataVersion,
@@ -509,14 +568,11 @@ function getStoredTrackFingerprints(sourceId: number) {
   );
 }
 
-function applySourceScan(
+function commitSourceScan(
+  database: LibraryDatabase,
   sourceId: number,
   scannedTracks: readonly ScannedTrack[],
-): Exclude<SourceScanResult, "superseded"> {
-  const database = getDatabase();
-
-  if (getEnabledSourcePath(database, sourceId) === null) return "skipped";
-
+) {
   const now = Date.now();
 
   return runImmediateTransaction(database, (transaction) => {
@@ -667,16 +723,18 @@ function applySourceScan(
       .where(eq(librarySources.id, sourceId))
       .run();
 
-    return tracksChanged ? "changed" : "unchanged";
+    return tracksChanged;
   });
 }
 
 function markSourceTracksUnavailable(database: SourceWriter, sourceId: number, now: number) {
-  database
+  const { changes } = database
     .update(tracks)
     .set({ available: false, updatedAt: now })
     .where(and(eq(tracks.sourceId, sourceId), eq(tracks.available, true)))
     .run();
+
+  return changes > 0;
 }
 
 function rejectSourceOverlap(database: LibraryDatabase, path: string, sourceId?: number) {

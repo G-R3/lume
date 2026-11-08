@@ -23,7 +23,7 @@ import {
   forgetSource,
   getLibrarySnapshotJson,
   getLibraryUpdate,
-  type LibraryScanResult,
+  type LibraryScanOutcome,
   getSources,
   hasTrackFile,
   saveSource,
@@ -86,7 +86,7 @@ type LumeHandlers = {
 
 export function registerIpc(options: {
   rendererUrl: string;
-  startupScan: Promise<LibraryScanResult>;
+  startupScan: Promise<LibraryScanOutcome>;
   userDataDirectory: string;
 }) {
   const handlers = {
