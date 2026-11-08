@@ -231,6 +231,8 @@ export function useSetTracksLiked() {
   return useMutation({
     mutationKey: setTracksLikedKey,
     networkMode: "always",
+    // Main commits likes in call order only if each starts after the previous one is saved.
+    scope: { id: "likes" },
     mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
     // Runs before the mutation stops being pending, so the stored time replaces the intent with no gap.
     onSuccess: (result) => {

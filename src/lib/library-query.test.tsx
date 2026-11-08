@@ -106,6 +106,21 @@ describe("a pending like", () => {
     expect(app.historyOf(1)).toEqual(["unliked", "liked", "unliked"]);
   });
 
+  it("is saved before a later like for the same track starts", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+
+    await app.do.like(1);
+    const likeWrite = await app.lume.likes.call(0);
+    await app.do.unlike(1);
+    await app.shows(1, "unliked");
+    expect(app.lume.likes.calls).toHaveLength(1);
+
+    await app.answer(likeWrite, liked(2, [1, 100]));
+    await app.answer(await app.lume.likes.call(1), liked(3, [1, null]));
+
+    expect(app.historyOf(1)).toEqual(["unliked", "liked", "unliked"]);
+  });
+
   it("does not bring back a track that a newer library removed", async () => {
     const app = await startApp(stored({ likedAt: null, revision: 1 }));
 
