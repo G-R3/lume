@@ -145,6 +145,57 @@ describe("library source persistence", () => {
   });
 });
 
+describe("onboarding marker", () => {
+  it("starts unmarked and marks the first saved folder", async () => {
+    const database = await openTestDatabase();
+    expect(database.$client.prepare("SELECT * FROM app_state").all()).toEqual([]);
+    expect(readLibrary().kind).toBe("first-run");
+
+    await saveSource(await createTemporaryFolder("lume-source-"));
+
+    expect(database.$client.prepare("SELECT id, onboarded_at FROM app_state").all()).toEqual([
+      { id: 1, onboarded_at: expect.any(Number) },
+    ]);
+    expect(readLibrary().kind).toBe("library");
+  });
+
+  it("stays first run when saving the folder fails", async () => {
+    const database = await openTestDatabase();
+    database.$client.exec(`
+      CREATE TRIGGER reject_onboarding
+      BEFORE INSERT ON app_state
+      BEGIN
+        SELECT RAISE(ABORT, 'marker write failed');
+      END;
+    `);
+
+    await expect(saveSource(await createTemporaryFolder("lume-source-"))).rejects.toThrow(
+      "marker write failed",
+    );
+    expect(database.$client.prepare("SELECT id FROM library_sources").all()).toEqual([]);
+
+    database.$client.exec("DROP TRIGGER reject_onboarding");
+    const parent = await createTemporaryFolder("lume-source-");
+    const child = join(parent, "album");
+    await mkdir(child);
+    await saveSource(child);
+    database.$client.exec("DELETE FROM app_state");
+
+    await expect(saveSource(parent)).rejects.toThrow("overlaps");
+    expect(database.$client.prepare("SELECT id FROM app_state").all()).toEqual([]);
+  });
+
+  it("keeps the library after every folder is forgotten", async () => {
+    await openTestDatabase();
+    const source = await saveSource(await createTemporaryFolder("lume-source-"));
+
+    forgetSource(source.id);
+
+    expect(getSources()).toEqual([]);
+    expect(readLibrary().kind).toBe("library");
+  });
+});
+
 describe("track likes", () => {
   it("persists a like and includes it in the library snapshot", async () => {
     await openTestDatabase();

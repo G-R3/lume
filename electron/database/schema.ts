@@ -147,3 +147,12 @@ export const playbackPosition = sqliteTable("playback_position", {
   id: integer("id").primaryKey(),
   position: real("position").notNull(),
 });
+
+export const appState = sqliteTable(
+  "app_state",
+  {
+    id: integer("id").primaryKey(),
+    onboardedAt: integer("onboarded_at").notNull(),
+  },
+  (table) => [check("app_state_singleton_check", sql`${table.id} = 1`)],
+);

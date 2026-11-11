@@ -47,6 +47,7 @@ describe("library transport from stored rows", () => {
   it("sends every stored field in its own position", async () => {
     const database = await openTestDatabase();
     database.$client.exec(`
+      INSERT INTO app_state (id, onboarded_at) VALUES (1, 1);
       INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (1, '/s', 1, 1, 2);
       INSERT INTO artwork (id, media_type, data) VALUES ('art-s', 'image/png', x'00');
       INSERT INTO tracks (id, source_id, path, title, duration, format, file_size, modified_at,

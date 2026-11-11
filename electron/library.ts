@@ -1,6 +1,6 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import { and, count, eq, inArray, isNotNull, isNull, notExists, sql, type SQL } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, notExists, sql, type SQL } from "drizzle-orm";
 import {
   type LibraryUpdate,
   type SetTracksLikedInput,
@@ -19,8 +19,9 @@ import {
   parameterChunks,
   runImmediateTransaction,
   type LibraryDatabase,
+  type LibraryTransaction,
 } from "./database";
-import { artwork, librarySources, tracks, trackState } from "./database/schema";
+import { appState, artwork, librarySources, tracks, trackState } from "./database/schema";
 import {
   describeFolderReadError,
   scanAudioFiles,
@@ -133,11 +134,7 @@ type StoredTrackRow = StoredValues<typeof trackTupleKeys>;
 // Returns the library as JSON, with each track as a tuple ([addedAt, album, ...]) instead of an object
 // tuples don't repeat the field names for every track, so the string is smaller and faster to send
 export function getLibrarySnapshotJson() {
-  const sources = getSources();
-
-  if (sources.length === 0 && !hasForgottenSources()) {
-    return stringifyFirstRunLibrary(nextLibraryRevision());
-  }
+  if (!isOnboarded()) return stringifyFirstRunLibrary(nextLibraryRevision());
 
   // SAFETY: Drizzle returns `.values()` rows untyped.
   // Each row holds the raw SQLite values of `trackTupleColumns`, in that order.
@@ -152,7 +149,7 @@ export function getLibrarySnapshotJson() {
   return stringifyLibrary(
     nextLibraryRevision(),
     getPlaylists(),
-    sources,
+    getSources(),
     rows.map(trackTupleFromRow),
   );
 }
@@ -289,65 +286,42 @@ function selectSources(condition: SQL | undefined) {
     .groupBy(librarySources.id);
 }
 
-function hasForgottenSources() {
-  return (
-    getDatabase()
-      .select({ id: librarySources.id })
-      .from(librarySources)
-      .where(isNotNull(librarySources.forgottenAt))
-      .get() !== undefined
-  );
+function isOnboarded() {
+  return getDatabase().select({ id: appState.id }).from(appState).get() !== undefined;
 }
 
 export async function saveSource(selectedPath: string) {
-  const database = getDatabase();
   const path = await realpath(selectedPath);
   const folder = await stat(path);
 
   if (!folder.isDirectory()) throw new Error("A music source must be a folder");
 
-  const existing = database
-    .select({ id: librarySources.id })
-    .from(librarySources)
-    .where(eq(librarySources.path, path))
-    .get();
+  return runImmediateTransaction(getDatabase(), (transaction) => {
+    rejectSourceOverlap(transaction, path);
 
-  if (existing) {
-    rejectSourceOverlap(database, path, existing.id);
     const now = Date.now();
 
-    database
-      .update(librarySources)
-      .set({
-        enabled: true,
-        forgottenAt: null,
-        updatedAt: sql`CASE
-          WHEN ${librarySources.enabled} = 0 OR ${librarySources.forgottenAt} IS NOT NULL THEN ${now}
-          ELSE ${librarySources.updatedAt}
-        END`,
+    const source = transaction
+      .insert(librarySources)
+      .values({ createdAt: now, enabled: true, path, updatedAt: now })
+      .onConflictDoUpdate({
+        target: librarySources.path,
+        set: {
+          enabled: true,
+          forgottenAt: null,
+          updatedAt: sql`CASE
+            WHEN ${librarySources.enabled} = 0 OR ${librarySources.forgottenAt} IS NOT NULL THEN ${now}
+            ELSE ${librarySources.updatedAt}
+          END`,
+        },
       })
-      .where(eq(librarySources.id, existing.id))
-      .run();
+      .returning({ id: librarySources.id })
+      .get();
 
-    return { id: existing.id, path };
-  }
+    transaction.insert(appState).values({ id: 1, onboardedAt: now }).onConflictDoNothing().run();
 
-  rejectSourceOverlap(database, path);
-
-  const now = Date.now();
-
-  const source = database
-    .insert(librarySources)
-    .values({
-      createdAt: now,
-      enabled: true,
-      path,
-      updatedAt: now,
-    })
-    .returning({ id: librarySources.id })
-    .get();
-
-  return { id: source.id, path };
+    return { id: source.id, path };
+  });
 }
 
 export function enableSource(sourceId: number) {
@@ -744,13 +718,13 @@ function markSourceTracksUnavailable(database: SourceWriter, sourceId: number, n
   return changes > 0;
 }
 
-function rejectSourceOverlap(database: LibraryDatabase, path: string, sourceId?: number) {
+function rejectSourceOverlap(database: LibraryTransaction, path: string) {
   const overlappingPath = database
-    .select({ id: librarySources.id, path: librarySources.path })
+    .select({ path: librarySources.path })
     .from(librarySources)
     .where(isNull(librarySources.forgottenAt))
     .all()
-    .find((source) => source.id !== sourceId && pathsOverlap(source.path, path));
+    .find((source) => source.path !== path && pathsOverlap(source.path, path));
 
   if (overlappingPath) {
     throw new Error(`This folder overlaps the existing source ${overlappingPath.path}`);
