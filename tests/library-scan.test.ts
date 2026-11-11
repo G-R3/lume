@@ -512,6 +512,19 @@ describe("scan ownership", () => {
     expect(getActiveSource(next.id).lastScannedAt).toEqual(expect.any(Number));
   });
 
+  it("drops a scan whose folder is turned off before its read returns a promise", async () => {
+    await openTestDatabase();
+    const source = await createSource([]);
+
+    const scan = scanSource(source.id, () => {
+      disableSource(source.id);
+
+      return new Promise<never>(() => {});
+    });
+
+    await expect(scan).resolves.toEqual(dropped("disabled"));
+  });
+
   it("rejects a folder read whose scan already stopped", async () => {
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");

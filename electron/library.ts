@@ -496,7 +496,8 @@ export async function scanSource(
 // Metadata reads already in progress can't be cancelled, so a stopped scan stops waiting for them.
 function rejectWhenStopped(signal: AbortSignal) {
   return new Promise<never>((_resolve, reject) => {
-    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    if (signal.aborted) reject(signal.reason);
+    else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
   });
 }
 
