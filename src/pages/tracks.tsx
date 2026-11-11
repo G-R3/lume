@@ -1,6 +1,6 @@
 import { useDeferredValue, useLayoutEffect, useRef, useState } from "react";
 import { TrackCount } from "@/pages/tracks/track-count";
-import { useFirstScan } from "@/hooks/use-first-scan";
+import { useLibraryReveal } from "@/hooks/use-onboarding";
 import type { MusicLibrary } from "../../shared/lib";
 import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
 import { FilterNoResults } from "@/components/filter-no-results";
@@ -22,8 +22,8 @@ const allTracks = { kind: "all-tracks" } as const;
 export function TracksPage() {
   const library = useMusicLibrary();
   const [sort, stepSort] = useViewSort(allTracks);
-  const firstScan = useFirstScan();
-  const onListReady = firstScan.onListReady;
+  const reveal = useLibraryReveal();
+  const onListReady = reveal.onListReady;
   const [filterText, setFilterText] = useState("");
   const filter = parseTrackFilter(useDeferredValue(filterText));
   const filterRef = useRef<FilterFieldHandle>(null);
@@ -65,7 +65,7 @@ export function TracksPage() {
                 {unavailableText}
               </>
             ) : (
-              <TrackCount total={library.tracks.length} isRevealing={firstScan.isRevealing}>
+              <TrackCount total={library.tracks.length} isRevealing={reveal.isRevealing}>
                 {" · "}
                 {formatTotalDuration(totalDuration)}
                 {unavailableText}
