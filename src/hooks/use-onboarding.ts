@@ -1,14 +1,12 @@
 import { createContext, useCallback, useContext, useMemo, useReducer } from "react";
 import type { LibrarySnapshot } from "../../shared/lib";
 
-// Picking, cancelling and failing to add the first folder belong to the add-source mutation.
-// This model only remembers what the mutation cannot: that the first-run screen still owes the
-// library a reveal, and which list that reveal runs on.
 export type Onboarding =
   | { phase: "none" }
   | { phase: "first-run" }
   | { phase: "waiting-for-list" }
-  | { phase: "revealing"; list: HTMLElement | null };
+  | { phase: "revealing"; list: HTMLElement }
+  | { phase: "fading-out" };
 
 export type OnboardingEvent =
   | { type: "library-shown"; kind: LibrarySnapshot["kind"] | undefined; onTracksRoute: boolean }
@@ -21,10 +19,8 @@ const firstRun = { phase: "first-run" } as const;
 
 const waitingForList = { phase: "waiting-for-list" } as const;
 
-// Only the tracks page reports a list, so any other route fades the first-run screen out.
-const fadeOut = { phase: "revealing", list: null } as const;
+const fadingOut = { phase: "fading-out" } as const;
 
-// Every ignored event returns `state` itself, which keeps a running reveal from restarting.
 export function stepOnboarding(state: Onboarding, event: OnboardingEvent): Onboarding {
   switch (event.type) {
     case "library-shown":
@@ -32,15 +28,17 @@ export function stepOnboarding(state: Onboarding, event: OnboardingEvent): Onboa
 
       if (event.kind === undefined) return state;
 
-      if (state.phase === "first-run") return event.onTracksRoute ? waitingForList : fadeOut;
+      if (state.phase === "first-run") return event.onTracksRoute ? waitingForList : fadingOut;
 
-      if (state.phase === "waiting-for-list" && !event.onTracksRoute) return fadeOut;
+      if (state.phase === "waiting-for-list" && !event.onTracksRoute) return fadingOut;
 
       return state;
     case "list-ready":
-      return state.phase === "waiting-for-list" ? { phase: "revealing", list: event.list } : state;
+      if (state.phase !== "waiting-for-list") return state;
+
+      return event.list ? { phase: "revealing", list: event.list } : fadingOut;
     case "reveal-ended":
-      return state.phase === "revealing" ? none : state;
+      return state.phase === "revealing" || state.phase === "fading-out" ? none : state;
   }
 }
 
@@ -48,8 +46,6 @@ export function useOnboarding(kind: LibrarySnapshot["kind"] | undefined, onTrack
   const [onboarding, dispatch] = useReducer(stepOnboarding, none);
   const shown = { type: "library-shown", kind, onTracksRoute } as const;
 
-  // Stepped during render, so the commit that first shows the library already has the
-  // first-run screen covering it.
   if (stepOnboarding(onboarding, shown) !== onboarding) dispatch(shown);
 
   const onListReady = useCallback(
@@ -58,7 +54,7 @@ export function useOnboarding(kind: LibrarySnapshot["kind"] | undefined, onTrack
   );
 
   const onRevealEnd = useCallback(() => dispatch({ type: "reveal-ended" }), []);
-  const isRevealing = onboarding.phase === "revealing" && onboarding.list !== null;
+  const isRevealing = onboarding.phase === "revealing";
   const reveal = useMemo(() => ({ isRevealing, onListReady }), [isRevealing, onListReady]);
 
   return { onboarding, onRevealEnd, reveal };

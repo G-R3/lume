@@ -75,12 +75,14 @@ function FirstRun({
   const libraryMutation = useLibraryMutation();
   const screenRef = useRef<HTMLDivElement>(null);
   const isCovering = onboarding.phase !== "first-run";
+  const isLeaving = onboarding.phase === "revealing" || onboarding.phase === "fading-out";
+  const list = onboarding.phase === "revealing" ? onboarding.list : null;
 
   useLayoutEffect(() => {
-    if (onboarding.phase !== "revealing" || !screenRef.current) return;
+    if (!isLeaving || !screenRef.current) return;
 
-    return playFirstScan(screenRef.current, onboarding.list, onRevealEnd);
-  }, [onboarding, onRevealEnd]);
+    return playFirstScan(screenRef.current, list, onRevealEnd);
+  }, [isLeaving, list, onRevealEnd]);
 
   return (
     <div
