@@ -445,7 +445,11 @@ function SyncProbe() {
         ))}
       </ul>
       <p data-playlist-count>{library.playlists[0]?.trackCount}</p>
-      <p data-scanned-at>{library.sources.map((entry) => entry.lastScannedAt).join(",")}</p>
+      <p data-scanned-at>
+        {library.sources
+          .map((entry) => (entry.status.kind === "scanned" ? entry.status.scannedAt : null))
+          .join(",")}
+      </p>
     </>
   );
 }
@@ -631,12 +635,9 @@ function stored({
 
 function source({ lastScannedAt }: { lastScannedAt: number }): LibrarySource {
   return {
-    enabled: true,
     id: 1,
-    lastScanError: null,
-    lastScannedAt,
     path: "/music",
-    trackCount: 2,
+    status: { kind: "scanned", scannedAt: lastScannedAt, trackCount: 2 },
   };
 }
 

@@ -1,14 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import type { MusicLibrary } from "../../../shared/lib";
 import { Button } from "@/components/ui/button";
 import { useLibraryMutation } from "@/lib/library-query";
-import { getSourceName } from "@/lib/source-name";
+import type { SourceNotice } from "@/lib/source-presentation";
 
-export function LibraryStatus({ library }: { library: MusicLibrary }) {
+export function LibraryStatus({ notice }: { notice: SourceNotice }) {
   const libraryMutation = useLibraryMutation();
-  const failedSource = library.sources.find((source) => source.enabled && source.lastScanError);
-  const unavailableCount = library.tracks.filter((track) => !track.available).length;
 
   const scanAgain = (command: Parameters<typeof libraryMutation.mutate>[0]) => (
     <Button
@@ -35,37 +32,25 @@ export function LibraryStatus({ library }: { library: MusicLibrary }) {
     );
   }
 
-  if (failedSource) {
-    const name = getSourceName(failedSource.path);
-    const isMissing = failedSource.lastScanError?.includes("ENOENT");
-
-    return (
-      <Notice
-        detail={isMissing ? "Its tracks can’t play until it’s back." : failedSource.lastScanError}
-        title={isMissing ? `${name} isn’t connected` : `${name} couldn’t be scanned`}
-      >
-        {scanAgain({ kind: "rescan-source", sourceId: failedSource.id })}
-        {manageFolders("ghost")}
-      </Notice>
-    );
+  switch (notice.kind) {
+    case "issue":
+      return (
+        <Notice detail={notice.detail} title={notice.title}>
+          {scanAgain({ kind: "rescan-source", sourceId: notice.sourceId })}
+          {manageFolders("ghost")}
+        </Notice>
+      );
+    case "off":
+      return <Notice title={notice.title}>{manageFolders("secondary")}</Notice>;
+    case "unavailable":
+      return (
+        <Notice detail={notice.detail} title={notice.title}>
+          {scanAgain({ kind: "rescan-sources" })}
+        </Notice>
+      );
+    case "none":
+      return null;
   }
-
-  if (library.sources.length > 0 && library.sources.every((source) => !source.enabled)) {
-    return <Notice title="All folders are off">{manageFolders("secondary")}</Notice>;
-  }
-
-  if (unavailableCount > 0 && library.sources.every((source) => source.enabled)) {
-    return (
-      <Notice
-        detail="Their files were moved or deleted."
-        title={`${unavailableCount.toLocaleString()} ${unavailableCount === 1 ? "track is" : "tracks are"} unavailable`}
-      >
-        {scanAgain({ kind: "rescan-sources" })}
-      </Notice>
-    );
-  }
-
-  return null;
 }
 
 function Notice({

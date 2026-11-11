@@ -131,12 +131,9 @@ function sources({ revision, scannedAt }: { revision: LibraryRevision; scannedAt
       revision,
       sources: [
         {
-          enabled: true,
           id: 1,
-          lastScanError: null,
-          lastScannedAt: scannedAt,
           path: "/music",
-          trackCount: 3,
+          status: { kind: "scanned" as const, scannedAt, trackCount: 3 },
         },
       ],
     },

@@ -1,9 +1,11 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import { and, count, eq, inArray, isNotNull, isNull, notExists, sql, type SQL } from "drizzle-orm";
+import { and, count, eq, inArray, ne, notExists, sql, type SQL } from "drizzle-orm";
 import {
+  type LibrarySource,
   type LibraryUpdate,
   type SetTracksLikedInput,
+  type SourceStatus,
   type TracksLikedResult,
   type TrackTuple,
   type TrackTupleKey,
@@ -19,12 +21,14 @@ import {
   parameterChunks,
   runImmediateTransaction,
   type LibraryDatabase,
+  type LibraryTransaction,
 } from "./database";
-import { artwork, librarySources, tracks, trackState } from "./database/schema";
+import { appState, artwork, librarySources, tracks, trackState } from "./database/schema";
 import {
-  describeFolderReadError,
+  classifyFolderReadError,
   scanAudioFiles,
   trackMetadataVersion,
+  type FolderReadFailure,
   type ScannedTrack,
 } from "./library-files";
 import { getPlaylists, requireTracks } from "./playlists";
@@ -133,11 +137,7 @@ type StoredTrackRow = StoredValues<typeof trackTupleKeys>;
 // Returns the library as JSON, with each track as a tuple ([addedAt, album, ...]) instead of an object
 // tuples don't repeat the field names for every track, so the string is smaller and faster to send
 export function getLibrarySnapshotJson() {
-  const sources = getSources();
-
-  if (sources.length === 0 && !hasForgottenSources()) {
-    return stringifyFirstRunLibrary(nextLibraryRevision());
-  }
+  if (!isOnboarded()) return stringifyFirstRunLibrary(nextLibraryRevision());
 
   // SAFETY: Drizzle returns `.values()` rows untyped.
   // Each row holds the raw SQLite values of `trackTupleColumns`, in that order.
@@ -152,7 +152,7 @@ export function getLibrarySnapshotJson() {
   return stringifyLibrary(
     nextLibraryRevision(),
     getPlaylists(),
-    sources,
+    getSources(),
     rows.map(trackTupleFromRow),
   );
 }
@@ -252,15 +252,11 @@ export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
 }
 
 export function getSources() {
-  return selectSources(isNull(librarySources.forgottenAt)).orderBy(librarySources.createdAt).all();
+  return selectSources(ne(librarySources.status, "forgotten")).map(sourceFromRow);
 }
 
 function getEnabledSources() {
-  return selectSources(enabledSource()).orderBy(librarySources.createdAt).all();
-}
-
-function enabledSource() {
-  return and(eq(librarySources.enabled, true), isNull(librarySources.forgottenAt));
+  return selectSources(eq(librarySources.status, "active"));
 }
 
 function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
@@ -268,86 +264,93 @@ function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
     database
       .select({ path: librarySources.path })
       .from(librarySources)
-      .where(and(eq(librarySources.id, sourceId), enabledSource()))
+      .where(and(eq(librarySources.id, sourceId), eq(librarySources.status, "active")))
       .get()?.path ?? null
   );
 }
 
-function selectSources(condition: SQL | undefined) {
+function selectSources(condition: SQL) {
   return getDatabase()
     .select({
-      enabled: librarySources.enabled,
       id: librarySources.id,
-      lastScanError: librarySources.lastScanError,
+      lastScanErrorMessage: librarySources.lastScanErrorMessage,
+      lastScanOutcome: librarySources.lastScanOutcome,
       lastScannedAt: librarySources.lastScannedAt,
       path: librarySources.path,
+      status: librarySources.status,
       trackCount: count(tracks.id),
     })
     .from(librarySources)
     .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), eq(tracks.available, true)))
     .where(condition)
-    .groupBy(librarySources.id);
+    .groupBy(librarySources.id)
+    .orderBy(librarySources.createdAt)
+    .all();
 }
 
-function hasForgottenSources() {
-  return (
-    getDatabase()
-      .select({ id: librarySources.id })
-      .from(librarySources)
-      .where(isNotNull(librarySources.forgottenAt))
-      .get() !== undefined
-  );
+type SourceRow = ReturnType<typeof selectSources>[number];
+
+function sourceFromRow(row: SourceRow): LibrarySource {
+  return { id: row.id, path: row.path, status: sourceStatusFromRow(row) };
+}
+
+// The table's CHECKs keep these combinations consistent, but Drizzle types each column alone.
+function sourceStatusFromRow(row: SourceRow): SourceStatus {
+  if (row.status === "forgotten") throw new Error(`Library source ${row.id} is forgotten`);
+
+  if (row.status === "off") return { kind: "off" };
+
+  switch (row.lastScanOutcome) {
+    case "unscanned":
+      return { kind: "unscanned" };
+    case "ok":
+      if (row.lastScannedAt === null) break;
+
+      return { kind: "scanned", scannedAt: row.lastScannedAt, trackCount: row.trackCount };
+    case "missing":
+    case "permission":
+    case "failed":
+      if (row.lastScanErrorMessage === null) break;
+
+      return {
+        errorMessage: row.lastScanErrorMessage,
+        kind: row.lastScanOutcome,
+        lastScannedAt: row.lastScannedAt,
+      };
+  }
+
+  throw new Error(`Library source ${row.id} has an inconsistent scan outcome`);
+}
+
+function isOnboarded() {
+  return getDatabase().select({ id: appState.id }).from(appState).get() !== undefined;
 }
 
 export async function saveSource(selectedPath: string) {
-  const database = getDatabase();
   const path = await realpath(selectedPath);
   const folder = await stat(path);
 
   if (!folder.isDirectory()) throw new Error("A music source must be a folder");
 
-  const existing = database
-    .select({ id: librarySources.id })
-    .from(librarySources)
-    .where(eq(librarySources.path, path))
-    .get();
+  return runImmediateTransaction(getDatabase(), (transaction) => {
+    rejectSourceOverlap(transaction, path);
 
-  if (existing) {
-    rejectSourceOverlap(database, path, existing.id);
     const now = Date.now();
 
-    database
-      .update(librarySources)
-      .set({
-        enabled: true,
-        forgottenAt: null,
-        updatedAt: sql`CASE
-          WHEN ${librarySources.enabled} = 0 OR ${librarySources.forgottenAt} IS NOT NULL THEN ${now}
-          ELSE ${librarySources.updatedAt}
-        END`,
+    const source = transaction
+      .insert(librarySources)
+      .values({ createdAt: now, path, status: "active", updatedAt: now })
+      .onConflictDoUpdate({
+        target: librarySources.path,
+        set: { status: "active", updatedAt: updatedAtUnless("active", now) },
       })
-      .where(eq(librarySources.id, existing.id))
-      .run();
+      .returning({ id: librarySources.id })
+      .get();
 
-    return { id: existing.id, path };
-  }
+    transaction.insert(appState).values({ id: 1, onboardedAt: now }).onConflictDoNothing().run();
 
-  rejectSourceOverlap(database, path);
-
-  const now = Date.now();
-
-  const source = database
-    .insert(librarySources)
-    .values({
-      createdAt: now,
-      enabled: true,
-      path,
-      updatedAt: now,
-    })
-    .returning({ id: librarySources.id })
-    .get();
-
-  return { id: source.id, path };
+    return { id: source.id, path };
+  });
 }
 
 export function enableSource(sourceId: number) {
@@ -355,14 +358,8 @@ export function enableSource(sourceId: number) {
 
   const source = getDatabase()
     .update(librarySources)
-    .set({
-      enabled: true,
-      updatedAt: sql`CASE
-        WHEN ${librarySources.enabled} = 0 THEN ${now}
-        ELSE ${librarySources.updatedAt}
-      END`,
-    })
-    .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
+    .set({ status: "active", updatedAt: updatedAtUnless("active", now) })
+    .where(and(eq(librarySources.id, sourceId), ne(librarySources.status, "forgotten")))
     .returning({ id: librarySources.id })
     .get();
 
@@ -376,14 +373,8 @@ export function disableSource(sourceId: number) {
   runImmediateTransaction(database, (transaction) => {
     const source = transaction
       .update(librarySources)
-      .set({
-        enabled: false,
-        updatedAt: sql`CASE
-            WHEN ${librarySources.enabled} = 1 THEN ${now}
-            ELSE ${librarySources.updatedAt}
-          END`,
-      })
-      .where(and(eq(librarySources.id, sourceId), isNull(librarySources.forgottenAt)))
+      .set({ status: "off", updatedAt: updatedAtUnless("off", now) })
+      .where(and(eq(librarySources.id, sourceId), ne(librarySources.status, "forgotten")))
       .returning({ id: librarySources.id })
       .get();
 
@@ -402,14 +393,7 @@ export function forgetSource(sourceId: number) {
   runImmediateTransaction(database, (transaction) => {
     const source = transaction
       .update(librarySources)
-      .set({
-        enabled: false,
-        forgottenAt: sql`COALESCE(${librarySources.forgottenAt}, ${now})`,
-        updatedAt: sql`CASE
-            WHEN ${librarySources.enabled} = 1 OR ${librarySources.forgottenAt} IS NULL THEN ${now}
-            ELSE ${librarySources.updatedAt}
-          END`,
-      })
+      .set({ status: "forgotten", updatedAt: updatedAtUnless("forgotten", now) })
       .where(eq(librarySources.id, sourceId))
       .returning({ id: librarySources.id })
       .get();
@@ -477,9 +461,12 @@ export async function scanSource(
       if (scan.stoppedBy) return { kind: "dropped", reason: scan.stoppedBy };
 
       console.warn("Could not read library source", { error, sourceId });
-      const message = error instanceof Error ? describeFolderReadError(error) : String(error);
 
-      return { kind: "committed", tracksChanged: commitScanFailure(database, sourceId, message) };
+      const failure = classifyFolderReadError(
+        error instanceof Error ? error : new Error(String(error)),
+      );
+
+      return { kind: "committed", tracksChanged: commitScanFailure(database, sourceId, failure) };
     }
 
     if (scan.stoppedBy) return { kind: "dropped", reason: scan.stoppedBy };
@@ -501,13 +488,17 @@ function rejectWhenStopped(signal: AbortSignal) {
   });
 }
 
-function commitScanFailure(database: LibraryDatabase, sourceId: number, error: string) {
+function commitScanFailure(
+  database: LibraryDatabase,
+  sourceId: number,
+  failure: FolderReadFailure,
+) {
   const now = Date.now();
 
   return runImmediateTransaction(database, (transaction) => {
     transaction
       .update(librarySources)
-      .set({ lastScanError: error, updatedAt: now })
+      .set({ lastScanErrorMessage: failure.errorMessage, lastScanOutcome: failure.kind, updatedAt: now })
       .where(eq(librarySources.id, sourceId))
       .run();
 
@@ -726,7 +717,7 @@ function commitSourceScan(
 
     transaction
       .update(librarySources)
-      .set({ lastScanError: null, lastScannedAt: now, updatedAt: now })
+      .set({ lastScanErrorMessage: null, lastScanOutcome: "ok", lastScannedAt: now, updatedAt: now })
       .where(eq(librarySources.id, sourceId))
       .run();
 
@@ -744,13 +735,17 @@ function markSourceTracksUnavailable(database: SourceWriter, sourceId: number, n
   return changes > 0;
 }
 
-function rejectSourceOverlap(database: LibraryDatabase, path: string, sourceId?: number) {
+function updatedAtUnless(status: SourceRow["status"], now: number) {
+  return sql`CASE WHEN ${librarySources.status} = ${status} THEN ${librarySources.updatedAt} ELSE ${now} END`;
+}
+
+function rejectSourceOverlap(database: LibraryTransaction, path: string) {
   const overlappingPath = database
-    .select({ id: librarySources.id, path: librarySources.path })
+    .select({ path: librarySources.path })
     .from(librarySources)
-    .where(isNull(librarySources.forgottenAt))
+    .where(ne(librarySources.status, "forgotten"))
     .all()
-    .find((source) => source.id !== sourceId && pathsOverlap(source.path, path));
+    .find((source) => source.path !== path && pathsOverlap(source.path, path));
 
   if (overlappingPath) {
     throw new Error(`This folder overlaps the existing source ${overlappingPath.path}`);

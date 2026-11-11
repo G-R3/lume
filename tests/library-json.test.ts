@@ -47,7 +47,9 @@ describe("library transport from stored rows", () => {
   it("sends every stored field in its own position", async () => {
     const database = await openTestDatabase();
     database.$client.exec(`
-      INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (1, '/s', 1, 1, 2);
+      INSERT INTO app_state (id, onboarded_at) VALUES (1, 1);
+      INSERT INTO library_sources (id, path, status, last_scan_outcome, last_scanned_at, created_at, updated_at)
+        VALUES (1, '/s', 'active', 'ok', 3, 1, 2);
       INSERT INTO artwork (id, media_type, data) VALUES ('art-s', 'image/png', x'00');
       INSERT INTO tracks (id, source_id, path, title, duration, format, file_size, modified_at,
         available, created_at, updated_at, artists, album, album_artists, artwork_id, year,
@@ -64,7 +66,7 @@ describe("library transport from stored rows", () => {
     if (decoded.kind !== "library") throw new Error("Expected a populated library");
     expect(decoded.playlists).toStrictEqual([]);
     expect(decoded.sources).toStrictEqual([
-      { enabled: true, id: 1, lastScanError: null, lastScannedAt: null, path: "/s", trackCount: 1 },
+      { id: 1, path: "/s", status: { kind: "scanned", scannedAt: 3, trackCount: 1 } },
     ]);
     expect(decoded.tracks).toStrictEqual([
       {
@@ -93,6 +95,38 @@ describe("library transport from stored rows", () => {
         url: "lume://app/media/113",
         year: 110,
       },
+    ]);
+  });
+
+  it("sends each stored source state as one status", async () => {
+    const database = await openTestDatabase();
+    database.$client.exec(`
+      INSERT INTO app_state (id, onboarded_at) VALUES (1, 1);
+      INSERT INTO library_sources
+        (id, path, status, last_scan_outcome, last_scanned_at, last_scan_error_message, created_at, updated_at)
+      VALUES
+        (1, '/unscanned', 'active', 'unscanned', NULL, NULL, 1, 1),
+        (2, '/scanned', 'active', 'ok', 10, NULL, 2, 2),
+        (3, '/missing', 'active', 'missing', 10, 'gone', 3, 3),
+        (4, '/permission', 'active', 'permission', NULL, 'denied', 4, 4),
+        (5, '/failed', 'active', 'failed', NULL, '', 5, 5),
+        (6, '/off', 'off', 'failed', 10, 'broken', 6, 6),
+        (7, '/forgotten', 'forgotten', 'ok', 10, NULL, 7, 7);
+    `);
+
+    const library = readLibrary();
+
+    if (library.kind !== "library") throw new Error("Expected a library snapshot");
+    expect(library.sources.map(({ path, status }) => ({ path, status }))).toStrictEqual([
+      { path: "/unscanned", status: { kind: "unscanned" } },
+      { path: "/scanned", status: { kind: "scanned", scannedAt: 10, trackCount: 0 } },
+      { path: "/missing", status: { errorMessage: "gone", kind: "missing", lastScannedAt: 10 } },
+      {
+        path: "/permission",
+        status: { errorMessage: "denied", kind: "permission", lastScannedAt: null },
+      },
+      { path: "/failed", status: { errorMessage: "", kind: "failed", lastScannedAt: null } },
+      { path: "/off", status: { kind: "off" } },
     ]);
   });
 
@@ -192,21 +226,11 @@ describe("library transport from stored rows", () => {
     ]);
     expect(library.sources).toStrictEqual([
       {
-        enabled: true,
         id: source.id,
-        lastScanError: null,
-        lastScannedAt: expect.any(Number),
         path: source.path,
-        trackCount: 2,
+        status: { kind: "scanned", scannedAt: expect.any(Number), trackCount: 2 },
       },
-      {
-        enabled: false,
-        id: failingSource.id,
-        lastScanError: "Folder is missing",
-        lastScannedAt: expect.any(Number),
-        path: failingSource.path,
-        trackCount: 0,
-      },
+      { id: failingSource.id, path: failingSource.path, status: { kind: "off" } },
     ]);
     expect(library.playlists).toStrictEqual([
       { description: null, id: playlist.id, title: "Mix", trackCount: 2 },

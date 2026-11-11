@@ -1,5 +1,5 @@
 import { DotsThreeIcon, FolderMinusIcon, PlusIcon } from "@phosphor-icons/react";
-import type { LibrarySource, MusicLibrary } from "../../../shared/lib";
+import type { MusicLibrary } from "../../../shared/lib";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useLibraryMutation } from "@/lib/library-query";
-import { getSourceName } from "@/lib/source-name";
+import { type FolderPresentation, presentLibrarySources } from "@/lib/source-presentation";
 import { cn } from "@/lib/utils";
 
 type LibraryMutation = ReturnType<typeof useLibraryMutation>;
@@ -20,7 +20,7 @@ type LibraryCommand = Parameters<LibraryMutation["mutate"]>[0];
 
 export function FolderSettings({ library }: { library: MusicLibrary }) {
   const libraryMutation = useLibraryMutation();
-  const now = useMinuteClock();
+  const { folders } = presentLibrarySources(library, useMinuteClock());
   const pending = libraryMutation.isPending ? libraryMutation.variables : undefined;
 
   const run = (command: LibraryCommand, failure: string) =>
@@ -30,12 +30,12 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
       },
     });
 
-  const isScanning = (source: LibrarySource) =>
+  const isScanning = (folder: FolderPresentation) =>
     pending?.kind === "rescan-sources"
-      ? source.enabled
+      ? folder.enabled
       : (pending?.kind === "rescan-source" ||
           (pending?.kind === "set-source-enabled" && pending.enabled)) &&
-        pending.sourceId === source.id;
+        pending.sourceId === folder.id;
 
   const isAdding = pending?.kind === "add-source";
 
@@ -57,7 +57,7 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
         </Button>
       </header>
 
-      {library.sources.length === 0 ? (
+      {folders.length === 0 ? (
         <div className="flex flex-1 justify-center border-t border-separator px-6 pt-24">
           <div className="flex w-100 flex-col gap-2">
             <h2 className="text-title font-semibold text-primary">No folders</h2>
@@ -90,25 +90,24 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
               </tr>
             </thead>
             <tbody className="before:table-row before:h-1">
-              {library.sources.map((source) => (
+              {folders.map((folder) => (
                 <FolderRow
+                  folder={folder}
                   isBusy={libraryMutation.isPending}
-                  isScanning={isScanning(source)}
-                  key={source.id}
-                  now={now}
+                  isScanning={isScanning(folder)}
+                  key={folder.id}
                   onForget={() =>
-                    run({ kind: "forget-source", sourceId: source.id }, "Couldn’t forget folder")
+                    run({ kind: "forget-source", sourceId: folder.id }, "Couldn’t forget folder")
                   }
                   onRescan={() =>
-                    run({ kind: "rescan-source", sourceId: source.id }, "Couldn’t scan folder")
+                    run({ kind: "rescan-source", sourceId: folder.id }, "Couldn’t scan folder")
                   }
                   onToggle={() =>
                     run(
-                      { enabled: !source.enabled, kind: "set-source-enabled", sourceId: source.id },
-                      source.enabled ? "Couldn’t turn folder off" : "Couldn’t turn folder on",
+                      { enabled: !folder.enabled, kind: "set-source-enabled", sourceId: folder.id },
+                      folder.enabled ? "Couldn’t turn folder off" : "Couldn’t turn folder on",
                     )
                   }
-                  source={source}
                 />
               ))}
             </tbody>
@@ -120,40 +119,22 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
 }
 
 function FolderRow({
+  folder,
   isBusy,
   isScanning,
-  now,
   onForget,
   onRescan,
   onToggle,
-  source,
 }: {
+  folder: FolderPresentation;
   isBusy: boolean;
   isScanning: boolean;
-  now: number;
   onForget: () => void;
   onRescan: () => void;
   onToggle: () => void;
-  source: LibrarySource;
 }) {
-  const name = getSourceName(source.path);
-  const isOff = !source.enabled;
-  const hasError = source.enabled && source.lastScanError !== null;
-  const isEmpty = source.lastScannedAt !== null && source.trackCount === 0;
-
-  const status = isScanning
-    ? "Scanning…"
-    : isOff
-      ? "Off"
-      : hasError
-        ? source.lastScanError?.includes("ENOENT")
-          ? `Not connected${source.lastScannedAt === null ? "" : ` · last scanned ${formatScanTime(source.lastScannedAt, now)}`}`
-          : `Couldn’t scan · ${source.lastScanError}`
-        : source.lastScannedAt === null
-          ? "Not scanned yet"
-          : isEmpty
-            ? "No audio found"
-            : `Scanned ${formatScanTime(source.lastScannedAt, now)}`;
+  const { hasIssue, name } = folder;
+  const isOff = !folder.enabled;
 
   const revealOnHover =
     "opacity-0 group-hover/folder:opacity-100 group-has-focus-visible/folder:opacity-100";
@@ -175,9 +156,9 @@ function FolderRow({
               "truncate font-mono text-meta",
               isOff ? "text-disabled" : "text-secondary",
             )}
-            title={source.path}
+            title={folder.path}
           >
-            {source.path}
+            {folder.path}
           </p>
         </div>
       </td>
@@ -185,40 +166,29 @@ function FolderRow({
         <p
           className={cn(
             "truncate text-meta",
-            hasError && !isScanning ? "text-primary" : "text-secondary",
+            hasIssue && !isScanning ? "text-primary" : "text-secondary",
           )}
-          title={hasError ? (source.lastScanError ?? undefined) : undefined}
+          title={folder.tooltip}
         >
-          {status}
+          {isScanning ? "Scanning…" : folder.statusText}
         </p>
       </td>
-      <td
-        className={cn(
-          "pl-4 text-right font-mono text-meta tabular-nums",
-          isOff || hasError ? "text-disabled" : "text-secondary",
-        )}
-      >
-        {isOff || hasError ? null : source.trackCount.toLocaleString()}
+      <td className="pl-4 text-right font-mono text-meta text-secondary tabular-nums">
+        {folder.trackCountText}
       </td>
       <td className="pl-4">
         <div className="flex items-center justify-end gap-1">
-          {hasError ? (
-            <Button busy={isScanning} disabled={isBusy} onClick={onRescan} size="sm" type="button">
-              Scan again
+          {folder.scanLabel && (
+            <Button
+              busy={isScanning}
+              disabled={isBusy}
+              onClick={onRescan}
+              size="sm"
+              type="button"
+              variant={folder.scanLabel === "Scan again" ? "secondary" : "ghost"}
+            >
+              {folder.scanLabel}
             </Button>
-          ) : (
-            !isOff && (
-              <Button
-                busy={isScanning}
-                disabled={isBusy}
-                onClick={onRescan}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Rescan
-              </Button>
-            )
           )}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -248,35 +218,11 @@ function FolderRow({
       <td className="pr-4 pl-4">
         <Switch
           aria-label={`Enable ${name}`}
-          checked={source.enabled}
+          checked={folder.enabled}
           disabled={isBusy}
           onCheckedChange={onToggle}
         />
       </td>
     </tr>
   );
-}
-
-const scanDateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
-
-const scanDateWithYearFormatter = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-
-function formatScanTime(scannedAt: number, now: number) {
-  const minutes = Math.floor((now - scannedAt) / 60_000);
-
-  if (minutes < 1) return "just now";
-
-  if (minutes < 60) return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
-
-  const hours = Math.floor(minutes / 60);
-
-  if (hours < 24) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
-
-  return new Date(scannedAt).getFullYear() === new Date(now).getFullYear()
-    ? scanDateFormatter.format(scannedAt)
-    : scanDateWithYearFormatter.format(scannedAt);
 }

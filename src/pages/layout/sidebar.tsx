@@ -9,7 +9,7 @@ import {
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { type Ref, type RefObject, useRef, useState } from "react";
-import type { LibrarySource, PlaylistSummary } from "../../../shared/lib";
+import type { MusicLibrary, PlaylistSummary } from "../../../shared/lib";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -28,7 +28,7 @@ import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { duration, ease } from "@/lib/motion";
-import { getSourceName } from "@/lib/source-name";
+import { presentLibrarySources } from "@/lib/source-presentation";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -95,7 +95,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="h-12 shrink-0 flex-row items-center gap-2 border-t border-separator py-0 pr-2 pl-4">
-        <SourceStatus sources={library.sources} />
+        <SourceFooter library={library} />
         <Link
           aria-label="Settings"
           className={buttonVariants({ size: "icon", variant: "toolbar" })}
@@ -213,52 +213,12 @@ function PlaylistSidebarItem({
   );
 }
 
-const scanDateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
-
-function SourceStatus({ sources }: { sources: readonly LibrarySource[] }) {
-  const now = useMinuteClock();
-  const enabled = sources.filter((source) => source.enabled);
-  const issues = enabled.filter((source) => source.lastScanError).length;
-  const scannedAt = enabled.map((source) => source.lastScannedAt).filter((time) => time !== null);
-
-  const name = sources.length === 1 ? getSourceName(sources[0].path) : `${sources.length} folders`;
-
-  const detail =
-    sources.length === 0
-      ? null
-      : enabled.length === 0
-        ? sources.length === 1
-          ? "off"
-          : "all off"
-        : issues > 0
-          ? issues === 1
-            ? "1 issue"
-            : `${issues} issues`
-          : scannedAt.length > 0
-            ? formatScanAge(Math.min(...scannedAt), now)
-            : null;
+function SourceFooter({ library }: { library: MusicLibrary }) {
+  const footer = presentLibrarySources(library, useMinuteClock()).footer;
 
   return (
-    <>
-      <p
-        className="min-w-0 flex-1 truncate text-meta text-secondary"
-        title={sources.map((source) => source.path).join("\n") || undefined}
-      >
-        {sources.length === 0 ? "No folders" : name}
-        {detail && ` · ${detail}`}
-      </p>
-    </>
+    <p className="min-w-0 flex-1 truncate text-meta text-secondary" title={footer.tooltip}>
+      {footer.text}
+    </p>
   );
-}
-
-function formatScanAge(scannedAt: number, now: number) {
-  const minutes = Math.floor((now - scannedAt) / 60_000);
-
-  if (minutes < 1) return "scanned just now";
-
-  if (minutes < 60) return `scanned ${minutes}m`;
-
-  if (minutes < 24 * 60) return `scanned ${Math.floor(minutes / 60)}h`;
-
-  return `scanned ${scanDateFormatter.format(scannedAt)}`;
 }
