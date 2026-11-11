@@ -11,23 +11,37 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 
+const sourceStatuses = ["active", "off", "forgotten"] as const;
+
+const scanFailures = ["missing", "permission", "failed"] as const;
+
+const scanOutcomes = ["unscanned", "ok", ...scanFailures] as const;
+
+function sqlList(values: readonly string[]) {
+  return sql.raw(values.map((value) => `'${value}'`).join(", "));
+}
+
 export const librarySources = sqliteTable(
   "library_sources",
   {
     id: integer("id").primaryKey(),
     path: text("path").notNull().unique(),
-    enabled: integer("enabled", { mode: "boolean" }).notNull(),
-    forgottenAt: integer("forgotten_at"),
+    status: text("status", { enum: sourceStatuses }).notNull(),
+    lastScanOutcome: text("last_scan_outcome", { enum: scanOutcomes })
+      .notNull()
+      .default("unscanned"),
     lastScannedAt: integer("last_scanned_at"),
-    lastScanError: text("last_scan_error"),
+    lastScanErrorMessage: text("last_scan_error_message"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
-    check("library_sources_enabled_check", sql`${table.enabled} IN (0, 1)`),
+    check("library_sources_status_check", sql`${table.status} IN (${sqlList(sourceStatuses)})`),
     check(
-      "library_sources_forgotten_check",
-      sql`${table.forgottenAt} IS NULL OR ${table.enabled} = 0`,
+      "library_sources_scan_check",
+      sql`(${table.lastScanOutcome} = 'unscanned' AND ${table.lastScannedAt} IS NULL AND ${table.lastScanErrorMessage} IS NULL)
+        OR (${table.lastScanOutcome} = 'ok' AND ${table.lastScannedAt} IS NOT NULL AND ${table.lastScanErrorMessage} IS NULL)
+        OR (${table.lastScanOutcome} IN (${sqlList(scanFailures)}) AND ${table.lastScanErrorMessage} IS NOT NULL)`,
     ),
   ],
 );

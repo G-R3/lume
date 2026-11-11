@@ -46,14 +46,13 @@ export type TracksLikedResult = {
   revision: LibraryRevision;
 };
 
-export type LibrarySource = {
-  enabled: boolean;
-  id: number;
-  lastScanError: string | null;
-  lastScannedAt: number | null;
-  path: string;
-  trackCount: number;
-};
+export type SourceStatus =
+  | { kind: "off" }
+  | { kind: "unscanned" }
+  | { kind: "scanned"; scannedAt: number; trackCount: number }
+  | { kind: "missing" | "permission" | "failed"; lastScannedAt: number | null; errorMessage: string };
+
+export type LibrarySource = { id: number; path: string; status: SourceStatus };
 
 export type PlaylistSummary = {
   description: string | null;
