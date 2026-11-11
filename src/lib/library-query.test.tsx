@@ -374,6 +374,22 @@ describe("replies that arrive out of revision order", () => {
   });
 });
 
+describe("a failed folder command", () => {
+  it("rereads the stored library, since main may have committed part of it", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1, scannedAt: 1 }));
+    const rescan = app.lume.rescanSources.next();
+    await app.do.rescanSources();
+
+    await app.fail(rescan, new Error("track write failed"));
+    await app.answer(
+      await app.lume.loads.call(1),
+      json(stored({ likedAt: null, revision: 2, scannedAt: 3 })),
+    );
+
+    expect(app.scannedAt()).toBe("3");
+  });
+});
+
 type LikedState = "liked" | "unliked";
 
 type Actions = {

@@ -70,14 +70,20 @@ describe("library source persistence", () => {
     disableSource(source.id);
     expect(getActiveSource(source.id).enabled).toBe(false);
     expect(libraryTracks().map((track) => track.available)).toEqual([false]);
-    expect(await scanWith(source.id, await scanAudioFiles(folder))).toBe("skipped");
+    expect(await scanWith(source.id, await scanAudioFiles(folder))).toEqual({
+      kind: "dropped",
+      reason: "not-enabled",
+    });
     expect(libraryTracks().map((track) => track.available)).toEqual([false]);
 
     enableSource(source.id);
     expect(getActiveSource(source.id).enabled).toBe(true);
     expect(libraryTracks().map((track) => track.available)).toEqual([false]);
 
-    expect(await scanWith(source.id, await scanAudioFiles(folder))).toBe("changed");
+    expect(await scanWith(source.id, await scanAudioFiles(folder))).toEqual({
+      kind: "committed",
+      tracksChanged: true,
+    });
     expect(libraryTracks().map((track) => track.available)).toEqual([true]);
   });
 

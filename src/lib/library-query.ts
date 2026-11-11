@@ -159,6 +159,7 @@ export function useLibraryMutation() {
     ...libraryCommandOptions,
     mutationFn: async (command: LibraryCommand) =>
       parseLibrarySnapshot(await runLibraryCommand(command)),
+    onError: () => refreshLibrary(queryClient),
     onSuccess: (library) => replaceLibrary(queryClient, library),
   });
 }
