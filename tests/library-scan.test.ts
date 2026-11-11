@@ -512,6 +512,22 @@ describe("scan ownership", () => {
     expect(getActiveSource(next.id).lastScannedAt).toEqual(expect.any(Number));
   });
 
+  it("drops a read that finishes as its folder is turned off", async () => {
+    await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    const source = await saveSource(folder);
+
+    const scan = scanSource(source.id, async () => {
+      queueMicrotask(() => disableSource(source.id));
+
+      return [createScannedTrack(join(folder, "late.mp3"), "late")];
+    });
+
+    await expect(scan).resolves.toEqual(dropped("disabled"));
+    expect(libraryTracks()).toEqual([]);
+    expect(getSources()[0]?.lastScannedAt).toBeNull();
+  });
+
   it("drops a scan whose folder is turned off before its read returns a promise", async () => {
     await openTestDatabase();
     const source = await createSource([]);
