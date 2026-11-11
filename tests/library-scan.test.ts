@@ -431,10 +431,9 @@ describe("scan ownership", () => {
     const scannedAt = getActiveSource(source.id).lastScannedAt;
 
     for (const settle of [
-      (read: ReturnType<typeof createDeferred<ScannedTrack[]>>) =>
+      (read: Deferred<ScannedTrack[]>) =>
         read.resolve([createScannedTrack(join(folder, "old.mp3"), "old")]),
-      (read: ReturnType<typeof createDeferred<ScannedTrack[]>>) =>
-        read.reject(new Error("read failed")),
+      (read: Deferred<ScannedTrack[]>) => read.reject(new Error("read failed")),
     ]) {
       const read = createDeferred<ScannedTrack[]>();
       let signal: AbortSignal | undefined;
@@ -565,6 +564,8 @@ function createScannedTrack(path: string, title: string) {
     year: null,
   };
 }
+
+type Deferred<T> = ReturnType<typeof createDeferred<T>>;
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;

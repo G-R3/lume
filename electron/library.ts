@@ -41,8 +41,6 @@ export type SourceScanOutcome =
 
 export type LibraryScanOutcome = "no-enabled-sources" | "tracks-changed" | "tracks-unchanged";
 
-// A scan may commit only while it is still its source's entry here. A newer scan replaces it,
-// and disabling or forgetting the source removes it, so a read from an earlier enabled lifetime never commits.
 type SourceScan = { controller: AbortController; stoppedBy: SourceScanStop | null };
 
 let libraryRevision = 0;
@@ -53,11 +51,11 @@ function nextLibraryRevision() {
   return libraryRevision;
 }
 
-const runningScans = new WeakMap<LibraryDatabase, Map<number, SourceScan>>();
+const currentScans = new WeakMap<LibraryDatabase, Map<number, SourceScan>>();
 
-function runningScansOf(database: LibraryDatabase) {
-  const scans = runningScans.get(database) ?? new Map<number, SourceScan>();
-  runningScans.set(database, scans);
+function currentScansOf(database: LibraryDatabase) {
+  const scans = currentScans.get(database) ?? new Map<number, SourceScan>();
+  currentScans.set(database, scans);
 
   return scans;
 }
@@ -66,13 +64,13 @@ function startSourceScan(database: LibraryDatabase, sourceId: number) {
   stopSourceScan(database, sourceId, "superseded");
 
   const scan: SourceScan = { controller: new AbortController(), stoppedBy: null };
-  runningScansOf(database).set(sourceId, scan);
+  currentScansOf(database).set(sourceId, scan);
 
   return scan;
 }
 
 function stopSourceScan(database: LibraryDatabase, sourceId: number, reason: SourceScanStop) {
-  const scans = runningScansOf(database);
+  const scans = currentScansOf(database);
   const scan = scans.get(sourceId);
 
   if (!scan) return;
@@ -83,7 +81,7 @@ function stopSourceScan(database: LibraryDatabase, sourceId: number, reason: Sou
 }
 
 function finishSourceScan(database: LibraryDatabase, sourceId: number, scan: SourceScan) {
-  const scans = runningScansOf(database);
+  const scans = currentScansOf(database);
 
   if (scans.get(sourceId) === scan) scans.delete(sourceId);
 }
@@ -442,8 +440,6 @@ export async function scanEnabledSources(
   return tracksChanged ? "tracks-changed" : "tracks-unchanged";
 }
 
-// A dropped scan wrote nothing, and whatever dropped it replied with its own snapshot,
-// so only committed track changes need a full snapshot here.
 export function getLibraryUpdate(outcome: LibraryScanOutcome | "failed"): LibraryUpdate | null {
   if (outcome === "no-enabled-sources") return null;
 
