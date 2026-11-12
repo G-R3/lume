@@ -87,13 +87,18 @@ describe("load", () => {
     ]);
 
     expect(steps[0]!.position).toEqual({ time: 7, report: false });
-    expect(mediaView(lifecycle)).toEqual({ request: request("a"), isPlaying: false, duration: 60 });
+    expect(mediaView(lifecycle)).toEqual({
+      kind: "requested",
+      request: request("a"),
+      playback: { kind: "paused" },
+      duration: 60,
+    });
     expect(steps[2]!.element).toEqual({ type: "seek", element: a, time: 12, report: false });
   });
 
   it("makes play, seek and element reports inert after unloading", () => {
     const { lifecycle } = run([...loadA(true), { type: "load", request: null, position: 19 }]);
-    expect(mediaView(lifecycle)).toEqual({ request: null, isPlaying: false, duration: 0 });
+    expect(mediaView(lifecycle)).toEqual({ kind: "empty" });
 
     for (const event of [
       { type: "play" },
@@ -235,17 +240,17 @@ describe("play", () => {
     ]);
 
     expect(last.element).toMatchObject({ type: "play", element: a });
-    expect(mediaView(lifecycle).isPlaying).toBe(true);
+    expect(playbackOf(lifecycle)).toEqual({ kind: "playing" });
   });
 
   it("reports started when the element plays and forces a pause when play is not wanted", () => {
     const started = run([...loadA(true), report(a, { type: "play", paused: false })]);
     expect(started.last.emit).toEqual({ type: "started", ...ids });
-    expect(mediaView(started.lifecycle).isPlaying).toBe(true);
+    expect(playbackOf(started.lifecycle)).toEqual({ kind: "playing" });
 
     const unwanted = run([...loadA(false), report(a, { type: "play", paused: false })]);
     expect(effects(unwanted.last)).toEqual({ element: { type: "pause", element: a } });
-    expect(mediaView(unwanted.lifecycle).isPlaying).toBe(false);
+    expect(playbackOf(unwanted.lifecycle)).toEqual({ kind: "paused" });
   });
 
   it("ignores a play report from an element that is still paused", () => {
@@ -360,7 +365,7 @@ describe("pause, end and error", () => {
     expect(plain.emit).toEqual({ type: "paused", ...ids });
     const atEnd = mediaTransition(playing, report(a, { type: "pause", paused: true, ended: true }));
     expect(atEnd.emit).toBeUndefined();
-    expect(mediaView(atEnd.lifecycle).isPlaying).toBe(false);
+    expect(playbackOf(atEnd.lifecycle)).toEqual({ kind: "paused" });
     expectInert(playing, report(a, { type: "pause", paused: false, ended: false }));
   });
 
@@ -492,8 +497,12 @@ describe("position and duration", () => {
       report(a, { type: "durationchange", duration: 0 }),
     ]);
 
-    expect(steps.slice(2).map((step) => mediaView(step.lifecycle).duration)).toEqual([
-      20, 20, 20, 20,
-    ]);
+    expect(
+      steps.slice(2).map((step) => {
+        const view = mediaView(step.lifecycle);
+
+        return view.kind === "requested" ? view.duration : null;
+      }),
+    ).toEqual([20, 20, 20, 20]);
   });
 });

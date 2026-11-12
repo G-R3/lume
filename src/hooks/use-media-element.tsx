@@ -9,6 +9,7 @@ import {
   type MediaEvent,
   type MediaLifecycle,
   type MediaView,
+  type Playback,
 } from "@/lib/media-lifecycle";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 
@@ -25,7 +26,7 @@ export function useMediaElement(options: {
   callbacksRef.current = options;
 
   const [view, setView] = useState<MediaView>(() => mediaView(emptyLifecycle));
-  const request = view.request;
+  const request = view.kind === "requested" ? view.request : null;
   const [audioPreferences, setAudioPreferences] = useState(loadAudioPreferences);
   const [timeStore] = useState(createAudioTimeStore);
 
@@ -36,12 +37,7 @@ export function useMediaElement(options: {
       lifecycleRef.current = step.lifecycle;
       const next = mediaView(step.lifecycle);
 
-      if (
-        next.request !== previous.request ||
-        next.isPlaying !== previous.isPlaying ||
-        next.duration !== previous.duration
-      )
-        setView(next);
+      if (!sameView(previous, next)) setView(next);
 
       const call = step.element;
 
@@ -148,7 +144,6 @@ export function useMediaElement(options: {
       });
 
   return {
-    duration: view.duration,
     element: request && (
       <audio
         key={request.requestId}
@@ -179,7 +174,6 @@ export function useMediaElement(options: {
     ),
     getPosition: timeStore.getSnapshot,
     isMuted,
-    isPlaying: view.isPlaying,
     load,
     pause,
     play,
@@ -187,6 +181,7 @@ export function useMediaElement(options: {
     setVolume,
     timeStore,
     toggleMute,
+    view,
     volume: audioPreferences.volume,
   };
 }
@@ -203,6 +198,18 @@ function loadAudioPreferences() {
   }
 
   return { volume: 1, muted: false };
+}
+
+function sameView(a: MediaView, b: MediaView) {
+  if (a.kind === "empty" || b.kind === "empty") return a.kind === b.kind;
+
+  return (
+    a.request === b.request && a.duration === b.duration && samePlayback(a.playback, b.playback)
+  );
+}
+
+function samePlayback(a: Playback, b: Playback) {
+  return a.kind === "failed" && b.kind === "failed" ? a.reason === b.reason : a.kind === b.kind;
 }
 
 export function createAudioTimeStore() {

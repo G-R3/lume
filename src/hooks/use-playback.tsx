@@ -118,10 +118,13 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const activeSourceEntryId = selectActiveSourceEntryId(snapshot.queue);
   const activeSourcePlaylistId = selectActiveSourcePlaylistId(snapshot.queue);
 
+  const isPlaying = media.view.kind === "requested" && media.view.playback.kind === "playing";
+  const duration = media.view.kind === "requested" ? media.view.duration : 0;
+
   const togglePlayback = useCallback(() => {
-    if (media.isPlaying) controller.pause();
+    if (isPlaying) controller.pause();
     else controller.resume();
-  }, [controller, media.isPlaying]);
+  }, [controller, isPlaying]);
 
   const contextValue = useMemo(
     () =>
@@ -142,10 +145,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         setShuffleEnabled: controller.setShuffleEnabled,
         shufflePlay: controller.shufflePlay,
         shuffleEnabled: snapshot.queue?.shuffleEnabled ?? false,
-        duration: media.duration,
+        duration,
         errorMessage: snapshot.errorMessage,
         isMuted: media.isMuted,
-        isPlaying: media.isPlaying,
+        isPlaying,
         queue: selectQueueView(snapshot.queue),
         isInitialized: snapshot.isInitialized,
         next: controller.next,
@@ -161,9 +164,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       activeSourceEntryId,
       activeSourcePlaylistId,
       activeTrack,
-      media.duration,
+      duration,
+      isPlaying,
       media.isMuted,
-      media.isPlaying,
       media.setVolume,
       media.toggleMute,
       media.volume,
