@@ -1,19 +1,22 @@
 import type { QueueCommand, QueueRandom } from "./commands";
-import { activeSourceEntryId, createSourceItems, isActivePlaylist } from "./items";
+import {
+  activeSourceEntryId,
+  createSourceItems,
+  currentItem,
+  isActivePlaylist,
+  sourceStepItem,
+} from "./items";
 import type { QueueItem, QueueState, SourceEntry } from "./model";
+import { sourceIdentity } from "./source";
 
 type CommandOf<Type extends QueueCommand["type"]> = Extract<QueueCommand, { type: Type }>;
-
-function followsSource(state: QueueState) {
-  return state.filter === null;
-}
 
 export function appendSourceEntries(
   state: QueueState,
   { playlistId, entries }: CommandOf<"sourceEntriesAdded">,
   random: QueueRandom,
 ): QueueState {
-  if (!followsSource(state) || !isActivePlaylist(state, playlistId)) return state;
+  if (state.tracking.kind === "frozen" || !isActivePlaylist(state, playlistId)) return state;
 
   const known = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
 
@@ -27,8 +30,9 @@ export function appendSourceEntries(
   if (added.length === 0) return state;
 
   const sourceQueue = [...state.sourceQueue];
+  const addedItems = createSourceItems(state, added, sourceIdentity(state.source), state.sessionId);
 
-  for (const item of createSourceItems(state, added, state.sourceIdentity, state.sessionId)) {
+  for (const item of addedItems) {
     sourceQueue.splice(
       state.shuffleEnabled ? random.index(sourceQueue.length + 1) : sourceQueue.length,
       0,
@@ -70,8 +74,8 @@ export function removeSourceEntries(
       ? state.sourceEntries.findIndex((entry) => entry.sourceEntryId === position.sourceEntryId)
       : -1;
 
-  const currentRemoved =
-    state.current?.participatesInSourceNavigation && isRemovedEntry(state.current.item);
+  const sourceStep = sourceStepItem(state);
+  const currentRemoved = sourceStep !== null && isRemovedEntry(sourceStep);
 
   return {
     ...state,
@@ -82,14 +86,14 @@ export function removeSourceEntries(
         : position?.kind === "boundary"
           ? { kind: "boundary", index: position.index - removedBefore(position.index) }
           : position,
-    current: state.current && {
-      ...state.current,
-      item: clearRemovedAnchor(state.current.item),
-      participatesInSourceNavigation: currentRemoved
-        ? false
-        : state.current.participatesInSourceNavigation,
-    },
-    lastSelectedItem: state.lastSelectedItem && clearRemovedAnchor(state.lastSelectedItem),
+    playback:
+      state.playback.kind === "active"
+        ? {
+            ...state.playback,
+            current: clearRemovedAnchor(state.playback.current),
+            role: currentRemoved ? "standalone" : state.playback.role,
+          }
+        : { ...state.playback, lastPlayed: clearRemovedAnchor(state.playback.lastPlayed) },
     previousSourceItems: state.previousSourceItems
       .filter((item) => !isRemovedEntry(item))
       .map(clearRemovedAnchor),
@@ -107,7 +111,7 @@ export function moveSourceEntry(
   command: CommandOf<"sourceEntryMoved">,
 ): QueueState {
   if (
-    !followsSource(state) ||
+    state.tracking.kind === "frozen" ||
     !isActivePlaylist(state, command.playlistId) ||
     command.sourceEntryId === command.targetSourceEntryId
   )
@@ -143,10 +147,7 @@ export function moveSourceEntry(
 
   if (state.shuffleEnabled) return state;
 
-  const current =
-    state.current?.participatesInSourceNavigation && state.current.lane === "source"
-      ? state.current.item
-      : currentSlot;
+  const current = sourceStepItem(state) ?? currentSlot;
 
   const path: PathItem[] = [...state.previousSourceItems, current, ...state.sourceQueue];
   const movedItem = path[visitIndexesByEntry(state, path).get(command.sourceEntryId) ?? -1];
@@ -216,12 +217,12 @@ export function moveSourceEntry(
   };
 }
 
-export function detachSource(
+export function markSourceDeleted(
   state: QueueState,
   { playlistId }: CommandOf<"sourceDeleted">,
 ): QueueState {
   return state.source.kind === "playlist" && state.source.playlistId === playlistId
-    ? { ...state, source: { kind: "detached", title: state.source.title } }
+    ? { ...state, source: { ...state.source, kind: "deleted-playlist" } }
     : state;
 }
 
@@ -229,7 +230,7 @@ export function appendNewLibraryTracks(
   state: QueueState,
   { entries }: CommandOf<"libraryRescanned">,
 ): QueueState {
-  if (!followsSource(state) || state.source.kind !== "all-tracks") return state;
+  if (state.tracking.kind === "frozen" || state.source.kind !== "all-tracks") return state;
 
   const known = new Set(state.sourceEntries.map((entry) => entry.sourceEntryId));
   const added = entries.filter((entry) => !known.has(entry.sourceEntryId));
@@ -241,7 +242,7 @@ export function appendNewLibraryTracks(
     sourceEntries: [...state.sourceEntries, ...added],
     sourceQueue: [
       ...state.sourceQueue,
-      ...createSourceItems(state, added, state.sourceIdentity, state.sessionId),
+      ...createSourceItems(state, added, sourceIdentity(state.source), state.sessionId),
     ],
   };
 }
@@ -258,7 +259,7 @@ function reorderSourceEntries(entries: readonly SourceEntry[], orderedIds: reado
 
 function visitIndexesByEntry(state: QueueState, path: readonly PathItem[]) {
   const upcomingIds = new Set(state.sourceQueue.map((item) => item.queueItemId));
-  const currentItemId = state.current?.item.queueItemId;
+  const currentItemId = currentItem(state)?.queueItemId;
   const indexes = new Map<number, number>();
 
   path.forEach((item, index) => {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { MusicLibrary } from "../../../shared/lib";
-import type { PlayableSource, QueueRandom } from "./commands";
-import type { QueueState } from "./model";
+import type { QueueRandom } from "./commands";
+import type { PlayableSource, QueueState } from "./model";
 import { parseQueueSession, serializeQueueSession } from "./persistence";
+import { selectCurrentItem } from "./selectors";
 import { selectsWithinShuffledSession } from "./shuffle";
 import { transition } from "./transition";
 import { noRandom, queueContext } from "../../../tests/helpers/queue-context";
@@ -59,9 +60,9 @@ describe("a filtered session", () => {
   it("keeps the given rows in displayed order and stores its filter", () => {
     const state = start(allTracks, [5, 2, 4], "beat", { startAt: 2 });
 
-    expect(state.filter).toBe("beat");
+    expect(state.tracking).toEqual({ kind: "frozen", filter: "beat" });
     expect(state.sourceEntries).toEqual(entriesOf([5, 2, 4]));
-    expect(state.current?.item.trackId).toBe(2);
+    expect(selectCurrentItem(state)?.trackId).toBe(2);
     expect(state.previousSourceItems.map((item) => item.trackId)).toEqual([5]);
     expect(upcoming(state)).toEqual([4]);
   });
@@ -112,12 +113,12 @@ describe("a filtered session", () => {
     expect(upcoming(removed)).toEqual([3]);
   });
 
-  it("detaches when its playlist is deleted", () => {
+  it("marks its playlist deleted when the playlist is deleted", () => {
     const state = start(playlist, [1, 2], "a");
 
     expect(
       transition(state, { type: "sourceDeleted", playlistId: 1 }, queueContext([1, 2]))?.source,
-    ).toEqual({ kind: "detached", title: "Mix" });
+    ).toEqual({ kind: "deleted-playlist", playlistId: 1, title: "Mix" });
   });
 
   it("shuffles and unshuffles within its own rows", () => {
@@ -218,10 +219,13 @@ describe("saved sessions", () => {
       library,
     );
 
-    expect(restored).toEqual({ state: { ...state, status: "paused" }, position: 4 });
+    expect(restored).toEqual({
+      state: { ...state, playback: { ...state.playback, status: "paused" } },
+      position: 4,
+    });
   });
 
-  it("round-trips an unfiltered session with a null filter", () => {
+  it("round-trips an unfiltered session that follows its source", () => {
     const state = start(allTracks, [1, 2], null);
 
     const restored = parseQueueSession(
@@ -229,35 +233,30 @@ describe("saved sessions", () => {
       library,
     );
 
-    expect(restored?.state.filter).toBeNull();
+    expect(restored?.state.tracking).toEqual({ kind: "follows-source" });
   });
 
-  it("writes version 7 with the session's sort", () => {
-    expect(JSON.parse(serializeQueueSession(start(allTracks, [1], null)))).toMatchObject({
-      version: 7,
-      state: { sort: { field: "added", direction: "asc" } },
-    });
+  it("keeps the session's sort across a restore", () => {
+    const state = start(allTracks, [1], null);
+
+    const restored = parseQueueSession(
+      { payload: serializeQueueSession(state), position: 0 },
+      library,
+    );
+
+    expect(restored?.state.sort).toEqual({ field: "added", direction: "asc" });
   });
 
-  it("restores nothing from a version 6 payload, without throwing", () => {
-    const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
-    const { sort: _sort, ...v6State } = saved.state;
-    const payload = JSON.stringify({ version: 6, state: v6State });
+  it("restores nothing from a payload saved in an older format, without throwing", () => {
+    const state = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
+    const payload = JSON.stringify({ version: 7, state });
 
     expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
   });
 
-  it("restores nothing from a version 5 payload, without throwing", () => {
+  it("rejects a payload without a tracking mode", () => {
     const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
-    const { filter: _filter, ...v5State } = saved.state;
-    const payload = JSON.stringify({ version: 5, state: v5State });
-
-    expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
-  });
-
-  it("rejects a version 7 payload without a filter", () => {
-    const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
-    delete saved.state.filter;
+    delete saved.tracking;
 
     expect(parseQueueSession({ payload: JSON.stringify(saved), position: 0 }, library)).toBeNull();
   });

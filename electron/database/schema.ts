@@ -138,12 +138,15 @@ export const playlistTracks = sqliteTable(
   ],
 );
 
-export const playbackSession = sqliteTable("playback_session", {
-  id: integer("id").primaryKey(),
-  payload: text("payload").notNull(),
-});
-
-export const playbackPosition = sqliteTable("playback_position", {
-  id: integer("id").primaryKey(),
-  position: real("position").notNull(),
-});
+export const playbackSession = sqliteTable(
+  "playback_session",
+  {
+    id: integer("id").primaryKey(),
+    payload: text("payload").notNull(),
+    position: real("position").notNull(),
+  },
+  (table) => [
+    check("playback_session_singleton", sql`${table.id} = 1`),
+    check("playback_session_position_check", sql`${table.position} >= 0`),
+  ],
+);

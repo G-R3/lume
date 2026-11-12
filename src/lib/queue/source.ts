@@ -1,14 +1,18 @@
 import type { MusicLibrary, PlaylistDetails, Track } from "../../../shared/lib";
 import { libraryRows, playlistRows, sortRows, type TrackSort } from "../track-sort";
-import type { PlayableSource, SessionSource } from "./commands";
-import type { SourceEntry, SourceIdentity } from "./model";
+import type { SessionSource } from "./commands";
+import type { PlayableSource, QueueSource, SourceEntry, SourceIdentity } from "./model";
 
-export function sameSource(left: SourceIdentity, right: SourceIdentity) {
-  return (
-    left.kind === right.kind &&
-    (left.kind === "all-tracks" ||
-      (right.kind === "playlist" && left.playlistId === right.playlistId))
-  );
+export function sameSource(source: QueueSource | SourceIdentity, identity: SourceIdentity) {
+  return source.kind === "all-tracks"
+    ? identity.kind === "all-tracks"
+    : identity.kind === "playlist" && source.playlistId === identity.playlistId;
+}
+
+export function sourceIdentity(source: QueueSource): SourceIdentity {
+  return source.kind === "all-tracks"
+    ? { kind: "all-tracks" }
+    : { kind: "playlist", playlistId: source.playlistId };
 }
 
 export function sessionSource(

@@ -1,3 +1,4 @@
+import { selectCurrentItem, selectPlaybackStatus } from "./selectors";
 import { expect, it } from "vite-plus/test";
 import type { QueuePosition } from "./commands";
 import type { QueueState } from "./model";
@@ -42,9 +43,9 @@ it("plays each manual addition before returning to the source", () => {
   const backToSource = transition(secondNext, { type: "next" }, context);
 
   expect([
-    firstNext?.current?.item.queueItemId,
-    secondNext?.current?.item.queueItemId,
-    backToSource?.current?.item.trackId,
+    selectCurrentItem(firstNext)?.queueItemId,
+    selectCurrentItem(secondNext)?.queueItemId,
+    selectCurrentItem(backToSource)?.trackId,
   ]).toEqual(["manual-1", "manual-2", 2]);
 });
 
@@ -135,10 +136,10 @@ it("lets Previous visit source items skipped by a jump", () => {
   const previousA = transition(previousB, { type: "previous" }, context);
 
   expect([
-    jumped?.current?.item.trackId,
-    previousC?.current?.item.trackId,
-    previousB?.current?.item.trackId,
-    previousA?.current?.item.trackId,
+    selectCurrentItem(jumped)?.trackId,
+    selectCurrentItem(previousC)?.trackId,
+    selectCurrentItem(previousB)?.trackId,
+    selectCurrentItem(previousA)?.trackId,
   ]).toEqual([4, 3, 2, 1]);
   expect(previousA?.sourceQueue.map((item) => item.trackId)).toEqual([2, 3, 4]);
 });
@@ -176,13 +177,13 @@ it("skips unavailable source items after a manual jump and Previous", () => {
 
   const jumped = transition(secondManual, { type: "jumpTo", queueItemId: "manual-2" }, context);
 
-  expect(jumped?.current?.item.queueItemId).toBe("manual-2");
+  expect(selectCurrentItem(jumped)?.queueItemId).toBe("manual-2");
 
   const previous = transition(jumped, { type: "previous" }, context);
   const next = transition(previous, { type: "next" }, context);
 
-  expect(previous?.current?.item.trackId).toBe(1);
-  expect(next?.current?.item.trackId).toBe(3);
+  expect(selectCurrentItem(previous)?.trackId).toBe(1);
+  expect(selectCurrentItem(next)?.trackId).toBe(3);
 });
 
 it("keeps a moved manual item when its source is rebuilt", () => {
@@ -256,8 +257,8 @@ it.each([
     const placed = enqueue(queued, ["A", "B", "C"], position, context);
 
     expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(expected);
-    expect(placed?.current).toEqual(queued?.current);
-    expect(placed?.status).toBe(queued?.status);
+    expect(selectCurrentItem(placed)).toEqual(selectCurrentItem(queued));
+    expect(selectPlaybackStatus(placed)).toBe(selectPlaybackStatus(queued));
     expect(placed?.sourceQueue).toEqual(queued?.sourceQueue);
     expect(placed?.previousSourceItems).toEqual(queued?.previousSourceItems);
   },
@@ -285,11 +286,15 @@ it("puts each Play next group ahead of earlier ones and plays them before resumi
 
   for (let step = 0; step < 8; step++) {
     state = transition(state, { type: "next" }, context);
-    played.push(state?.current?.item.queueItemId);
+    played.push(selectCurrentItem(state)?.queueItemId);
   }
 
   expect(played.slice(0, 7)).toEqual(["D", "E", "A", "B", "C", "X", "Y"]);
-  expect(state?.current).toMatchObject({ lane: "source", item: { trackId: 2 } });
+  expect(state?.playback).toMatchObject({
+    kind: "active",
+    role: "source-step",
+    current: { trackId: 2 },
+  });
 });
 
 it("keeps every duplicate track that arrives with a distinct id", () => {
@@ -320,13 +325,15 @@ it("starts the first Play next item of a stopped queue and queues the rest in or
   const context = queueContext([1, 2, 3, 4, 5, 6]);
   const ended = transition(startedAt(1, context), { type: "next" }, queueContext([1]));
 
-  expect(ended).toMatchObject({ current: null, status: "stopped", manualQueue: [] });
+  expect(ended).toMatchObject({ playback: { kind: "stopped" }, manualQueue: [] });
 
   const placed = enqueue(ended, ["A", "B", "C"], "start", context);
 
-  expect(placed).toMatchObject({
+  expect(placed?.playback).toMatchObject({
+    kind: "active",
     status: "playing",
-    current: { lane: "manual", item: { queueItemId: "A" } },
+    role: "standalone",
+    current: { queueItemId: "A" },
   });
   expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(["B", "C"]);
 });

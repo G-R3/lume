@@ -4,6 +4,7 @@ import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
 import type { QueueState } from "@/lib/queue/model";
 import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistence";
+import { selectCurrentItem, selectPlaybackStatus } from "@/lib/queue/selectors";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
 import { libraryEntries, playlistEntries } from "@/lib/queue/source";
 import { defaultSort, type TrackSort } from "@/lib/track-sort";
@@ -123,17 +124,20 @@ export function createPlaybackController(dependencies: {
     void Promise.resolve().then(savePending);
   };
 
-  const loadCurrent = (position: number, shouldPlay = snapshot.queue?.status === "playing") => {
-    const queue = snapshot.queue;
-    const track = queue?.current ? snapshot.tracksById.get(queue.current.item.trackId) : undefined;
+  const loadCurrent = (
+    position: number,
+    shouldPlay = selectPlaybackStatus(snapshot.queue) === "playing",
+  ) => {
+    const current = selectCurrentItem(snapshot.queue);
+    const track = current ? snapshot.tracksById.get(current.trackId) : undefined;
 
-    requestId = queue?.current && track?.available ? crypto.randomUUID() : null;
+    requestId = current && track?.available ? crypto.randomUUID() : null;
 
     dependencies.audio.load(
-      queue?.current && track?.available && requestId
+      current && track?.available && requestId
         ? {
             requestId,
-            queueItemId: queue.current.item.queueItemId,
+            queueItemId: current.queueItemId,
             url: failedTrackIds.has(track.id) ? `${track.url}?retry=${requestId}` : track.url,
             shouldPlay,
             position,
@@ -150,7 +154,8 @@ export function createPlaybackController(dependencies: {
     if (!queue || queue === previous || lifecycle === "closed") return;
 
     const load =
-      restartAudio || queue.current?.item.queueItemId !== previous?.current?.item.queueItemId;
+      restartAudio ||
+      selectCurrentItem(queue)?.queueItemId !== selectCurrentItem(previous)?.queueItemId;
 
     publish({ ...snapshot, queue, errorMessage: load ? null : snapshot.errorMessage });
     persist(queue, load ? 0 : dependencies.audio.getPosition());
@@ -226,7 +231,8 @@ export function createPlaybackController(dependencies: {
 
     const queue = snapshot.queue;
 
-    if (!queue || queue.current || queue.source.kind === "detached") return;
+    if (!queue || queue.playback.kind === "active" || queue.source.kind === "deleted-playlist")
+      return;
 
     const request = {
       start: { kind: "first-available" },
@@ -234,12 +240,12 @@ export function createPlaybackController(dependencies: {
       paused: true,
     } satisfies SessionRequest;
 
-    if (queue.filter !== null) {
+    if (queue.tracking.kind === "frozen") {
       dispatchSessionStart(
         {
           source: queue.source,
           entries: queue.sourceEntries.filter((entry) => snapshot.tracksById.has(entry.trackId)),
-          filter: queue.filter,
+          filter: queue.tracking.filter,
           sort: queue.sort,
         },
         request,
@@ -248,11 +254,11 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    if (queue.sourceIdentity.kind === "all-tracks") {
+    if (queue.source.kind === "all-tracks") {
       if (snapshot.library)
         dispatchSessionStart(
           {
-            source: queue.sourceIdentity,
+            source: queue.source,
             entries: libraryEntries(snapshot.library, queue.sort),
             filter: null,
             sort: queue.sort,
@@ -263,7 +269,7 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    const restart = { playlistId: queue.sourceIdentity.playlistId, edited: false };
+    const restart = { playlistId: queue.source.playlistId, edited: false };
     playlistRestart = restart;
     void restartFromPlaylist(restart, queue.sort, request).catch((error: Error) =>
       setError(error.message || "Could not load playback source"),
@@ -271,7 +277,11 @@ export function createPlaybackController(dependencies: {
   };
 
   const previous = () => {
-    if (snapshot.queue?.current && dependencies.audio.getPosition() > 2) {
+    if (
+      snapshot.queue &&
+      selectCurrentItem(snapshot.queue) &&
+      dependencies.audio.getPosition() > 2
+    ) {
       dependencies.audio.seek(0);
       persist(snapshot.queue, 0);
 
@@ -297,8 +307,10 @@ export function createPlaybackController(dependencies: {
   };
 
   const resume = () => {
-    if (snapshot.queue?.current && requestId === null) {
-      const trackId = snapshot.queue.current.item.trackId;
+    const current = selectCurrentItem(snapshot.queue);
+
+    if (current && requestId === null) {
+      const trackId = current.trackId;
 
       if (snapshot.availableTrackIds.has(trackId)) {
         loadCurrent(dependencies.audio.getPosition(), true);
@@ -313,7 +325,7 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    if (snapshot.queue && !snapshot.queue.current) {
+    if (snapshot.queue && !current) {
       advance();
 
       return;
@@ -340,11 +352,9 @@ export function createPlaybackController(dependencies: {
         entries: libraryEntries(library, snapshot.queue?.sort ?? defaultSort),
       });
 
-      if (
-        snapshot.queue?.current &&
-        snapshot.availableTrackIds.has(snapshot.queue.current.item.trackId) &&
-        requestId === null
-      )
+      const current = selectCurrentItem(snapshot.queue);
+
+      if (current && snapshot.availableTrackIds.has(current.trackId) && requestId === null)
         loadCurrent(dependencies.audio.getPosition());
 
       return;
@@ -387,12 +397,13 @@ export function createPlaybackController(dependencies: {
   };
 
   const handleAudioEvent = (event: AudioEvent) => {
-    const queue = snapshot.queue;
+    const current = selectCurrentItem(snapshot.queue);
 
     if (
       lifecycle !== "ready" ||
       event.requestId !== requestId ||
-      queue?.current?.item.queueItemId !== event.queueItemId
+      !current ||
+      current.queueItemId !== event.queueItemId
     )
       return;
 
@@ -409,12 +420,12 @@ export function createPlaybackController(dependencies: {
     }
 
     if (event.type === "ended") {
-      if (queue.status === "playing") advance();
+      if (selectPlaybackStatus(snapshot.queue) === "playing") advance();
 
       return;
     }
 
-    const trackId = queue.current.item.trackId;
+    const trackId = current.trackId;
 
     if (event.reason === "rejected") {
       dispatch({ type: "playbackPaused" });
@@ -427,7 +438,7 @@ export function createPlaybackController(dependencies: {
     requestId = null;
     failedTrackIds.add(trackId);
 
-    if (queue.status === "playing") advance();
+    if (selectPlaybackStatus(snapshot.queue) === "playing") advance();
 
     // Chromium reports a gone file and an unreadable one with the same error, so ask the main process.
     const firstMessage = failureMessage("pending", trackId);

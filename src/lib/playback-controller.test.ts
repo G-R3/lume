@@ -1,3 +1,4 @@
+import { selectCurrentItem, selectPlaybackStatus } from "./queue/selectors";
 import { expect, it } from "vite-plus/test";
 import type {
   LumeApi,
@@ -9,6 +10,7 @@ import type {
 import { createPlaybackController } from "./playback-controller";
 import type { PlaybackRequest } from "./playback-media";
 import type { SessionSource } from "./queue/commands";
+import type { QueueState } from "./queue/model";
 import { parseQueueSession } from "./queue/persistence";
 import { libraryEntries, playlistEntries } from "./queue/source";
 import { defaultSort, trackSort } from "./track-sort";
@@ -69,9 +71,10 @@ it.each([
     expect(playback.controller.getSnapshot().queue).toBe(cleared);
 
     playback.controller.next();
-    expect(playback.controller.getSnapshot().queue?.current).toMatchObject({
-      item: { trackId: 2 },
-      lane: "source",
+    expect(playback.controller.getSnapshot().queue?.playback).toMatchObject({
+      kind: "active",
+      current: { trackId: 2 },
+      role: "source-step",
     });
   },
 );
@@ -130,7 +133,7 @@ it.each([
       queueItemId: lastSourceItem.queueItemId,
     });
 
-    expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(4);
+    expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(4);
     expect(playback.requests.at(-1)?.shouldPlay).toBe(true);
 
     const manualItem = playback.requests.at(-1);
@@ -142,9 +145,11 @@ it.each([
       queueItemId: manualItem.queueItemId,
     });
 
-    await expect.poll(() => playback.controller.getSnapshot().queue?.status).toBe("paused");
+    await expect
+      .poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue))
+      .toBe("paused");
 
-    expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(2);
+    expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(2);
     expect(playback.controller.getSnapshot().queue?.manualQueue).toEqual([]);
     expect(playback.controller.getSnapshot().queue?.shuffleEnabled).toBe(shuffled);
 
@@ -177,7 +182,7 @@ it("stays stopped when the source no longer has any available tracks", async () 
 
   playback.controller.next();
 
-  expect(playback.controller.getSnapshot().queue?.status).toBe("stopped");
+  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("stopped");
   expect(playback.requests.at(-1)).toBeNull();
 });
 
@@ -225,8 +230,12 @@ it("keeps the active source in order through playlist edits", async () => {
 
   controller.applySourceChange({ type: "sourceDeleted", playlistId: 1 });
 
-  expect(controller.getSnapshot().queue?.source).toEqual({ kind: "detached", title: "Source" });
-  expect(controller.getSnapshot().queue?.current?.item.trackId).toBe(1);
+  expect(controller.getSnapshot().queue?.source).toEqual({
+    kind: "deleted-playlist",
+    playlistId: 1,
+    title: "Source",
+  });
+  expect(selectCurrentItem(controller.getSnapshot().queue)?.trackId).toBe(1);
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([3, 4]);
 });
 
@@ -243,10 +252,10 @@ it("restarts the current track before navigating to the prior source item", asyn
   controller.previous();
   expect(playback.seeks).toEqual([3, 0]);
   expect(playback.media.getPosition()).toBe(0);
-  expect(controller.getSnapshot().queue?.current?.item.trackId).toBe(2);
+  expect(selectCurrentItem(controller.getSnapshot().queue)?.trackId).toBe(2);
 
   controller.previous();
-  expect(controller.getSnapshot().queue?.current?.item.trackId).toBe(1);
+  expect(selectCurrentItem(controller.getSnapshot().queue)?.trackId).toBe(1);
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([2, 3]);
 });
 
@@ -281,8 +290,7 @@ it.each([false, true])(
     playback.controller.setShuffleEnabled(true);
     expect(playback.controller.getSnapshot().queue).toMatchObject({
       shuffleEnabled: true,
-      status: paused ? "paused" : "playing",
-      current: { item: { trackId: 2 } },
+      playback: { kind: "active", status: paused ? "paused" : "playing", current: { trackId: 2 } },
     });
     expect(
       playback.controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId),
@@ -306,8 +314,7 @@ it.each([false, true])(
     ).toEqual([3, 4]);
     expect(playback.controller.getSnapshot().queue).toMatchObject({
       shuffleEnabled: false,
-      status: paused ? "paused" : "playing",
-      current: { item: { trackId: 2 } },
+      playback: { kind: "active", status: paused ? "paused" : "playing", current: { trackId: 2 } },
     });
     await expect
       .poll(() => parseQueueSession(playback.stored(), library)?.state.shuffleEnabled)
@@ -352,7 +359,7 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
   playback.controller.enqueueTracks([3], "end");
   playback.controller.shufflePlay(playlistView(playlist));
   const first = playback.controller.getSnapshot().queue;
-  expect(first?.current?.item.trackId).toBe(2);
+  expect(selectCurrentItem(first)?.trackId).toBe(2);
   expect(first?.sourceQueue.map((item) => item.trackId)).toEqual([1]);
   const removed = first?.sourceQueue[0];
 
@@ -366,8 +373,7 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
 
   expect(second).toMatchObject({
     shuffleEnabled: true,
-    status: "playing",
-    current: { item: { trackId: 1 } },
+    playback: { kind: "active", status: "playing", current: { trackId: 1 } },
     suppressedSourceEntryIds: [],
   });
   expect(second?.sourceQueue.map((item) => item.trackId)).toEqual([2]);
@@ -376,7 +382,7 @@ it("starts fresh shuffle sessions at zero while preserving manual priority", asy
   expect(playback.audioState.position).toBe(0);
   expect(playback.audioState.playing).toBe(true);
   playback.controller.next();
-  expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(3);
+  expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(3);
   expect(playback.audioState.request).toMatchObject({
     url: "lume://track/3",
     position: 0,
@@ -422,14 +428,12 @@ it("restores a shuffled queue and position exactly, paused without new randomnes
   restored.controller.syncLibrary(library);
   await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
 
-  expect(restored.controller.getSnapshot().queue).toEqual({
-    ...original.controller.getSnapshot().queue,
-    status: "paused",
-  });
+  expect(restored.controller.getSnapshot().queue).toEqual(
+    pausedCopy(original.controller.getSnapshot().queue),
+  );
   expect(restored.controller.getSnapshot().queue).toMatchObject({
     shuffleEnabled: true,
-    status: "paused",
-    current: { item: { trackId: 2 } },
+    playback: { kind: "active", status: "paused", current: { trackId: 2 } },
     suppressedSourceEntryIds: [3],
   });
   expect(restored.controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([
@@ -495,8 +499,7 @@ it("refreshes a late playlist read after a committed edit before restarting at q
     .poll(() => playback.controller.getSnapshot().queue?.sourceEntries)
     .toEqual([{ sourceEntryId: 12, trackId: 2 }]);
   expect(playback.controller.getSnapshot().queue).toMatchObject({
-    status: "paused",
-    current: { item: { trackId: 2 } },
+    playback: { kind: "active", status: "paused", current: { trackId: 2 } },
   });
   expect(playback.controller.getSnapshot().queue?.sourceQueue).toEqual([]);
   expect(playback.audioState.request).toMatchObject({
@@ -539,7 +542,7 @@ it("restarts the current shuffled row in place and ignores events from its old l
   });
   expect(playback.controller.getSnapshot()).toMatchObject({
     errorMessage: null,
-    queue: { status: "playing", current: { item: { trackId: 2 } } },
+    queue: { playback: { kind: "active", status: "playing", current: { trackId: 2 } } },
   });
   expect(playback.audioState.request).toMatchObject({
     url: "lume://track/2",
@@ -552,13 +555,13 @@ it("restarts the current shuffled row in place and ignores events from its old l
     requestId: current.requestId,
     queueItemId: current.queueItemId,
   });
-  expect(playback.controller.getSnapshot().queue?.status).toBe("paused");
+  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
   playback.controller.handleAudioEvent({
     type: "started",
     requestId: current.requestId,
     queueItemId: current.queueItemId,
   });
-  expect(playback.controller.getSnapshot().queue?.status).toBe("playing");
+  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
 });
 
 it("saves only the latest pending queue and flushes the final position before closing", async () => {
@@ -602,7 +605,10 @@ it("saves only the latest pending queue and flushes the final position before cl
     .poll(() => describeWrites(playback.writes, library))
     .toEqual(["queue 2 at 0", "queue 2 at 19"]);
   const saved = parseQueueSession(playback.stored(), library);
-  expect(saved?.state).toMatchObject({ shuffleEnabled: true, current: { item: { trackId: 2 } } });
+  expect(saved?.state).toMatchObject({
+    shuffleEnabled: true,
+    playback: { kind: "active", current: { trackId: 2 } },
+  });
   expect(saved?.state.manualQueue.map((item) => item.trackId)).toEqual([3]);
   expect(saved?.state.sourceQueue.map((item) => item.trackId)).toEqual([3, 1]);
   playback.controller.seek(23);
@@ -620,7 +626,7 @@ it("saves only the latest pending queue and flushes the final position before cl
     shouldPlay: true,
   });
   expect(playback.audioState.position).toBe(23);
-  expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(2);
+  expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(2);
 });
 
 it("saves only the position until the queue changes, and the queue again after a failed save", async () => {
@@ -673,7 +679,7 @@ it("saves only the position until the queue changes, and the queue again after a
   expect(playback.controller.getSnapshot().errorMessage).toBe("Disk full");
   expect(parseQueueSession(playback.stored(), library)).toMatchObject({
     position: 5,
-    state: { current: { item: { trackId: 3 } } },
+    state: { playback: { kind: "active", current: { trackId: 3 } } },
   });
 });
 
@@ -706,10 +712,8 @@ it("rebuilds a shuffled queue from another source and keeps the manual queue", a
   playback.controller.playSourceEntry(playlistView(playlist), 11);
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
-    sourceIdentity: { kind: "playlist", playlistId: 1 },
     shuffleEnabled: true,
-    status: "playing",
-    current: { item: { trackId: 1 } },
+    playback: { kind: "active", status: "playing", current: { trackId: 1 } },
   });
   expect(playback.controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([
     3, 2,
@@ -730,10 +734,9 @@ it("starts a filtered view at the clicked row, in displayed order", async () => 
   playback.controller.playSourceEntry(tracksView([3, 1, 2], "a"), 1);
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
-    filter: "a",
+    tracking: { kind: "frozen", filter: "a" },
     sourceEntries: [3, 1, 2].map((id) => ({ sourceEntryId: id, trackId: id })),
-    status: "playing",
-    current: { item: { trackId: 1 } },
+    playback: { kind: "active", status: "playing", current: { trackId: 1 } },
   });
   expect(
     playback.controller.getSnapshot().queue?.previousSourceItems.map((item) => item.trackId),
@@ -755,10 +758,9 @@ it("plays a row clicked under a different filter while shuffle is on", async () 
   const queue = playback.controller.getSnapshot().queue;
   expect(queue?.sessionId).not.toBe(shuffled?.sessionId);
   expect(queue).toMatchObject({
-    filter: "b",
+    tracking: { kind: "frozen", filter: "b" },
     shuffleEnabled: true,
-    status: "playing",
-    current: { item: { trackId: 4 } },
+    playback: { kind: "active", status: "playing", current: { trackId: 4 } },
   });
   expect(queue?.sourceQueue.map((item) => item.trackId)).toEqual([3]);
   expect(playback.audioState.request).toMatchObject({ url: "lume://track/4", shouldPlay: true });
@@ -775,7 +777,7 @@ it("selects within a shuffled filtered session when clicked under the same filte
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
     sessionId,
-    current: { item: { trackId: 3 } },
+    playback: { kind: "active", current: { trackId: 3 } },
   });
 });
 
@@ -814,14 +816,14 @@ it.each([false, true])(
 
     const queue = playback.controller.getSnapshot().queue;
     expect(queue).toMatchObject({
-      filter: "a",
+      tracking: { kind: "frozen", filter: "a" },
       shuffleEnabled: shuffled,
-      status: "paused",
+      playback: { kind: "active", status: "paused" },
       sourceEntries: view.entries,
     });
 
     const order = [
-      queue?.current?.item.trackId,
+      selectCurrentItem(queue)?.trackId,
       ...(queue?.sourceQueue ?? []).map((item) => item.trackId),
     ];
 
@@ -842,9 +844,8 @@ it("re-reads the library for an unfiltered session at queue end", async () => {
   playback.controller.next();
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
-    filter: null,
-    status: "paused",
-    current: { item: { trackId: 1 } },
+    tracking: { kind: "follows-source" },
+    playback: { kind: "active", status: "paused", current: { trackId: 1 } },
   });
   expect(playback.controller.getSnapshot().queue?.sourceEntries.map((e) => e.trackId)).toEqual([
     1, 2, 3,
@@ -868,7 +869,7 @@ it("keeps a restored filtered session unchanged through rescans", async () => {
 
   const queue = restored.controller.getSnapshot().queue;
 
-  expect(queue).toEqual({ ...original.controller.getSnapshot().queue, status: "paused" });
+  expect(queue).toEqual(pausedCopy(original.controller.getSnapshot().queue));
 
   restored.controller.syncLibrary(libraryOf([1, 2, 3, 4, 5]));
   expect(restored.controller.getSnapshot().queue).toBe(queue);
@@ -914,8 +915,7 @@ it("restarts an all-tracks session in the order it started, not the view's later
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
     sort: titleSort,
-    status: "paused",
-    current: { item: { trackId: 2 } },
+    playback: { kind: "active", status: "paused", current: { trackId: 2 } },
   });
   expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([2, 3, 1]);
 });
@@ -988,7 +988,7 @@ it("re-reads a playlist at queue end sorted by the session's sort, using members
     .toEqual([2, 3, 1, 4]);
   expect(playback.controller.getSnapshot().queue).toMatchObject({
     sort: newestFirst,
-    current: { item: { trackId: 2 } },
+    playback: { kind: "active", current: { trackId: 2 } },
   });
 });
 
@@ -1068,16 +1068,14 @@ it("restores a session's sort after a relaunch", async () => {
   expect(trackIds(restored.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 3, 2, 5, 4]);
 });
 
-it("restores no queue and shows no error for a version 5 session", async () => {
+it("restores no queue and shows no error for a session saved in an older format", async () => {
   const original = await createReadyPlayback(libraryOf([1, 2]));
   original.controller.playSourceEntry(allTracks(original.controller), 1);
   original.controller.flush();
   const saved = original.flushes.at(-1);
 
   if (!saved) throw new Error("Expected a flushed session");
-  const { state } = JSON.parse(saved.payload);
-  delete state.filter;
-  const payload = JSON.stringify({ version: 5, state });
+  const payload = JSON.stringify({ version: 5, state: JSON.parse(saved.payload) });
 
   const restored = await createReadyPlayback(libraryOf([1, 2]), {
     storage: {
@@ -1105,7 +1103,7 @@ it("queues tracks in submitted order, repeats included, with one publication and
   const queue = playback.controller.getSnapshot().queue;
   expect(queue?.manualQueue.map((item) => item.trackId)).toEqual([3, 2, 3]);
   expect(new Set(queue?.manualQueue.map((item) => item.queueItemId)).size).toBe(3);
-  expect(queue?.current?.item.trackId).toBe(1);
+  expect(selectCurrentItem(queue)?.trackId).toBe(1);
   expect(publications).toBe(1);
   expect(playback.requests).toHaveLength(requestCount);
   expect(playback.audioState).toMatchObject({ position: 12, playing: true });
@@ -1132,13 +1130,13 @@ it("plays next ahead of queued tracks without reloading the current track", asyn
   playback.controller.enqueueTracks([5], "end");
   playback.controller.seek(12);
   const requestCount = playback.requests.length;
-  const current = playback.controller.getSnapshot().queue?.current;
+  const current = selectCurrentItem(playback.controller.getSnapshot().queue);
 
   playback.controller.enqueueTracks([4, 3, 4], "start");
 
   const queue = playback.controller.getSnapshot().queue;
   expect(queue?.manualQueue.map((item) => item.trackId)).toEqual([4, 3, 4, 5]);
-  expect(queue?.current).toEqual(current);
+  expect(selectCurrentItem(queue)).toEqual(current);
   expect(playback.requests).toHaveLength(requestCount);
   expect(playback.audioState).toMatchObject({ position: 12, playing: true });
 });
@@ -1182,24 +1180,25 @@ it("starts the first queued track of a stopped session and clears the error in o
   });
   playback.controller.setError("This track is unavailable");
   expect(playback.controller.getSnapshot().queue).toMatchObject({
-    status: "stopped",
-    current: null,
+    playback: { kind: "stopped" },
   });
   const published: { errorMessage: string | null; current: number | undefined }[] = [];
   playback.controller.subscribe(() => {
     const snapshot = playback.controller.getSnapshot();
     published.push({
       errorMessage: snapshot.errorMessage,
-      current: snapshot.queue?.current?.item.trackId,
+      current: selectCurrentItem(snapshot.queue)?.trackId,
     });
   });
 
   playback.controller.enqueueTracks([3, 2, 3], "end");
 
   expect(published).toEqual([{ errorMessage: null, current: 3 }]);
-  expect(playback.controller.getSnapshot().queue).toMatchObject({
+  expect(playback.controller.getSnapshot().queue?.playback).toEqual({
+    kind: "active",
     status: "playing",
-    current: { lane: "manual", item: { trackId: 3 } },
+    role: "standalone",
+    current: expect.objectContaining({ trackId: 3 }),
   });
   expect(playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId)).toEqual([
     2, 3,
@@ -1223,8 +1222,7 @@ it("ignores commands until the restore finishes, then restores paused against th
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
 
   expect(playback.controller.getSnapshot().queue).toMatchObject({
-    status: "paused",
-    current: { item: { trackId: 1 } },
+    playback: { kind: "active", status: "paused", current: { trackId: 1 } },
   });
   expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 2, 3]);
   expect(playback.requests).toEqual([
@@ -1248,7 +1246,7 @@ it("recovers from a failed restore with an error and no queue, then plays normal
 
   expect(playback.controller.getSnapshot()).toMatchObject({
     errorMessage: null,
-    queue: { status: "playing", current: { item: { trackId: 2 } } },
+    queue: { playback: { kind: "active", status: "playing", current: { trackId: 2 } } },
   });
   expect(playback.requests).toEqual([
     expect.objectContaining({ url: "lume://track/2", shouldPlay: true }),
@@ -1327,7 +1325,7 @@ it("closing drops a queue-end restart that finishes reading its playlist afterwa
   await settle();
 
   expect(playback.controller.getSnapshot()).toBe(closed);
-  expect(closed.queue).toMatchObject({ status: "stopped", current: null });
+  expect(closed.queue?.playback.kind).toBe("stopped");
   expect(playback.requests.at(-1)).toBeNull();
 });
 
@@ -1354,10 +1352,12 @@ it("re-reads instead of failing when the playlist is edited during a failed queu
   });
   firstRead.reject(new Error("Playlist unavailable"));
 
-  await expect.poll(() => playback.controller.getSnapshot().queue?.status).toBe("paused");
+  await expect
+    .poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue))
+    .toBe("paused");
   expect(playback.controller.getSnapshot()).toMatchObject({
     errorMessage: null,
-    queue: { current: { item: { trackId: 1 } } },
+    queue: { playback: { kind: "active", current: { trackId: 1 } } },
   });
   expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 2]);
   expect(reads).toEqual([1, 1]);
@@ -1374,8 +1374,7 @@ it("shows a failed queue-end playlist read and stays stopped", async () => {
     .poll(() => playback.controller.getSnapshot().errorMessage)
     .toBe("Playlist unavailable");
   expect(playback.controller.getSnapshot().queue).toMatchObject({
-    status: "stopped",
-    current: null,
+    playback: { kind: "stopped" },
   });
 });
 
@@ -1400,8 +1399,7 @@ it.each(["resolves", "rejects"] as const)(
       errorMessage: null,
       queue: {
         source: { kind: "all-tracks" },
-        status: "playing",
-        current: { item: { trackId: 2 } },
+        playback: { kind: "active", status: "playing", current: { trackId: 2 } },
       },
     });
     expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
@@ -1442,7 +1440,7 @@ it("reloads a failed paused track as soon as Play is pressed, before its file ch
 
   expect(playback.controller.getSnapshot()).toMatchObject({
     errorMessage: "Could not play 1.",
-    queue: { status: "paused", current: { item: { trackId: 1 } } },
+    queue: { playback: { kind: "active", status: "paused", current: { trackId: 1 } } },
   });
 
   playback.controller.resume();
@@ -1461,7 +1459,7 @@ it("reloads a failed paused track as soon as Play is pressed, before its file ch
     queueItemId: failed.queueItemId,
   });
 
-  expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(1);
+  expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(1);
 
   check.resolve(false);
   await settle();
@@ -1521,7 +1519,7 @@ it.each([
     });
 
     await expect.poll(() => playback.controller.getSnapshot().errorMessage).toBe(message);
-    expect(playback.controller.getSnapshot().queue?.current?.item.trackId).toBe(current);
+    expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(current);
     expect(checked).toEqual(reason === "load" ? [1] : []);
   },
 );
@@ -1573,7 +1571,7 @@ it("skips a restored track that is still unavailable when resumed", async () => 
 
   expect(playback.controller.getSnapshot()).toMatchObject({
     errorMessage: "Could not play 1. It’s unavailable. Check its folder in Settings.",
-    queue: { current: { item: { trackId: 2 } } },
+    queue: { playback: { kind: "active", current: { trackId: 2 } } },
   });
   expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2" });
 });
@@ -1680,8 +1678,14 @@ function describeWrites(writes: readonly TestWrite[], library: MusicLibrary) {
   return writes.map((write) =>
     write.kind === "position"
       ? `position ${write.position}`
-      : `queue ${parseQueueSession(write.session, library)?.state.current?.item.trackId} at ${write.session.position}`,
+      : `queue ${selectCurrentItem(parseQueueSession(write.session, library)?.state ?? null)?.trackId} at ${write.session.position}`,
   );
+}
+
+function pausedCopy(queue: QueueState | null) {
+  return queue?.playback.kind === "active"
+    ? { ...queue, playback: { ...queue.playback, status: "paused" } }
+    : queue;
 }
 
 async function createReadyPlayback(
