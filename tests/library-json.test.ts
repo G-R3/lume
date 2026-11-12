@@ -52,10 +52,10 @@ describe("library transport from stored rows", () => {
         VALUES (1, '/s', 'active', 'ok', 3, 1, 2);
       INSERT INTO artwork (id, media_type, data) VALUES ('art-s', 'image/png', x'00');
       INSERT INTO tracks (id, source_id, path, title, duration, format, file_size, modified_at,
-        available, created_at, updated_at, artists, album, album_artists, artwork_id, year,
+        missing_since, created_at, updated_at, artists, album, album_artists, artwork_id, year,
         track_number, track_total, disc_number, disc_total, genres, codec, bitrate, sample_rate,
         bits_per_sample, channel_count, lossless, metadata_version)
-      VALUES (113, 1, '/s/t.flac', 'title-s', 101.5, 'format-s', 3, 4, 1, 111, 5, '["artist-s"]',
+      VALUES (113, 1, '/s/t.flac', 'title-s', 101.5, 'format-s', 3, 4, 114, 111, 5, '["artist-s"]',
         'album-s', '["album-artist-s"]', 'art-s', 110, 106, 107, 108, 109, '["genre-s"]',
         'codec-s', 102.25, 103, 104, 105, 0, 1);
       INSERT INTO track_state (track_id, liked_at) VALUES (113, 112);
@@ -66,7 +66,7 @@ describe("library transport from stored rows", () => {
     if (decoded.kind !== "library") throw new Error("Expected a populated library");
     expect(decoded.playlists).toStrictEqual([]);
     expect(decoded.sources).toStrictEqual([
-      { id: 1, path: "/s", status: { kind: "scanned", scannedAt: 3, trackCount: 1 } },
+      { id: 1, path: "/s", status: { kind: "scanned", scannedAt: 3, trackCount: 0 } },
     ]);
     expect(decoded.tracks).toStrictEqual([
       {
@@ -75,7 +75,7 @@ describe("library transport from stored rows", () => {
         albumArtists: ["album-artist-s"],
         artists: ["artist-s"],
         artworkUrl: "lume://app/artwork/art-s",
-        available: true,
+        available: false,
         bitrate: 102.25,
         bitsPerSample: 104,
         channelCount: 105,
@@ -92,6 +92,7 @@ describe("library transport from stored rows", () => {
         sampleRate: 103,
         trackNumber: 106,
         trackTotal: 107,
+        unavailableReason: "file-missing",
         url: "lume://app/media/113",
         year: 110,
       },
@@ -190,6 +191,7 @@ describe("library transport from stored rows", () => {
         available: track.available,
         likedAt: track.likedAt,
         title: track.title,
+        unavailableReason: track.unavailableReason,
         url: track.url,
       })),
     ).toStrictEqual([
@@ -201,6 +203,7 @@ describe("library transport from stored rows", () => {
         available: true,
         likedAt: null,
         title: "bare",
+        unavailableReason: null,
         url: `lume://app/media/${bare.id}`,
       },
       {
@@ -211,6 +214,7 @@ describe("library transport from stored rows", () => {
         available: false,
         likedAt: null,
         title: "gone",
+        unavailableReason: "source-off",
         url: `lume://app/media/${gone.id}`,
       },
       {
@@ -221,6 +225,7 @@ describe("library transport from stored rows", () => {
         available: true,
         likedAt: expect.any(Number),
         title: "tagged",
+        unavailableReason: null,
         url: `lume://app/media/${tagged.id}`,
       },
     ]);

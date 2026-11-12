@@ -30,6 +30,7 @@ function track(fields: Partial<Track> = {}): Track {
     artists: [],
     artworkUrl: null,
     available: true,
+    unavailableReason: null,
     bitrate: null,
     bitsPerSample: null,
     channelCount: null,

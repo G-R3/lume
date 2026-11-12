@@ -148,7 +148,7 @@ describe("enabled source scanning", () => {
 
     await scanWith(source.id, await scanAudioFiles(folder));
     database.$client.exec(`
-      UPDATE tracks SET available = title <> 'restored';
+      UPDATE tracks SET missing_since = 1 WHERE title = 'restored';
       UPDATE library_sources
         SET last_scan_outcome = 'failed', last_scan_error_message = 'scan failed', last_scanned_at = 1;
     `);
@@ -170,7 +170,11 @@ describe("enabled source scanning", () => {
     ]);
 
     await failScan(source.id, "scan failed");
-    expect(libraryTracks().map((track) => track.available)).toEqual([false, false, false]);
+    expect(libraryTracks().map((track) => track.unavailableReason)).toEqual([
+      "source-unreadable",
+      "source-unreadable",
+      "source-unreadable",
+    ]);
 
     expect(await scanUnchanged()).toEqual(committed(true));
     expect(getAvailability()).toEqual([
@@ -286,10 +290,10 @@ describe("startup scan update", () => {
     {
       change: "a missing file reappeared",
       apply: async (_folder: string, database: LibraryDatabase) =>
-        database.$client.exec("UPDATE tracks SET available = 0 WHERE title = 'first'"),
+        database.$client.exec("UPDATE tracks SET missing_since = 1 WHERE title = 'first'"),
     },
     {
-      change: "an earlier failure marked its tracks unavailable",
+      change: "an earlier failure closed its folder",
       apply: (_folder: string, _database: LibraryDatabase, sourceId: number) =>
         failScan(sourceId, "Folder is missing"),
     },
@@ -463,16 +467,16 @@ describe("scan ownership", () => {
       expect(getActiveSource(source.id).status).toEqual({
         kind: "scanned",
         scannedAt: lastScannedAt,
-        trackCount: 0,
+        trackCount: 1,
       });
       expect(libraryTracks().map(({ available, title }) => ({ available, title }))).toEqual([
-        { available: false, title: "kept" },
+        { available: true, title: "kept" },
       ]);
     }
 
     await expect(
       scanWith(source.id, [{ kind: "unchanged", path: join(folder, "kept.mp3") }]),
-    ).resolves.toEqual(committed(true));
+    ).resolves.toEqual(committed(false));
     expect(libraryTracks().map((track) => track.available)).toEqual([true]);
   });
 

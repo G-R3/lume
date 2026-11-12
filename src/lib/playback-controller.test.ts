@@ -1783,6 +1783,7 @@ function track(id: number): Track {
     artists: [],
     artworkUrl: null,
     available: true,
+    unavailableReason: null,
     bitrate: null,
     bitsPerSample: null,
     channelCount: null,

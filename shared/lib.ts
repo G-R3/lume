@@ -19,10 +19,19 @@ export type TrackMetadata = {
   year: number | null;
 };
 
+export type TrackUnavailableReason =
+  | "source-forgotten"
+  | "source-off"
+  | "source-missing"
+  | "source-permission"
+  | "source-unreadable"
+  | "file-missing";
+
 export type Track = TrackMetadata & {
   addedAt: number;
   artworkUrl: string | null;
   available: boolean;
+  unavailableReason: TrackUnavailableReason | null;
   id: number;
   url: string;
   likedAt: number | null;
@@ -124,7 +133,7 @@ export const trackTupleKeys = [
   "albumArtists",
   "artists",
   "artworkUrl",
-  "available",
+  "unavailableReason",
   "bitrate",
   "bitsPerSample",
   "channelCount",
@@ -142,7 +151,7 @@ export const trackTupleKeys = [
   "trackNumber",
   "trackTotal",
   "year",
-] as const satisfies readonly Exclude<keyof Track, "url">[];
+] as const satisfies readonly Exclude<keyof Track, "url" | "available">[];
 
 export type TrackTupleKey = (typeof trackTupleKeys)[number];
 
@@ -232,7 +241,7 @@ function trackFromTuple(track: TrackTuple) {
     albumArtists,
     artists,
     artworkUrl,
-    available,
+    unavailableReason,
     bitrate,
     bitsPerSample,
     channelCount,
@@ -258,7 +267,7 @@ function trackFromTuple(track: TrackTuple) {
     albumArtists: albumArtists ?? artists,
     artists,
     artworkUrl,
-    available,
+    available: unavailableReason === null,
     bitrate,
     bitsPerSample,
     channelCount,
@@ -275,6 +284,7 @@ function trackFromTuple(track: TrackTuple) {
     sampleRate,
     trackNumber,
     trackTotal,
+    unavailableReason,
     url: getTrackUrl(id),
     year,
   } satisfies Track;
