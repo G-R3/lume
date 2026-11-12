@@ -8,6 +8,7 @@ import {
   SkipForwardIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { Track } from "../../shared/lib";
@@ -15,6 +16,7 @@ import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { usePlayback, usePlaybackTime } from "@/hooks/use-playback";
+import { pausesOnToggle } from "@/lib/playback-phase";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
 
@@ -77,18 +79,27 @@ export function AudioPlayerControls({
             <SkipBackIcon aria-hidden="true" weight="fill" />
           </Button>
           <Button
-            aria-label={playback.isPlaying ? "Pause" : "Play"}
-            className="rounded-full"
+            aria-label={pausesOnToggle(playback.phase) ? "Pause" : "Play"}
+            className="relative rounded-full"
+            data-phase={playback.phase.kind}
             disabled={!playback.activeTrack}
             onClick={playback.togglePlayback}
             size="icon"
             type="button"
             variant="primary"
           >
-            {playback.isPlaying ? (
+            {pausesOnToggle(playback.phase) ? (
               <PauseIcon aria-hidden="true" weight="fill" />
             ) : (
               <PlayIcon aria-hidden="true" weight="fill" />
+            )}
+            {playback.phase.kind === "failed" && (
+              <WarningCircleIcon
+                aria-hidden="true"
+                className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-page text-danger"
+                data-slot="playback-failed-badge"
+                weight="fill"
+              />
             )}
           </Button>
           <Button

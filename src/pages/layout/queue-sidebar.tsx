@@ -24,6 +24,7 @@ import {
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatDuration, formatTotalDuration } from "@/lib/format-duration";
+import type { PlaybackPhase } from "@/lib/playback-phase";
 import type { QueueItem, QueueLane } from "@/lib/queue/model";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import { cn } from "@/lib/utils";
@@ -160,7 +161,7 @@ function QueuePanel() {
                 >
                   <QueueTrack
                     item={queue.current}
-                    state={playback.isPlaying ? "playing" : "paused"}
+                    phase={playback.phase}
                     track={tracksById.get(queue.current.trackId)}
                   />
                 </div>
@@ -324,11 +325,11 @@ function QueueRow({
 
 function QueueTrack({
   item,
-  state,
+  phase,
   track,
 }: {
   item: QueueItem;
-  state?: "paused" | "playing";
+  phase?: PlaybackPhase;
   track?: Track;
 }) {
   const unavailable = !track?.available;
@@ -338,13 +339,13 @@ function QueueTrack({
       <TrackArtwork
         artworkUrl={track?.artworkUrl ?? null}
         className={cn("size-8", unavailable && "opacity-disabled")}
-        state={state}
+        phase={phase}
       />
       <span className="min-w-0 flex-1">
         <span
           className={cn(
             "block truncate text-left text-body font-medium",
-            unavailable ? "text-disabled" : state ? "text-accent" : "text-primary",
+            unavailable ? "text-disabled" : phase ? "text-accent" : "text-primary",
           )}
           data-truncate
           dir="auto"

@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { MusicLibrary, Track } from "../../shared/lib";
 import { useMediaElement } from "@/hooks/use-media-element";
 import { createPlaybackController } from "@/lib/playback-controller";
+import { derivePlaybackPhase, pausesOnToggle, type PlaybackPhase } from "@/lib/playback-phase";
 import { createPlaylistReader } from "@/lib/playlist-query";
 import {
   selectActiveSourceEntryId,
@@ -43,7 +44,7 @@ type PlaybackContextValue = Pick<
   duration: number;
   errorMessage: string | null;
   isMuted: boolean;
-  isPlaying: boolean;
+  phase: PlaybackPhase;
   queue: ReturnType<typeof selectQueueView>;
   isInitialized: boolean;
   next: () => void;
@@ -118,13 +119,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const activeSourceEntryId = selectActiveSourceEntryId(snapshot.queue);
   const activeSourcePlaylistId = selectActiveSourcePlaylistId(snapshot.queue);
 
-  const isPlaying = media.view.kind === "requested" && media.view.playback.kind === "playing";
   const duration = media.view.kind === "requested" ? media.view.duration : 0;
 
-  const togglePlayback = useCallback(() => {
-    if (isPlaying) controller.pause();
-    else controller.resume();
-  }, [controller, isPlaying]);
+  const phase = useMemo(
+    () => derivePlaybackPhase(snapshot.queue, media.view, snapshot.availableTrackIds),
+    [snapshot.queue, media.view, snapshot.availableTrackIds],
+  );
+
+  const togglePlayback = useCallback(
+    () => (pausesOnToggle(phase) ? controller.pause() : controller.resume()),
+    [controller, phase],
+  );
 
   const contextValue = useMemo(
     () =>
@@ -148,7 +153,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         duration,
         errorMessage: snapshot.errorMessage,
         isMuted: media.isMuted,
-        isPlaying,
+        phase,
         queue: selectQueueView(snapshot.queue),
         isInitialized: snapshot.isInitialized,
         next: controller.next,
@@ -165,7 +170,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       activeSourcePlaylistId,
       activeTrack,
       duration,
-      isPlaying,
+      phase,
       media.isMuted,
       media.setVolume,
       media.toggleMute,
