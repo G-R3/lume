@@ -42,7 +42,7 @@ export function LibraryStatus({ notice }: { notice: SourceNotice }) {
       );
     case "off":
       return <Notice title={notice.title}>{manageFolders("secondary")}</Notice>;
-    case "unavailable":
+    case "missing-files":
       return (
         <Notice detail={notice.detail} title={notice.title}>
           {scanAgain({ kind: "rescan-sources" })}

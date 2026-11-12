@@ -277,6 +277,16 @@ describe("sortRows cache", () => {
     ];
   }
 
+  it("leaves out the tracks of forgotten folders", () => {
+    const tracks = [
+      track({ title: "Kept" }),
+      track({ available: false, title: "Forgotten", unavailableReason: "source-forgotten" }),
+      track({ available: false, title: "Off", unavailableReason: "source-off" }),
+    ];
+
+    expect(libraryRows(tracks).map((row) => row.track.title)).toEqual(["Kept", "Off"]);
+  });
+
   it("returns the same array for the same rows", () => {
     const view = freshView();
     const rows = libraryRows(library());

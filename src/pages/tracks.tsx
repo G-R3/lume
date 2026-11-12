@@ -28,14 +28,15 @@ export function TracksPage() {
   const filter = parseTrackFilter(useDeferredValue(filterText));
   const filterRef = useRef<FilterFieldHandle>(null);
   const sources = presentLibrarySources(library, useMinuteClock());
+  const listed = libraryRows(library.tracks);
 
   useLayoutEffect(() => {
-    if (library.tracks.length === 0) onListReady(null);
-  }, [library.tracks.length, onListReady]);
+    if (listed.length === 0) onListReady(null);
+  }, [listed.length, onListReady]);
 
   if (sources.empty.kind !== "hidden") return <EmptyLibrary empty={sources.empty} />;
 
-  const sorted = sortRows(allTracks, libraryRows(library.tracks), sort);
+  const sorted = sortRows(allTracks, listed, sort);
   const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
   const unavailableCount = items.filter((row) => !row.track.available).length;
   const totalDuration = items.reduce((total, row) => total + (row.track.duration ?? 0), 0);
@@ -62,7 +63,7 @@ export function TracksPage() {
                 {unavailableText}
               </>
             ) : (
-              <TrackCount total={library.tracks.length} isRevealing={reveal.isRevealing}>
+              <TrackCount total={listed.length} isRevealing={reveal.isRevealing}>
                 {" · "}
                 {formatTotalDuration(totalDuration)}
                 {unavailableText}

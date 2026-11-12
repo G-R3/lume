@@ -96,11 +96,11 @@ export function libraryRows(tracks: readonly Track[]): readonly TrackRow[] {
 
   if (cached) return cached;
 
-  const rows = tracks.map((track) => ({
-    sourceEntryId: track.id,
-    track,
-    addedToListAt: track.addedAt,
-  }));
+  const rows = tracks.flatMap((track) =>
+    track.unavailableReason === "source-forgotten"
+      ? []
+      : [{ sourceEntryId: track.id, track, addedToListAt: track.addedAt }],
+  );
 
   libraryRowCache.set(tracks, rows);
 
