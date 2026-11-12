@@ -188,6 +188,61 @@ it("stays stopped when the source no longer has any available tracks", async () 
   expect(playback.requests.at(-1)).toBeNull();
 });
 
+it.each([
+  { source: "all-tracks", filter: null },
+  { source: "frozen", filter: "track" },
+  { source: "playlist", filter: null },
+] as const)(
+  "resumes a finished $source queue playing in one press, then restarts paused when it ends",
+  async ({ source, filter }) => {
+    const library = libraryOf([1]);
+
+    const playback = await createReadyPlayback(library, {
+      loadPlaylist: () => Promise.resolve(singleTrackPlaylist),
+    });
+
+    playback.controller.playSourceEntry(
+      source === "playlist"
+        ? playlistView(singleTrackPlaylist)
+        : allTracks(playback.controller, filter),
+      source === "playlist" ? 10 : 1,
+    );
+    playback.controller.syncLibrary({
+      ...library,
+      tracks: [{ ...track(1), available: false }],
+    });
+    playback.controller.next();
+    await settle();
+    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("stopped");
+
+    playback.controller.syncLibrary(library);
+    playback.controller.resume();
+
+    await expect
+      .poll(() => playback.requests.at(-1))
+      .toMatchObject({
+        url: "lume://track/1",
+        position: 0,
+        shouldPlay: true,
+      });
+    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+
+    const restarted = playback.requests.at(-1);
+
+    if (!restarted) throw new Error("Expected the restarted track to load");
+    playback.controller.handleAudioEvent({
+      type: "ended",
+      requestId: restarted.requestId,
+      queueItemId: restarted.queueItemId,
+    });
+
+    await expect
+      .poll(() => playback.requests.at(-1))
+      .toMatchObject({ url: "lume://track/1", shouldPlay: false });
+    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+  },
+);
+
 it("keeps the active source in order through playlist edits", async () => {
   const playlist = {
     id: 1,
