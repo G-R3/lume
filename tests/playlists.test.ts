@@ -313,9 +313,9 @@ describe("playlist behavior", () => {
 
     database.$client.exec(`
       WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2500)
-      INSERT INTO tracks (source_id, path, title, format, file_size, modified_at, available,
+      INSERT INTO tracks (source_id, path, title, format, file_size, modified_at, missing_since,
         created_at, updated_at, artists, album_artists, genres, metadata_version)
-      SELECT source_id, path || '-' || i, 'Bulk ' || i, format, file_size, modified_at, available,
+      SELECT source_id, path || '-' || i, 'Bulk ' || i, format, file_size, modified_at, missing_since,
         created_at, updated_at, artists, album_artists, genres, metadata_version
       FROM tracks, n WHERE tracks.id = ${seed.id}
     `);

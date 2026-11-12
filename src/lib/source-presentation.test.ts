@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { LibrarySource, MusicLibrary, SourceStatus, Track } from "../../shared/lib";
-import { presentLibrarySources } from "./source-presentation";
+import type {
+  LibrarySource,
+  MusicLibrary,
+  SourceStatus,
+  Track,
+  TrackUnavailableReason,
+} from "../../shared/lib";
+import { presentLibrarySources, trackUnavailableLabels } from "./source-presentation";
 
 const now = new Date(2026, 10, 11, 12, 0).getTime();
 
@@ -51,14 +57,14 @@ function library(sources: LibrarySource[], tracks: Track[] = []): MusicLibrary {
   return { kind: "library", playlists: [], sources, tracks };
 }
 
-function track(id: number, available: boolean): Track {
+function track(id: number, unavailableReason: TrackUnavailableReason | null = null): Track {
   return {
     addedAt: id,
     album: null,
     albumArtists: [],
     artists: [],
     artworkUrl: null,
-    available,
+    available: unavailableReason === null,
     bitrate: null,
     bitsPerSample: null,
     channelCount: null,
@@ -75,6 +81,7 @@ function track(id: number, available: boolean): Track {
     title: `Track ${id}`,
     trackNumber: null,
     trackTotal: null,
+    unavailableReason,
     url: `lume://app/media/${id}`,
     year: null,
   };
@@ -235,7 +242,7 @@ describe("tracks notice", () => {
     {
       case: "healthy folders",
       sources: [source("a", scanned(minute))],
-      tracks: [track(1, true)],
+      tracks: [track(1)],
       notice: { kind: "none" },
     },
     {
@@ -245,7 +252,7 @@ describe("tracks notice", () => {
         source("b", missing(hour), 2),
         source("c", failed("Disk read failed"), 3),
       ],
-      tracks: [track(1, false)],
+      tracks: [track(1, "source-missing"), track(2, "file-missing")],
       notice: {
         detail: "Its tracks can’t play until it’s back.",
         kind: "issue",
@@ -278,34 +285,40 @@ describe("tracks notice", () => {
     {
       case: "every folder off",
       sources: [source("a", off, 1), source("b", off, 2)],
-      tracks: [track(1, false)],
+      tracks: [track(1, "source-off")],
       notice: { kind: "off", title: "All folders are off" },
     },
     {
-      case: "unavailable tracks while a folder is off",
+      case: "nothing for an off folder's tracks while another folder is on",
       sources: [source("a", off, 1), source("b", scanned(minute), 2)],
-      tracks: [track(1, false)],
+      tracks: [track(1, "source-off"), track(2)],
       notice: { kind: "none" },
     },
     {
-      case: "one unavailable track",
+      case: "one missing file",
       sources: [source("a", scanned(minute))],
-      tracks: [track(1, false), track(2, true)],
+      tracks: [track(1, "file-missing"), track(2)],
       notice: {
-        detail: "Their files were moved or deleted.",
-        kind: "unavailable",
-        title: "1 track is unavailable",
+        detail: "Their files were moved or deleted since the last scan.",
+        kind: "missing-files",
+        title: "1 track is missing",
       },
     },
     {
-      case: "unavailable tracks of forgotten folders",
-      sources: [],
-      tracks: [track(1, false), track(2, false)],
+      case: "missing files while another folder is off",
+      sources: [source("a", off, 1), source("b", scanned(minute), 2)],
+      tracks: [track(1, "source-off"), track(2, "file-missing"), track(3, "file-missing")],
       notice: {
-        detail: "Their files were moved or deleted.",
-        kind: "unavailable",
-        title: "2 tracks are unavailable",
+        detail: "Their files were moved or deleted since the last scan.",
+        kind: "missing-files",
+        title: "2 tracks are missing",
       },
+    },
+    {
+      case: "nothing for the tracks of forgotten folders",
+      sources: [],
+      tracks: [track(1, "source-forgotten"), track(2, "source-forgotten")],
+      notice: { kind: "none" },
     },
   ])("shows $case", ({ notice, sources, tracks }) => {
     expect(presentLibrarySources(library(sources, tracks), now).notice).toStrictEqual(notice);
@@ -390,9 +403,15 @@ describe("tracks empty state", () => {
       },
     },
     {
+      case: "add music after every folder is forgotten",
+      sources: [],
+      tracks: [track(1, "source-forgotten")],
+      empty: addMusic,
+    },
+    {
       case: "nothing once tracks exist",
       sources: [source("a", scanned(minute))],
-      tracks: [track(1, false)],
+      tracks: [track(1, "file-missing")],
       empty: { kind: "hidden" },
     },
     {
@@ -409,5 +428,18 @@ describe("tracks empty state", () => {
     },
   ])("shows $case", ({ empty, sources, tracks }) => {
     expect(presentLibrarySources(library(sources, tracks), now).empty).toStrictEqual(empty);
+  });
+});
+
+describe("track row labels", () => {
+  it.each([
+    { reason: "file-missing", label: "File missing" },
+    { reason: "source-off", label: "Folder off" },
+    { reason: "source-missing", label: "Not connected" },
+    { reason: "source-permission", label: "No access" },
+    { reason: "source-unreadable", label: "Can’t read folder" },
+    { reason: "source-forgotten", label: "Folder removed" },
+  ] as const)("labels $reason as $label", ({ label, reason }) => {
+    expect(trackUnavailableLabels[reason]).toBe(label);
   });
 });

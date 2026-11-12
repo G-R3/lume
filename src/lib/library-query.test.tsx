@@ -374,6 +374,22 @@ describe("replies that arrive out of revision order", () => {
   });
 });
 
+describe("turning a folder on", () => {
+  it("shows the library main returns at once and the rescan's library after it", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1, title: "Off" }));
+    const enable = app.lume.enableSource.next();
+    const rescan = app.lume.rescanSource.next();
+    await app.do.enableSource(1);
+
+    await app.answer(enable, json(stored({ likedAt: null, revision: 2, title: "On" })));
+    expect(app.lume.rescanSource.calls).toHaveLength(1);
+    expect(app.titleOf(1)).toBe("On");
+
+    await app.answer(rescan, json(stored({ likedAt: null, revision: 3, title: "Scanned" })));
+    expect(app.titleOf(1)).toBe("Scanned");
+  });
+});
+
 describe("a failed folder command", () => {
   it("rereads the stored library, since main may have committed part of it", async () => {
     const app = await startApp(stored({ likedAt: null, revision: 1, scannedAt: 1 }));
@@ -394,6 +410,7 @@ type LikedState = "liked" | "unliked";
 
 type Actions = {
   addToPlaylist: (trackId: number) => void;
+  enableSource: (sourceId: number) => void;
   like: (...trackIds: number[]) => void;
   rescanSources: () => void;
   unlike: (...trackIds: number[]) => void;
@@ -417,6 +434,8 @@ function SyncProbe() {
   probe.actions = {
     addToPlaylist: (trackId) =>
       addTracks.mutate({ duplicates: "allow", playlistId: 1, trackIds: [trackId] }),
+    enableSource: (sourceId) =>
+      command.mutate({ enabled: true, kind: "set-source-enabled", sourceId }),
     like: (...trackIds) => setLiked.mutate({ liked: true, trackIds }),
     rescanSources: () => command.mutate({ kind: "rescan-sources" }),
     unlike: (...trackIds) => setLiked.mutate({ liked: false, trackIds }),
@@ -472,6 +491,7 @@ async function startApp(firstRead: StoredLibrary | null, { strict = false } = {}
     },
     do: {
       addToPlaylist: (trackId: number) => step(() => probe.actions?.addToPlaylist(trackId)),
+      enableSource: (sourceId: number) => step(() => probe.actions?.enableSource(sourceId)),
       like: (...trackIds: number[]) => step(() => probe.actions?.like(...trackIds)),
       rescanSources: () => step(() => probe.actions?.rescanSources()),
       unlike: (...trackIds: number[]) => step(() => probe.actions?.unlike(...trackIds)),
@@ -536,6 +556,8 @@ function createLume() {
   const loads = createCalls<LibrarySnapshotJson>();
   const likes = createCalls<TracksLikedResult>();
   const rescanSources = createCalls<LibrarySnapshotJson>();
+  const enableSource = createCalls<LibrarySnapshotJson>();
+  const rescanSource = createCalls<LibrarySnapshotJson>();
   const addTracks = createCalls<AddTracksToPlaylistResult>();
   const playlists = createCalls<PlaylistDetails | null>();
 
@@ -544,9 +566,11 @@ function createLume() {
     value: {
       addTracksToPlaylist: addTracks.invoke,
       awaitStartupScan: scans.invoke,
+      enableSource: enableSource.invoke,
       isMac: false,
       loadLibrary: loads.invoke,
       loadPlaylist: playlists.invoke,
+      rescanSource: rescanSource.invoke,
       rescanSources: rescanSources.invoke,
       setTracksLiked: likes.invoke,
     },
@@ -554,9 +578,11 @@ function createLume() {
 
   return {
     addTracks,
+    enableSource,
     likes,
     loads,
     finishScan: (update: LibraryUpdate) => scans.calls.forEach((call) => call.resolve(update)),
+    rescanSource,
     rescanSources,
   };
 }
@@ -676,7 +702,7 @@ function tupleOf(track: Track): TrackTuple {
     track.albumArtists,
     track.artists,
     track.artworkUrl,
-    track.available,
+    track.unavailableReason,
     track.bitrate,
     track.bitsPerSample,
     track.channelCount,
@@ -705,6 +731,7 @@ function track(id: number): Track {
     artists: ["Artist"],
     artworkUrl: null,
     available: true,
+    unavailableReason: null,
     bitrate: null,
     bitsPerSample: null,
     channelCount: null,

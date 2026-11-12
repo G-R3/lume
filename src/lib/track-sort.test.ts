@@ -30,6 +30,7 @@ function track(fields: Partial<Track> = {}): Track {
     artists: [],
     artworkUrl: null,
     available: true,
+    unavailableReason: null,
     bitrate: null,
     bitsPerSample: null,
     channelCount: null,
@@ -275,6 +276,16 @@ describe("sortRows cache", () => {
       track({ title: "D" }),
     ];
   }
+
+  it("leaves out the tracks of forgotten folders", () => {
+    const tracks = [
+      track({ title: "Kept" }),
+      track({ available: false, title: "Forgotten", unavailableReason: "source-forgotten" }),
+      track({ available: false, title: "Off", unavailableReason: "source-off" }),
+    ];
+
+    expect(libraryRows(tracks).map((row) => row.track.title)).toEqual(["Kept", "Off"]);
+  });
 
   it("returns the same array for the same rows", () => {
     const view = freshView();

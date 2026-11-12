@@ -20,6 +20,7 @@ function track(id: number, likedAt: number | null = null): Track {
     artists: [],
     artworkUrl: null,
     available: true,
+    unavailableReason: null,
     bitrate: null,
     bitsPerSample: null,
     channelCount: null,
