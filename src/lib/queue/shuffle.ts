@@ -3,9 +3,9 @@ import {
   createSourceItems,
   currentSourceEntryId,
   historyWithCurrent,
-  playAs,
+  playItem,
 } from "./items";
-import { sameSource } from "./source";
+import { sameSource, sourceIdentity } from "./source";
 import type { QueueCommand, QueueRandom } from "./commands";
 import type { QueueItem, QueueState, SourceIdentity } from "./model";
 
@@ -64,7 +64,7 @@ export function setShuffleEnabled(
 
   const missingEntries = entries.filter((entry) => !itemsByEntry.has(entry.sourceEntryId));
 
-  createSourceItems(state, missingEntries, state.sourceIdentity, state.sessionId).forEach(
+  createSourceItems(state, missingEntries, sourceIdentity(state.source), state.sessionId).forEach(
     (item, index) => itemsByEntry.set(missingEntries[index].sourceEntryId, item),
   );
 
@@ -112,9 +112,9 @@ export function selectsWithinShuffledSession(
   return (
     state !== null &&
     state.shuffleEnabled &&
-    state.source.kind !== "detached" &&
-    sameSource(state.sourceIdentity, source) &&
-    state.filter === filter &&
+    state.source.kind !== "deleted-playlist" &&
+    sameSource(state.source, source) &&
+    (state.tracking.kind === "frozen" ? state.tracking.filter : null) === filter &&
     state.sourceEntries.some((entry) => entry.sourceEntryId === sourceEntryId)
   );
 }
@@ -132,19 +132,18 @@ export function selectSourceEntry(
 
   if (!entry || !availableTrackIds.has(entry.trackId)) return state;
 
-  if (currentSourceEntryId(state) === sourceEntryId) return { ...state, status: "playing" };
+  if (state.playback.kind === "active" && currentSourceEntryId(state) === sourceEntryId)
+    return { ...state, playback: { ...state.playback, status: "playing" } };
 
   const item =
     state.sourceQueue.find((queued) => activeSourceEntryId(state, queued) === sourceEntryId) ??
-    createSourceItems(state, [entry], state.sourceIdentity, state.sessionId)[0];
+    createSourceItems(state, [entry], sourceIdentity(state.source), state.sessionId)[0];
 
   return {
     ...state,
     sourcePosition: { kind: "entry", sourceEntryId },
-    current: playAs(item, "source"),
+    playback: playItem(item, "source-step"),
     sourceQueue: state.sourceQueue.filter((queued) => queued.queueItemId !== item.queueItemId),
     previousSourceItems: historyWithCurrent(state),
-    lastSelectedItem: item,
-    status: "playing",
   };
 }

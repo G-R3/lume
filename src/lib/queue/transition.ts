@@ -5,14 +5,17 @@ import {
   clearAnchorsTo,
   createSourceItems,
   historyWithCurrent,
-  playAs,
+  playbackItem,
+  playItem,
+  sourceStepItem,
 } from "./items";
-import type { QueueItem, QueueLane, QueueState, SourceEntry, SourceIdentity } from "./model";
+import type { QueueItem, QueueLane, QueueState, SourceEntry } from "./model";
 import { selectSourceEntry, setShuffleEnabled } from "./shuffle";
+import { sourceIdentity } from "./source";
 import {
   appendSourceEntries,
   appendNewLibraryTracks,
-  detachSource,
+  markSourceDeleted,
   moveSourceEntry,
   removeSourceEntries,
 } from "./source-edits";
@@ -46,9 +49,13 @@ export function transition(
     case "previous":
       return previous(state, context.availableTrackIds);
     case "playbackStarted":
-      return state.current && state.status !== "playing" ? { ...state, status: "playing" } : state;
+      return state.playback.kind === "active" && state.playback.status !== "playing"
+        ? { ...state, playback: { ...state.playback, status: "playing" } }
+        : state;
     case "playbackPaused":
-      return state.current && state.status !== "paused" ? { ...state, status: "paused" } : state;
+      return state.playback.kind === "active" && state.playback.status !== "paused"
+        ? { ...state, playback: { ...state.playback, status: "paused" } }
+        : state;
     case "sourceEntriesAdded":
       return appendSourceEntries(state, command, context.random);
     case "sourceEntriesRemoved":
@@ -56,7 +63,7 @@ export function transition(
     case "sourceEntryMoved":
       return moveSourceEntry(state, command);
     case "sourceDeleted":
-      return detachSource(state, command);
+      return markSourceDeleted(state, command);
     case "libraryRescanned":
       return appendNewLibraryTracks(state, command);
   }
@@ -85,33 +92,34 @@ function startSession(
   const startEntry =
     start.kind === "random" ? (order.find(isAvailable) ?? requestedStart) : requestedStart;
 
-  const sourceIdentity: SourceIdentity =
-    command.source.kind === "all-tracks"
-      ? { kind: "all-tracks" }
-      : { kind: "playlist", playlistId: command.source.playlistId };
+  const items = createSourceItems(
+    previous,
+    entries,
+    sourceIdentity(command.source),
+    command.sessionId,
+  );
 
-  const items = createSourceItems(previous, entries, sourceIdentity, command.sessionId);
   const startIndex = entries.findIndex((entry) => entry.sourceEntryId === startEntry.sourceEntryId);
   const startItem = items[startIndex];
 
   return {
+    sessionId: command.sessionId,
     source: command.source,
-    sourceIdentity,
-    filter: command.filter,
+    tracking:
+      command.filter === null
+        ? { kind: "follows-source" }
+        : { kind: "frozen", filter: command.filter },
     sort: command.sort,
     sourceEntries: [...entries],
     sourcePosition: { kind: "entry", sourceEntryId: startEntry.sourceEntryId },
     shuffleEnabled: command.shuffled,
-    sessionId: command.sessionId,
-    current: playAs(startItem, "source"),
+    playback: playItem(startItem, "source-step", command.paused ? "paused" : "playing"),
     manualQueue: previous?.manualQueue ?? [],
     sourceQueue: command.shuffled
       ? reorderItems(entries, items, order).filter((item) => item !== startItem)
       : items.slice(startIndex + 1),
     previousSourceItems: command.shuffled ? [] : items.slice(0, startIndex),
     suppressedSourceEntryIds: [],
-    status: command.paused ? "paused" : "playing",
-    lastSelectedItem: startItem,
   };
 }
 
@@ -131,12 +139,11 @@ function enqueueTracks(
 ): QueueState {
   const usedIds = new Set(
     [
-      state.current?.item,
-      state.lastSelectedItem,
+      playbackItem(state),
       ...state.manualQueue,
       ...state.sourceQueue,
       ...state.previousSourceItems,
-    ].map((item) => item?.queueItemId),
+    ].map((item) => item.queueItemId),
   );
 
   const items = command.items.flatMap(({ trackId, queueItemId }): QueueItem[] => {
@@ -150,12 +157,10 @@ function enqueueTracks(
 
   if (!first) return state;
 
-  if (!state.current && state.status === "stopped") {
+  if (state.playback.kind === "stopped") {
     return {
       ...state,
-      current: playAs(first, "manual"),
-      status: "playing",
-      lastSelectedItem: first,
+      playback: playItem(first, "standalone"),
       manualQueue: placeInManualQueue(state.manualQueue, rest, command.position),
     };
   }
@@ -180,11 +185,9 @@ function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueS
 
     return {
       ...state,
-      current: playAs(item, "manual"),
+      playback: playItem(item, "standalone"),
       manualQueue: state.manualQueue.slice(manualIndex + 1),
       previousSourceItems,
-      status: "playing",
-      lastSelectedItem: item,
     };
   }
 
@@ -196,22 +199,22 @@ function next(state: QueueState, availableTrackIds: ReadonlySet<number>): QueueS
     return {
       ...state,
       sourcePosition: sourcePositionForItem(state, item),
-      current: playAs(item, "source"),
+      playback: playItem(item, "source-step"),
       manualQueue: [],
       previousSourceItems: [...previousSourceItems, ...state.sourceQueue.slice(0, sourceIndex)],
       sourceQueue: state.sourceQueue.slice(sourceIndex + 1),
-      status: "playing",
-      lastSelectedItem: item,
     };
   }
 
   return {
     ...state,
-    current: null,
+    playback:
+      state.playback.kind === "active"
+        ? { kind: "stopped", lastPlayed: state.playback.current }
+        : state.playback,
     manualQueue: [],
     previousSourceItems: [...previousSourceItems, ...state.sourceQueue],
     sourceQueue: [],
-    status: "stopped",
   };
 }
 
@@ -223,19 +226,18 @@ function previous(state: QueueState, availableTrackIds: ReadonlySet<number>): Qu
   if (previousIndex === -1) return state;
 
   const item = state.previousSourceItems[previousIndex];
+  const sourceStep = sourceStepItem(state);
 
   return {
     ...state,
     sourcePosition: sourcePositionForItem(state, item),
-    current: playAs(item, "source"),
+    playback: playItem(item, "source-step"),
     previousSourceItems: state.previousSourceItems.slice(0, previousIndex),
     sourceQueue: [
       ...state.previousSourceItems.slice(previousIndex + 1),
-      ...(state.current?.participatesInSourceNavigation ? [state.current.item] : []),
+      ...(sourceStep ? [sourceStep] : []),
       ...state.sourceQueue,
     ],
-    status: "playing",
-    lastSelectedItem: item,
   };
 }
 
@@ -253,11 +255,9 @@ function jumpTo(
 
     return {
       ...state,
-      current: playAs(item, "manual"),
+      playback: playItem(item, "standalone"),
       manualQueue: state.manualQueue.slice(manualIndex + 1),
       previousSourceItems: historyWithCurrent(state),
-      status: "playing",
-      lastSelectedItem: item,
     };
   }
 
@@ -271,11 +271,9 @@ function jumpTo(
   return {
     ...state,
     sourcePosition: sourcePositionForItem(state, item),
-    current: playAs(item, "source"),
+    playback: playItem(item, "source-step"),
     previousSourceItems: [...historyWithCurrent(state), ...state.sourceQueue.slice(0, sourceIndex)],
     sourceQueue: state.sourceQueue.slice(sourceIndex + 1),
-    status: "playing",
-    lastSelectedItem: item,
   };
 }
 
@@ -304,10 +302,10 @@ function removeQueueItem(state: QueueState, queueItemId: string): QueueState {
 
   return {
     ...state,
-    current:
-      state.current && isRemovedEntry(state.current.item)
-        ? { ...state.current, participatesInSourceNavigation: false }
-        : state.current,
+    playback:
+      state.playback.kind === "active" && isRemovedEntry(state.playback.current)
+        ? { ...state.playback, role: "standalone" }
+        : state.playback,
     previousSourceItems: state.previousSourceItems.filter((previous) => !isRemovedEntry(previous)),
     sourceQueue: clearAnchorsTo(
       state,

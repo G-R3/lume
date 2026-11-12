@@ -1,3 +1,4 @@
+import { selectCurrentItem, selectPlaybackStatus } from "./selectors";
 import { expect, it } from "vite-plus/test";
 import type { QueueRandom } from "./commands";
 import type { QueueState } from "./model";
@@ -65,12 +66,12 @@ it("restores source order after toggling and keeps removals and manual priority"
   );
 
   const shuffled = shuffle(manualOrder, [5, 1, 3]);
-  expect(shuffled.current?.item.trackId).toBe(2);
+  expect(selectCurrentItem(shuffled)?.trackId).toBe(2);
   expect(shuffled.sourceQueue.map((item) => item.trackId)).toEqual([5, 1, 3]);
   expect(shuffled.manualQueue.map((item) => item.trackId)).toEqual([6, 5]);
 
   const sequential = unshuffle(shuffled);
-  expect(sequential.current?.item.trackId).toBe(2);
+  expect(selectCurrentItem(sequential)?.trackId).toBe(2);
   expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([3, 5]);
   expect(sequential.manualQueue.map((item) => item.trackId)).toEqual([6, 5]);
 
@@ -78,9 +79,9 @@ it("restores source order after toggling and keeps removals and manual priority"
   const lastManual = transition(nextManual, { type: "next" }, context);
   const nextSource = transition(lastManual, { type: "next" }, context);
   expect([
-    nextManual?.current?.item.trackId,
-    lastManual?.current?.item.trackId,
-    nextSource?.current?.item.trackId,
+    selectCurrentItem(nextManual)?.trackId,
+    selectCurrentItem(lastManual)?.trackId,
+    selectCurrentItem(nextSource)?.trackId,
   ]).toEqual([6, 5, 3]);
 });
 
@@ -101,9 +102,9 @@ it("continues after the moved source anchor while a manual song plays", () => {
   );
 
   const sequential = unshuffle(moved);
-  expect(sequential.current?.item.trackId).toBe(6);
+  expect(selectCurrentItem(sequential)?.trackId).toBe(6);
   expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([5]);
-  expect(transition(sequential, { type: "next" }, context)?.current?.item.trackId).toBe(5);
+  expect(selectCurrentItem(transition(sequential, { type: "next" }, context))?.trackId).toBe(5);
 });
 
 it("keeps the continuation boundary through additions, removals, and a move", () => {
@@ -153,9 +154,9 @@ it("keeps the continuation boundary through additions, removals, and a move", ()
   );
 
   const sequential = unshuffle(movedFirst);
-  expect(sequential.current?.item.trackId).toBe(6);
+  expect(selectCurrentItem(sequential)?.trackId).toBe(6);
   expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([8, 3, 4, 5, 7]);
-  expect(transition(sequential, { type: "next" }, context)?.current?.item.trackId).toBe(8);
+  expect(selectCurrentItem(transition(sequential, { type: "next" }, context))?.trackId).toBe(8);
 });
 
 it("stops after a manual song when the deleted source anchor was last", () => {
@@ -168,11 +169,11 @@ it("stops after a manual song when the deleted source anchor was last", () => {
   );
 
   const sequential = unshuffle(removed);
-  expect(sequential.current?.item.trackId).toBe(6);
+  expect(selectCurrentItem(sequential)?.trackId).toBe(6);
   expect(sequential.sourceQueue).toEqual([]);
   const completed = transition(sequential, { type: "next" }, context);
-  expect(completed?.current).toBe(null);
-  expect(completed?.status).toBe("stopped");
+  expect(selectCurrentItem(completed)).toBe(null);
+  expect(selectPlaybackStatus(completed)).toBe("stopped");
 });
 
 it("keeps a carried source item independent of the next session's occurrence", () => {
@@ -223,15 +224,15 @@ it("keeps a carried source item independent of the next session's occurrence", (
   const sequential = unshuffle(inserted);
   expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([2, 3, 4, 5]);
   const carried = transition(sequential, { type: "next" }, context);
-  expect(carried?.current?.item.trackId).toBe(2);
-  expect(carried?.current?.item.origin).toEqual({
+  expect(selectCurrentItem(carried)?.trackId).toBe(2);
+  expect(selectCurrentItem(carried)?.origin).toEqual({
     kind: "source",
     sourceEntryId: 2,
     source: { kind: "playlist", playlistId: 1 },
     sessionId: "first",
   });
   expect(carried?.sourcePosition).toEqual({ kind: "entry", sourceEntryId: 1 });
-  expect(transition(carried, { type: "next" }, context)?.current?.item.trackId).toBe(3);
+  expect(selectCurrentItem(transition(carried, { type: "next" }, context))?.trackId).toBe(3);
 });
 
 it("pulls one duplicate occurrence from the table but skips through a queue jump", () => {
@@ -267,7 +268,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
     context,
   );
 
-  expect(selected?.current?.item.origin).toMatchObject({ sourceEntryId: 13 });
+  expect(selectCurrentItem(selected)?.origin).toMatchObject({ sourceEntryId: 13 });
   expect(selected?.sourceQueue.map((item) => item.trackId)).toEqual([3, 2]);
   expect(selected?.manualQueue.map((item) => item.trackId)).toEqual([1]);
 
@@ -277,7 +278,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
     context,
   );
 
-  expect(absent?.current?.item.origin).toMatchObject({ sourceEntryId: 11 });
+  expect(selectCurrentItem(absent)?.origin).toMatchObject({ sourceEntryId: 11 });
   expect(absent?.sourceQueue.map((item) => item.trackId)).toEqual([3, 2]);
 
   const jumped = transition(
@@ -286,11 +287,11 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
     context,
   );
 
-  expect(jumped?.current?.item.origin).toMatchObject({ sourceEntryId: 13 });
+  expect(selectCurrentItem(jumped)?.origin).toMatchObject({ sourceEntryId: 13 });
   expect(jumped?.sourceQueue.map((item) => item.trackId)).toEqual([2]);
   expect(jumped?.manualQueue.map((item) => item.trackId)).toEqual([1]);
   const previous = transition(jumped, { type: "previous" }, context);
-  expect(previous?.current?.item.origin).toMatchObject({ sourceEntryId: 14 });
+  expect(selectCurrentItem(previous)?.origin).toMatchObject({ sourceEntryId: 14 });
   expect(previous?.sourceQueue.map((item) => item.trackId)).toEqual([1, 2]);
 });
 
@@ -330,7 +331,7 @@ it("keeps shuffle order through source edits and appends only the new occurrence
 
   expect(removed?.sourceQueue.map((item) => item.trackId)).toEqual([5, 1, 6, 3]);
   const sequential = unshuffle(removed);
-  expect(sequential.current?.item.trackId).toBe(2);
+  expect(selectCurrentItem(sequential)?.trackId).toBe(2);
   expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([3, 6]);
 });
 
@@ -376,12 +377,10 @@ it("restores a shuffled pass and lets Previous return through repeated visits", 
   expect(restored.position).toBe(19.5);
   expect(restored.state).toMatchObject({
     source: { kind: "playlist", playlistId: 1, title: "A-E" },
-    sourceIdentity: { kind: "playlist", playlistId: 1 },
     sourcePosition: { kind: "entry", sourceEntryId: 2 },
-    current: { item: { trackId: 2 } },
+    playback: { kind: "active", status: "paused", current: { trackId: 2 } },
     suppressedSourceEntryIds: [5],
     shuffleEnabled: true,
-    status: "paused",
   });
   expect(restored.state.manualQueue.map((item) => item.trackId)).toEqual([7, 6]);
   expect(restored.state.sourceQueue.map((item) => item.trackId)).toEqual([1, 4]);
@@ -391,9 +390,9 @@ it("restores a shuffled pass and lets Previous return through repeated visits", 
   const previousSecond = transition(previousThird, { type: "previous" }, context);
   const previousFirst = transition(previousSecond, { type: "previous" }, context);
   expect([
-    previousThird?.current?.item.trackId,
-    previousSecond?.current?.item.trackId,
-    previousFirst?.current?.item.trackId,
+    selectCurrentItem(previousThird)?.trackId,
+    selectCurrentItem(previousSecond)?.trackId,
+    selectCurrentItem(previousFirst)?.trackId,
   ]).toEqual([3, 2, 1]);
   expect(previousFirst?.sourceQueue.map((item) => item.trackId)).toEqual([2, 3, 2, 1, 4]);
   expect(previousFirst?.manualQueue.map((item) => item.trackId)).toEqual([7, 6]);
@@ -421,14 +420,14 @@ it("rejects duplicate stored queue IDs and restores valid deleted-anchor continu
 
   if (!restored) throw new Error("Expected a restored session");
   expect(restored.position).toBe(7.25);
-  expect(restored.state.current?.item.trackId).toBe(6);
+  expect(selectCurrentItem(restored.state)?.trackId).toBe(6);
   expect(restored.state.sourceQueue.map((item) => item.trackId)).toEqual([5, 1, 4, 3]);
-  expect(restored.state.status).toBe("paused");
+  expect(selectPlaybackStatus(restored.state)).toBe("paused");
 
   const sequential = unshuffle(restored.state);
-  expect(sequential.current?.item.trackId).toBe(6);
+  expect(selectCurrentItem(sequential)?.trackId).toBe(6);
   expect(sequential.sourceQueue.map((item) => item.trackId)).toEqual([3, 4, 5]);
-  expect(transition(sequential, { type: "next" }, context)?.current?.item.trackId).toBe(3);
+  expect(selectCurrentItem(transition(sequential, { type: "next" }, context))?.trackId).toBe(3);
 });
 
 it("restores items from other sessions, anchors, repeat visits, and a deleted current entry exactly", () => {
@@ -482,7 +481,7 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
   );
 
   if (!state) throw new Error("Expected an active queue");
-  expect(state.current?.item.queueItemId).toBe("second:source:2");
+  expect(selectCurrentItem(state)?.queueItemId).toBe("second:source:2");
   expect(state.sourceEntries.map((entry) => entry.sourceEntryId)).toEqual([1, 3, 4, 5]);
   expect(state.sourceQueue.map((item) => item.queueItemId)).toEqual([
     "second:source:5",
@@ -493,7 +492,10 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
   ]);
   expect(state.sourceQueue[2]?.anchor).toEqual({ sourceEntryId: 3, side: "before" });
 
-  expect(restore(state, 12)).toEqual({ state: { ...state, status: "paused" }, position: 12 });
+  expect(restore(state, 12)).toEqual({
+    state: { ...state, playback: { ...state.playback, status: "paused" } },
+    position: 12,
+  });
 });
 
 it("rejects a saved session whose source position names an unknown source entry", () => {

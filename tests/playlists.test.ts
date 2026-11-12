@@ -1,3 +1,4 @@
+import { selectCurrentItem } from "../src/lib/queue/selectors";
 import { writeFile } from "node:fs/promises";
 import { openTestDatabase } from "./helpers/database";
 import { libraryTracks, scanWith } from "./helpers/library";
@@ -80,12 +81,12 @@ describe("playlist behavior", () => {
     );
 
     expect({
-      current: queued?.current && titlesById.get(queued.current.item.trackId),
+      current: titlesById.get(selectCurrentItem(queued)?.trackId ?? 0),
       next: queued?.sourceQueue.map((item) => titlesById.get(item.trackId)),
     }).toEqual({ current: "A", next: ["B"] });
 
     const advanced = transition(queued, { type: "next" }, context);
-    expect(advanced?.current && titlesById.get(advanced.current.item.trackId)).toBe("B");
+    expect(titlesById.get(selectCurrentItem(advanced)?.trackId ?? 0)).toBe("B");
   });
 
   it("accepts valid boundaries and preserves normalized creation order after reopening", async () => {

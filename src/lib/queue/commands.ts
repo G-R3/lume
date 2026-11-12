@@ -1,5 +1,5 @@
 import type { TrackSort } from "../track-sort";
-import type { QueueLane, SourceEntry, SourceIdentity, SourceRef } from "./model";
+import type { PlayableSource, QueueLane, SourceEntry, SourceIdentity } from "./model";
 
 export type QueueRandom = {
   shuffle: (entries: readonly SourceEntry[]) => SourceEntry[];
@@ -67,8 +67,6 @@ export type QueueCommand =
     }
   | { type: "sourceDeleted"; playlistId: number }
   | { type: "libraryRescanned"; entries: readonly SourceEntry[] };
-
-export type PlayableSource = Exclude<SourceRef, { kind: "detached" }>;
 
 export type SessionSource = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
