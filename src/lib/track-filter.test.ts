@@ -10,6 +10,7 @@ function track(fields: Partial<Pick<Track, "title" | "artists" | "album">>): Tra
     artists: [],
     artworkUrl: null,
     available: true,
+    unavailableReason: null,
     bitrate: null,
     bitsPerSample: null,
     channelCount: null,

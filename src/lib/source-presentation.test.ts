@@ -75,6 +75,7 @@ function track(id: number, available: boolean): Track {
     title: `Track ${id}`,
     trackNumber: null,
     trackTotal: null,
+    unavailableReason: available ? null : "file-missing",
     url: `lume://app/media/${id}`,
     year: null,
   };

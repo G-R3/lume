@@ -17,6 +17,10 @@ const scanFailures = ["missing", "permission", "failed"] as const;
 
 const scanOutcomes = ["unscanned", "ok", ...scanFailures] as const;
 
+export type SourceStatusColumn = (typeof sourceStatuses)[number];
+
+export type ScanOutcomeColumn = (typeof scanOutcomes)[number];
+
 function sqlList(values: readonly string[]) {
   return sql.raw(values.map((value) => `'${value}'`).join(", "));
 }
@@ -69,7 +73,7 @@ export const tracks = sqliteTable(
     format: text("format").notNull(),
     fileSize: integer("file_size").notNull(),
     modifiedAt: integer("modified_at").notNull(),
-    available: integer("available", { mode: "boolean" }).notNull(),
+    missingSince: integer("missing_since"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     artists: text("artists", { mode: "json" }).$type<string[]>().notNull(),
@@ -92,9 +96,11 @@ export const tracks = sqliteTable(
   },
   (table) => [
     index("tracks_source_id").on(table.sourceId),
-    index("tracks_available").on(table.available),
     index("tracks_artwork_id").on(table.artworkId),
-    check("tracks_available_check", sql`${table.available} IN (0, 1)`),
+    check(
+      "tracks_missing_since_check",
+      sql`${table.missingSince} IS NULL OR ${table.missingSince} > 0`,
+    ),
     check("tracks_lossless_check", sql`${table.lossless} IN (0, 1)`),
   ],
 );
