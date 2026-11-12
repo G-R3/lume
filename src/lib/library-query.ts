@@ -158,7 +158,7 @@ export function useLibraryMutation() {
   return useMutation({
     ...libraryCommandOptions,
     mutationFn: async (command: LibraryCommand) =>
-      parseLibrarySnapshot(await runLibraryCommand(command)),
+      parseLibrarySnapshot(await runLibraryCommand(queryClient, command)),
     onError: () => refreshLibrary(queryClient),
     onSuccess: (library) => replaceLibrary(queryClient, library),
   });
@@ -182,7 +182,7 @@ export function useSetTracksLiked() {
   });
 }
 
-function runLibraryCommand(command: LibraryCommand) {
+async function runLibraryCommand(queryClient: QueryClient, command: LibraryCommand) {
   switch (command.kind) {
     case "add-source":
       return window.lume.addSource();
@@ -193,8 +193,13 @@ function runLibraryCommand(command: LibraryCommand) {
     case "rescan-sources":
       return window.lume.rescanSources();
     case "set-source-enabled":
-      return command.enabled
-        ? window.lume.enableSource(command.sourceId)
-        : window.lume.disableSource(command.sourceId);
+      if (!command.enabled) return window.lume.disableSource(command.sourceId);
+
+      replaceLibrary(
+        queryClient,
+        parseLibrarySnapshot(await window.lume.enableSource(command.sourceId)),
+      );
+
+      return window.lume.rescanSource(command.sourceId);
   }
 }
