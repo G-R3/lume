@@ -28,7 +28,7 @@ function request(id: string, shouldPlay = false): PlaybackRequest {
   };
 }
 
-function mountMedia(strict = false) {
+function mountMedia(strict = false, onRender = () => {}) {
   const attempts: ((error: DOMException) => void)[] = [];
   vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => {
     return new Promise<void>((_resolve, reject) => attempts.push(reject));
@@ -50,6 +50,7 @@ function mountMedia(strict = false) {
   };
 
   function Probe() {
+    onRender();
     current = useMediaElement(callbacks);
 
     return current.element;
@@ -292,4 +293,55 @@ it("reports a failed load once, without a second error from its play rejection",
     { type: "error", requestId: "a", queueItemId: "same-item", reason: "load" },
   ]);
   expect(probe.media.isPlaying).toBe(false);
+});
+
+it("still reports a play rejection that follows an element pause", async () => {
+  const probe = mountMedia();
+  act(() => probe.media.load(request("a", true)));
+  emit(probe.audio, "pause", { paused: true, ended: false });
+  await act(async () => probe.attempts[0]!(new DOMException("aborted by pause")));
+  expect(probe.events).toEqual([
+    { type: "paused", requestId: "a", queueItemId: "same-item" },
+    { type: "error", requestId: "a", queueItemId: "same-item", reason: "rejected" },
+  ]);
+});
+
+it("pauses the old element when pause arrives between a synchronous load and React commit", () => {
+  const probe = mountMedia();
+  act(() => probe.media.load(request("a", true)));
+  const old = probe.audio;
+  act(() => {
+    probe.media.load(request("b", true));
+    probe.media.pause();
+  });
+  expect(probe.pause.mock.contexts).toEqual([old]);
+  expect(probe.attempts).toHaveLength(1);
+});
+
+it("allows a synchronous replacement from a paused callback", () => {
+  const probe = mountMedia();
+  probe.callbacks.onEvent = (event) => {
+    probe.events.push(event);
+    probe.media.load({ ...request("b"), position: 30 });
+  };
+
+  act(() => probe.media.load(request("a", true)));
+  emit(probe.audio, "pause", { paused: true, ended: false });
+  expect(probe.events).toEqual([{ type: "paused", requestId: "a", queueItemId: "same-item" }]);
+  expect(probe.audio.src).toBe("file:///b.wav");
+  expect(probe.media.getPosition()).toBe(30);
+});
+
+it("does not rerender for attachment, deferred seeks, or time updates within a second", () => {
+  let renders = 0;
+  const probe = mountMedia(false, () => renders++);
+  act(() => probe.media.load(request("a")));
+  const settled = renders;
+  act(() => probe.media.seek(3));
+  emit(probe.audio, "loadedmetadata", { duration: 60 });
+  emit(probe.audio, "timeupdate", { currentTime: 12.1 });
+  emit(probe.audio, "timeupdate", { currentTime: 12.6 });
+  expect(renders).toBe(settled);
+  act(() => probe.media.setVolume(0.5));
+  expect(renders).toBe(settled + 1);
 });
