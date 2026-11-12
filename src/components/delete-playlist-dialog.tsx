@@ -1,6 +1,6 @@
 import { BackspaceIcon, CommandIcon } from "@phosphor-icons/react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { type KeyboardEvent, type RefObject, useRef } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import type { PlaylistSummary } from "../../shared/lib";
 import {
   AlertDialog,
@@ -17,7 +17,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { useDeletePlaylistMutation } from "@/lib/playlist-mutations";
 
 type DeletePlaylistDialogProps = {
-  finalFocus?: RefObject<HTMLElement | null>;
+  focusAfterCancel: RefObject<HTMLElement | null>;
   focusAfterDelete: () => HTMLElement | null | undefined;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -25,7 +25,7 @@ type DeletePlaylistDialogProps = {
 };
 
 export function DeletePlaylistDialog({
-  finalFocus,
+  focusAfterCancel,
   focusAfterDelete,
   onOpenChange,
   open,
@@ -34,15 +34,13 @@ export function DeletePlaylistDialog({
   const deletePlaylist = useDeletePlaylistMutation();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
-  const deletedRef = useRef(false);
 
   const isOpenPlaylist = params.playlistId === playlist.id;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && deletePlaylist.isPending) return;
 
-    if (nextOpen) deletedRef.current = false;
-    else deletePlaylist.reset();
+    if (!nextOpen) deletePlaylist.reset();
 
     onOpenChange(nextOpen);
   };
@@ -50,8 +48,6 @@ export function DeletePlaylistDialog({
   const handleDelete = () => {
     deletePlaylist.mutate(playlist.id, {
       onSuccess: async () => {
-        deletedRef.current = true;
-        deletePlaylist.reset();
         onOpenChange(false);
 
         if (isOpenPlaylist) await navigate({ replace: true, to: "/" });
@@ -72,7 +68,7 @@ export function DeletePlaylistDialog({
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent
-        finalFocus={() => (deletedRef.current ? false : (finalFocus?.current ?? true))}
+        finalFocus={() => (deletePlaylist.isSuccess ? false : (focusAfterCancel.current ?? true))}
         onKeyDown={handleKeyDown}
       >
         <AlertDialogHeader>

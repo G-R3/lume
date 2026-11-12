@@ -129,7 +129,7 @@ function PlaylistMenu({ playlist }: { playlist: PlaylistDetails }) {
         </DropdownMenuContent>
       </DropdownMenu>
       <DeletePlaylistDialog
-        finalFocus={menuTriggerRef}
+        focusAfterCancel={menuTriggerRef}
         focusAfterDelete={() =>
           document.querySelector<HTMLElement>('[data-sidebar="menu-button"][data-active]')
         }
