@@ -7,24 +7,6 @@ export function sourceQueueItemId(sessionId: string, sourceEntryId: number, visi
   return visit === 0 ? base : base + ":visit:" + visit;
 }
 
-export function sourceItemVisit(queueItemId: string, sessionId: string, sourceEntryId: number) {
-  const firstVisitId = sourceQueueItemId(sessionId, sourceEntryId, 0);
-
-  if (queueItemId === firstVisitId) return 0;
-
-  const visitPrefix = firstVisitId + ":visit:";
-
-  if (!queueItemId.startsWith(visitPrefix)) return null;
-
-  const visit = Number(queueItemId.slice(visitPrefix.length));
-
-  return Number.isSafeInteger(visit) &&
-    visit > 0 &&
-    queueItemId === sourceQueueItemId(sessionId, sourceEntryId, visit)
-    ? visit
-    : null;
-}
-
 const sourceEntryIdSets = new WeakMap<readonly SourceEntry[], ReadonlySet<number>>();
 
 function sourceEntryIdSet(sourceEntries: readonly SourceEntry[]) {

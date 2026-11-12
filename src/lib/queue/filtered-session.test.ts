@@ -232,32 +232,27 @@ describe("saved sessions", () => {
     expect(restored?.state.filter).toBeNull();
   });
 
-  it("writes version 7 with the session's sort", () => {
-    expect(JSON.parse(serializeQueueSession(start(allTracks, [1], null)))).toMatchObject({
-      version: 7,
-      state: { sort: { field: "added", direction: "asc" } },
-    });
+  it("keeps the session's sort across a restore", () => {
+    const state = start(allTracks, [1], null);
+
+    const restored = parseQueueSession(
+      { payload: serializeQueueSession(state), position: 0 },
+      library,
+    );
+
+    expect(restored?.state.sort).toEqual({ field: "added", direction: "asc" });
   });
 
-  it("restores nothing from a version 6 payload, without throwing", () => {
-    const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
-    const { sort: _sort, ...v6State } = saved.state;
-    const payload = JSON.stringify({ version: 6, state: v6State });
+  it("restores nothing from a payload saved in an older format, without throwing", () => {
+    const state = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
+    const payload = JSON.stringify({ version: 7, state });
 
     expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
   });
 
-  it("restores nothing from a version 5 payload, without throwing", () => {
+  it("rejects a payload without a filter", () => {
     const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
-    const { filter: _filter, ...v5State } = saved.state;
-    const payload = JSON.stringify({ version: 5, state: v5State });
-
-    expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
-  });
-
-  it("rejects a version 7 payload without a filter", () => {
-    const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
-    delete saved.state.filter;
+    delete saved.filter;
 
     expect(parseQueueSession({ payload: JSON.stringify(saved), position: 0 }, library)).toBeNull();
   });

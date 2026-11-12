@@ -496,12 +496,12 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
   expect(restore(state, 12)).toEqual({ state: { ...state, status: "paused" }, position: 12 });
 });
 
-it("rejects a saved session whose short-form item names an unknown source entry", () => {
+it("rejects a saved session whose source position names an unknown source entry", () => {
   const state = startPlaylist(1);
   const saved = JSON.parse(serializeQueueSession(state));
   expect(restore(state, 0)?.state.sourceQueue.map((item) => item.trackId)).toEqual([2, 3, 4, 5]);
 
-  saved.state.sourceQueue[0] = 9;
+  saved.sourcePosition = { kind: "entry", sourceEntryId: 9 };
   expect(parseQueueSession({ payload: JSON.stringify(saved), position: 0 }, library)).toBe(null);
 });
 

@@ -1068,16 +1068,14 @@ it("restores a session's sort after a relaunch", async () => {
   expect(trackIds(restored.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 3, 2, 5, 4]);
 });
 
-it("restores no queue and shows no error for a version 5 session", async () => {
+it("restores no queue and shows no error for a session saved in an older format", async () => {
   const original = await createReadyPlayback(libraryOf([1, 2]));
   original.controller.playSourceEntry(allTracks(original.controller), 1);
   original.controller.flush();
   const saved = original.flushes.at(-1);
 
   if (!saved) throw new Error("Expected a flushed session");
-  const { state } = JSON.parse(saved.payload);
-  delete state.filter;
-  const payload = JSON.stringify({ version: 5, state });
+  const payload = JSON.stringify({ version: 5, state: JSON.parse(saved.payload) });
 
   const restored = await createReadyPlayback(libraryOf([1, 2]), {
     storage: {
