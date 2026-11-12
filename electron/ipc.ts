@@ -126,10 +126,8 @@ export function registerIpc(options: {
 
       return getLibrarySnapshotJson();
     },
-    enableSource: async (_window, input) => {
-      const sourceId = rowIdSchema.parse(input);
-      enableSource(sourceId);
-      await scanSource(sourceId);
+    enableSource: (_window, input) => {
+      enableSource(rowIdSchema.parse(input));
 
       return getLibrarySnapshotJson();
     },
