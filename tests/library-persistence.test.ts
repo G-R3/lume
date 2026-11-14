@@ -87,16 +87,10 @@ describe("library source persistence", () => {
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(folder);
-    expect(database.$client.prepare("SELECT status FROM library_sources").all()).toEqual([
-      { status: "active" },
-    ]);
     await scanWith(source.id, await scanAudioFiles(folder));
     const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
 
     forgetSource(source.id);
-    expect(database.$client.prepare("SELECT status FROM library_sources").all()).toEqual([
-      { status: "forgotten" },
-    ]);
     expect(getSources()).toEqual([]);
     expect(readLibrary().kind).toBe("library");
     expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
@@ -160,44 +154,40 @@ describe("library source persistence", () => {
   });
 });
 
-describe("onboarding marker", () => {
-  it("starts unmarked and marks the first saved folder", async () => {
-    const database = await openTestDatabase();
-    expect(database.$client.prepare("SELECT * FROM app_state").all()).toEqual([]);
+describe("onboarding", () => {
+  it("leaves first run once a folder is saved, across restarts", async () => {
+    const databasePath = join(await createTemporaryFolder("lume-database-"), "library.sqlite");
+    await openTestDatabase(databasePath);
     expect(readLibrary().kind).toBe("first-run");
 
     await saveSource(await createTemporaryFolder("lume-source-"));
+    closeDatabase();
+    await openTestDatabase(databasePath);
 
-    expect(database.$client.prepare("SELECT id, onboarded_at FROM app_state").all()).toEqual([
-      { id: 1, onboarded_at: expect.any(Number) },
-    ]);
     expect(readLibrary().kind).toBe("library");
   });
 
-  it("stays first run when saving the folder fails", async () => {
+  it("stays in first run when the folder can't be saved", async () => {
     const database = await openTestDatabase();
+    const file = join(await createTemporaryFolder("lume-source-"), "song.mp3");
+    await writeFile(file, "");
+
+    await expect(saveSource(file)).rejects.toThrow("must be a folder");
+    expect(readLibrary().kind).toBe("first-run");
+
     database.$client.exec(`
-      CREATE TRIGGER reject_onboarding
-      BEFORE INSERT ON app_state
+      CREATE TRIGGER reject_sources
+      BEFORE INSERT ON library_sources
       BEGIN
-        SELECT RAISE(ABORT, 'marker write failed');
+        SELECT RAISE(ABORT, 'disk full');
       END;
     `);
 
     await expect(saveSource(await createTemporaryFolder("lume-source-"))).rejects.toThrow(
-      "marker write failed",
+      "disk full",
     );
-    expect(database.$client.prepare("SELECT id FROM library_sources").all()).toEqual([]);
-
-    database.$client.exec("DROP TRIGGER reject_onboarding");
-    const parent = await createTemporaryFolder("lume-source-");
-    const child = join(parent, "album");
-    await mkdir(child);
-    await saveSource(child);
-    database.$client.exec("DELETE FROM app_state");
-
-    await expect(saveSource(parent)).rejects.toThrow("overlaps");
-    expect(database.$client.prepare("SELECT id FROM app_state").all()).toEqual([]);
+    expect(getSources()).toEqual([]);
+    expect(readLibrary().kind).toBe("first-run");
   });
 
   it("keeps the library after every folder is forgotten", async () => {
