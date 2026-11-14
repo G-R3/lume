@@ -36,6 +36,44 @@ function reasons() {
 }
 
 describe("derived track availability", () => {
+  it("names why each track can't play, and a folder reason wins over a missing file", async () => {
+    const { folder, scan, source } = await createScannedSource(["gone", "kept"]);
+    await rm(join(folder, "gone.mp3"));
+    await scan();
+    expect(reasons()).toEqual([
+      { title: "gone", unavailableReason: "file-missing" },
+      { title: "kept", unavailableReason: null },
+    ]);
+
+    for (const [code, reason] of [
+      ["ENOENT", "source-missing"],
+      ["EACCES", "source-permission"],
+      ["EIO", "source-unreadable"],
+    ] as const) {
+      await scanSource(source.id, async () => {
+        throw Object.assign(new Error(code), { code });
+      });
+      expect(reasons()).toEqual([
+        { title: "gone", unavailableReason: reason },
+        { title: "kept", unavailableReason: reason },
+      ]);
+    }
+
+    await scan();
+    disableSource(source.id);
+    expect(reasons()).toEqual([
+      { title: "gone", unavailableReason: "source-off" },
+      { title: "kept", unavailableReason: "source-off" },
+    ]);
+
+    forgetSource(source.id);
+    expect(reasons()).toEqual([
+      { title: "gone", unavailableReason: "source-forgotten" },
+      { title: "kept", unavailableReason: "source-forgotten" },
+    ]);
+    expect(libraryTracks().every((track) => track.available === false)).toBe(true);
+  });
+
   it("closes a folder that can't be read without touching its tracks, and reopens it", async () => {
     const { folder, scan, source, storedTracks } = await createScannedSource(["kept", "gone"]);
     await rm(join(folder, "gone.mp3"));

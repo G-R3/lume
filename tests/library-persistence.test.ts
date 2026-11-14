@@ -100,10 +100,6 @@ describe("library source persistence", () => {
     expect(libraryTracks()).toMatchObject([
       { available: false, id: trackId, unavailableReason: "source-forgotten" },
     ]);
-    expect(database.$client.prepare("SELECT id, missing_since FROM tracks").get()).toEqual({
-      id: trackId,
-      missing_since: null,
-    });
 
     await expect(saveSource(folder)).resolves.toEqual(source);
     expect(getActiveSource(source.id).status).toMatchObject({ kind: "scanned", trackCount: 1 });
@@ -400,13 +396,15 @@ describe("track persistence", () => {
     await rename(originalPath, join(folder, "after.mp3"));
     await scanWith(source.id, await scanAudioFiles(folder));
 
-    const tracks = database.$client
-      .prepare("SELECT id, title, missing_since IS NOT NULL AS missing FROM tracks ORDER BY title")
-      .all();
+    const tracks = libraryTracks().map(({ id, title, unavailableReason }) => ({
+      id,
+      title,
+      unavailableReason,
+    }));
 
     expect(tracks).toEqual([
-      { id: expect.any(Number), missing: 0, title: "after" },
-      { id: originalId, missing: 1, title: "before" },
+      { id: expect.any(Number), title: "after", unavailableReason: null },
+      { id: originalId, title: "before", unavailableReason: "file-missing" },
     ]);
     expect(tracks[0]?.id).not.toBe(originalId);
   });

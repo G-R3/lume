@@ -6,7 +6,7 @@ import type {
   Track,
   TrackUnavailableReason,
 } from "../../shared/lib";
-import { presentLibrarySources, trackUnavailableLabels } from "./source-presentation";
+import { presentLibrarySources } from "./source-presentation";
 
 const now = new Date(2026, 10, 11, 12, 0).getTime();
 
@@ -431,15 +431,3 @@ describe("tracks empty state", () => {
   });
 });
 
-describe("track row labels", () => {
-  it.each([
-    { reason: "file-missing", label: "File missing" },
-    { reason: "source-off", label: "Folder off" },
-    { reason: "source-missing", label: "Not connected" },
-    { reason: "source-permission", label: "No access" },
-    { reason: "source-unreadable", label: "Can’t read folder" },
-    { reason: "source-forgotten", label: "Folder removed" },
-  ] as const)("labels $reason as $label", ({ label, reason }) => {
-    expect(trackUnavailableLabels[reason]).toBe(label);
-  });
-});
