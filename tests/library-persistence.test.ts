@@ -175,19 +175,23 @@ describe("onboarding", () => {
     await expect(saveSource(file)).rejects.toThrow("must be a folder");
     expect(readLibrary().kind).toBe("first-run");
 
-    database.$client.exec(`
-      CREATE TRIGGER reject_sources
-      BEFORE INSERT ON library_sources
-      BEGIN
-        SELECT RAISE(ABORT, 'disk full');
-      END;
-    `);
+    for (const table of ["library_sources", "app_state"]) {
+      database.$client.exec(`
+        CREATE TRIGGER reject_write
+        BEFORE INSERT ON ${table}
+        BEGIN
+          SELECT RAISE(ABORT, 'disk full');
+        END;
+      `);
 
-    await expect(saveSource(await createTemporaryFolder("lume-source-"))).rejects.toThrow(
-      "disk full",
-    );
-    expect(getSources()).toEqual([]);
-    expect(readLibrary().kind).toBe("first-run");
+      await expect(saveSource(await createTemporaryFolder("lume-source-"))).rejects.toThrow(
+        "disk full",
+      );
+      expect(getSources()).toEqual([]);
+      expect(readLibrary().kind).toBe("first-run");
+
+      database.$client.exec("DROP TRIGGER reject_write");
+    }
   });
 
   it("keeps the library after every folder is forgotten", async () => {
