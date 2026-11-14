@@ -1,4 +1,8 @@
-import { selectCurrentItem, selectPlaybackStatus } from "./queue/selectors";
+import {
+  selectActiveSourceEntryId,
+  selectCurrentItem,
+  selectPlaybackStatus,
+} from "./queue/selectors";
 import { expect, it } from "vite-plus/test";
 import type {
   LumeApi,
@@ -71,11 +75,9 @@ it.each([
     expect(playback.controller.getSnapshot().queue).toBe(cleared);
 
     playback.controller.next();
-    expect(playback.controller.getSnapshot().queue?.playback).toMatchObject({
-      kind: "active",
-      current: { trackId: 2 },
-      role: "source-step",
-    });
+    const advanced = playback.controller.getSnapshot().queue;
+    expect(selectCurrentItem(advanced)?.trackId).toBe(2);
+    expect(selectActiveSourceEntryId(advanced)).toBe(2);
   },
 );
 
@@ -1194,12 +1196,10 @@ it("starts the first queued track of a stopped session and clears the error in o
   playback.controller.enqueueTracks([3, 2, 3], "end");
 
   expect(published).toEqual([{ errorMessage: null, current: 3 }]);
-  expect(playback.controller.getSnapshot().queue?.playback).toEqual({
-    kind: "active",
-    status: "playing",
-    role: "standalone",
-    current: expect.objectContaining({ trackId: 3 }),
-  });
+  const queue = playback.controller.getSnapshot().queue;
+  expect(selectPlaybackStatus(queue)).toBe("playing");
+  expect(selectCurrentItem(queue)?.trackId).toBe(3);
+  expect(selectActiveSourceEntryId(queue)).toBeNull();
   expect(playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId)).toEqual([
     2, 3,
   ]);

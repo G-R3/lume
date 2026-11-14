@@ -1,4 +1,4 @@
-import { selectCurrentItem, selectPlaybackStatus } from "./selectors";
+import { selectActiveSourceEntryId, selectCurrentItem, selectPlaybackStatus } from "./selectors";
 import { expect, it } from "vite-plus/test";
 import type { QueuePosition } from "./commands";
 import type { QueueState } from "./model";
@@ -290,11 +290,8 @@ it("puts each Play next group ahead of earlier ones and plays them before resumi
   }
 
   expect(played.slice(0, 7)).toEqual(["D", "E", "A", "B", "C", "X", "Y"]);
-  expect(state?.playback).toMatchObject({
-    kind: "active",
-    role: "source-step",
-    current: { trackId: 2 },
-  });
+  expect(selectCurrentItem(state)?.trackId).toBe(2);
+  expect(selectActiveSourceEntryId(state)).toBe(2);
 });
 
 it("keeps every duplicate track that arrives with a distinct id", () => {
@@ -329,13 +326,14 @@ it("starts the first Play next item of a stopped queue and queues the rest in or
 
   const placed = enqueue(ended, ["A", "B", "C"], "start", context);
 
-  expect(placed?.playback).toMatchObject({
-    kind: "active",
-    status: "playing",
-    role: "standalone",
-    current: { queueItemId: "A" },
-  });
+  expect(selectPlaybackStatus(placed)).toBe("playing");
+  expect(selectCurrentItem(placed)?.queueItemId).toBe("A");
+  expect(selectActiveSourceEntryId(placed)).toBeNull();
   expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(["B", "C"]);
+
+  const next = transition(placed, { type: "next" }, context);
+  const back = transition(next, { type: "previous" }, context);
+  expect(selectCurrentItem(back)?.trackId).toBe(6);
 });
 
 function startedAt(sourceEntryId: number, context: ReturnType<typeof queueContext>) {

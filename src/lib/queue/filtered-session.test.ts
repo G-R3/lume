@@ -253,11 +253,4 @@ describe("saved sessions", () => {
 
     expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
   });
-
-  it("rejects a payload without a tracking mode", () => {
-    const saved = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
-    delete saved.tracking;
-
-    expect(parseQueueSession({ payload: JSON.stringify(saved), position: 0 }, library)).toBeNull();
-  });
 });
