@@ -1,4 +1,5 @@
 import type { LumeApi, MusicLibrary, PlaylistDetails, Track } from "../../shared/lib";
+import { createCoalescingWriter } from "@/lib/coalescing-writer";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
@@ -42,6 +43,8 @@ type SourceChange = Extract<
 >;
 
 type PlaylistRestart = { playlistId: number; edited: boolean };
+
+type SavedSession = { state: QueueState; position: number };
 
 type SessionRequest = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
@@ -91,9 +94,6 @@ export function createPlaybackController(dependencies: {
   let requestId: string | null = null;
   // Chromium keeps reusing a failed load for the same URL, so these tracks reload under a fresh one.
   const failedTrackIds = new Set<number>();
-  let pendingSave: { state: QueueState; position: number } | null = null;
-  let savedState: QueueState | null = null;
-  let saving = false;
 
   const publish = (next: Snapshot) => {
     snapshot = next;
@@ -108,42 +108,25 @@ export function createPlaybackController(dependencies: {
     publish({ ...snapshot, failures: { ...snapshot.failures, [slot]: value } });
   };
 
-  const savePending = async () => {
-    if (saving) return;
-    saving = true;
+  const sessionWriter = createCoalescingWriter<SavedSession>({
+    write: (next, stored) =>
+      next.state === stored?.state
+        ? dependencies.storage.savePosition(next.position)
+        : dependencies.storage.save({
+            payload: serializeQueueSession(next.state),
+            position: next.position,
+          }),
+    // Electron handles sent saves before the final synchronous flush from this renderer.
+    writeFinal: (final) =>
+      dependencies.storage.flush({
+        payload: serializeQueueSession(final.state),
+        position: final.position,
+      }),
+    onResult: (result) => setFailure("save", result === "failed"),
+  });
 
-    while (pendingSave) {
-      const next = pendingSave;
-      pendingSave = null;
-      const saveQueue = next.state !== savedState;
-      savedState = next.state;
-
-      await (
-        saveQueue
-          ? dependencies.storage.save({
-              payload: serializeQueueSession(next.state),
-              position: next.position,
-            })
-          : dependencies.storage.savePosition(next.position)
-      ).then(
-        () => setFailure("save", false),
-        () => {
-          savedState = null;
-          setFailure("save", true);
-        },
-      );
-    }
-
-    saving = false;
-  };
-
-  const persist = (state: QueueState, position: number) => {
-    if (lifecycle === "closed") return;
-
-    pendingSave = { state, position: savedPosition(position) };
-
-    void Promise.resolve().then(savePending);
-  };
+  const persist = (state: QueueState, position: number) =>
+    sessionWriter.write({ state, position: savedPosition(position) });
 
   const loadCurrent = (
     position: number,
@@ -518,14 +501,12 @@ export function createPlaybackController(dependencies: {
     flush: () => {
       lifecycle = "closed";
       playlistRestart = null;
-      pendingSave = null;
-
-      // Electron handles sent saves before the final synchronous flush from this renderer.
-      if (snapshot.queue)
-        dependencies.storage.flush({
-          payload: serializeQueueSession(snapshot.queue),
+      sessionWriter.close(
+        snapshot.queue && {
+          state: snapshot.queue,
           position: savedPosition(dependencies.audio.getPosition()),
-        });
+        },
+      );
     },
     getSnapshot: () => snapshot,
     handleAudioEvent,
