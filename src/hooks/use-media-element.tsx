@@ -48,13 +48,9 @@ export function useMediaElement(options: {
       if (call?.type === "play")
         void call.element.play().catch(() =>
           dispatch({
-            type: "element",
-            element: call.element,
-            report: {
-              type: "playrejected",
-              attempt: call.attempt,
-              loadFailed: Boolean(call.element.error),
-            },
+            type: "playrejected",
+            attempt: call.attempt,
+            loadFailed: Boolean(call.element.error),
           }),
         );
 

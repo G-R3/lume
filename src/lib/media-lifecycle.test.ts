@@ -134,7 +134,6 @@ describe("staleness", () => {
     ["pause", () => ({ type: "pause", paused: true, ended: false })],
     ["ended", () => ({ type: "ended" })],
     ["error", () => ({ type: "error" })],
-    ["playrejected", (attempt) => ({ type: "playrejected", attempt, loadFailed: false })],
     ["seekapplied", () => ({ type: "seekapplied", currentTime: 4, report: true })],
   ])(
     "ignores %s from the previous request's element before and after React commits",
@@ -173,20 +172,30 @@ describe("staleness", () => {
     expectInert(lifecycle, { type: "committed", requestId: "a" });
   });
 
-  it("keeps a deferred seek and a pending play through a ref replay, and ignores a foreign detach", () => {
+  it("keeps its element when a different element detaches", () => {
+    const { steps } = run([
+      ...loadA(true),
+      { type: "detach", element: b },
+      { type: "committed", requestId: "a" },
+    ]);
+
+    expect(effects(steps[2]!)).toEqual({});
+    expect(steps[3]!.element).toMatchObject({ type: "play", element: a });
+  });
+
+  it("keeps a deferred seek and a pending play through a ref replay", () => {
     const { steps } = run([
       ...loadA(true),
       seek(22),
-      { type: "detach", element: b },
       { type: "detach", element: a },
       { type: "attach", requestId: "a", element: a },
       { type: "committed", requestId: "a" },
       report(a, { type: "loadedmetadata", duration: 60 }),
     ]);
 
-    expect(steps.slice(3, 6).map(effects)).toEqual([{}, {}, {}]);
-    expect(steps[6]!.element).toMatchObject({ type: "play", element: a });
-    expect(steps[7]!.element).toEqual({ type: "seek", element: a, time: 22, report: false });
+    expect(steps.slice(3, 5).map(effects)).toEqual([{}, {}]);
+    expect(steps[5]!.element).toMatchObject({ type: "play", element: a });
+    expect(steps[6]!.element).toEqual({ type: "seek", element: a, time: 22, report: false });
   });
 });
 
@@ -245,8 +254,11 @@ describe("play", () => {
 });
 
 describe("play rejection", () => {
-  const rejected = (attempt: number, loadFailed = false) =>
-    report(a, { type: "playrejected", attempt, loadFailed });
+  const rejected = (attempt: number, loadFailed = false): MediaEvent<Audio> => ({
+    type: "playrejected",
+    attempt,
+    loadFailed,
+  });
 
   const committedPlay = (shouldPlay = true) => {
     const { steps, lifecycle } = run([...loadA(shouldPlay), { type: "committed", requestId: "a" }]);
@@ -288,6 +300,23 @@ describe("play rejection", () => {
     const { lifecycle, attempt } = committedPlay();
     const { last } = run([report(a, { type: "error" }), rejected(attempt, true)], lifecycle);
     expect(last.emit).toBeUndefined();
+  });
+
+  it("drops a rejection from a previous request", () => {
+    const { lifecycle, attempt } = committedPlay();
+
+    const { last } = run(
+      [{ type: "load", request: request("b", true), position: 0 }, rejected(attempt)],
+      lifecycle,
+    );
+
+    expect(last.emit).toBeUndefined();
+  });
+
+  it("still accepts the latest rejection after its element detaches", () => {
+    const { lifecycle, attempt } = committedPlay();
+    const { last } = run([{ type: "detach", element: a }, rejected(attempt)], lifecycle);
+    expect(last.emit).toEqual({ type: "error", reason: "rejected", ...ids });
   });
 
   it("still accepts a rejection after the element itself paused", () => {

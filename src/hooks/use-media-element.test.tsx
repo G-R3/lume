@@ -67,7 +67,14 @@ function mountMedia(strict = false, onRender = () => {}) {
       ),
     ),
   );
-  onTestFinished(() => act(() => root.unmount()));
+  let mounted = true;
+
+  const unmount = () => {
+    if (mounted) act(() => root.unmount());
+    mounted = false;
+  };
+
+  onTestFinished(unmount);
 
   return {
     get media() {
@@ -84,6 +91,7 @@ function mountMedia(strict = false, onRender = () => {}) {
     },
     attempts,
     pause,
+    unmount,
     events,
     positions,
     callbacks,
@@ -339,9 +347,22 @@ it("does not rerender for attachment, deferred seeks, or time updates within a s
   const settled = renders;
   act(() => probe.media.seek(3));
   emit(probe.audio, "loadedmetadata", { duration: 60 });
+  expect(probe.audio.currentTime).toBe(3);
   emit(probe.audio, "timeupdate", { currentTime: 12.1 });
   emit(probe.audio, "timeupdate", { currentTime: 12.6 });
+  expect(probe.positions).toEqual([3, 12.1]);
+  expect(probe.media.getPosition()).toBe(12.6);
   expect(renders).toBe(settled);
   act(() => probe.media.setVolume(0.5));
   expect(renders).toBe(settled + 1);
+});
+
+it("still reports a play rejection that settles after the hook unmounts", async () => {
+  const probe = mountMedia();
+  act(() => probe.media.load(request("a", true)));
+  probe.unmount();
+  await act(async () => probe.attempts[0]!(new DOMException("aborted")));
+  expect(probe.events).toEqual([
+    { type: "error", requestId: "a", queueItemId: "same-item", reason: "rejected" },
+  ]);
 });
