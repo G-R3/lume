@@ -1,5 +1,6 @@
 import { selectCurrentItem, selectPlaybackStatus } from "./selectors";
 import { expect, it } from "vite-plus/test";
+import { ZodError } from "zod";
 import type { QueueRandom } from "./commands";
 import type { QueueState } from "./model";
 import { parseQueueSession, serializeQueueSession } from "./persistence";
@@ -414,7 +415,7 @@ it("rejects duplicate stored queue IDs and restores valid deleted-anchor continu
     ),
   };
 
-  expect(restore(duplicateIds, 7.25)).toBe(null);
+  expect(() => restore(duplicateIds, 7.25)).toThrow(ZodError);
 
   const restored = restore(removed, 7.25);
 
@@ -503,7 +504,7 @@ it("rejects a saved session whose source position names an unknown source entry"
   expect(restore(state, 0)?.state.sourceQueue.map((item) => item.trackId)).toEqual([2, 3, 4, 5]);
 
   const corrupt: QueueState = { ...state, sourcePosition: { kind: "entry", sourceEntryId: 9 } };
-  expect(restore(corrupt, 0)).toBe(null);
+  expect(() => restore(corrupt, 0)).toThrow(ZodError);
 });
 
 function restore(state: QueueState, position: number) {

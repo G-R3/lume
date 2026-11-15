@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import { ZodError } from "zod";
 import type { MusicLibrary } from "../../../shared/lib";
 import type { QueueRandom } from "./commands";
 import type { PlayableSource, QueueState } from "./model";
@@ -247,10 +248,10 @@ describe("saved sessions", () => {
     expect(restored?.state.sort).toEqual({ field: "added", direction: "asc" });
   });
 
-  it("restores nothing from a payload saved in an older format, without throwing", () => {
+  it("rejects a payload saved in an older format", () => {
     const state = JSON.parse(serializeQueueSession(start(allTracks, [1, 2], null)));
     const payload = JSON.stringify({ version: 7, state });
 
-    expect(parseQueueSession({ payload, position: 3 }, library)).toBeNull();
+    expect(() => parseQueueSession({ payload, position: 3 }, library)).toThrow(ZodError);
   });
 });

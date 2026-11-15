@@ -398,8 +398,15 @@ export function createPlaybackController(dependencies: {
         if (lifecycle === "closed") return;
         lifecycle = "ready";
         const latestLibrary = snapshot.library ?? library;
-        const restored = parseQueueSession(raw, latestLibrary);
-        const restore = raw !== null && restored === null;
+        let restored: ReturnType<typeof parseQueueSession> = null;
+        let restore = false;
+
+        try {
+          restored = parseQueueSession(raw, latestLibrary);
+        } catch (error) {
+          console.error("Could not parse the saved playback session", error);
+          restore = true;
+        }
 
         if (restored) {
           const queue = transition(
@@ -417,8 +424,9 @@ export function createPlaybackController(dependencies: {
 
         publish({ ...snapshot, isInitialized: true, failures: { ...snapshot.failures, restore } });
       })
-      .catch(() => {
+      .catch((error) => {
         if (lifecycle === "closed") return;
+        console.error("Could not load the saved playback session", error);
         lifecycle = "ready";
         publish({
           ...snapshot,

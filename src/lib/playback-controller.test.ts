@@ -3,7 +3,8 @@ import {
   selectCurrentItem,
   selectPlaybackStatus,
 } from "./queue/selectors";
-import { expect, it } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
+import { ZodError } from "zod";
 import type {
   LumeApi,
   MusicLibrary,
@@ -482,8 +483,15 @@ it("restores a shuffled queue and position exactly, paused without new randomnes
     },
   });
 
-  restored.controller.syncLibrary(library);
-  await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+  try {
+    restored.controller.syncLibrary(library);
+    await expect.poll(() => restored.controller.getSnapshot().isInitialized).toBe(true);
+    expect(consoleError).not.toHaveBeenCalled();
+  } finally {
+    consoleError.mockRestore();
+  }
 
   expect(restored.controller.getSnapshot().queue).toEqual(
     pausedCopy(original.controller.getSnapshot().queue),
@@ -1127,23 +1135,39 @@ it("restores a session's sort after a relaunch", async () => {
 });
 
 it.each([
-  { saved: "an older format", payload: () => olderFormatPayload(), restore: true },
-  { saved: "a corrupt payload", payload: () => Promise.resolve("{not json"), restore: true },
-  { saved: "nothing", payload: null, restore: false },
+  {
+    saved: "an older format",
+    payload: () => olderFormatPayload(),
+    restore: true,
+    logs: [["Could not parse the saved playback session", expect.any(ZodError)]],
+  },
+  {
+    saved: "a corrupt payload",
+    payload: () => Promise.resolve("{not json"),
+    restore: true,
+    logs: [["Could not parse the saved playback session", expect.any(SyntaxError)]],
+  },
+  { saved: "nothing", payload: null, restore: false, logs: [] },
 ])("restores no queue from $saved, reporting a restore failure: $restore", async (input) => {
   const payload = input.payload && (await input.payload());
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-  const restored = await createReadyPlayback(libraryOf([1, 2]), {
-    storage: loadingStorage(() =>
-      Promise.resolve(payload === null ? null : { payload, position: 4 }),
-    ),
-  });
+  try {
+    const restored = await createReadyPlayback(libraryOf([1, 2]), {
+      storage: loadingStorage(() =>
+        Promise.resolve(payload === null ? null : { payload, position: 4 }),
+      ),
+    });
 
-  expect(restored.controller.getSnapshot()).toMatchObject({
-    queue: null,
-    failures: { ...noFailures, restore: input.restore },
-  });
-  expect(restored.requests).toEqual([]);
+    expect(restored.controller.getSnapshot()).toMatchObject({
+      queue: null,
+      failures: { ...noFailures, restore: input.restore },
+    });
+    expect(restored.requests).toEqual([]);
+    expect(consoleError.mock.calls).toEqual(input.logs);
+  } finally {
+    consoleError.mockRestore();
+  }
 });
 
 async function olderFormatPayload() {
@@ -1306,25 +1330,36 @@ it("ignores commands until the restore finishes, then restores paused against th
 });
 
 it("recovers from a failed restore with a restore failure and no queue, then plays normally", async () => {
-  const playback = await createReadyPlayback(libraryOf([1, 2]), {
-    storage: loadingStorage(() => Promise.reject(new Error("Database locked"))),
-  });
+  const rejection = new Error("Database locked");
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-  expect(playback.controller.getSnapshot()).toMatchObject({
-    queue: null,
-    failures: { ...noFailures, restore: true },
-  });
-  expect(playback.requests).toEqual([]);
+  try {
+    const playback = await createReadyPlayback(libraryOf([1, 2]), {
+      storage: loadingStorage(() => Promise.reject(rejection)),
+    });
 
-  playback.controller.playSourceEntry(allTracks(playback.controller), 2);
+    expect(consoleError.mock.calls).toEqual([
+      ["Could not load the saved playback session", rejection],
+    ]);
+    expect(consoleError.mock.calls[0]?.[1]).toBe(rejection);
+    expect(playback.controller.getSnapshot()).toMatchObject({
+      queue: null,
+      failures: { ...noFailures, restore: true },
+    });
+    expect(playback.requests).toEqual([]);
 
-  expect(playback.controller.getSnapshot()).toMatchObject({
-    failures: noFailures,
-    queue: { playback: { kind: "active", status: "playing", current: { trackId: 2 } } },
-  });
-  expect(playback.requests).toEqual([
-    expect.objectContaining({ url: "lume://track/2", shouldPlay: true }),
-  ]);
+    playback.controller.playSourceEntry(allTracks(playback.controller), 2);
+
+    expect(playback.controller.getSnapshot()).toMatchObject({
+      failures: noFailures,
+      queue: { playback: { kind: "active", status: "playing", current: { trackId: 2 } } },
+    });
+    expect(playback.requests).toEqual([
+      expect.objectContaining({ url: "lume://track/2", shouldPlay: true }),
+    ]);
+  } finally {
+    consoleError.mockRestore();
+  }
 });
 
 it.each(["resolves", "rejects"] as const)(
