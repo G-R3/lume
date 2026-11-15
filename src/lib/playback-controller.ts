@@ -169,7 +169,10 @@ export function createPlaybackController(dependencies: {
     );
   };
 
-  const commit = (queue: QueueState | null, { restartAudio = false } = {}) => {
+  const commit = (
+    queue: QueueState | null,
+    { restartAudio = false, keepFailures = false } = {},
+  ) => {
     const previous = snapshot.queue;
 
     if (!queue || queue === previous || lifecycle === "closed") return;
@@ -181,8 +184,9 @@ export function createPlaybackController(dependencies: {
     publish({
       ...snapshot,
       queue,
-      failures: load
-        ? { ...snapshot.failures, track: null, restore: false, sourceReload: false }
+      failures:
+        load && !keepFailures
+          ? { ...snapshot.failures, track: null, restore: false, sourceReload: false }
         : snapshot.failures,
     });
     persist(queue, load ? 0 : dependencies.audio.getPosition());
@@ -190,7 +194,10 @@ export function createPlaybackController(dependencies: {
     if (load) loadCurrent(0);
   };
 
-  const dispatch = (command: QueueCommand, options?: { restartAudio?: boolean }) => {
+  const dispatch = (
+    command: QueueCommand,
+    options?: { restartAudio?: boolean; keepFailures?: boolean },
+  ) => {
     commit(
       transition(snapshot.queue, command, {
         availableTrackIds: snapshot.availableTrackIds,
@@ -200,17 +207,28 @@ export function createPlaybackController(dependencies: {
     );
   };
 
-  const dispatchSessionStart = (view: SessionSource, request: SessionRequest) => {
-    dispatch({
-      type: "startSession",
-      source: view.source,
-      entries: view.entries,
-      filter: view.filter,
-      sort: view.sort,
-      sessionId: crypto.randomUUID(),
-      ...request,
-    });
+  const dispatchSessionStart = (
+    view: SessionSource,
+    request: SessionRequest,
+    options?: { keepFailures?: boolean },
+  ) => {
+    dispatch(
+      {
+        type: "startSession",
+        source: view.source,
+        entries: view.entries,
+        filter: view.filter,
+        sort: view.sort,
+        sessionId: crypto.randomUUID(),
+        ...request,
+      },
+      options,
+    );
   };
+
+  // A queue-end restart continues the advance that caused it, so a skipped track keeps its failure.
+  const restartSession = (view: SessionSource, request: SessionRequest) =>
+    dispatchSessionStart(view, request, { keepFailures: true });
 
   const userCommand =
     <Args extends unknown[]>(run: (...args: Args) => void) =>
@@ -244,7 +262,7 @@ export function createPlaybackController(dependencies: {
     setFailure("sourceReload", false);
 
     if (data)
-      dispatchSessionStart(
+      restartSession(
         {
           source: { kind: "playlist", playlistId: data.id, title: data.title },
           entries: playlistEntries(data, snapshot.tracksById, sort),
@@ -270,7 +288,7 @@ export function createPlaybackController(dependencies: {
     } satisfies SessionRequest;
 
     if (queue.tracking.kind === "frozen") {
-      dispatchSessionStart(
+      restartSession(
         {
           source: queue.source,
           entries: queue.sourceEntries.filter((entry) => snapshot.tracksById.has(entry.trackId)),
@@ -285,7 +303,7 @@ export function createPlaybackController(dependencies: {
 
     if (queue.source.kind === "all-tracks") {
       if (snapshot.library)
-        dispatchSessionStart(
+        restartSession(
           {
             source: queue.source,
             entries: libraryEntries(snapshot.library, queue.sort),

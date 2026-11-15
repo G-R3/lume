@@ -1776,6 +1776,63 @@ it("reloads a restored track at its saved position once a rescan makes it availa
   });
 });
 
+it.each(["all-tracks", "playlist"] as const)(
+  "keeps a failed last track's record through the %s restart that follows it",
+  async (source) => {
+    const library = { ...libraryOf([1]), tracks: [track(1), track(2)] };
+
+    const view = (controller: ReturnType<typeof createPlaybackController>) =>
+      source === "playlist" ? playlistView(twoTrackPlaylist) : allTracks(controller);
+
+    const playing = await createReadyPlayback(library, {
+      loadPlaylist: () => Promise.resolve(twoTrackPlaylist),
+      hasTrackFile: () => Promise.resolve(false),
+    });
+
+    playing.controller.playSourceEntry(view(playing.controller), source === "playlist" ? 11 : 2);
+    const loaded = playing.requests.at(-1);
+
+    if (!loaded) throw new Error("Expected the last track to load");
+    playing.controller.handleAudioEvent({ type: "started", ...loaded });
+    playing.controller.handleAudioEvent({ type: "error", reason: "load", ...loaded });
+    await settle();
+    await settle();
+
+    expect(playing.controller.getSnapshot()).toMatchObject({
+      failures: { track: { kind: "load", trackId: 2, file: "missing" } },
+      queue: { playback: { kind: "active", status: "paused", current: { trackId: 1 } } },
+    });
+
+    const playlists = [{ id: 1, title: "Source", description: null, trackCount: 2 }];
+
+    const original = await createReadyPlayback(
+      { ...libraryOf([1, 2]), playlists },
+      { loadPlaylist: () => Promise.resolve(twoTrackPlaylist) },
+    );
+
+    original.controller.playSourceEntry(view(original.controller), source === "playlist" ? 11 : 2);
+    original.controller.flush();
+    const saved = original.flushes.at(-1) ?? null;
+
+    const restored = await createReadyPlayback(
+      { ...libraryOf([1]), playlists, tracks: [track(1), { ...track(2), available: false }] },
+      {
+        storage: loadingStorage(() => Promise.resolve(saved)),
+        loadPlaylist: () => Promise.resolve(twoTrackPlaylist),
+      },
+    );
+
+    restored.controller.resume();
+    await settle();
+    await settle();
+
+    expect(restored.controller.getSnapshot()).toMatchObject({
+      failures: { track: { kind: "unavailable", trackId: 2 } },
+      queue: { playback: { kind: "active", current: { trackId: 1 } } },
+    });
+  },
+);
+
 it("skips a restored track that is still unavailable when resumed", async () => {
   const saved = await savedSession(libraryOf([1, 2]), 1, 12);
 
