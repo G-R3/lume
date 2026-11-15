@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useReducer } from "react";
-import type { LibrarySnapshot } from "../../shared/lib";
+
+export type LibraryStage = "first-run" | "scanning" | "library";
 
 export type Onboarding =
   | { phase: "none" }
@@ -9,7 +10,7 @@ export type Onboarding =
   | { phase: "fading-out" };
 
 export type OnboardingEvent =
-  | { type: "library-shown"; kind: LibrarySnapshot["kind"] | undefined; onTracksRoute: boolean }
+  | { type: "library-shown"; stage: LibraryStage | undefined; onTracksRoute: boolean }
   | { type: "list-ready"; list: HTMLElement | null }
   | { type: "reveal-ended" };
 
@@ -24,9 +25,9 @@ const fadingOut = { phase: "fading-out" } as const;
 export function stepOnboarding(state: Onboarding, event: OnboardingEvent): Onboarding {
   switch (event.type) {
     case "library-shown":
-      if (event.kind === "first-run") return state.phase === "first-run" ? state : firstRun;
+      if (event.stage === "first-run") return state.phase === "first-run" ? state : firstRun;
 
-      if (event.kind === undefined) return state;
+      if (event.stage === undefined || event.stage === "scanning") return state;
 
       if (state.phase === "first-run") return event.onTracksRoute ? waitingForList : fadingOut;
 
@@ -42,9 +43,9 @@ export function stepOnboarding(state: Onboarding, event: OnboardingEvent): Onboa
   }
 }
 
-export function useOnboarding(kind: LibrarySnapshot["kind"] | undefined, onTracksRoute: boolean) {
+export function useOnboarding(stage: LibraryStage | undefined, onTracksRoute: boolean) {
   const [onboarding, dispatch] = useReducer(stepOnboarding, none);
-  const shown = { type: "library-shown", kind, onTracksRoute } as const;
+  const shown = { type: "library-shown", stage, onTracksRoute } as const;
 
   if (stepOnboarding(onboarding, shown) !== onboarding) dispatch(shown);
 

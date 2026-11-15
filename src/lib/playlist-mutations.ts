@@ -1,30 +1,31 @@
 import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   type AddTracksToPlaylistInput,
-  parseLibrarySnapshot,
   type PlaylistCreationInput,
   type PlaylistTrack,
   type RemovePlaylistTracksInput,
 } from "../../shared/lib";
 import { usePlayback } from "@/hooks/use-playback";
-import { libraryCommandOptions, refreshLibrary, replaceLibrary } from "@/lib/library-query";
+import { reachLibraryRevision } from "@/lib/library-query";
 import { playlistQueryOptions } from "@/lib/playlist-query";
 import { forgetViewSort } from "@/lib/view-sort";
+
+const playlistEditsInOrder = { networkMode: "always", scope: { id: "playlist-edits" } } as const;
 
 export function useCreatePlaylistMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    ...libraryCommandOptions,
+    ...playlistEditsInOrder,
     mutationFn: async (input: PlaylistCreationInput) => {
-      const result = await window.lume.createPlaylist(input);
+      const { playlist, revision } = await window.lume.createPlaylist(input);
+      await reachLibraryRevision(queryClient, revision);
 
-      return { library: parseLibrarySnapshot(result.library), playlist: result.playlist };
+      return { playlist };
     },
-    onSuccess: (result) => {
-      forgetViewSort({ kind: "playlist", playlistId: result.playlist.id });
-      queryClient.setQueryData(playlistQueryOptions(result.playlist.id).queryKey, result.playlist);
-      replaceLibrary(queryClient, result.library);
+    onSuccess: ({ playlist }) => {
+      forgetViewSort({ kind: "playlist", playlistId: playlist.id });
+      queryClient.setQueryData(playlistQueryOptions(playlist.id).queryKey, playlist);
     },
   });
 }
@@ -34,14 +35,13 @@ export function useDeletePlaylistMutation() {
   const playback = usePlayback();
 
   return useMutation({
-    ...libraryCommandOptions,
+    ...playlistEditsInOrder,
     mutationFn: async (playlistId: number) =>
-      parseLibrarySnapshot(await window.lume.deletePlaylist(playlistId)),
-    onSuccess: (library, playlistId) => {
+      reachLibraryRevision(queryClient, await window.lume.deletePlaylist(playlistId)),
+    onSuccess: (_result, playlistId) => {
       forgetViewSort({ kind: "playlist", playlistId });
       commitPlaylistDeletion(queryClient, playlistId);
       playback.applySourceChange({ type: "sourceDeleted", playlistId });
-      replaceLibrary(queryClient, library);
     },
   });
 }
@@ -51,7 +51,7 @@ export function useAddTracksToPlaylistMutation() {
   const playback = usePlayback();
 
   return useMutation({
-    ...libraryCommandOptions,
+    ...playlistEditsInOrder,
     mutationFn: (input: AddTracksToPlaylistInput) => window.lume.addTracksToPlaylist(input),
     onSuccess: (result, input) => {
       if (result.kind === "duplicate" || result.tracks.length === 0) return;
@@ -66,7 +66,7 @@ export function useAddTracksToPlaylistMutation() {
         })),
       });
 
-      return invalidatePlaylistQueries(queryClient, input.playlistId);
+      return invalidatePlaylistQuery(queryClient, input.playlistId);
     },
   });
 }
@@ -76,7 +76,7 @@ export function useRemovePlaylistTracksMutation() {
   const playback = usePlayback();
 
   return useMutation({
-    ...libraryCommandOptions,
+    ...playlistEditsInOrder,
     mutationFn: (input: RemovePlaylistTracksInput) => window.lume.removePlaylistTracks(input),
     onSuccess: (_result, input) => {
       commitPlaylistRemoval(queryClient, input.playlistId, input.playlistTrackIds);
@@ -86,16 +86,13 @@ export function useRemovePlaylistTracksMutation() {
         sourceEntryIds: input.playlistTrackIds,
       });
 
-      return invalidatePlaylistQueries(queryClient, input.playlistId);
+      return invalidatePlaylistQuery(queryClient, input.playlistId);
     },
   });
 }
 
-function invalidatePlaylistQueries(queryClient: QueryClient, playlistId: number) {
-  return Promise.all([
-    refreshLibrary(queryClient),
-    queryClient.invalidateQueries({ queryKey: playlistQueryOptions(playlistId).queryKey }),
-  ]);
+function invalidatePlaylistQuery(queryClient: QueryClient, playlistId: number) {
+  return queryClient.invalidateQueries({ queryKey: playlistQueryOptions(playlistId).queryKey });
 }
 
 function commitPlaylistAddition(

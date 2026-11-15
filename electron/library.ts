@@ -3,7 +3,6 @@ import { isAbsolute, relative } from "node:path";
 import { and, count, eq, inArray, isNull, ne, notExists, sql, type SQL } from "drizzle-orm";
 import {
   type LibrarySource,
-  type LibraryUpdate,
   type SetTracksLikedInput,
   type SourceStatus,
   type TracksLikedResult,
@@ -19,7 +18,6 @@ import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   getDatabase,
   parameterChunks,
-  runImmediateTransaction,
   type LibraryDatabase,
   type LibraryTransaction,
 } from "./database";
@@ -31,33 +29,24 @@ import {
   type FolderReadFailure,
   type ScannedTrack,
 } from "./library-files";
-import { getPlaylists, requireTracks } from "./playlists";
 import {
-  gateChanged,
-  sourceGate,
-  trackUnavailableReason,
-  type SourceGate,
-} from "./track-availability";
+  commitLibrary,
+  currentLibraryRevision,
+  getLibraryState,
+  publishScans,
+} from "./library-events";
+import { getPlaylists, requireTracks } from "./playlists";
+import { sourceGate, trackUnavailableReason, type SourceGate } from "./track-availability";
 
 type ScanFiles = typeof scanAudioFiles;
 
 type SourceScanStop = "superseded" | "disabled";
 
 export type SourceScanOutcome =
-  | { kind: "committed"; tracksChanged: boolean }
+  | { kind: "committed" }
   | { kind: "dropped"; reason: "not-enabled" | SourceScanStop };
 
-export type LibraryScanOutcome = "no-enabled-sources" | "tracks-changed" | "tracks-unchanged";
-
 type SourceScan = { controller: AbortController; stoppedBy: SourceScanStop | null };
-
-let libraryRevision = 0;
-
-function nextLibraryRevision() {
-  libraryRevision += 1;
-
-  return libraryRevision;
-}
 
 const currentScans = new WeakMap<LibraryDatabase, Map<number, SourceScan>>();
 
@@ -72,7 +61,9 @@ function startSourceScan(database: LibraryDatabase, sourceId: number) {
   stopSourceScan(database, sourceId, "superseded");
 
   const scan: SourceScan = { controller: new AbortController(), stoppedBy: null };
-  currentScansOf(database).set(sourceId, scan);
+  const scans = currentScansOf(database);
+  scans.set(sourceId, scan);
+  publishScans([...scans.keys()]);
 
   return scan;
 }
@@ -86,12 +77,16 @@ function stopSourceScan(database: LibraryDatabase, sourceId: number, reason: Sou
   scans.delete(sourceId);
   scan.stoppedBy = reason;
   scan.controller.abort(reason);
+  publishScans([...scans.keys()]);
 }
 
 function finishSourceScan(database: LibraryDatabase, sourceId: number, scan: SourceScan) {
   const scans = currentScansOf(database);
 
-  if (scans.get(sourceId) === scan) scans.delete(sourceId);
+  if (scans.get(sourceId) !== scan) return;
+
+  scans.delete(sourceId);
+  publishScans([...scans.keys()]);
 }
 
 function displayAlbumArtists(albumArtists: string[], artists: string[]) {
@@ -145,7 +140,7 @@ type StoredTrackRow = [
 // Returns the library as JSON, with each track as a tuple ([addedAt, album, ...]) instead of an object
 // tuples don't repeat the field names for every track, so the string is smaller and faster to send
 export function getLibrarySnapshotJson() {
-  if (!isOnboarded()) return stringifyFirstRunLibrary(nextLibraryRevision());
+  if (!isOnboarded()) return stringifyFirstRunLibrary(getLibraryState());
 
   const database = getDatabase();
   const gates = getSourceGates(database);
@@ -161,7 +156,7 @@ export function getLibrarySnapshotJson() {
     .values() as StoredTrackRow[];
 
   return stringifyLibrary(
-    nextLibraryRevision(),
+    getLibraryState(),
     getPlaylists(),
     getSources(),
     rows.map((row) => trackTupleFromRow(row, gates)),
@@ -254,34 +249,37 @@ function trackTupleFromRow(
 export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
   const trackIds = [...new Set(input.trackIds)];
 
-  return runImmediateTransaction(getDatabase(), (transaction) => {
-    requireTracks(transaction, trackIds);
+  const likes = commitLibrary(
+    getDatabase(),
+    (transaction) => {
+      requireTracks(transaction, trackIds);
 
-    const likedAt = input.liked ? Date.now() : null;
+      const likedAt = input.liked ? Date.now() : null;
 
-    if (likedAt === null) {
-      for (const ids of parameterChunks(trackIds)) {
-        transaction
-          .update(trackState)
-          .set({ likedAt })
-          .where(inArray(trackState.trackId, ids))
-          .run();
+      if (likedAt === null) {
+        for (const ids of parameterChunks(trackIds)) {
+          transaction
+            .update(trackState)
+            .set({ likedAt })
+            .where(inArray(trackState.trackId, ids))
+            .run();
+        }
+      } else {
+        for (const ids of parameterChunks(trackIds, 2)) {
+          transaction
+            .insert(trackState)
+            .values(ids.map((trackId) => ({ likedAt, trackId })))
+            .onConflictDoUpdate({ set: { likedAt }, target: trackState.trackId })
+            .run();
+        }
       }
-    } else {
-      for (const ids of parameterChunks(trackIds, 2)) {
-        transaction
-          .insert(trackState)
-          .values(ids.map((trackId) => ({ likedAt, trackId })))
-          .onConflictDoUpdate({ set: { likedAt }, target: trackState.trackId })
-          .run();
-      }
-    }
 
-    return {
-      likes: trackIds.map((trackId) => ({ likedAt, trackId })),
-      revision: nextLibraryRevision(),
-    };
-  });
+      return trackIds.map((trackId) => ({ likedAt, trackId }));
+    },
+    (likes, revision) => ({ kind: "tracks-liked", likes, revision }),
+  );
+
+  return { likes, revision: currentLibraryRevision() };
 }
 
 export function getSources() {
@@ -365,7 +363,7 @@ export async function saveSource(selectedPath: string) {
 
   if (!folder.isDirectory()) throw new Error("A music source must be a folder");
 
-  return runImmediateTransaction(getDatabase(), (transaction) => {
+  return commitLibrary(getDatabase(), (transaction) => {
     rejectSourceOverlap(transaction, path);
 
     const now = Date.now();
@@ -386,75 +384,45 @@ export async function saveSource(selectedPath: string) {
   });
 }
 
-export function enableSource(sourceId: number) {
-  const now = Date.now();
+export function enableSource(sourceId: number, scanFiles: ScanFiles = scanAudioFiles) {
+  setSourceStatus(sourceId, "active");
 
-  const source = getDatabase()
-    .update(librarySources)
-    .set({ status: "active", updatedAt: updatedAtUnless("active", now) })
-    .where(and(eq(librarySources.id, sourceId), ne(librarySources.status, "forgotten")))
-    .returning({ id: librarySources.id })
-    .get();
-
-  if (!source) throw new Error(`Library source ${sourceId} is not active`);
+  return scanSource(sourceId, scanFiles);
 }
 
 export function disableSource(sourceId: number) {
-  const database = getDatabase();
-
-  const source = database
-    .update(librarySources)
-    .set({ status: "off", updatedAt: updatedAtUnless("off", Date.now()) })
-    .where(and(eq(librarySources.id, sourceId), ne(librarySources.status, "forgotten")))
-    .returning({ id: librarySources.id })
-    .get();
-
-  if (!source) throw new Error(`Library source ${sourceId} is not active`);
-
-  stopSourceScan(database, sourceId, "disabled");
+  setSourceStatus(sourceId, "off");
+  stopSourceScan(getDatabase(), sourceId, "disabled");
 }
 
 export function forgetSource(sourceId: number) {
-  const database = getDatabase();
-
-  const source = database
-    .update(librarySources)
-    .set({ status: "forgotten", updatedAt: updatedAtUnless("forgotten", Date.now()) })
-    .where(eq(librarySources.id, sourceId))
-    .returning({ id: librarySources.id })
-    .get();
-
-  if (!source) throw new Error(`Library source ${sourceId} does not exist`);
-
-  stopSourceScan(database, sourceId, "disabled");
+  setSourceStatus(sourceId, "forgotten");
+  stopSourceScan(getDatabase(), sourceId, "disabled");
 }
 
-export async function scanEnabledSources(
-  scanFiles: ScanFiles = scanAudioFiles,
-): Promise<LibraryScanOutcome> {
-  const sources = getEnabledSources();
+function setSourceStatus(sourceId: number, status: SourceRow["status"]) {
+  commitLibrary(getDatabase(), (transaction) => {
+    const source = transaction
+      .update(librarySources)
+      .set({ status, updatedAt: updatedAtUnless(status, Date.now()) })
+      .where(
+        status === "forgotten"
+          ? eq(librarySources.id, sourceId)
+          : and(eq(librarySources.id, sourceId), ne(librarySources.status, "forgotten")),
+      )
+      .returning({ id: librarySources.id })
+      .get();
 
-  if (sources.length === 0) return "no-enabled-sources";
-
-  let tracksChanged = false;
-
-  for (const source of sources) {
-    const outcome = await scanSource(source.id, scanFiles);
-
-    if (outcome.kind === "committed" && outcome.tracksChanged) tracksChanged = true;
-  }
-
-  return tracksChanged ? "tracks-changed" : "tracks-unchanged";
+    if (!source) throw new Error(`Library source ${sourceId} does not exist`);
+  });
 }
 
-export function getLibraryUpdate(outcome: LibraryScanOutcome | "failed"): LibraryUpdate | null {
-  if (outcome === "no-enabled-sources") return null;
+export function scanEnabledSources(scanFiles: ScanFiles = scanAudioFiles) {
+  return Promise.all(getEnabledSources().map((source) => scanSource(source.id, scanFiles)));
+}
 
-  if (outcome === "tracks-unchanged") {
-    return { kind: "sources", revision: nextLibraryRevision(), sources: getSources() };
-  }
-
-  return { kind: "snapshot", library: getLibrarySnapshotJson() };
+export function scanInBackground(scan: Promise<unknown>) {
+  scan.catch((error) => console.error("Could not scan the music library", error));
 }
 
 export async function scanSource(
@@ -489,15 +457,24 @@ export async function scanSource(
         error instanceof Error ? error : new Error(String(error)),
       );
 
-      return { kind: "committed", tracksChanged: commitScanFailure(database, sourceId, failure) };
+      commitScanFailure(database, sourceId, failure);
+
+      return { kind: "committed" };
     }
 
     if (scan.stoppedBy) return { kind: "dropped", reason: scan.stoppedBy };
 
-    return {
-      kind: "committed",
-      tracksChanged: commitSourceScan(database, sourceId, scannedTracks),
-    };
+    try {
+      commitSourceScan(database, sourceId, scannedTracks);
+    } catch (error) {
+      console.error("Could not save a library scan", { error, sourceId });
+      commitScanFailure(database, sourceId, {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        kind: "failed",
+      });
+    }
+
+    return { kind: "committed" };
   } finally {
     finishSourceScan(database, sourceId, scan);
   }
@@ -516,9 +493,7 @@ function commitScanFailure(
   sourceId: number,
   failure: FolderReadFailure,
 ) {
-  return runImmediateTransaction(database, (transaction) => {
-    const before = storedSource(transaction, sourceId);
-
+  commitLibrary(database, (transaction) => {
     transaction
       .update(librarySources)
       .set({
@@ -528,37 +503,7 @@ function commitScanFailure(
       })
       .where(eq(librarySources.id, sourceId))
       .run();
-
-    return (
-      gateChanged(
-        sourceGate(before.status, before.lastScanOutcome),
-        sourceGate(before.status, failure.kind),
-      ) && sourceOwnsTracks(transaction, sourceId)
-    );
   });
-}
-
-function storedSource(database: LibraryTransaction, sourceId: number) {
-  const source = database
-    .select({ lastScanOutcome: librarySources.lastScanOutcome, status: librarySources.status })
-    .from(librarySources)
-    .where(eq(librarySources.id, sourceId))
-    .get();
-
-  if (!source) throw new Error(`Library source ${sourceId} does not exist`);
-
-  return source;
-}
-
-function sourceOwnsTracks(database: LibraryTransaction, sourceId: number) {
-  return (
-    database
-      .select({ id: tracks.id })
-      .from(tracks)
-      .where(eq(tracks.sourceId, sourceId))
-      .limit(1)
-      .get() !== undefined
-  );
 }
 
 export function getArtworkData(artworkId: string): ArtworkData | null {
@@ -628,9 +573,7 @@ function commitSourceScan(
 ) {
   const now = Date.now();
 
-  return runImmediateTransaction(database, (transaction) => {
-    const source = storedSource(transaction, sourceId);
-
+  commitLibrary(database, (transaction) => {
     const unseenTracks = new Map(
       transaction
         .select({ id: tracks.id, missingSince: tracks.missingSince, path: tracks.path })
@@ -639,8 +582,6 @@ function commitSourceScan(
         .all()
         .map((track) => [track.path, track] as const),
     );
-
-    const sourceHadTracks = unseenTracks.size > 0;
 
     const setMissingSince = transaction
       .update(tracks)
@@ -721,7 +662,6 @@ function commitSourceScan(
       .prepare();
 
     let savedTracks = false;
-    let rowsChanged = false;
 
     scannedTracks.forEach((track) => {
       const storedTrack = unseenTracks.get(track.path);
@@ -730,7 +670,6 @@ function commitSourceScan(
       if (track.kind === "unchanged") {
         if (storedTrack && storedTrack.missingSince !== null) {
           setMissingSince.run({ id: storedTrack.id, missingSince: null });
-          rowsChanged = true;
         }
 
         return;
@@ -743,14 +682,12 @@ function commitSourceScan(
         artworkId: track.artwork?.id ?? null,
       });
       savedTracks = true;
-      rowsChanged = true;
     });
 
     unseenTracks.forEach((track) => {
       if (track.missingSince !== null) return;
 
       setMissingSince.run({ id: track.id, missingSince: now });
-      rowsChanged = true;
     });
 
     if (savedTracks) {
@@ -772,13 +709,6 @@ function commitSourceScan(
       .set({ lastScanErrorMessage: null, lastScanOutcome: "ok", lastScannedAt: now, updatedAt: now })
       .where(eq(librarySources.id, sourceId))
       .run();
-
-    const gateMoved = gateChanged(
-      sourceGate(source.status, source.lastScanOutcome),
-      sourceGate(source.status, "ok"),
-    );
-
-    return rowsChanged || (gateMoved && sourceHadTracks);
   });
 }
 

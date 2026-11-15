@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatTotalDuration } from "@/lib/format-duration";
-import { useLibraryMutation } from "@/lib/library-query";
+import { useLibraryMutation, useScanningSources } from "@/lib/library-query";
 import { presentLibrarySources, type SourceEmpty } from "@/lib/source-presentation";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { libraryRows, sortRows } from "@/lib/track-sort";
@@ -27,7 +27,7 @@ export function TracksPage() {
   const [filterText, setFilterText] = useState("");
   const filter = parseTrackFilter(useDeferredValue(filterText));
   const filterRef = useRef<FilterFieldHandle>(null);
-  const sources = presentLibrarySources(library, useMinuteClock());
+  const sources = presentLibrarySources(library, useScanningSources(), useMinuteClock());
   const listed = libraryRows(library.tracks);
 
   useLayoutEffect(() => {
@@ -106,8 +106,11 @@ function EmptyLibrary({ empty }: { empty: Exclude<SourceEmpty, { kind: "hidden" 
 
   const chooseFolderButton = (
     <Button
-      busy={libraryMutation.isPending && libraryMutation.variables?.kind === "add-source"}
-      disabled={libraryMutation.isPending}
+      busy={
+        (libraryMutation.isPending && libraryMutation.variables?.kind === "add-source") ||
+        (empty.kind === "add" && empty.scanning)
+      }
+      disabled={libraryMutation.isPending || empty.scanning}
       onClick={() => libraryMutation.mutate({ kind: "add-source" })}
       type="button"
       variant="primary"
@@ -124,7 +127,7 @@ function EmptyLibrary({ empty }: { empty: Exclude<SourceEmpty, { kind: "hidden" 
             <>
               {chooseFolderButton}
               <Button
-                busy={libraryMutation.isPending && libraryMutation.variables?.kind !== "add-source"}
+                busy={empty.scanning}
                 disabled={libraryMutation.isPending}
                 onClick={() =>
                   libraryMutation.mutate({ kind: "rescan-source", sourceId: empty.sourceId })
@@ -138,7 +141,7 @@ function EmptyLibrary({ empty }: { empty: Exclude<SourceEmpty, { kind: "hidden" 
             chooseFolderButton
           )
         }
-        busy={libraryMutation.isPending}
+        busy={libraryMutation.isPending || empty.scanning}
         description={empty.description}
         errorMessage={libraryMutation.error?.message}
         title={empty.title}

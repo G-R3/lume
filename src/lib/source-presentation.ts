@@ -19,6 +19,7 @@ export type FolderPresentation = {
   name: string;
   enabled: boolean;
   hasIssue: boolean;
+  scanning: boolean;
   statusText: string;
   tooltip: string | undefined;
   trackCountText: string | null;
@@ -33,29 +34,45 @@ type FolderFacts = {
 
 export type SourceNotice =
   | { kind: "none" }
-  | { kind: "issue"; title: string; detail: string; sourceId: number }
+  | { kind: "issue"; title: string; detail: string; sourceId: number; scanning: boolean }
   | { kind: "off"; title: string }
-  | { kind: "missing-files"; title: string; detail: string };
+  | { kind: "missing-files"; title: string; detail: string; scanning: boolean };
 
 export type SourceEmpty =
   | { kind: "hidden" }
-  | { kind: "add"; title: string; description: string; chooseLabel: string }
+  | { kind: "add"; title: string; description: string; chooseLabel: string; scanning: boolean }
   | {
       kind: "no-audio";
       title: string;
       description: string;
       chooseLabel: string;
       sourceId: number;
+      scanning: boolean;
     };
 
-export function presentLibrarySources(library: MusicLibrary, now: number) {
-  const facts = library.sources.map((source) => presentFolder(source, now));
+export function presentLibrarySources(
+  library: MusicLibrary,
+  scanning: ReadonlySet<number>,
+  now: number,
+) {
+  const facts = library.sources.map((source) =>
+    whileScanning(presentFolder(source, now), scanning.has(source.id)),
+  );
 
   return {
     empty: presentEmpty(library, facts),
     folders: facts.map((fact) => fact.folder),
     footer: presentFooter(facts, now),
     notice: presentNotice(library, facts),
+  };
+}
+
+function whileScanning(facts: FolderFacts, scanning: boolean): FolderFacts {
+  if (!scanning || !facts.folder.enabled) return facts;
+
+  return {
+    ...facts,
+    folder: { ...facts.folder, hasIssue: false, scanning: true, statusText: "Scanning…" },
   };
 }
 
@@ -67,6 +84,7 @@ function presentFolder(source: LibrarySource, now: number): FolderFacts {
     id: source.id,
     name: getSourceName(source.path),
     path: source.path,
+    scanning: false,
   };
 
   switch (status.kind) {
@@ -151,16 +169,20 @@ function presentNotice(library: MusicLibrary, facts: readonly FolderFacts[]): So
   if (failed?.issue) {
     const { id, name } = failed.folder;
 
+    const { scanning } = failed.folder;
+
     return failed.issue.kind === "missing"
       ? {
           detail: "Its tracks can’t play until it’s back.",
           kind: "issue",
+          scanning,
           sourceId: id,
           title: `${name} isn’t connected`,
         }
       : {
           detail: failed.issue.detail,
           kind: "issue",
+          scanning,
           sourceId: id,
           title: `${name} couldn’t be scanned`,
         };
@@ -178,6 +200,7 @@ function presentNotice(library: MusicLibrary, facts: readonly FolderFacts[]): So
     return {
       detail: "Their files were moved or deleted since the last scan.",
       kind: "missing-files",
+      scanning: facts.some((fact) => fact.folder.scanning),
       title: `${missingCount.toLocaleString()} ${missingCount === 1 ? "track is" : "tracks are"} missing`,
     };
   }
@@ -193,6 +216,7 @@ function presentFooter(facts: readonly FolderFacts[], now: number) {
   const name = facts.length === 1 ? facts[0].folder.name : `${facts.length} folders`;
   const enabled = facts.filter((fact) => fact.folder.enabled);
   const issues = enabled.filter((fact) => fact.issue !== null).length;
+  const scanningCount = enabled.filter((fact) => fact.folder.scanning).length;
   const scannedAt = enabled.flatMap((fact) => (fact.scannedAt === null ? [] : [fact.scannedAt]));
 
   const detail =
@@ -200,7 +224,9 @@ function presentFooter(facts: readonly FolderFacts[], now: number) {
       ? facts.length === 1
         ? "off"
         : "all off"
-      : issues > 0
+      : scanningCount > 0
+        ? "scanning"
+        : issues > 0
         ? issues === 1
           ? "1 issue"
           : `${issues} issues`
@@ -220,12 +246,14 @@ function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): Sou
   }
 
   const scanned = facts.find((fact) => fact.scannedAt !== null);
+  const scanning = facts.some((fact) => fact.folder.scanning);
 
   if (!scanned) {
     return {
       chooseLabel: "Choose folder",
       description: "Choose a folder of audio files. Lume plays them where they are.",
       kind: "add",
+      scanning,
       title: "Add your music",
     };
   }
@@ -234,6 +262,7 @@ function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): Sou
     chooseLabel: "Choose another folder",
     description: "Lume plays FLAC, M4A, MP3, AAC, OGG, OPUS and WAV files.",
     kind: "no-audio",
+    scanning,
     sourceId: scanned.folder.id,
     title: `No audio in “${scanned.folder.name}”`,
   };

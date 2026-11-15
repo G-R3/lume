@@ -28,6 +28,7 @@ import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { duration, ease } from "@/lib/motion";
+import { useScanningSources } from "@/lib/library-query";
 import { presentLibrarySources } from "@/lib/source-presentation";
 import { libraryRows } from "@/lib/track-sort";
 import { cn } from "@/lib/utils";
@@ -215,7 +216,7 @@ function PlaylistSidebarItem({
 }
 
 function SourceFooter({ library }: { library: MusicLibrary }) {
-  const footer = presentLibrarySources(library, useMinuteClock()).footer;
+  const footer = presentLibrarySources(library, useScanningSources(), useMinuteClock()).footer;
 
   return (
     <p className="min-w-0 flex-1 truncate text-meta text-secondary" title={footer.tooltip}>

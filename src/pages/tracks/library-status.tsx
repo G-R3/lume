@@ -7,9 +7,10 @@ import type { SourceNotice } from "@/lib/source-presentation";
 export function LibraryStatus({ notice }: { notice: SourceNotice }) {
   const libraryMutation = useLibraryMutation();
 
-  const scanAgain = (command: Parameters<typeof libraryMutation.mutate>[0]) => (
+  const scanAgain = (command: Parameters<typeof libraryMutation.mutate>[0], scanning: boolean) => (
     <Button
-      busy={libraryMutation.isPending}
+      busy={scanning}
+      disabled={libraryMutation.isPending}
       onClick={() => libraryMutation.mutate(command)}
       size="sm"
       type="button"
@@ -36,7 +37,7 @@ export function LibraryStatus({ notice }: { notice: SourceNotice }) {
     case "issue":
       return (
         <Notice detail={notice.detail} title={notice.title}>
-          {scanAgain({ kind: "rescan-source", sourceId: notice.sourceId })}
+          {scanAgain({ kind: "rescan-source", sourceId: notice.sourceId }, notice.scanning)}
           {manageFolders("ghost")}
         </Notice>
       );
@@ -45,7 +46,7 @@ export function LibraryStatus({ notice }: { notice: SourceNotice }) {
     case "missing-files":
       return (
         <Notice detail={notice.detail} title={notice.title}>
-          {scanAgain({ kind: "rescan-sources" })}
+          {scanAgain({ kind: "rescan-sources" }, notice.scanning)}
         </Notice>
       );
     case "none":

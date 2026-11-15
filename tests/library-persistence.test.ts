@@ -75,14 +75,14 @@ describe("library source persistence", () => {
     });
     expect(storedTracks()).toEqual(tracksBefore);
 
-    enableSource(source.id);
+    void enableSource(source.id, () => new Promise<never>(() => {}));
     expect(getActiveSource(source.id).status).toMatchObject({ kind: "scanned", trackCount: 1 });
     expect(libraryTracks().map((track) => track.available)).toEqual([true]);
     expect(storedTracks()).toEqual(tracksBefore);
 
     expect(
       await scanSource(source.id, (_path, metadata) => scanAudioFiles(folder, metadata)),
-    ).toEqual({ kind: "committed", tracksChanged: false });
+    ).toEqual({ kind: "committed" });
   });
 
   it("restores forgotten sources with the same track IDs", async () => {
@@ -122,8 +122,9 @@ describe("library source persistence", () => {
     disableSource(source.id);
     expect(getActiveSource(source.id).status).toEqual({ kind: "off" });
 
-    enableSource(source.id);
+    const rescan = enableSource(source.id);
     expect(getActiveSource(source.id).status).toEqual(failed);
+    await rescan;
   });
 
   it("moves preserved tracks when a new source replaces a forgotten overlap", async () => {

@@ -4,15 +4,25 @@ import { FirstRunScreen } from "@/components/library-onboarding";
 import { Button } from "@/components/ui/button";
 import { playFirstScan } from "@/lib/first-scan";
 import { cn } from "@/lib/utils";
-import { useLibrary, useLibraryMutation } from "@/lib/library-query";
+import { useLibrary, useLibraryMutation, useScanningSources } from "@/lib/library-query";
 import { MusicLibraryContext } from "@/hooks/use-music-library";
-import { LibraryRevealContext, type Onboarding, useOnboarding } from "@/hooks/use-onboarding";
+import {
+  type LibraryStage,
+  LibraryRevealContext,
+  type Onboarding,
+  useOnboarding,
+} from "@/hooks/use-onboarding";
 
 export function AppRoot() {
   const onTracksRoute = useLocation({ select: (location) => location.pathname === "/" });
   const { error, library, refetch } = useLibrary();
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
-  const { onboarding, onRevealEnd, reveal } = useOnboarding(library?.kind, onTracksRoute);
+  const scanning = useScanningSources();
+
+  const stage: LibraryStage | undefined =
+    library?.kind === "library" && scanning.size > 0 ? "scanning" : library?.kind;
+
+  const { onboarding, onRevealEnd, reveal } = useOnboarding(stage, onTracksRoute);
 
   if (library === undefined) {
     if (!error) return <div className="min-h-screen bg-page" />;
@@ -53,22 +63,28 @@ export function AppRoot() {
 
   return (
     <LibraryRevealContext.Provider value={reveal}>
-      {library.kind === "library" && (
+      {library.kind === "library" && onboarding.phase !== "first-run" && (
         <MusicLibraryContext.Provider value={library}>
           <Outlet />
         </MusicLibraryContext.Provider>
       )}
       {onboarding.phase !== "none" && (
-        <FirstRun onboarding={onboarding} onRevealEnd={onRevealEnd} />
+        <FirstRun
+          isScanning={stage === "scanning"}
+          onboarding={onboarding}
+          onRevealEnd={onRevealEnd}
+        />
       )}
     </LibraryRevealContext.Provider>
   );
 }
 
 function FirstRun({
+  isScanning,
   onboarding,
   onRevealEnd,
 }: {
+  isScanning: boolean;
   onboarding: Exclude<Onboarding, { phase: "none" }>;
   onRevealEnd: () => void;
 }) {
@@ -93,7 +109,7 @@ function FirstRun({
     >
       <FirstRunScreen
         errorMessage={isCovering ? null : (libraryMutation.error?.message ?? null)}
-        isLoading={isCovering || libraryMutation.isPending}
+        isLoading={isCovering || isScanning || libraryMutation.isPending}
         isMac={window.lume.isMac}
         onAddSource={() => libraryMutation.mutate({ kind: "add-source" })}
       />

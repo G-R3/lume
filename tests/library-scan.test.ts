@@ -1,26 +1,22 @@
 import { chmod, rename, rm, writeFile } from "node:fs/promises";
 import { openTestDatabase } from "./helpers/database";
-import { failScan, getActiveSource, libraryTracks, readLibrary, scanWith } from "./helpers/library";
+import { getActiveSource, libraryTracks, readLibrary, scanWith } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, onTestFinished } from "vite-plus/test";
 
 import {
   disableSource,
   enableSource,
   forgetSource,
   getArtworkData,
-  getLibraryUpdate,
-  getSources,
   saveSource,
   scanEnabledSources,
   scanSource,
-  setTracksLiked,
 } from "../electron/library";
 import { scanAudioFiles, type ScannedTrack } from "../electron/library-files";
-import { createPlaylist } from "../electron/playlists";
-import type { LibraryDatabase } from "../electron/database";
-import { parseLibrarySnapshot } from "../shared/lib";
+import { getLibraryState, onLibraryEvent } from "../electron/library-events";
+import type { LibraryEvent } from "../shared/lib";
 
 describe("enabled source scanning", () => {
   it("discards an older scan that finishes after a newer scan", async () => {
@@ -34,7 +30,7 @@ describe("enabled source scanning", () => {
       scanSource(source.id, () =>
         Promise.resolve([createScannedTrack(join(folder, "new.mp3"), "new")]),
       ),
-    ).resolves.toEqual(committed(true));
+    ).resolves.toEqual(committed());
     olderScan.resolve([createScannedTrack(join(folder, "old.mp3"), "old")]);
     await expect(olderRequest).resolves.toEqual(dropped("superseded"));
 
@@ -78,7 +74,7 @@ describe("enabled source scanning", () => {
     });
   });
 
-  it("continues after a later source is disabled during a batch", async () => {
+  it("drops a source turned off during a batch and keeps the others", async () => {
     const database = await openTestDatabase();
     const firstFolder = await createTemporaryFolder("lume-first-source-");
     const disabledFolder = await createTemporaryFolder("lume-disabled-source-");
@@ -105,7 +101,6 @@ describe("enabled source scanning", () => {
       return [createScannedTrack(join(folder, "song.mp3"), folder)];
     });
 
-    expect(scannedFolders).toEqual([firstSource.path, lastSource.path]);
     expect(
       database.$client.prepare("SELECT source_id FROM tracks ORDER BY source_id").all(),
     ).toEqual(
@@ -115,7 +110,7 @@ describe("enabled source scanning", () => {
     );
   });
 
-  it("does not report database failures as source scan errors", async () => {
+  it("records a scan it could not save as failed, and a rescan recovers it", async () => {
     const database = await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
@@ -128,60 +123,20 @@ describe("enabled source scanning", () => {
       END;
     `);
 
-    await expect(scanEnabledSources()).rejects.toThrow("track write failed");
-    expect(getActiveSource(source.id).status).toEqual({ kind: "unscanned" });
-  });
+    await scanEnabledSources();
 
-  it("reports a change only when a track's availability changed", async () => {
-    await openTestDatabase();
-    const folder = await createTemporaryFolder("lume-source-");
-    await Promise.all(
-      ["kept", "removed", "restored"].map((title) => writeFile(join(folder, `${title}.mp3`), "")),
-    );
-    const source = await saveSource(folder);
+    expect(getActiveSource(source.id).status).toEqual({
+      errorMessage: "track write failed",
+      kind: "failed",
+      lastScannedAt: null,
+    });
+    expect(readLibrary().scans.scanning).toEqual([]);
 
-    const scanUnchanged = () =>
-      scanSource(source.id, (_path, metadata) => scanAudioFiles(folder, metadata));
+    database.$client.exec("DROP TRIGGER reject_track_insert");
+    await scanSource(source.id);
 
-    const getAvailability = () =>
-      libraryTracks().map(({ available, title }) => ({ available, title }));
-
-    await scanWith(source.id, await scanAudioFiles(folder));
-    await rename(join(folder, "restored.mp3"), join(folder, "restored.bak"));
-    await scanUnchanged();
-    await rename(join(folder, "restored.bak"), join(folder, "restored.mp3"));
-    await failScan(source.id, "scan failed");
-    await rm(join(folder, "removed.mp3"));
-
-    expect(await scanUnchanged()).toEqual(committed(true));
-    expect(getAvailability()).toEqual([
-      { available: true, title: "kept" },
-      { available: false, title: "removed" },
-      { available: true, title: "restored" },
-    ]);
     expect(getActiveSource(source.id).status.kind).toBe("scanned");
-
-    expect(await scanUnchanged()).toEqual(committed(false));
-    expect(getAvailability()).toEqual([
-      { available: true, title: "kept" },
-      { available: false, title: "removed" },
-      { available: true, title: "restored" },
-    ]);
-
-    await failScan(source.id, "scan failed");
-    expect(libraryTracks().map((track) => track.unavailableReason)).toEqual([
-      "source-unreadable",
-      "source-unreadable",
-      "source-unreadable",
-    ]);
-
-    expect(await scanUnchanged()).toEqual(committed(true));
-    expect(getAvailability()).toEqual([
-      { available: true, title: "kept" },
-      { available: false, title: "removed" },
-      { available: true, title: "restored" },
-    ]);
-    expect(getActiveSource(source.id).status.kind).toBe("scanned");
+    expect(libraryTracks().map((track) => track.title)).toEqual(["song"]);
   });
 
   it("removes artwork that changed tracks no longer use", async () => {
@@ -221,187 +176,90 @@ describe("enabled source scanning", () => {
   );
 });
 
-describe("startup scan update", () => {
-  it("sends only the sources after a scan that wrote no track rows", async () => {
-    const database = await openTestDatabase();
-    const source = await createSource(["first", "second"]);
-    await scanEnabledSources();
-    const [first, second] = libraryTracks();
-    setTracksLiked({ liked: true, trackIds: [second.id] });
-    createPlaylist({ description: null, title: "Mix", trackIds: [first.id] });
-    database.$client.exec("UPDATE library_sources SET last_scanned_at = 1");
-    const before = readLibrary();
+describe("scan frames", () => {
+  it("pushes a scan's start and its end, which follows the commit it made", async () => {
+    await openTestDatabase();
+    const source = await createSource(["song"]);
+    const events = recordLibraryEvents();
 
-    const result = await scanEnabledSources();
+    await scanSource(source.id);
 
-    expect(result).toBe("tracks-unchanged");
-    expect(getLibraryUpdate(result)).toEqual({
-      kind: "sources",
-      revision: expect.any(Number),
-      sources: getSources(),
-    });
-    expect(scannedAt(source.id)).toBeGreaterThan(1);
+    const frames = events.flatMap((event) => (event.kind === "scans" ? [event.scans] : []));
+    const commit = events.find((event) => event.kind === "changed");
 
-    const after = readLibrary();
-
-    if (before.kind !== "library" || after.kind !== "library")
-      throw new Error("Expected a library");
-    expect({ ...after, revision: before.revision, sources: before.sources }).toEqual(before);
-    expect(after.sources).toEqual([
-      {
-        ...before.sources[0],
-        status: { kind: "scanned", scannedAt: expect.any(Number), trackCount: 2 },
-      },
-    ]);
+    expect(frames.map((frame) => frame.scanning)).toEqual([[source.id], []]);
+    expect(frames[1].afterRevision).toBe(commit?.revision);
+    expect(frames[1].sequence).toBeGreaterThan(frames[0].sequence);
+    expect(getLibraryState().scans).toEqual(frames[1]);
   });
 
-  it("sends only the sources when an earlier error clears on an empty source", async () => {
+  it("scans every enabled folder at once and reports both until each finishes", async () => {
+    await openTestDatabase();
+    const first = await createSource([]);
+    const second = await createSource([]);
+    const reads = new Map<string, Deferred<ScannedTrack[]>>();
+    const events = recordLibraryEvents();
+
+    const batch = scanEnabledSources((folder) => {
+      const read = createDeferred<ScannedTrack[]>();
+      reads.set(folder, read);
+
+      return read.promise;
+    });
+
+    expect(getLibraryState().scans.scanning).toEqual([first.id, second.id]);
+    reads.get(second.path)?.resolve([]);
+    await expect.poll(() => getLibraryState().scans.scanning).toEqual([first.id]);
+    reads.get(first.path)?.resolve([]);
+    await batch;
+
+    expect(getLibraryState().scans.scanning).toEqual([]);
+    expect(events.filter((event) => event.kind === "changed")).toHaveLength(2);
+  });
+
+  it("ends a failing scan with the folder's failure and nothing left scanning", async () => {
+    await openTestDatabase();
+    const source = await createSource(["song"]);
+    await rename(source.path, `${source.path}-away`);
+
+    await scanSource(source.id);
+
+    expect(getActiveSource(source.id).status.kind).toBe("missing");
+    expect(getLibraryState().scans.scanning).toEqual([]);
+  });
+
+  it("reports the running scans with every library read", async () => {
     await openTestDatabase();
     const source = await createSource([]);
-    await failScan(source.id, "Folder is missing");
+    const scan = scanSource(source.id, () => new Promise<never>(() => {}));
 
-    const result = await scanEnabledSources();
-
-    expect(result).toBe("tracks-unchanged");
-    expect(getLibraryUpdate(result)).toEqual({
-      kind: "sources",
-      revision: expect.any(Number),
-      sources: [
-        {
-          id: source.id,
-          path: source.path,
-          status: { kind: "scanned", scannedAt: expect.any(Number), trackCount: 0 },
-        },
-      ],
-    });
+    expect(readLibrary().scans.scanning).toEqual([source.id]);
+    disableSource(source.id);
+    await scan;
+    expect(readLibrary().scans.scanning).toEqual([]);
   });
 
-  it.each([
-    {
-      change: "a file's size and time changed",
-      apply: (folder: string) => writeFile(join(folder, "first.mp3"), "x"),
-    },
-    {
-      change: "a file was added",
-      apply: (folder: string) => writeFile(join(folder, "new.mp3"), ""),
-    },
-    { change: "a file went missing", apply: (folder: string) => rm(join(folder, "first.mp3")) },
-    {
-      change: "a missing file reappeared",
-      apply: async (folder: string) => {
-        await rename(join(folder, "first.mp3"), join(folder, "first.bak"));
-        await scanEnabledSources();
-        await rename(join(folder, "first.bak"), join(folder, "first.mp3"));
-      },
-    },
-    {
-      change: "an earlier failure closed its folder",
-      apply: (_folder: string, _database: LibraryDatabase, sourceId: number) =>
-        failScan(sourceId, "Folder is missing"),
-    },
-    {
-      change: "the metadata version changed",
-      apply: async (_folder: string, database: LibraryDatabase) =>
-        database.$client.exec("UPDATE tracks SET metadata_version = metadata_version - 1"),
-    },
-    {
-      change: "the folder could not be read",
-      apply: (folder: string) => rm(folder, { recursive: true }),
-    },
-  ])("sends the full snapshot when $change", async ({ apply }) => {
-    const database = await openTestDatabase();
-    const source = await createSource(["first", "second"]);
-    await scanEnabledSources();
-
-    await apply(source.path, database, source.id);
-    const result = await scanEnabledSources();
-
-    expect(result).toBe("tracks-changed");
-    const update = getLibraryUpdate(result);
-
-    if (update?.kind !== "snapshot") throw new Error("Expected a snapshot update");
-    expect(parseLibrarySnapshot(update.library)).toStrictEqual({
-      ...readLibrary(),
-      revision: expect.any(Number),
-    });
-  });
-
-  it("sends the full snapshot when any one source changed", async () => {
-    const database = await openTestDatabase();
-    const unchanged = await createSource(["kept"]);
-    const changed = await createSource(["first"]);
-    await scanEnabledSources();
-    database.$client.exec("UPDATE library_sources SET last_scanned_at = 1");
-    await writeFile(join(changed.path, "new.mp3"), "");
-
-    await expect(scanEnabledSources()).resolves.toBe("tracks-changed");
-    expect(scannedAt(unchanged.id)).toBeGreaterThan(1);
-  });
-
-  it("sends only the sources when a source is disabled during the scan", async () => {
+  it("stops reporting a folder as scanning the moment it is turned off", async () => {
     await openTestDatabase();
-    const first = await createSource(["first"]);
-    const second = await createSource(["second"]);
-    await scanEnabledSources();
-    let disabled = false;
+    const source = await createSource([]);
+    const scan = scanSource(source.id, () => new Promise<never>(() => {}));
 
-    const result = await scanEnabledSources((folder, metadata) => {
-      if (!disabled) disableSource(folder === first.path ? second.id : first.id);
-      disabled = true;
+    expect(getLibraryState().scans.scanning).toEqual([source.id]);
+    disableSource(source.id);
 
-      return scanAudioFiles(folder, metadata);
-    });
-
-    expect(result).toBe("tracks-unchanged");
+    expect(getLibraryState().scans.scanning).toEqual([]);
+    await expect(scan).resolves.toEqual(dropped("disabled"));
   });
 
-  it("sends only the sources when a newer scan supersedes a failed read", async () => {
+  it("turns a folder on and scans it without another command", async () => {
     await openTestDatabase();
-    const source = await createSource(["first"]);
-    await scanEnabledSources();
-    const startupRead = createDeferred<ScannedTrack[]>();
+    const source = await createSource(["song"]);
+    disableSource(source.id);
 
-    const startupScan = scanEnabledSources(() => startupRead.promise);
-    await expect(scanSource(source.id)).resolves.toEqual(committed(false));
-    startupRead.reject(new Error("read failed"));
+    await enableSource(source.id);
 
-    await expect(startupScan).resolves.toBe("tracks-unchanged");
     expect(getActiveSource(source.id).status.kind).toBe("scanned");
-  });
-
-  it("sends only the sources when a folder that already failed fails again", async () => {
-    await openTestDatabase();
-    const source = await createSource(["first"]);
-    await scanEnabledSources();
-    await rm(source.path, { recursive: true });
-
-    await expect(scanEnabledSources()).resolves.toBe("tracks-changed");
-    const failed = getActiveSource(source.id);
-    expect(failed.status).toMatchObject({ kind: "missing", lastScannedAt: expect.any(Number) });
-
-    const result = await scanEnabledSources();
-
-    expect(result).toBe("tracks-unchanged");
-    expect(getLibraryUpdate(result)).toEqual({
-      kind: "sources",
-      revision: expect.any(Number),
-      sources: [failed],
-    });
-    expect(libraryTracks().map((track) => track.available)).toEqual([false]);
-  });
-
-  it.each([
-    { sources: "no sources", disable: false },
-    { sources: "only disabled sources", disable: true },
-  ])("sends nothing when there are $sources", async ({ disable }) => {
-    await openTestDatabase();
-
-    if (disable) disableSource((await createSource(["first"])).id);
-
-    const result = await scanEnabledSources();
-
-    expect(result).toBe("no-enabled-sources");
-    expect(getLibraryUpdate(result)).toBeNull();
+    expect(libraryTracks().map((track) => track.title)).toEqual(["song"]);
   });
 });
 
@@ -421,7 +279,7 @@ describe("scan ownership", () => {
     expect(getActiveSource(source.id).status).toEqual({ kind: "unscanned" });
 
     newerRead.resolve([createScannedTrack(join(folder, "new.mp3"), "new")]);
-    await expect(newerScan).resolves.toEqual(committed(true));
+    await expect(newerScan).resolves.toEqual(committed());
     expect(libraryTracks().map((track) => track.title)).toEqual(["new"]);
   });
 
@@ -430,7 +288,7 @@ describe("scan ownership", () => {
       leave: "turned off and on again",
       reenter: (sourceId: number) => {
         disableSource(sourceId);
-        enableSource(sourceId);
+        void enableSource(sourceId, stalledRead);
       },
     },
     {
@@ -478,7 +336,7 @@ describe("scan ownership", () => {
 
     await expect(
       scanWith(source.id, [{ kind: "unchanged", path: join(folder, "kept.mp3") }]),
-    ).resolves.toEqual(committed(false));
+    ).resolves.toEqual(committed());
     expect(libraryTracks().map((track) => track.available)).toEqual([true]);
   });
 
@@ -490,10 +348,10 @@ describe("scan ownership", () => {
     const revokedScan = scanSource(source.id, () => revokedRead.promise);
 
     disableSource(source.id);
-    enableSource(source.id);
+    void enableSource(source.id, stalledRead);
     await expect(
       scanWith(source.id, [createScannedTrack(join(folder, "new.mp3"), "new")]),
-    ).resolves.toEqual(committed(true));
+    ).resolves.toEqual(committed());
     revokedRead.reject(new Error("read failed"));
 
     await expect(revokedScan).resolves.toEqual(dropped("disabled"));
@@ -503,7 +361,7 @@ describe("scan ownership", () => {
     ]);
   });
 
-  it("moves on to the next folder when a stalled read is stopped", async () => {
+  it("finishes a batch when a stalled read is stopped", async () => {
     const database = await openTestDatabase();
     const stalled = await createSource([]);
     const next = await createSource([]);
@@ -524,7 +382,7 @@ describe("scan ownership", () => {
       return [];
     });
 
-    await expect(batch).resolves.toBe("tracks-unchanged");
+    await expect(batch).resolves.toEqual([dropped("disabled"), committed()]);
     expect(scannedFolders).toEqual([stalled.path, next.path]);
     expect(getActiveSource(next.id).status.kind).toBe("scanned");
   });
@@ -542,8 +400,9 @@ describe("scan ownership", () => {
 
     await expect(scan).resolves.toEqual(dropped("disabled"));
     expect(libraryTracks()).toEqual([]);
-    enableSource(source.id);
+    const rescan = enableSource(source.id);
     expect(getActiveSource(source.id).status).toEqual({ kind: "unscanned" });
+    await rescan;
   });
 
   it("drops a scan whose folder is turned off before its read returns a promise", async () => {
@@ -577,8 +436,19 @@ function scannedAt(sourceId: number) {
   return status.scannedAt;
 }
 
-function committed(tracksChanged: boolean) {
-  return { kind: "committed", tracksChanged };
+function stalledRead() {
+  return new Promise<never>(() => {});
+}
+
+function committed() {
+  return { kind: "committed" };
+}
+
+function recordLibraryEvents() {
+  const events: LibraryEvent[] = [];
+  onTestFinished(onLibraryEvent((event) => events.push(event)));
+
+  return events;
 }
 
 function dropped(reason: string) {

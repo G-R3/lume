@@ -47,7 +47,6 @@ export type TrackLikeResult = {
   trackId: Track["id"];
 };
 
-/** Main numbers every library payload in the order it built them. A higher revision saw a newer database. */
 export type LibraryRevision = number;
 
 export type TracksLikedResult = {
@@ -62,6 +61,19 @@ export type SourceStatus =
   | { kind: "missing" | "permission" | "failed"; lastScannedAt: number | null; errorMessage: string };
 
 export type LibrarySource = { id: number; path: string; status: SourceStatus };
+
+export type ScanFrame = {
+  afterRevision: LibraryRevision;
+  scanning: readonly LibrarySource["id"][];
+  sequence: number;
+};
+
+export type LibraryEvent =
+  | { kind: "changed"; revision: LibraryRevision }
+  | { kind: "tracks-liked"; revision: LibraryRevision; likes: TrackLikeResult[] }
+  | { kind: "scans"; scans: ScanFrame };
+
+export type LibraryState = { revision: LibraryRevision; scans: ScanFrame };
 
 export type PlaylistSummary = {
   description: string | null;
@@ -120,7 +132,8 @@ export type MusicLibrary = {
 
 export type FirstRunLibrary = { kind: "first-run" };
 
-export type LibrarySnapshot = (MusicLibrary | FirstRunLibrary) & { revision: LibraryRevision };
+/** A library read, with the scans main was running when it read. */
+export type LibrarySnapshot = (MusicLibrary & LibraryState) | (FirstRunLibrary & LibraryState);
 
 // The library as a JSON string. This is what main sends to the renderer.
 export type LibrarySnapshotJson = string;
@@ -165,7 +178,7 @@ type TupleValues<Keys extends readonly TrackTupleKey[]> = {
 
 export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
-type LibraryWithTrackTuples = { revision: LibraryRevision } & (
+type LibraryWithTrackTuples = LibraryState & (
   | FirstRunLibrary
   | {
       kind: "library";
@@ -175,12 +188,12 @@ type LibraryWithTrackTuples = { revision: LibraryRevision } & (
     }
 );
 
-export function stringifyFirstRunLibrary(revision: LibraryRevision): LibrarySnapshotJson {
-  return JSON.stringify({ kind: "first-run", revision } satisfies LibrarySnapshot);
+export function stringifyFirstRunLibrary({ revision, scans }: LibraryState): LibrarySnapshotJson {
+  return JSON.stringify({ kind: "first-run", revision, scans } satisfies LibrarySnapshot);
 }
 
 export function stringifyLibrary(
-  revision: LibraryRevision,
+  { revision, scans }: LibraryState,
   playlists: PlaylistSummary[],
   sources: LibrarySource[],
   tracks: TrackTuple[],
@@ -189,6 +202,7 @@ export function stringifyLibrary(
     kind: "library",
     playlists,
     revision,
+    scans,
     sources,
     tracks,
   } satisfies LibraryWithTrackTuples;
@@ -229,6 +243,7 @@ export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot
     kind: "library",
     playlists: library.playlists,
     revision: library.revision,
+    scans: library.scans,
     sources: library.sources,
     tracks,
   };
@@ -290,37 +305,33 @@ function trackFromTuple(track: TrackTuple) {
   } satisfies Track;
 }
 
-export type LibraryUpdate =
-  | { kind: "snapshot"; library: LibrarySnapshotJson }
-  | { kind: "sources"; revision: LibraryRevision; sources: LibrarySource[] };
-
 export type SavedPlaybackSession = {
   payload: string;
   position: number;
 };
 
 export type PlaylistCreationResult = {
-  library: LibrarySnapshotJson;
   playlist: PlaylistDetails;
+  revision: LibraryRevision;
 };
 
 export type LumeInvokeApi = {
-  addSource: () => Promise<LibrarySnapshotJson>;
+  addSource: () => Promise<LibraryRevision>;
   addTracksToPlaylist: (input: AddTracksToPlaylistInput) => Promise<AddTracksToPlaylistResult>;
-  awaitStartupScan: () => Promise<LibraryUpdate | null>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
-  deletePlaylist: (playlistId: number) => Promise<LibrarySnapshotJson>;
-  disableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
-  enableSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
-  forgetSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
+  deletePlaylist: (playlistId: number) => Promise<LibraryRevision>;
+  disableSource: (sourceId: number) => Promise<LibraryRevision>;
+  enableSource: (sourceId: number) => Promise<LibraryRevision>;
+  forgetSource: (sourceId: number) => Promise<LibraryRevision>;
   hasTrackFile: (trackId: number) => Promise<boolean>;
   loadLibrary: () => Promise<LibrarySnapshotJson>;
+  loadLibraryState: () => Promise<LibraryState>;
   loadPlaybackSession: () => Promise<SavedPlaybackSession | null>;
   loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
   openDataFolder: () => Promise<void>;
   removePlaylistTracks: (input: RemovePlaylistTracksInput) => Promise<void>;
-  rescanSource: (sourceId: number) => Promise<LibrarySnapshotJson>;
-  rescanSources: () => Promise<LibrarySnapshotJson>;
+  rescanSource: (sourceId: number) => Promise<LibraryRevision>;
+  rescanSources: () => Promise<LibraryRevision>;
   savePlaybackPosition: (position: number) => Promise<void>;
   savePlaybackSession: (session: SavedPlaybackSession) => Promise<void>;
   setTracksLiked: (input: SetTracksLikedInput) => Promise<TracksLikedResult>;
@@ -336,13 +347,13 @@ export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
     savePosition: LumeInvokeApi["savePlaybackPosition"];
   };
   isMac: boolean;
+  onLibraryEvent: (listener: (event: LibraryEvent) => void) => () => void;
 };
 
 // Electron includes the channel name in the error text the renderer shows for a failed call.
 export const lumeChannels = {
   addSource: "lume:add-source",
   addTracksToPlaylist: "lume:add-tracks-to-playlist",
-  awaitStartupScan: "lume:await-startup-scan",
   createPlaylist: "lume:create-playlist",
   deletePlaylist: "lume:delete-playlist",
   disableSource: "lume:disable-source",
@@ -350,6 +361,7 @@ export const lumeChannels = {
   forgetSource: "lume:forget-source",
   hasTrackFile: "lume:has-track-file",
   loadLibrary: "lume:load-library",
+  loadLibraryState: "lume:load-library-state",
   loadPlaybackSession: "lume:load-playback-session",
   loadPlaylist: "lume:load-playlist",
   openDataFolder: "lume:open-data-folder",
@@ -363,6 +375,7 @@ export const lumeChannels = {
 
 export const lumeEventChannels = {
   flushPlaybackSession: "lume:flush-playback-session",
+  libraryEvent: "lume:library-event",
 } as const;
 
 export const appScheme = "lume";

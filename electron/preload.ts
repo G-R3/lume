@@ -1,5 +1,11 @@
-import { contextBridge, ipcRenderer } from "electron";
-import { lumeChannels, lumeEventChannels, type LumeApi, type LumeInvokeApi } from "../shared/lib";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import {
+  lumeChannels,
+  lumeEventChannels,
+  type LibraryEvent,
+  type LumeApi,
+  type LumeInvokeApi,
+} from "../shared/lib";
 
 // Forward only the first argument: TanStack calls a `mutationFn` with a second `context` argument.
 // SAFETY: one entry per `lumeChannels` key, and `lumeChannels` has exactly the keys of `LumeInvokeApi`.
@@ -25,6 +31,14 @@ const lumeApi = {
     savePosition: savePlaybackPosition,
   },
   isMac: process.platform === "darwin",
+  onLibraryEvent: (listener) => {
+    const forward = (_event: IpcRendererEvent, libraryEvent: LibraryEvent) => listener(libraryEvent);
+    ipcRenderer.on(lumeEventChannels.libraryEvent, forward);
+
+    return () => {
+      ipcRenderer.removeListener(lumeEventChannels.libraryEvent, forward);
+    };
+  },
 } satisfies LumeApi;
 
 contextBridge.exposeInMainWorld("lume", lumeApi);

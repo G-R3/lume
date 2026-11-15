@@ -2,6 +2,7 @@ import {
   type Mutation,
   queryOptions,
   type QueryClient,
+  skipToken,
   useMutation,
   useMutationState,
   useQuery,
@@ -9,21 +10,20 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import {
+  type FirstRunLibrary,
+  type LibraryRevision,
   type LibrarySnapshot,
-  type LibraryUpdate,
+  type MusicLibrary,
   parseLibrarySnapshot,
+  type ScanFrame,
   type SetTracksLikedInput,
+  type TrackLikeResult,
 } from "../../shared/lib";
 import { z } from "zod";
-import {
-  type SavedLibrary,
-  type ShownLibrary,
-  showSavedLibrary,
-  withLikedAt,
-  withNewerLikes,
-  withNewerSnapshot,
-  withNewerSources,
-} from "@/lib/saved-library";
+import { type ScanFrames, receiveScanFrame, settleScanFrames } from "@/lib/scan-frames";
+import { withLikedAt } from "@/lib/liked-at";
+
+export type ShownLibrary = MusicLibrary | FirstRunLibrary;
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -32,23 +32,28 @@ type LibraryCommand =
   | { kind: "rescan-sources" }
   | { enabled: boolean; kind: "set-source-enabled"; sourceId: number };
 
-export const libraryCommandOptions = {
-  networkMode: "always",
-  scope: { id: "library" },
-} as const;
-
 const libraryQueryOptions = queryOptions({
   networkMode: "always",
   queryKey: ["library"],
   queryFn: async ({ client, queryKey }) => {
     const snapshot = parseLibrarySnapshot(await window.lume.loadLibrary());
+    applyScanFrame(client, snapshot.scans);
 
-    return withNewerSnapshot(client.getQueryData<SavedLibrary>(queryKey), snapshot);
+    return newerSnapshot(client.getQueryData<LibrarySnapshot>(queryKey), snapshot);
   },
   retry: false,
-  select: showSavedLibrary,
   staleTime: Infinity,
 });
+
+const noScans: ScanFrame = { afterRevision: 0, scanning: [], sequence: 0 };
+
+const noScanFrames: ScanFrames = { shown: noScans, waiting: [] };
+
+const scanFramesKey = ["library-scans"];
+
+const firstRetryDelay = 250;
+
+const lastRetryDelay = 30_000;
 
 const setTracksLikedKey = ["set-tracks-liked"];
 
@@ -79,11 +84,7 @@ export function useLibrary() {
     [query.data, pendingLikes],
   );
 
-  useEffect(() => {
-    void window.lume.awaitStartupScan().then((update) => {
-      if (update) applyStartupScan(queryClient, update);
-    });
-  }, [queryClient]);
+  useEffect(() => followLibrary(queryClient), [queryClient]);
 
   return {
     error: query.error,
@@ -92,43 +93,112 @@ export function useLibrary() {
   };
 }
 
-export function replaceLibrary(queryClient: QueryClient, snapshot: LibrarySnapshot) {
-  queryClient.setQueryData(libraryQueryOptions.queryKey, (saved) =>
-    withNewerSnapshot(saved, snapshot),
-  );
+export function useScanningSources(): ReadonlySet<number> {
+  const frames =
+    useQuery<ScanFrames>({ queryFn: skipToken, queryKey: scanFramesKey, staleTime: Infinity })
+      .data ?? noScanFrames;
+
+  const revision = useQuery({ ...libraryQueryOptions, select: (library) => library.revision })
+    .data;
+
+  const scanning = settleScanFrames(frames, revision ?? -1).shown.scanning;
+
+  return useMemo(() => new Set(scanning), [scanning]);
 }
 
-export function refreshLibrary(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: libraryQueryOptions.queryKey });
-}
+export async function reachLibraryRevision(queryClient: QueryClient, revision: LibraryRevision) {
+  let lastRead: LibraryRevision | null = null;
 
-function applyStartupScan(queryClient: QueryClient, update: LibraryUpdate) {
-  if (update.kind === "snapshot") {
-    replaceLibrary(queryClient, parseLibrarySnapshot(update.library));
+  while (libraryRevisionOf(queryClient) < revision) {
+    // TanStack joins a read that is already running instead of starting another.
+    const read = await queryClient.fetchQuery({ ...libraryQueryOptions, staleTime: 0 });
 
-    return;
-  }
+    if (read.revision === lastRead) {
+      throw new Error(`The library stayed at revision ${read.revision}, not ${revision}`);
+    }
 
-  const saved = queryClient.setQueryData(libraryQueryOptions.queryKey, (current) =>
-    withNewerSources(current, update),
-  );
-
-  if (!hasLibrary(saved)) void readLibraryAfterScan(queryClient);
-}
-
-async function readLibraryAfterScan(queryClient: QueryClient) {
-  const filters = { queryKey: libraryQueryOptions.queryKey };
-  const joinsEarlierRead = queryClient.isFetching(filters) > 0;
-
-  await queryClient.invalidateQueries(filters, { cancelRefetch: false });
-
-  if (joinsEarlierRead && !hasLibrary(queryClient.getQueryData(filters.queryKey))) {
-    await queryClient.invalidateQueries(filters, { cancelRefetch: false });
+    lastRead = read.revision;
   }
 }
 
-function hasLibrary(saved: SavedLibrary | undefined) {
-  return saved?.snapshot?.kind === "library";
+function followLibrary(queryClient: QueryClient) {
+  let following = true;
+
+  const keepTrying = async (task: () => Promise<void>) => {
+    for (let delay = firstRetryDelay; following; delay = Math.min(delay * 2, lastRetryDelay)) {
+      try {
+        return await task();
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  };
+
+  const follow = (revision: LibraryRevision) =>
+    void keepTrying(() => reachLibraryRevision(queryClient, revision));
+
+  const stopListening = window.lume.onLibraryEvent((event) => {
+    switch (event.kind) {
+      case "changed":
+        follow(event.revision);
+
+        return;
+      case "tracks-liked":
+        applyCommittedLikes(queryClient, event.revision, event.likes);
+        follow(event.revision);
+
+        return;
+      case "scans":
+        applyScanFrame(queryClient, event.scans);
+    }
+  });
+
+  void keepTrying(async () => {
+    const state = await window.lume.loadLibraryState();
+
+    if (!following) return;
+
+    applyScanFrame(queryClient, state.scans);
+    follow(state.revision);
+  });
+
+  return () => {
+    following = false;
+    stopListening();
+  };
+}
+
+function applyScanFrame(queryClient: QueryClient, frame: ScanFrame) {
+  queryClient.setQueryData<ScanFrames>(scanFramesKey, (frames) =>
+    receiveScanFrame(frames ?? noScanFrames, frame, libraryRevisionOf(queryClient)),
+  );
+}
+
+function applyCommittedLikes(
+  queryClient: QueryClient,
+  revision: LibraryRevision,
+  likes: readonly TrackLikeResult[],
+) {
+  const likedAt = new Map(likes.map((like) => [like.trackId, like.likedAt]));
+
+  const saved = queryClient.getQueryData(libraryQueryOptions.queryKey);
+
+  if (saved?.kind !== "library" || saved.revision !== revision - 1) return;
+
+  const { tracks } = withLikedAt(saved, (track) =>
+    likedAt.has(track.id) ? (likedAt.get(track.id) ?? null) : track.likedAt,
+  );
+
+  const liked: LibrarySnapshot = { ...saved, revision, tracks };
+  queryClient.setQueryData(libraryQueryOptions.queryKey, liked);
+}
+
+function libraryRevisionOf(queryClient: QueryClient) {
+  return queryClient.getQueryData(libraryQueryOptions.queryKey)?.revision ?? -1;
+}
+
+function newerSnapshot(saved: LibrarySnapshot | undefined, snapshot: LibrarySnapshot) {
+  return saved && saved.revision >= snapshot.revision ? saved : snapshot;
 }
 
 function withPendingLikes(
@@ -156,11 +226,9 @@ export function useLibraryMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    ...libraryCommandOptions,
+    networkMode: "always",
     mutationFn: async (command: LibraryCommand) =>
-      parseLibrarySnapshot(await runLibraryCommand(queryClient, command)),
-    onError: () => refreshLibrary(queryClient),
-    onSuccess: (library) => replaceLibrary(queryClient, library),
+      reachLibraryRevision(queryClient, await runLibraryCommand(command)),
   });
 }
 
@@ -174,15 +242,14 @@ export function useSetTracksLiked() {
     mutationFn: (input: SetTracksLikedInput) => window.lume.setTracksLiked(input),
     // Runs before the mutation stops being pending, so the stored time replaces the intent with no gap.
     onSuccess: (result) => {
-      queryClient.setQueryData(
-        libraryQueryOptions.queryKey,
-        (saved) => saved && withNewerLikes(saved, result),
-      );
+      applyCommittedLikes(queryClient, result.revision, result.likes);
+
+      return reachLibraryRevision(queryClient, result.revision);
     },
   });
 }
 
-async function runLibraryCommand(queryClient: QueryClient, command: LibraryCommand) {
+function runLibraryCommand(command: LibraryCommand) {
   switch (command.kind) {
     case "add-source":
       return window.lume.addSource();
@@ -193,13 +260,8 @@ async function runLibraryCommand(queryClient: QueryClient, command: LibraryComma
     case "rescan-sources":
       return window.lume.rescanSources();
     case "set-source-enabled":
-      if (!command.enabled) return window.lume.disableSource(command.sourceId);
-
-      replaceLibrary(
-        queryClient,
-        parseLibrarySnapshot(await window.lume.enableSource(command.sourceId)),
-      );
-
-      return window.lume.rescanSource(command.sourceId);
+      return command.enabled
+        ? window.lume.enableSource(command.sourceId)
+        : window.lume.disableSource(command.sourceId);
   }
 }
