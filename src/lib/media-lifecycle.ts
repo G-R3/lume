@@ -31,6 +31,7 @@ export type MediaEvent<Element> =
   | { type: "pause" }
   | { type: "seek"; time: number; elementDuration: number }
   | { type: "committed"; requestId: string }
+  | { type: "playrejected"; attempt: number; loadFailed: boolean }
   | { type: "attach"; requestId: string; element: Element }
   | { type: "detach"; element: Element }
   | { type: "element"; element: Element; report: ElementReport };
@@ -43,7 +44,6 @@ export type ElementReport =
   | { type: "pause"; paused: boolean; ended: boolean }
   | { type: "ended" }
   | { type: "error" }
-  | { type: "playrejected"; attempt: number; loadFailed: boolean }
   | { type: "seekapplied"; currentTime: number; report: boolean };
 
 export type MediaStep<Element> = {
@@ -120,6 +120,18 @@ export function mediaTransition<Element>(
       return event.requestId === lifecycle.request.requestId && wantsPlay(lifecycle.playback)
         ? play(lifecycle)
         : { lifecycle };
+    case "playrejected":
+      return event.loadFailed || event.attempt !== lifecycle.rejectableAttempt
+        ? { lifecycle }
+        : {
+            lifecycle: { ...lifecycle, playback: { kind: "failed", reason: "rejected" } },
+            emit: {
+              type: "error",
+              reason: "rejected",
+              requestId: lifecycle.request.requestId,
+              queueItemId: lifecycle.request.queueItemId,
+            },
+          };
     case "element":
       return event.element === currentElement(lifecycle)
         ? report(lifecycle, event.element, event.report)
@@ -292,13 +304,6 @@ function report<Element>(
       return {
         lifecycle: { ...lifecycle, playback: { kind: "failed", reason: "load" } },
         emit: { type: "error", reason: "load", ...ids },
-      };
-    case "playrejected":
-      if (report.loadFailed || report.attempt !== lifecycle.rejectableAttempt) return { lifecycle };
-
-      return {
-        lifecycle: { ...lifecycle, playback: { kind: "failed", reason: "rejected" } },
-        emit: { type: "error", reason: "rejected", ...ids },
       };
   }
 }
