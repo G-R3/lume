@@ -134,7 +134,10 @@ it("restores a paused session on an unavailable track as failed unavailable", as
   });
 
   expect(probe.commits).toEqual(["none:stopped", "1:failed"]);
-  expect(probe.playback().phase).toEqual({ kind: "failed", reason: "unavailable" });
+  expect(probe.playback().phase).toEqual({ kind: "failed", reason: { kind: "unavailable" } });
+  expect(probe.playback().notices).toEqual([
+    { kind: "track", title: "1", failure: { kind: "unavailable" } },
+  ]);
 });
 
 it("shows loading from Play until the element plays, and loading the next track when one ends", async () => {
@@ -165,7 +168,7 @@ it("shows a load failure as failed, then loading again on the next toggle", asyn
 
   probe.toggle();
   probe.emit("error", { error: { code: 4 } });
-  expect(probe.playback().phase).toEqual({ kind: "failed", reason: "load" });
+  expect(probe.playback().phase).toMatchObject({ kind: "failed", reason: { kind: "load" } });
   probe.toggle();
   expect(probe.commits).toEqual(["1:loading", "1:failed", "1:loading"]);
 });

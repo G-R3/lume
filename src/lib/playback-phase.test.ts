@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 import { queueContext } from "../../tests/helpers/queue-context";
 import type { MediaView, Playback } from "./media-lifecycle";
-import { derivePlaybackPhase, pausesOnToggle, type PlaybackPhase } from "./playback-phase";
+import {
+  derivePlaybackPhase,
+  pausesOnToggle,
+  type FailedTrack,
+  type PlaybackPhase,
+} from "./playback-phase";
 import type { QueueState } from "./queue/model";
 import { selectCurrentItem } from "./queue/selectors";
 import { transition } from "./queue/transition";
@@ -107,11 +112,11 @@ const playing: PlaybackPhase = { kind: "playing" };
 
 const paused: PlaybackPhase = { kind: "paused" };
 
-const unavailable: PlaybackPhase = { kind: "failed", reason: "unavailable" };
+const unavailable: PlaybackPhase = { kind: "failed", reason: { kind: "unavailable" } };
 
-const failedLoad: PlaybackPhase = { kind: "failed", reason: "load" };
+const failedLoad: PlaybackPhase = { kind: "failed", reason: { kind: "load", file: "checking" } };
 
-const rejected: PlaybackPhase = { kind: "failed", reason: "rejected" };
+const rejected: PlaybackPhase = { kind: "failed", reason: { kind: "rejected" } };
 
 const allStopped = {
   empty: stopped,
@@ -206,7 +211,46 @@ describe("derivePlaybackPhase", () => {
   );
 
   it.each(cases)("$queueName with $scenarioName", ({ queue, view, availableTrackIds, phase }) => {
-    expect(derivePlaybackPhase(queue, view, availableTrackIds)).toEqual(phase);
+    expect(derivePlaybackPhase(queue, view, availableTrackIds, null)).toEqual(phase);
+  });
+});
+
+describe("a failed load's file check", () => {
+  const failedLoadView = matching({ kind: "failed", reason: "load" });
+
+  const loadRecord = (requestId: string, file: "missing" | "unreadable"): FailedTrack => ({
+    kind: "load",
+    trackId: 1,
+    queueItemId: currentId,
+    requestId,
+    file,
+  });
+
+  it.each([
+    ["missing for this request", loadRecord(`request-${currentId}`, "missing"), "missing"],
+    ["unreadable for this request", loadRecord(`request-${currentId}`, "unreadable"), "unreadable"],
+    ["for another request", loadRecord("an-earlier-request", "missing"), "checking"],
+    [
+      "an unavailable skip",
+      { kind: "unavailable", trackId: 1, queueItemId: currentId } satisfies FailedTrack,
+      "checking",
+    ],
+  ] as const)("reports %s", (_name, failedTrack, file) => {
+    expect(derivePlaybackPhase(playingQueue, failedLoadView, new Set([1]), failedTrack)).toEqual({
+      kind: "failed",
+      reason: { kind: "load", file },
+    });
+  });
+
+  it("does not change a rejection", () => {
+    expect(
+      derivePlaybackPhase(
+        playingQueue,
+        matching({ kind: "failed", reason: "rejected" }),
+        new Set([1]),
+        loadRecord(`request-${currentId}`, "missing"),
+      ),
+    ).toEqual(rejected);
   });
 });
 

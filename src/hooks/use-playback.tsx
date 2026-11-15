@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { MusicLibrary, Track } from "../../shared/lib";
 import { useMediaElement } from "@/hooks/use-media-element";
 import { createPlaybackController } from "@/lib/playback-controller";
+import { derivePlaybackNotices, type PlaybackNotice } from "@/lib/playback-notices";
 import { derivePlaybackPhase, pausesOnToggle, type PlaybackPhase } from "@/lib/playback-phase";
 import { createPlaylistReader } from "@/lib/playlist-query";
 import {
@@ -42,8 +43,8 @@ type PlaybackContextValue = Pick<
   activeTrack: Track | null;
   canGoNext: boolean;
   duration: number;
-  errorMessage: string | null;
   isMuted: boolean;
+  notices: readonly PlaybackNotice[];
   phase: PlaybackPhase;
   queue: ReturnType<typeof selectQueueView>;
   isInitialized: boolean;
@@ -122,8 +123,25 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const duration = media.view.kind === "requested" ? media.view.duration : 0;
 
   const phase = useMemo(
-    () => derivePlaybackPhase(snapshot.queue, media.view, snapshot.availableTrackIds),
-    [snapshot.queue, media.view, snapshot.availableTrackIds],
+    () =>
+      derivePlaybackPhase(
+        snapshot.queue,
+        media.view,
+        snapshot.availableTrackIds,
+        snapshot.failures.track,
+      ),
+    [snapshot.queue, media.view, snapshot.availableTrackIds, snapshot.failures.track],
+  );
+
+  const notices = useMemo(
+    () =>
+      derivePlaybackNotices({
+        queue: snapshot.queue,
+        tracksById: snapshot.tracksById,
+        failures: snapshot.failures,
+        phase,
+      }),
+    [snapshot.queue, snapshot.tracksById, snapshot.failures, phase],
   );
 
   const togglePlayback = useCallback(
@@ -151,8 +169,8 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         shufflePlay: controller.shufflePlay,
         shuffleEnabled: snapshot.queue?.shuffleEnabled ?? false,
         duration,
-        errorMessage: snapshot.errorMessage,
         isMuted: media.isMuted,
+        notices,
         phase,
         queue: selectQueueView(snapshot.queue),
         isInitialized: snapshot.isInitialized,
@@ -175,10 +193,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       media.setVolume,
       media.toggleMute,
       media.volume,
+      notices,
       snapshot.availableTrackIds,
       controller,
       current?.queueItemId,
-      snapshot.errorMessage,
       snapshot.queue,
       snapshot.isInitialized,
       togglePlayback,

@@ -7,6 +7,7 @@ import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistenc
 import { selectCurrentItem, selectPlaybackStatus } from "@/lib/queue/selectors";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
 import { libraryEntries, playlistEntries } from "@/lib/queue/source";
+import type { FailedTrack } from "@/lib/playback-phase";
 import { defaultSort, type TrackSort } from "@/lib/track-sort";
 import { transition } from "@/lib/queue/transition";
 
@@ -16,7 +17,21 @@ type Snapshot = {
   tracksById: ReadonlyMap<number, Track>;
   availableTrackIds: ReadonlySet<number>;
   isInitialized: boolean;
-  errorMessage: string | null;
+  failures: PlaybackFailures;
+};
+
+export type PlaybackFailures = {
+  track: FailedTrack | null;
+  save: boolean;
+  restore: boolean;
+  sourceReload: boolean;
+};
+
+export const noFailures: PlaybackFailures = {
+  track: null,
+  save: false,
+  restore: false,
+  sourceReload: false,
 };
 
 type SourceChange = Extract<
@@ -68,7 +83,7 @@ export function createPlaybackController(dependencies: {
     tracksById: new Map(),
     availableTrackIds: new Set(),
     isInitialized: false,
-    errorMessage: null,
+    failures: noFailures,
   };
 
   let lifecycle: "awaiting-library" | "restoring" | "ready" | "closed" = "awaiting-library";
@@ -85,9 +100,12 @@ export function createPlaybackController(dependencies: {
     listeners.forEach((listener) => listener());
   };
 
-  const setError = (errorMessage: string | null) => {
-    if (lifecycle !== "closed" && snapshot.errorMessage !== errorMessage)
-      publish({ ...snapshot, errorMessage });
+  const setFailure = <Slot extends keyof PlaybackFailures>(
+    slot: Slot,
+    value: PlaybackFailures[Slot],
+  ) => {
+    if (lifecycle === "closed" || snapshot.failures[slot] === value) return;
+    publish({ ...snapshot, failures: { ...snapshot.failures, [slot]: value } });
   };
 
   const savePending = async () => {
@@ -107,10 +125,13 @@ export function createPlaybackController(dependencies: {
               position: next.position,
             })
           : dependencies.storage.savePosition(next.position)
-      ).catch((error: Error) => {
-        savedState = null;
-        setError(error.message || "Could not save playback");
-      });
+      ).then(
+        () => setFailure("save", false),
+        () => {
+          savedState = null;
+          setFailure("save", true);
+        },
+      );
     }
 
     saving = false;
@@ -157,7 +178,13 @@ export function createPlaybackController(dependencies: {
       restartAudio ||
       selectCurrentItem(queue)?.queueItemId !== selectCurrentItem(previous)?.queueItemId;
 
-    publish({ ...snapshot, queue, errorMessage: load ? null : snapshot.errorMessage });
+    publish({
+      ...snapshot,
+      queue,
+      failures: load
+        ? { ...snapshot.failures, track: null, restore: false, sourceReload: false }
+        : snapshot.failures,
+    });
     persist(queue, load ? 0 : dependencies.audio.getPosition());
 
     if (load) loadCurrent(0);
@@ -213,6 +240,8 @@ export function createPlaybackController(dependencies: {
 
       return restartFromPlaylist(restart, sort, request, true);
     }
+
+    setFailure("sourceReload", false);
 
     if (data)
       dispatchSessionStart(
@@ -271,8 +300,8 @@ export function createPlaybackController(dependencies: {
 
     const restart = { playlistId: queue.source.playlistId, edited: false };
     playlistRestart = restart;
-    void restartFromPlaylist(restart, queue.sort, request).catch((error: Error) =>
-      setError(error.message || "Could not load playback source"),
+    void restartFromPlaylist(restart, queue.sort, request).catch(() =>
+      setFailure("sourceReload", true),
     );
   };
 
@@ -291,22 +320,8 @@ export function createPlaybackController(dependencies: {
     dispatch({ type: "previous" });
   };
 
-  const failureMessage = (
-    reason: "pending" | "unavailable" | "gone" | "unreadable" | "rejected",
-    trackId: number,
-  ) => {
-    const title = snapshot.tracksById.get(trackId)?.title ?? "this track";
-
-    return {
-      pending: `Could not play ${title}.`,
-      unavailable: `Could not play ${title}. It’s unavailable. Check its folder in Settings.`,
-      gone: `Could not play ${title}. Its file was moved, deleted, or disconnected.`,
-      unreadable: `Could not play ${title}. The file can’t be read or is in a format Lume can’t play.`,
-      rejected: `Could not play ${title}. Press Play to try again.`,
-    }[reason];
-  };
-
   const resume = () => {
+    setFailure("track", null);
     const current = selectCurrentItem(snapshot.queue);
 
     if (current && requestId === null) {
@@ -314,13 +329,12 @@ export function createPlaybackController(dependencies: {
 
       if (snapshot.availableTrackIds.has(trackId)) {
         loadCurrent(dependencies.audio.getPosition(), true);
-        setError(null);
 
         return;
       }
 
       advance();
-      setError(failureMessage("unavailable", trackId));
+      setFailure("track", { kind: "unavailable", trackId, queueItemId: current.queueItemId });
 
       return;
     }
@@ -331,7 +345,6 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    setError(null);
     dependencies.audio.play();
   };
 
@@ -368,6 +381,7 @@ export function createPlaybackController(dependencies: {
         lifecycle = "ready";
         const latestLibrary = snapshot.library ?? library;
         const restored = parseQueueSession(raw, latestLibrary);
+        const restore = raw !== null && restored === null;
 
         if (restored) {
           const queue = transition(
@@ -383,15 +397,15 @@ export function createPlaybackController(dependencies: {
           loadCurrent(restored.position, false);
         }
 
-        publish({ ...snapshot, isInitialized: true });
+        publish({ ...snapshot, isInitialized: true, failures: { ...snapshot.failures, restore } });
       })
-      .catch((error: Error) => {
+      .catch(() => {
         if (lifecycle === "closed") return;
         lifecycle = "ready";
         publish({
           ...snapshot,
-          errorMessage: error.message || "Could not restore playback",
           isInitialized: true,
+          failures: { ...snapshot.failures, restore: true },
         });
       });
   };
@@ -429,7 +443,6 @@ export function createPlaybackController(dependencies: {
 
     if (event.reason === "rejected") {
       dispatch({ type: "playbackPaused" });
-      setError(failureMessage("rejected", trackId));
 
       return;
     }
@@ -440,15 +453,23 @@ export function createPlaybackController(dependencies: {
 
     if (selectPlaybackStatus(snapshot.queue) === "playing") advance();
 
+    const failed: FailedTrack = {
+      kind: "load",
+      trackId,
+      queueItemId: current.queueItemId,
+      requestId: event.requestId,
+      file: "checking",
+    };
+
+    setFailure("track", failed);
+
     // Chromium reports a gone file and an unreadable one with the same error, so ask the main process.
-    const firstMessage = failureMessage("pending", trackId);
-    setError(firstMessage);
     void dependencies
       .hasTrackFile(trackId)
       .catch(() => true)
       .then((exists) => {
-        if (snapshot.errorMessage === firstMessage)
-          setError(failureMessage(exists ? "unreadable" : "gone", trackId));
+        if (snapshot.failures.track === failed)
+          setFailure("track", { ...failed, file: exists ? "unreadable" : "missing" });
       });
   };
 
@@ -525,7 +546,6 @@ export function createPlaybackController(dependencies: {
 
       if (snapshot.queue) persist(snapshot.queue, dependencies.audio.getPosition());
     }),
-    setError,
     setShuffleEnabled: userCommand((enabled: boolean) => {
       if (!snapshot.queue || snapshot.queue.shuffleEnabled === enabled) return;
       dispatch({ type: "setShuffleEnabled", enabled });

@@ -10,6 +10,7 @@ import { usePlayback } from "@/hooks/use-playback";
 import { PlaylistCreationProvider } from "@/hooks/use-playlist-creation";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { getSidebarShortcut } from "@/lib/keyboard-shortcuts";
+import { formatPlaybackNotice } from "@/lib/playback-notices";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
@@ -37,10 +38,15 @@ export function AppLayout() {
             <div className="relative flex min-h-0 flex-1">
               <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page scroll-area-scrollbar">
                 <div className="flex min-h-0 flex-1 flex-col">
-                  {playback.errorMessage && (
-                    <p className="px-6 pt-4 text-meta text-danger" role="alert">
-                      {playback.errorMessage}
-                    </p>
+                  {playback.notices.length > 0 && (
+                    <div
+                      className="flex flex-col gap-1 px-6 pt-4 text-meta text-danger"
+                      role="alert"
+                    >
+                      {playback.notices.map((notice) => (
+                        <p key={notice.kind}>{formatPlaybackNotice(notice)}</p>
+                      ))}
+                    </div>
                   )}
                   <Outlet />
                 </div>
