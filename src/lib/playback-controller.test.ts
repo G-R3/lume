@@ -3,6 +3,7 @@ import type {
   LumeApi,
   MusicLibrary,
   PlaylistDetails,
+  PlaylistRead,
   SavedPlaybackSession,
   Track,
 } from "../../shared/lib";
@@ -194,9 +195,11 @@ it("keeps the active source in order through playlist edits", async () => {
     })),
   } satisfies PlaylistDetails;
 
-  const controller = createTestPlayback({
+  const playback = createTestPlayback({
     loadPlaylist: () => Promise.resolve(playlist),
-  }).controller;
+  });
+
+  const controller = playback.controller;
 
   const library = {
     kind: "library",
@@ -209,21 +212,21 @@ it("keeps the active source in order through playlist edits", async () => {
   await expect.poll(() => controller.getSnapshot().isInitialized).toBe(true);
   controller.playSourceEntry(playlistView(playlist), 1);
 
-  controller.applySourceChange({
+  playback.commit({
     type: "sourceEntriesRemoved",
     playlistId: 1,
     sourceEntryIds: [2],
   });
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([3]);
 
-  controller.applySourceChange({
+  playback.commit({
     type: "sourceEntriesAdded",
     playlistId: 1,
     entries: [{ sourceEntryId: 4, trackId: 4 }],
   });
   expect(controller.getSnapshot().queue?.sourceQueue.map((item) => item.trackId)).toEqual([3, 4]);
 
-  controller.applySourceChange({ type: "sourceDeleted", playlistId: 1 });
+  playback.commit({ type: "sourceDeleted", playlistId: 1 });
 
   expect(controller.getSnapshot().queue?.source).toEqual({ kind: "detached", title: "Source" });
   expect(controller.getSnapshot().queue?.current?.item.trackId).toBe(1);
@@ -480,7 +483,7 @@ it("refreshes a late playlist read after a committed edit before restarting at q
 
   playback.controller.playSourceEntry(playlistView(original), 12);
   playback.controller.next();
-  playback.controller.applySourceChange({
+  playback.commit({
     type: "sourceEntriesRemoved",
     playlistId: 1,
     sourceEntryIds: [11],
@@ -1020,7 +1023,7 @@ it("appends a playlist addition to a sorted session", async () => {
     },
     12,
   );
-  playback.controller.applySourceChange({
+  playback.commit({
     type: "sourceEntriesAdded",
     playlistId: 1,
     entries: [{ sourceEntryId: 14, trackId: 4 }],
@@ -1302,7 +1305,7 @@ it("ignores audio events, positions, library syncs, playlist edits, and errors a
   });
   playback.controller.onPosition(9);
   playback.controller.syncLibrary(libraryOf([1, 2, 3]));
-  playback.controller.applySourceChange({
+  playback.commit({
     type: "sourceEntriesRemoved",
     playlistId: 1,
     sourceEntryIds: [11],
@@ -1347,7 +1350,7 @@ it("re-reads instead of failing when the playlist is edited during a failed queu
   await expect.poll(() => playback.controller.getSnapshot().isInitialized).toBe(true);
   playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
   playback.controller.next();
-  playback.controller.applySourceChange({
+  playback.commit({
     type: "sourceEntriesAdded",
     playlistId: 1,
     entries: [{ sourceEntryId: 11, trackId: 2 }],
@@ -1361,6 +1364,56 @@ it("re-reads instead of failing when the playlist is edited during a failed queu
   });
   expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 2]);
   expect(reads).toEqual([1, 1]);
+});
+
+it.each(["before", "after"] as const)(
+  "restarts once from a queue-end read that already holds an edit pushed %s it lands",
+  async (pushed) => {
+    const read = deferred<PlaylistRead>();
+    let reads = 0;
+
+    const playback = await createReadyPlayback(libraryOf([1, 2]), {
+      readPlaylist: () => {
+        reads += 1;
+
+        return read.promise;
+      },
+    });
+
+    const addition = {
+      type: "sourceEntriesAdded",
+      playlistId: 1,
+      entries: [{ sourceEntryId: 11, trackId: 2 }],
+    } as const;
+
+    playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
+    playback.controller.next();
+
+    if (pushed === "before") playback.commit(addition);
+    read.resolve({ revision: 1, playlist: twoTrackPlaylist });
+    await expect.poll(() => playback.controller.getSnapshot().queue?.status).toBe("paused");
+
+    if (pushed === "after") playback.commit(addition);
+
+    expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 2]);
+    expect(reads).toBe(1);
+  },
+);
+
+it("keeps out an edit older than the read a queue-end restart started from", async () => {
+  const playback = await createReadyPlayback(libraryOf([1, 2]), {
+    readPlaylist: () => Promise.resolve({ revision: 2, playlist: singleTrackPlaylist }),
+  });
+
+  playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
+  playback.controller.next();
+  await expect.poll(() => playback.controller.getSnapshot().queue?.status).toBe("paused");
+  playback.controller.applySourceChange(
+    { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 11, trackId: 2 }] },
+    1,
+  );
+
+  expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1]);
 });
 
 it("shows a failed queue-end playlist read and stays stopped", async () => {
@@ -1697,12 +1750,14 @@ async function createReadyPlayback(
 
 function createTestPlayback(
   options: {
-    loadPlaylist?: LumeApi["loadPlaylist"];
+    loadPlaylist?: (playlistId: number) => Promise<PlaylistDetails | null>;
+    readPlaylist?: (playlistId: number) => Promise<PlaylistRead>;
     storage?: LumeApi["playbackSession"];
     hasTrackFile?: (trackId: number) => Promise<boolean>;
     random?: () => number;
   } = {},
 ) {
+  let revision = 0;
   const requests: (PlaybackRequest | null)[] = [];
   const seeks: number[] = [];
   const writes: TestWrite[] = [];
@@ -1757,7 +1812,13 @@ function createTestPlayback(
       },
     },
     playlistReader: {
-      read: async (playlistId) => (await options.loadPlaylist?.(playlistId)) ?? null,
+      read:
+        options.readPlaylist ??
+        (async (playlistId) => {
+          const readAt = revision;
+
+          return { revision: readAt, playlist: (await options.loadPlaylist?.(playlistId)) ?? null };
+        }),
     },
     hasTrackFile: options.hasTrackFile ?? (() => Promise.resolve(true)),
     random: options.random ?? (() => 0.37),
@@ -1765,6 +1826,10 @@ function createTestPlayback(
 
   return {
     controller,
+    commit: (change: Parameters<typeof controller.applySourceChange>[0]) => {
+      revision += 1;
+      controller.applySourceChange(change, revision);
+    },
     media,
     requests,
     seeks,

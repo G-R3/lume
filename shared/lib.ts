@@ -58,7 +58,11 @@ export type SourceStatus =
   | { kind: "off" }
   | { kind: "unscanned" }
   | { kind: "scanned"; scannedAt: number; trackCount: number }
-  | { kind: "missing" | "permission" | "failed"; lastScannedAt: number | null; errorMessage: string };
+  | {
+      kind: "missing" | "permission" | "failed";
+      lastScannedAt: number | null;
+      errorMessage: string;
+    };
 
 export type LibrarySource = { id: number; path: string; status: SourceStatus };
 
@@ -68,9 +72,28 @@ export type ScanFrame = {
   sequence: number;
 };
 
+export type PlaylistEvent =
+  | { kind: "playlist-created"; revision: LibraryRevision; playlist: PlaylistDetails }
+  | { kind: "playlist-deleted"; revision: LibraryRevision; playlistId: number }
+  | {
+      kind: "playlist-tracks-added";
+      revision: LibraryRevision;
+      playlistId: number;
+      tracks: PlaylistTrack[];
+      trackCount: number;
+    }
+  | {
+      kind: "playlist-tracks-removed";
+      revision: LibraryRevision;
+      playlistId: number;
+      playlistTrackIds: number[];
+      trackCount: number;
+    };
+
 export type LibraryEvent =
   | { kind: "changed"; revision: LibraryRevision }
   | { kind: "tracks-liked"; revision: LibraryRevision; likes: TrackLikeResult[] }
+  | PlaylistEvent
   | { kind: "scans"; scans: ScanFrame };
 
 export type LibraryState = { revision: LibraryRevision; scans: ScanFrame };
@@ -118,6 +141,8 @@ export type PlaylistDetails = {
   id: number;
   title: string;
 };
+
+export type PlaylistRead = { revision: LibraryRevision; playlist: PlaylistDetails | null };
 
 export type AddTracksToPlaylistResult =
   | { kind: "added"; tracks: PlaylistTrack[] }
@@ -178,15 +203,16 @@ type TupleValues<Keys extends readonly TrackTupleKey[]> = {
 
 export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
-type LibraryWithTrackTuples = LibraryState & (
-  | FirstRunLibrary
-  | {
-      kind: "library";
-      playlists: PlaylistSummary[];
-      sources: LibrarySource[];
-      tracks: TrackTuple[];
-    }
-);
+type LibraryWithTrackTuples = LibraryState &
+  (
+    | FirstRunLibrary
+    | {
+        kind: "library";
+        playlists: PlaylistSummary[];
+        sources: LibrarySource[];
+        tracks: TrackTuple[];
+      }
+  );
 
 export function stringifyFirstRunLibrary({ revision, scans }: LibraryState): LibrarySnapshotJson {
   return JSON.stringify({ kind: "first-run", revision, scans } satisfies LibrarySnapshot);
@@ -315,9 +341,11 @@ export type PlaylistCreationResult = {
   revision: LibraryRevision;
 };
 
+export type PlaylistAdditionResult = AddTracksToPlaylistResult & { revision: LibraryRevision };
+
 export type LumeInvokeApi = {
   addSource: () => Promise<LibraryRevision>;
-  addTracksToPlaylist: (input: AddTracksToPlaylistInput) => Promise<AddTracksToPlaylistResult>;
+  addTracksToPlaylist: (input: AddTracksToPlaylistInput) => Promise<PlaylistAdditionResult>;
   createPlaylist: (input: PlaylistCreationInput) => Promise<PlaylistCreationResult>;
   deletePlaylist: (playlistId: number) => Promise<LibraryRevision>;
   disableSource: (sourceId: number) => Promise<LibraryRevision>;
@@ -327,9 +355,9 @@ export type LumeInvokeApi = {
   loadLibrary: () => Promise<LibrarySnapshotJson>;
   loadLibraryState: () => Promise<LibraryState>;
   loadPlaybackSession: () => Promise<SavedPlaybackSession | null>;
-  loadPlaylist: (playlistId: number) => Promise<PlaylistDetails | null>;
+  loadPlaylist: (playlistId: number) => Promise<PlaylistRead>;
   openDataFolder: () => Promise<void>;
-  removePlaylistTracks: (input: RemovePlaylistTracksInput) => Promise<void>;
+  removePlaylistTracks: (input: RemovePlaylistTracksInput) => Promise<LibraryRevision>;
   rescanSource: (sourceId: number) => Promise<LibraryRevision>;
   rescanSources: () => Promise<LibraryRevision>;
   savePlaybackPosition: (position: number) => Promise<void>;

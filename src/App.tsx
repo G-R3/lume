@@ -6,6 +6,7 @@ import { playFirstScan } from "@/lib/first-scan";
 import { cn } from "@/lib/utils";
 import { useLibrary, useLibraryMutation, useScanningSources } from "@/lib/library-query";
 import { MusicLibraryContext } from "@/hooks/use-music-library";
+import { usePlayback } from "@/hooks/use-playback";
 import {
   type LibraryStage,
   LibraryRevealContext,
@@ -15,7 +16,8 @@ import {
 
 export function AppRoot() {
   const onTracksRoute = useLocation({ select: (location) => location.pathname === "/" });
-  const { error, library, refetch } = useLibrary();
+  const { applySourceChange } = usePlayback();
+  const { error, library, refetch } = useLibrary(applySourceChange);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const scanning = useScanningSources();
 

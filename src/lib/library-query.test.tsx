@@ -12,7 +12,11 @@ import { act, StrictMode, type ReactNode, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import {
-  type AddTracksToPlaylistResult,
+  type PlaylistAdditionResult,
+  type PlaylistCreationResult,
+  type PlaylistDetails,
+  type PlaylistEvent,
+  type PlaylistRead,
   getTrackUrl,
   type LibraryEvent,
   type LibraryRevision,
@@ -29,10 +33,25 @@ import {
 import { AppRoot } from "@/App";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation, useScanningSources, useSetTracksLiked } from "@/lib/library-query";
-import { useAddTracksToPlaylistMutation } from "@/lib/playlist-mutations";
+import {
+  useAddTracksToPlaylistMutation,
+  useCreatePlaylistMutation,
+} from "@/lib/playlist-mutations";
+import type { PlaylistSourceChange } from "@/lib/playlist-events";
+import { usePlaylist } from "@/lib/playlist-query";
+
+const queue = vi.hoisted(() => {
+  const changes: [PlaylistSourceChange, LibraryRevision][] = [];
+
+  return {
+    changes,
+    applySourceChange: (change: PlaylistSourceChange, revision: LibraryRevision) =>
+      changes.push([change, revision]),
+  };
+});
 
 vi.mock("@/hooks/use-playback", () => ({
-  usePlayback: () => ({ applySourceChange: () => {} }),
+  usePlayback: () => ({ applySourceChange: queue.applySourceChange }),
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -182,22 +201,99 @@ describe("a saved like", () => {
 });
 
 describe("a playlist edit", () => {
-  it("reads the library once for the change main pushes", async () => {
+  it("shows in the sidebar, the open playlist and the queue without a read", async () => {
     const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    await app.answer(await app.lume.playlists.call(0), mixRead(1, [entry(8, 1)]));
 
     await app.do.addToPlaylist(2);
-    await app.push(changed(2));
-    await app.answer(
-      await app.lume.loads.call(1),
-      json(stored({ likedAt: null, playlistTracks: 2, revision: 2 })),
-    );
+    await app.push(added(2, [entry(9, 2)], 2));
     await app.answer(await app.lume.addTracks.call(0), {
       kind: "added",
-      tracks: [{ addedAt: 1, id: 9, position: 1, trackId: 2 }],
+      revision: 2,
+      tracks: [entry(9, 2)],
     });
 
     expect(app.playlistTrackCount()).toBe(2);
+    expect(app.playlistEntries()).toBe("8,9");
+    expect(queue.changes).toEqual([
+      [
+        { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 9, trackId: 2 }] },
+        2,
+      ],
+    ]);
+    expect(app.playlistPending()).toBe(false);
+    expect(app.lume.loads.calls).toHaveLength(1);
+    expect(app.lume.playlists.calls).toHaveLength(1);
+  });
+
+  it("stays pending until the library shows a playlist whose reply came first", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const mix = { description: null, id: 2, title: "New", tracks: [entry(7, 1)] };
+
+    await app.do.createPlaylist();
+    await app.answer(await app.lume.creates.call(0), { playlist: mix, revision: 2 });
+
+    expect(app.playlistPending()).toBe(true);
+
+    await app.push({ kind: "playlist-created", playlist: mix, revision: 2 });
+
+    expect(app.playlistPending()).toBe(false);
+    expect(app.createdPlaylistShown()).toBe(true);
+    expect(app.lume.loads.calls).toHaveLength(1);
+  });
+
+  it("reads the library once when the edit follows a change it has not read", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    await app.answer(await app.lume.playlists.call(0), mixRead(1, [entry(8, 1)]));
+
+    await app.push(changed(2));
+    await app.push(added(3, [entry(9, 2)], 2));
+
+    expect(app.playlistEntries()).toBe("8,9");
+    expect(queue.changes).toHaveLength(1);
+
+    await app.answer(
+      await app.lume.loads.call(1),
+      json(stored({ likedAt: null, playlistTracks: 2, revision: 3 })),
+    );
+
+    expect(app.playlistTrackCount()).toBe(2);
     expect(app.lume.loads.calls).toHaveLength(2);
+    expect(app.lume.playlists.calls).toHaveLength(1);
+  });
+
+  it("keeps an edit that lands while the open playlist is still loading", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const staleRead = await app.lume.playlists.call(0);
+
+    await app.push(added(2, [entry(9, 2)], 2));
+    await app.answer(staleRead, mixRead(1, [entry(8, 1)]));
+    await app.answer(await app.lume.playlists.call(1), mixRead(2, [entry(8, 1), entry(9, 2)]));
+
+    expect(app.playlistEntries()).toBe("8,9");
+  });
+
+  it("keeps a newer read of the open playlist when its creation arrives late", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 3 }));
+    await app.answer(await app.lume.playlists.call(0), mixRead(3, [entry(8, 1)]));
+
+    await app.push({
+      kind: "playlist-created",
+      playlist: { description: null, id: 1, title: "Mix", tracks: [entry(8, 1), entry(9, 2)] },
+      revision: 2,
+    });
+
+    expect(app.playlistEntries()).toBe("8");
+  });
+
+  it("keeps a deletion that lands while the open playlist is still loading", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    const staleRead = await app.lume.playlists.call(0);
+
+    await app.push({ kind: "playlist-deleted", playlistId: 1, revision: 2 });
+    await app.answer(staleRead, mixRead(1, [entry(8, 1)]));
+
+    expect(app.playlistDeleted()).toBe(true);
   });
 });
 
@@ -369,6 +465,7 @@ type LikedState = "liked" | "unliked";
 
 type Actions = {
   addToPlaylist: (trackId: number) => void;
+  createPlaylist: () => void;
   enableSource: (sourceId: number) => void;
   like: (...trackIds: number[]) => void;
   rescanSources: () => void;
@@ -389,10 +486,13 @@ function SyncProbe() {
   const setLiked = useSetTracksLiked();
   const command = useLibraryMutation();
   const addTracks = useAddTracksToPlaylistMutation();
+  const createPlaylist = useCreatePlaylistMutation();
+  const playlist = usePlaylist(1);
 
   probe.actions = {
     addToPlaylist: (trackId) =>
       addTracks.mutate({ duplicates: "allow", playlistId: 1, trackIds: [trackId] }),
+    createPlaylist: () => createPlaylist.mutate({ description: null, title: "New", trackIds: [1] }),
     enableSource: (sourceId) =>
       command.mutate({ enabled: true, kind: "set-source-enabled", sourceId }),
     like: (...trackIds) => setLiked.mutate({ liked: true, trackIds }),
@@ -421,6 +521,11 @@ function SyncProbe() {
         ))}
       </ul>
       <p data-playlist-count>{library.playlists[0]?.trackCount}</p>
+      <p data-playlist-titles>{library.playlists.map((summary) => summary.title).join(",")}</p>
+      <p data-playlist-entries>
+        {playlist.data === null ? "deleted" : playlist.data?.tracks.map((track) => track.id).join(",")}
+      </p>
+      <p data-playlist-pending>{String(addTracks.isPending || createPlaylist.isPending)}</p>
       <p data-command-pending>{String(command.isPending)}</p>
       <p data-scanning>{[...scanning].join(",")}</p>
     </>
@@ -437,6 +542,7 @@ async function startApp(
 ) {
   probe.history = new Map();
   probe.tracks = new Map();
+  queue.changes.length = 0;
   const lume = createLume();
   const client = new QueryClient();
   const root = createRoot(document.body.appendChild(document.createElement("div")));
@@ -453,6 +559,7 @@ async function startApp(
       document.querySelector<HTMLElement>("[data-command-pending]")?.textContent === "true",
     do: {
       addToPlaylist: (trackId: number) => step(() => probe.actions?.addToPlaylist(trackId)),
+      createPlaylist: () => step(() => probe.actions?.createPlaylist()),
       enableSource: (sourceId: number) => step(() => probe.actions?.enableSource(sourceId)),
       like: (...trackIds: number[]) => step(() => probe.actions?.like(...trackIds)),
       rescanSources: () => step(() => probe.actions?.rescanSources()),
@@ -469,6 +576,10 @@ async function startApp(
       return likedAt === undefined || likedAt === "null" ? null : Number(likedAt);
     },
     lume,
+    createdPlaylistShown: () => text("[data-playlist-titles]") === "Mix,New",
+    playlistDeleted: () => text("[data-playlist-entries]") === "deleted",
+    playlistEntries: () => text("[data-playlist-entries]"),
+    playlistPending: () => text("[data-playlist-pending]") === "true",
     playlistTrackCount: () =>
       Number(document.querySelector<HTMLElement>("[data-playlist-count]")?.textContent),
     push: async (event: LibraryEvent) => {
@@ -517,6 +628,10 @@ function findButton(name: string) {
   return button;
 }
 
+function text(selector: string) {
+  return document.querySelector<HTMLElement>(selector)?.textContent;
+}
+
 function rowOf(trackId: number) {
   return document.querySelector<HTMLElement>(`[data-track="${trackId}"]`);
 }
@@ -526,14 +641,16 @@ function createLume() {
   const states = createCalls<LibraryState>();
   const likes = createCalls<TracksLikedResult>();
   const commands = createCalls<LibraryRevision>();
-  const addTracks = createCalls<AddTracksToPlaylistResult>();
-  const playlists = createCalls<null>();
+  const addTracks = createCalls<PlaylistAdditionResult>();
+  const creates = createCalls<PlaylistCreationResult>();
+  const playlists = createCalls<PlaylistRead>();
   const listeners = new Set<(event: LibraryEvent) => void>();
 
   Object.defineProperty(window, "lume", {
     configurable: true,
     value: {
       addTracksToPlaylist: addTracks.invoke,
+      createPlaylist: creates.invoke,
       enableSource: commands.invoke,
       isMac: false,
       loadPlaylist: playlists.invoke,
@@ -552,6 +669,8 @@ function createLume() {
   return {
     addTracks,
     commands,
+    creates,
+    playlists,
     likes,
     listeners: () => listeners.size,
     loads,
@@ -649,6 +768,22 @@ function json(library: StoredLibrary, scans = frame(0, 0, [])) {
     library.sources,
     library.tracks.map(tupleOf),
   );
+}
+
+function entry(id: number, trackId: number) {
+  return { addedAt: 1, id, position: id, trackId };
+}
+
+function mixRead(revision: LibraryRevision, tracks: PlaylistDetails["tracks"]): PlaylistRead {
+  return { playlist: { description: null, id: 1, title: "Mix", tracks }, revision };
+}
+
+function added(
+  revision: LibraryRevision,
+  tracks: PlaylistDetails["tracks"],
+  trackCount: number,
+): PlaylistEvent {
+  return { kind: "playlist-tracks-added", playlistId: 1, revision, trackCount, tracks };
 }
 
 function changed(revision: LibraryRevision): LibraryEvent {

@@ -15,6 +15,7 @@ import {
   type LibrarySnapshot,
   type MusicLibrary,
   parseLibrarySnapshot,
+  type PlaylistEvent,
   type ScanFrame,
   type SetTracksLikedInput,
   type TrackLikeResult,
@@ -22,8 +23,12 @@ import {
 import { z } from "zod";
 import { type ScanFrames, receiveScanFrame, settleScanFrames } from "@/lib/scan-frames";
 import { withLikedAt } from "@/lib/liked-at";
+import { playlistEffects, type PlaylistSourceChange } from "@/lib/playlist-events";
+import { applyPlaylistRead } from "@/lib/playlist-query";
 
 export type ShownLibrary = MusicLibrary | FirstRunLibrary;
+
+type ApplySourceChange = (change: PlaylistSourceChange, revision: LibraryRevision) => void;
 
 type LibraryCommand =
   | { kind: "add-source" }
@@ -74,7 +79,7 @@ const pendingLikesOptions = {
   }),
 } as const;
 
-export function useLibrary() {
+export function useLibrary(applySourceChange: ApplySourceChange) {
   const queryClient = useQueryClient();
   const query = useQuery(libraryQueryOptions);
   const pendingLikes = useMutationState(pendingLikesOptions);
@@ -84,7 +89,7 @@ export function useLibrary() {
     [query.data, pendingLikes],
   );
 
-  useEffect(() => followLibrary(queryClient), [queryClient]);
+  useEffect(() => followLibrary(queryClient, applySourceChange), [queryClient, applySourceChange]);
 
   return {
     error: query.error,
@@ -121,7 +126,24 @@ export async function reachLibraryRevision(queryClient: QueryClient, revision: L
   }
 }
 
-function followLibrary(queryClient: QueryClient) {
+export function waitForLibraryRevision(queryClient: QueryClient, revision: LibraryRevision) {
+  return new Promise<void>((resolve) => {
+    if (libraryRevisionOf(queryClient) >= revision) {
+      resolve();
+
+      return;
+    }
+
+    const stop = queryClient.getQueryCache().subscribe(() => {
+      if (libraryRevisionOf(queryClient) < revision) return;
+
+      stop();
+      resolve();
+    });
+  });
+}
+
+function followLibrary(queryClient: QueryClient, applySourceChange: ApplySourceChange) {
   let following = true;
 
   const keepTrying = async (task: () => Promise<void>) => {
@@ -145,6 +167,14 @@ function followLibrary(queryClient: QueryClient) {
         return;
       case "tracks-liked":
         applyCommittedLikes(queryClient, event.revision, event.likes);
+        follow(event.revision);
+
+        return;
+      case "playlist-created":
+      case "playlist-deleted":
+      case "playlist-tracks-added":
+      case "playlist-tracks-removed":
+        applyPlaylistEvent(queryClient, applySourceChange, event);
         follow(event.revision);
 
         return;
@@ -174,6 +204,21 @@ function applyScanFrame(queryClient: QueryClient, frame: ScanFrame) {
   );
 }
 
+function applyPlaylistEvent(
+  queryClient: QueryClient,
+  applySourceChange: ApplySourceChange,
+  event: PlaylistEvent,
+) {
+  const effects = playlistEffects(event);
+
+  patchContiguousLibrary(queryClient, event.revision, (library) => ({
+    playlists: effects.summaries(library.playlists),
+  }));
+  applyPlaylistRead(queryClient, effects);
+
+  if (effects.sourceChange) applySourceChange(effects.sourceChange, event.revision);
+}
+
 function applyCommittedLikes(
   queryClient: QueryClient,
   revision: LibraryRevision,
@@ -181,16 +226,24 @@ function applyCommittedLikes(
 ) {
   const likedAt = new Map(likes.map((like) => [like.trackId, like.likedAt]));
 
+  patchContiguousLibrary(queryClient, revision, (library) =>
+    withLikedAt(library, (track) =>
+      likedAt.has(track.id) ? (likedAt.get(track.id) ?? null) : track.likedAt,
+    ),
+  );
+}
+
+function patchContiguousLibrary(
+  queryClient: QueryClient,
+  revision: LibraryRevision,
+  patch: (library: MusicLibrary) => Partial<MusicLibrary>,
+) {
   const saved = queryClient.getQueryData(libraryQueryOptions.queryKey);
 
   if (saved?.kind !== "library" || saved.revision !== revision - 1) return;
 
-  const { tracks } = withLikedAt(saved, (track) =>
-    likedAt.has(track.id) ? (likedAt.get(track.id) ?? null) : track.likedAt,
-  );
-
-  const liked: LibrarySnapshot = { ...saved, revision, tracks };
-  queryClient.setQueryData(libraryQueryOptions.queryKey, liked);
+  const patched: LibrarySnapshot = { ...saved, ...patch(saved), revision };
+  queryClient.setQueryData(libraryQueryOptions.queryKey, patched);
 }
 
 function libraryRevisionOf(queryClient: QueryClient) {

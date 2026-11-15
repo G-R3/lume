@@ -360,7 +360,7 @@ describe("track persistence", () => {
     expect(libraryTracks()).toMatchObject([
       { available: false, id: track.id, title: "song", unavailableReason: "file-missing" },
     ]);
-    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual(playlist.tracks);
 
     await writeFile(trackPath, "restored");
     await scanWith(source.id, await scanAudioFiles(folder));
@@ -378,7 +378,7 @@ describe("track persistence", () => {
       },
     ]);
     expect(getTrackPath(track.id)).toBe(trackPath);
-    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual(playlist.tracks);
   });
 
   it("creates a new track after a file is renamed", async () => {
