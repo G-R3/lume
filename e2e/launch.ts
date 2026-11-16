@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { _electron as electron, type ElectronApplication } from "playwright";
+import { _electron as electron, type ElectronApplication, type Page } from "playwright";
 import { afterEach } from "vite-plus/test";
 import { closeDatabase, initializeDatabase } from "../electron/database";
 import { saveSource, scanSource } from "../electron/library";
@@ -74,4 +74,17 @@ export async function launchWithLibrary(
   const application = await launchLume(profile);
 
   return application.firstWindow();
+}
+
+export async function holdReplies(window: Page, channel: string) {
+  const application = launchedApplications.find((candidate) =>
+    candidate.windows().includes(window),
+  );
+
+  if (!application) throw new Error("No launched application owns this window");
+
+  await application.evaluate(({ ipcMain }, heldChannel) => {
+    ipcMain.removeHandler(heldChannel);
+    ipcMain.handle(heldChannel, () => new Promise(() => {}));
+  }, channel);
 }

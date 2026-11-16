@@ -199,7 +199,7 @@ function PlaylistSidebarItem({
         </DropdownMenuContent>
       </ContextMenu.Root>
       <DeletePlaylistDialog
-        finalFocus={menuTriggerRef}
+        focusAfterCancel={menuTriggerRef}
         focusAfterDelete={() =>
           neighborId !== undefined
             ? document.querySelector<HTMLElement>(`[data-playlist-id="${neighborId}"]`)
