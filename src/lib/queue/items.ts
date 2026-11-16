@@ -1,28 +1,17 @@
-import type { QueueItem, QueueLane, QueueState, SourceEntry, SourceIdentity } from "./model";
+import type {
+  ActivePlayback,
+  CurrentRole,
+  QueueItem,
+  QueueState,
+  SourceEntry,
+  SourceIdentity,
+} from "./model";
 import { sameSource } from "./source";
 
 export function sourceQueueItemId(sessionId: string, sourceEntryId: number, visit: number) {
   const base = sessionId + ":source:" + sourceEntryId;
 
   return visit === 0 ? base : base + ":visit:" + visit;
-}
-
-export function sourceItemVisit(queueItemId: string, sessionId: string, sourceEntryId: number) {
-  const firstVisitId = sourceQueueItemId(sessionId, sourceEntryId, 0);
-
-  if (queueItemId === firstVisitId) return 0;
-
-  const visitPrefix = firstVisitId + ":visit:";
-
-  if (!queueItemId.startsWith(visitPrefix)) return null;
-
-  const visit = Number(queueItemId.slice(visitPrefix.length));
-
-  return Number.isSafeInteger(visit) &&
-    visit > 0 &&
-    queueItemId === sourceQueueItemId(sessionId, sourceEntryId, visit)
-    ? visit
-    : null;
 }
 
 const sourceEntryIdSets = new WeakMap<readonly SourceEntry[], ReadonlySet<number>>();
@@ -43,16 +32,30 @@ export function activeSourceEntryId(state: QueueState, item: QueueItem) {
 
   return origin.kind === "source" &&
     origin.sessionId === state.sessionId &&
-    sameSource(state.sourceIdentity, origin.source) &&
+    sameSource(state.source, origin.source) &&
     sourceEntryIdSet(state.sourceEntries).has(origin.sourceEntryId)
     ? origin.sourceEntryId
     : null;
 }
 
-export function currentSourceEntryId(state: QueueState) {
-  return state.current?.participatesInSourceNavigation
-    ? activeSourceEntryId(state, state.current.item)
+export function currentItem(state: QueueState) {
+  return state.playback.kind === "active" ? state.playback.current : null;
+}
+
+export function playbackItem(state: QueueState) {
+  return state.playback.kind === "active" ? state.playback.current : state.playback.lastPlayed;
+}
+
+export function sourceStepItem(state: QueueState) {
+  return state.playback.kind === "active" && state.playback.role === "source-step"
+    ? state.playback.current
     : null;
+}
+
+export function currentSourceEntryId(state: QueueState) {
+  const item = sourceStepItem(state);
+
+  return item ? activeSourceEntryId(state, item) : null;
 }
 
 export function createSourceItems(
@@ -67,8 +70,7 @@ export function createSourceItems(
           ...existing.manualQueue,
           ...existing.sourceQueue,
           ...existing.previousSourceItems,
-          ...(existing.current ? [existing.current.item] : []),
-          ...(existing.lastSelectedItem ? [existing.lastSelectedItem] : []),
+          playbackItem(existing),
         ].map((item) => item.queueItemId)
       : [],
   );
@@ -89,14 +91,18 @@ export function createSourceItems(
   });
 }
 
-export function playAs(item: QueueItem, lane: QueueLane) {
-  return { item, lane, participatesInSourceNavigation: lane === "source" };
+export function playItem(
+  item: QueueItem,
+  role: CurrentRole,
+  status: ActivePlayback["status"] = "playing",
+): ActivePlayback {
+  return { kind: "active", current: item, status, role };
 }
 
 export function historyWithCurrent(state: QueueState) {
-  return state.current?.participatesInSourceNavigation
-    ? [...state.previousSourceItems, state.current.item]
-    : state.previousSourceItems;
+  const item = sourceStepItem(state);
+
+  return item ? [...state.previousSourceItems, item] : state.previousSourceItems;
 }
 
 export function clearAnchorsTo(state: QueueState, items: readonly QueueItem[], removed: QueueItem) {

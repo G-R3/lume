@@ -73,7 +73,7 @@ const setTracksLikedSchema = z.object({
 const playbackPositionSchema = z.number().finite().nonnegative();
 
 const playbackSessionSchema = z.object({
-  payload: z.string().max(16_000_000),
+  payload: z.string(),
   position: playbackPositionSchema,
 }) satisfies z.ZodType<SavedPlaybackSession>;
 

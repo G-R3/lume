@@ -9,7 +9,7 @@ import {
 } from "react";
 import { usePlayback } from "@/hooks/use-playback";
 import { isEditableElement } from "@/lib/keyboard-shortcuts";
-import type { PlayableSource } from "@/lib/queue/commands";
+import type { PlayableSource } from "@/lib/queue/model";
 import { sessionSource } from "@/lib/queue/source";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import type { SortField, TrackRow as TrackListItem, TrackSort } from "@/lib/track-sort";

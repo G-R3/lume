@@ -82,7 +82,7 @@ function QueuePanel() {
   const sourceName =
     queue?.source.kind === "all-tracks" ? "All tracks" : (queue?.source.title ?? "source");
 
-  const finished = queue?.status === "stopped" && !queue.current;
+  const finished = queue?.finished ?? false;
 
   const lanes = [
     { name: "manual" as const, title: "Next in queue", items: queue?.manualQueue ?? [] },
@@ -90,7 +90,7 @@ function QueuePanel() {
   ].filter((lane) => lane.items.length > 0 || (lane.name === "source" && !finished));
 
   const queuedItems = queue
-    ? [...(queue.current ? [queue.current.item] : []), ...queue.manualQueue, ...queue.sourceQueue]
+    ? [...(queue.current ? [queue.current] : []), ...queue.manualQueue, ...queue.sourceQueue]
     : [];
 
   const queuedDuration = queuedItems.reduce(
@@ -159,12 +159,12 @@ function QueuePanel() {
                   data-slot="queue-current"
                 >
                   <QueueTrack
-                    item={queue.current.item}
+                    item={queue.current}
                     state={playback.isPlaying ? "playing" : "paused"}
-                    track={tracksById.get(queue.current.item.trackId)}
+                    track={tracksById.get(queue.current.trackId)}
                   />
                 </div>
-              ) : finished ? (
+              ) : (
                 <div className="flex h-10 items-center gap-2 px-1" data-slot="queue-finished">
                   <p
                     className="min-w-0 flex-1 truncate text-body font-medium text-primary"
@@ -173,8 +173,6 @@ function QueuePanel() {
                     End of {sourceName}
                   </p>
                 </div>
-              ) : (
-                <p className="px-1 text-meta text-secondary">Nothing playing</p>
               )}
             </SidebarGroup>
 
@@ -189,7 +187,7 @@ function QueuePanel() {
                 >
                   {lane.title}
                 </QueueSectionHeading>
-                {lane.name === "source" && queue.source.kind === "detached" && (
+                {lane.name === "source" && queue.source.kind === "deleted-playlist" && (
                   <p className="px-1 pb-2 text-meta text-secondary">Playlist deleted</p>
                 )}
                 {lane.items.length === 0 ? (

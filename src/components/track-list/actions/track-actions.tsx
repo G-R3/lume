@@ -9,7 +9,8 @@ import {
   useAddTracksToPlaylistMutation,
   useRemovePlaylistTracksMutation,
 } from "@/lib/playlist-mutations";
-import type { PlayableSource, QueuePosition } from "@/lib/queue/commands";
+import type { QueuePosition } from "@/lib/queue/commands";
+import type { PlayableSource } from "@/lib/queue/model";
 import {
   type AddRequest,
   type AddToPlaylistEvent,

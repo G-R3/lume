@@ -12,7 +12,14 @@ import type { MusicLibrary, Track } from "../../shared/lib";
 import { useMediaElement } from "@/hooks/use-media-element";
 import { createPlaybackController } from "@/lib/playback-controller";
 import { createPlaylistReader } from "@/lib/playlist-query";
-import { selectActiveSourceEntryId, selectCanGoNext, selectQueueView } from "@/lib/queue/selectors";
+import {
+  selectActiveSourceEntryId,
+  selectActiveSourcePlaylistId,
+  selectCanGoNext,
+  selectCurrentItem,
+  selectDisplayItem,
+  selectQueueView,
+} from "@/lib/queue/selectors";
 
 type PlaybackContextValue = Pick<
   ReturnType<typeof createPlaybackController>,
@@ -105,14 +112,11 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("beforeunload", controller.flush);
   }, [controller]);
 
-  const current = snapshot.queue?.current;
-  const displayItem = current?.item ?? snapshot.queue?.lastSelectedItem;
+  const current = selectCurrentItem(snapshot.queue);
+  const displayItem = selectDisplayItem(snapshot.queue);
   const activeTrack = displayItem ? (snapshot.tracksById.get(displayItem.trackId) ?? null) : null;
-
   const activeSourceEntryId = selectActiveSourceEntryId(snapshot.queue);
-
-  const activeSourcePlaylistId =
-    snapshot.queue?.source.kind === "playlist" ? snapshot.queue.source.playlistId : null;
+  const activeSourcePlaylistId = selectActiveSourcePlaylistId(snapshot.queue);
 
   const togglePlayback = useCallback(() => {
     if (media.isPlaying) controller.pause();
@@ -122,7 +126,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo(
     () =>
       ({
-        activeQueueItemId: current?.item.queueItemId ?? null,
+        activeQueueItemId: current?.queueItemId ?? null,
         activeSourceEntryId,
         activeSourcePlaylistId,
         activeTrack,
@@ -165,7 +169,7 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       media.volume,
       snapshot.availableTrackIds,
       controller,
-      current?.item.queueItemId,
+      current?.queueItemId,
       snapshot.errorMessage,
       snapshot.queue,
       snapshot.isInitialized,
