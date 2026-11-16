@@ -4,7 +4,7 @@ import { openTestDatabase } from "./helpers/database";
 import { libraryTracks, scanWith } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
 import { join } from "node:path";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, onTestFinished } from "vite-plus/test";
 import { closeDatabase } from "../electron/database";
 import { saveSource, setTracksLiked } from "../electron/library";
 import { scanAudioFiles } from "../electron/library-files";
@@ -17,6 +17,9 @@ import {
   getPlaylists,
   removePlaylistTracks,
 } from "../electron/playlists";
+import { onLibraryEvent } from "../electron/library-events";
+import { playlistEffects } from "../src/lib/playlist-events";
+import type { LibraryEvent, PlaylistRead, PlaylistSummary } from "../shared/lib";
 import { queueContext } from "./helpers/queue-context";
 import { defaultSort } from "../src/lib/track-sort";
 
@@ -168,7 +171,7 @@ describe("playlist behavior", () => {
       trackIds: [thirdTrack.id],
     });
 
-    const tracks = getPlaylist(playlist.id)?.tracks;
+    const tracks = getPlaylist(playlist.id).playlist?.tracks;
     expect(tracks?.map((track) => track.position)).toEqual([1, 2, 3]);
     expect(tracks?.map((track) => track.trackId)).toEqual([
       secondTrack.id,
@@ -181,8 +184,45 @@ describe("playlist behavior", () => {
 
     deletePlaylist(playlist.id);
 
-    expect(getPlaylist(playlist.id)).toBeNull();
+    expect(getPlaylist(playlist.id).playlist).toBeNull();
     expect(libraryTracks().map((track) => track.title)).toEqual(["First", "Second", "Third"]);
+  });
+
+  it("pushes events that rebuild what a fresh read returns, one per commit", async () => {
+    await openTestDatabase();
+    const first = await addTrack("First");
+    const second = await addTrack("Second");
+    const events: LibraryEvent[] = [];
+    onTestFinished(onLibraryEvent((event) => events.push(event)));
+
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [first.id] });
+    let held: PlaylistRead | undefined;
+    let summaries: PlaylistSummary[] = [];
+
+    const follow = () => {
+      for (const event of events.splice(0)) {
+        if (event.kind === "changed" || event.kind === "tracks-liked" || event.kind === "scans")
+          throw new Error(`Expected a playlist event, got ${event.kind}`);
+
+        const effects = playlistEffects(event);
+        held = effects.nextRead(held);
+        summaries = effects.summaries(summaries);
+        expect(event.revision).toBe(getPlaylist(playlist.id).revision);
+      }
+
+      expect(held).toEqual(getPlaylist(playlist.id));
+      expect(summaries).toEqual(getPlaylists());
+    };
+
+    follow();
+    addTracksToPlaylist({ duplicates: "allow", playlistId: playlist.id, trackIds: [second.id] });
+    follow();
+    addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: [second.id] });
+    follow();
+    removePlaylistTracks({ playlistId: playlist.id, playlistTrackIds: [playlist.tracks[0].id] });
+    follow();
+    deletePlaylist(playlist.id);
+    follow();
   });
 
   it("creates a playlist and its memberships together or not at all", async () => {
@@ -197,7 +237,7 @@ describe("playlist behavior", () => {
     });
 
     expect(playlist.tracks.map((track) => track.trackId)).toEqual([second.id, first.id, second.id]);
-    expect(getPlaylist(playlist.id)).toEqual(playlist);
+    expect(getPlaylist(playlist.id).playlist).toEqual(playlist);
 
     expect(() =>
       createPlaylist({ description: null, title: "Missing", trackIds: [first.id, 999_999] }),
@@ -235,7 +275,10 @@ describe("playlist behavior", () => {
       { position: 1, trackId: second.id },
       { position: 2, trackId: second.id },
     ]);
-    expect(getPlaylist(playlist.id)?.tracks).toEqual([...playlist.tracks, ...addition.tracks]);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual([
+      ...playlist.tracks,
+      ...addition.tracks,
+    ]);
   });
 
   it("writes nothing when any added track is already in the playlist until confirmed", async () => {
@@ -248,7 +291,7 @@ describe("playlist behavior", () => {
     expect(
       addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: request }),
     ).toEqual({ alreadyInPlaylist: 2, kind: "duplicate", newTrackCount: 1 });
-    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual(playlist.tracks);
 
     const confirmed = addTracksToPlaylist({
       duplicates: "allow",
@@ -258,7 +301,7 @@ describe("playlist behavior", () => {
 
     if (confirmed.kind !== "added") throw new Error("Expected the confirmed add to write");
 
-    expect(getPlaylist(playlist.id)?.tracks.map((track) => track.trackId)).toEqual([
+    expect(getPlaylist(playlist.id).playlist?.tracks.map((track) => track.trackId)).toEqual([
       first.id,
       ...request,
     ]);
@@ -288,7 +331,10 @@ describe("playlist behavior", () => {
       { position: 1, trackId: second.id },
       { position: 2, trackId: first.id },
     ]);
-    expect(getPlaylist(playlist.id)?.tracks).toEqual([...playlist.tracks, ...skipped.tracks]);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual([
+      ...playlist.tracks,
+      ...skipped.tracks,
+    ]);
   });
 
   it("writes nothing when skipping duplicates and every target is already there", async () => {
@@ -304,7 +350,7 @@ describe("playlist behavior", () => {
         trackIds: [track.id, track.id],
       }),
     ).toEqual({ kind: "added", tracks: [] });
-    expect(getPlaylist(playlist.id)?.tracks).toEqual(playlist.tracks);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual(playlist.tracks);
     expect(getPlaylists()).toEqual(before);
   });
 
@@ -314,9 +360,9 @@ describe("playlist behavior", () => {
 
     database.$client.exec(`
       WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2500)
-      INSERT INTO tracks (source_id, path, title, format, file_size, modified_at, available,
+      INSERT INTO tracks (source_id, path, title, format, file_size, modified_at, missing_since,
         created_at, updated_at, artists, album_artists, genres, metadata_version)
-      SELECT source_id, path || '-' || i, 'Bulk ' || i, format, file_size, modified_at, available,
+      SELECT source_id, path || '-' || i, 'Bulk ' || i, format, file_size, modified_at, missing_since,
         created_at, updated_at, artists, album_artists, genres, metadata_version
       FROM tracks, n WHERE tracks.id = ${seed.id}
     `);
@@ -349,7 +395,7 @@ describe("playlist behavior", () => {
     expect(skipped.tracks.map((entry) => entry.position)).toEqual(
       added.map((_, index) => existing.length + index),
     );
-    expect(getPlaylist(playlist.id)?.tracks.map((entry) => entry.trackId)).toEqual([
+    expect(getPlaylist(playlist.id).playlist?.tracks.map((entry) => entry.trackId)).toEqual([
       ...existing,
       ...added,
     ]);
@@ -370,7 +416,7 @@ describe("playlist behavior", () => {
     expect(() =>
       addTracksToPlaylist({ duplicates: "check", playlistId: 999_999, trackIds: [track.id] }),
     ).toThrow("Playlist does not exist");
-    expect(getPlaylist(playlist.id)?.tracks).toEqual([]);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual([]);
   });
 
   it("adds and removes more entries than SQLite binds in one statement", async () => {
@@ -396,7 +442,7 @@ describe("playlist behavior", () => {
       playlistTrackIds: addition.tracks.map((entry) => entry.id),
     });
 
-    expect(getPlaylist(playlist.id)?.tracks).toEqual([]);
+    expect(getPlaylist(playlist.id).playlist?.tracks).toEqual([]);
     expect(libraryTracks().map((entry) => entry.title)).toEqual(["Loop"]);
   });
 
@@ -425,7 +471,9 @@ describe("playlist behavior", () => {
 
     database.$client.prepare("UPDATE playlist_entries SET created_at = id * 1000").run();
 
-    expect(getPlaylist(playlist.id)?.tracks.map(({ id, addedAt }) => ({ id, addedAt }))).toEqual(
+    expect(
+      getPlaylist(playlist.id).playlist?.tracks.map(({ id, addedAt }) => ({ id, addedAt })),
+    ).toEqual(
       [playlist.tracks[0].id, addition.tracks[0].id].map((id) => ({ id, addedAt: id * 1000 })),
     );
   });
@@ -452,8 +500,8 @@ describe("playlist behavior", () => {
         playlistTrackIds: [firstPlaylist.tracks[0].id, secondPlaylist.tracks[0].id],
       }),
     ).toThrow("Playlist track does not exist in this playlist");
-    expect(getPlaylist(firstPlaylist.id)?.tracks).toEqual(firstPlaylist.tracks);
-    expect(getPlaylist(secondPlaylist.id)?.tracks).toEqual(secondPlaylist.tracks);
+    expect(getPlaylist(firstPlaylist.id).playlist?.tracks).toEqual(firstPlaylist.tracks);
+    expect(getPlaylist(secondPlaylist.id).playlist?.tracks).toEqual(secondPlaylist.tracks);
   });
 });
 
