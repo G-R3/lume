@@ -1,5 +1,3 @@
-import { cp } from "node:fs/promises";
-import { createTemporaryFolder } from "../../tests/helpers/temp-folder";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, getDatabase, getLibraryDatabasePath, initializeDatabase } from ".";
@@ -12,51 +10,32 @@ describe("library database lifecycle", () => {
     expect(getLibraryDatabasePath("/data", true)).toBe(join("/data", "lume.sqlite"));
   });
 
-  it("rejects an enabled source after it has been forgotten", async () => {
+  it.each([
+    { columns: "'paused', 'unscanned', NULL, NULL", check: "library_sources_status_check" },
+    { columns: "'active', 'pending', NULL, NULL", check: "library_sources_scan_check" },
+    { columns: "'active', 'unscanned', 1, NULL", check: "library_sources_scan_check" },
+    { columns: "'active', 'unscanned', NULL, 'stale'", check: "library_sources_scan_check" },
+    { columns: "'active', 'ok', NULL, NULL", check: "library_sources_scan_check" },
+    { columns: "'active', 'ok', 1, 'stale'", check: "library_sources_scan_check" },
+    { columns: "'off', 'missing', 1, NULL", check: "library_sources_scan_check" },
+  ])("rejects a source row of ($columns)", async ({ check, columns }) => {
     const database = await openTestDatabase();
-    database
-      .prepare(
-        "INSERT INTO library_sources (path, enabled, forgotten_at, created_at, updated_at) VALUES (?, 0, ?, ?, ?)",
-      )
-      .run("/Music", 1, 1, 1);
 
     expect(() =>
-      database.prepare("UPDATE library_sources SET enabled = 1 WHERE path = ?").run("/Music"),
-    ).toThrow(/library_sources_forgotten_check/);
+      database.exec(`
+        INSERT INTO library_sources
+          (path, status, last_scan_outcome, last_scanned_at, last_scan_error_message, created_at, updated_at)
+        VALUES ('/Music', ${columns}, 1, 1)
+      `),
+    ).toThrow(check);
   });
 
-  it("adds the forgotten-source constraint without losing existing tracks", async () => {
-    const folder = await createTemporaryFolder("lume-database-migration-");
-    const previousMigrations = join(folder, "previous-migrations");
-    await cp(
-      join(import.meta.dirname, "../../drizzle/20260920195450_baseline"),
-      join(previousMigrations, "20260920195450_baseline"),
-      { recursive: true },
+  it("keeps a single onboarding row", async () => {
+    const database = await openTestDatabase();
+
+    expect(() => database.exec("INSERT INTO app_state (id, onboarded_at) VALUES (2, 1)")).toThrow(
+      "app_state_singleton_check",
     );
-    const databasePath = join(folder, "library.sqlite");
-    const previousDatabase = await openTestDatabase(databasePath, previousMigrations);
-    previousDatabase
-      .prepare(
-        "INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (1, '/Music', 1, 1, 1)",
-      )
-      .run();
-    previousDatabase
-      .prepare(
-        `INSERT INTO tracks (
-          id, source_id, path, title, format, file_size, modified_at, available, created_at,
-          updated_at, artists, album_artists, genres, metadata_version
-        ) VALUES (1, 1, '/Music/song.wav', 'Song', 'WAV', 1, 1, 1, 1, 1, '[]', '[]', '[]', 1)`,
-      )
-      .run();
-    closeDatabase();
-
-    const migratedDatabase = await openTestDatabase(databasePath);
-
-    expect(migratedDatabase.prepare("SELECT id, source_id FROM tracks").get()).toEqual({
-      id: 1,
-      source_id: 1,
-    });
-    expect(migratedDatabase.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 });
 

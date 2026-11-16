@@ -197,6 +197,7 @@ function track(id: number): Track {
     title: String(id),
     trackNumber: null,
     trackTotal: null,
+    unavailableReason: null,
     url: `lume://track/${id}`,
     year: null,
   };

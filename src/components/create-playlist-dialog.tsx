@@ -40,8 +40,8 @@ export function CreatePlaylistDialog({
   const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  const [createdId, setCreatedId] = useState<number | null>(null);
   const createPlaylist = useCreatePlaylistMutation();
+  const createdId = createPlaylist.data?.playlist.id;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && createPlaylist.isPending) return;
@@ -79,7 +79,6 @@ export function CreatePlaylistDialog({
       },
       {
         onSuccess: (result) => {
-          setCreatedId(result.playlist.id);
           form.reset();
           onOpenChange(false);
           void navigate({
@@ -102,7 +101,7 @@ export function CreatePlaylistDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         finalFocus={
-          createdId === null
+          createdId === undefined
             ? finalFocus
             : () => document.querySelector<HTMLElement>(`[data-playlist-id="${createdId}"]`)
         }
