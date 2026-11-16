@@ -45,7 +45,7 @@ export async function openDatabase(profile: string) {
   });
 }
 
-export async function launchWithLibrary(
+export async function createLibraryProfile(
   prefix: string,
   titles: readonly string[],
   playlists: Readonly<Record<string, readonly string[]>> = {},
@@ -71,6 +71,15 @@ export async function launchWithLibrary(
 
   closeDatabase();
 
+  return { profile, sourceDirectory };
+}
+
+export async function launchWithLibrary(
+  prefix: string,
+  titles: readonly string[],
+  playlists: Readonly<Record<string, readonly string[]>> = {},
+) {
+  const { profile } = await createLibraryProfile(prefix, titles, playlists);
   const application = await launchLume(profile);
 
   return application.firstWindow();
