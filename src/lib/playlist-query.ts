@@ -1,5 +1,11 @@
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { PlaylistDetails } from "../../shared/lib";
+import {
+  isCancelledError,
+  queryOptions,
+  type QueryClient,
+  useQuery,
+} from "@tanstack/react-query";
+import type { PlaylistRead } from "../../shared/lib";
+import type { PlaylistEffects } from "@/lib/playlist-events";
 
 export function playlistQueryOptions(playlistId: number) {
   return queryOptions({
@@ -7,21 +13,31 @@ export function playlistQueryOptions(playlistId: number) {
     queryKey: ["playlist", playlistId],
     queryFn: () => window.lume.loadPlaylist(playlistId),
     retry: false,
+    staleTime: Infinity,
   });
 }
 
+export function usePlaylist(playlistId: number) {
+  return useQuery({ ...playlistQueryOptions(playlistId), select: (read) => read.playlist });
+}
+
+export function applyPlaylistRead(queryClient: QueryClient, effects: PlaylistEffects) {
+  const filters = { exact: true, queryKey: playlistQueryOptions(effects.playlistId).queryKey };
+
+  void queryClient.cancelQueries(filters);
+  const next = effects.nextRead(queryClient.getQueryData(filters.queryKey));
+
+  if (next) queryClient.setQueryData(filters.queryKey, next);
+  else void queryClient.invalidateQueries(filters);
+}
+
 export function createPlaylistReader(queryClient: QueryClient) {
-  return {
-    read: async (playlistId: number, refresh: boolean): Promise<PlaylistDetails | null> => {
-      const options = playlistQueryOptions(playlistId);
+  const read = (playlistId: number): Promise<PlaylistRead> =>
+    queryClient.ensureQueryData(playlistQueryOptions(playlistId)).catch((error: Error) => {
+      if (isCancelledError(error)) return read(playlistId);
 
-      if (refresh) await queryClient.cancelQueries({ queryKey: options.queryKey });
+      throw error;
+    });
 
-      const cached = refresh ? undefined : queryClient.getQueryData(options.queryKey);
-
-      return cached !== undefined && !queryClient.getQueryState(options.queryKey)?.isInvalidated
-        ? cached
-        : queryClient.fetchQuery({ ...options, staleTime: refresh ? 0 : Infinity });
-    },
-  };
+  return { read };
 }

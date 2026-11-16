@@ -3,7 +3,7 @@ import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { createWaveAudio } from "../tests/helpers/wave-audio";
-import { scanAudioFiles } from "./library-files";
+import { classifyFolderReadError, scanAudioFiles } from "./library-files";
 
 describe("scanAudioFiles", () => {
   it("recursively finds supported audio files", async () => {
@@ -139,3 +139,44 @@ function writeSyncSafeInteger(buffer: Buffer, value: number, offset: number) {
   buffer[offset + 2] = (value >> 7) & 0x7f;
   buffer[offset + 3] = value & 0x7f;
 }
+
+describe("classifyFolderReadError", () => {
+  it("classifies the errors a missing or unreadable folder throws", async () => {
+    const folder = await createTemporaryFolder("lume-library-");
+    const file = join(folder, "song.mp3");
+    await writeFile(file, "");
+
+    const readError = (path: string) =>
+      scanAudioFiles(path).then(
+        () => new Error(`Expected reading ${path} to fail`),
+        (error: Error) => error,
+      );
+
+    expect(classifyFolderReadError(await readError(join(folder, "gone")))).toEqual({
+      errorMessage: expect.any(String),
+      kind: "missing",
+    });
+    expect(classifyFolderReadError(await readError(file))).toMatchObject({ kind: "missing" });
+  });
+
+  it.each([
+    { code: "ENOENT", kind: "missing" },
+    { code: "ENOTDIR", kind: "missing" },
+    { code: "EACCES", kind: "permission" },
+    { code: "EPERM", kind: "permission" },
+    { code: "EIO", kind: "failed" },
+    { code: undefined, kind: "failed" },
+  ])("reads $code as $kind", ({ code, kind }) => {
+    expect(classifyFolderReadError(Object.assign(new Error("read failed"), { code }))).toEqual({
+      errorMessage: "read failed",
+      kind,
+    });
+  });
+
+  it("decides by the error code, not the message", () => {
+    expect(classifyFolderReadError(new Error("ENOENT: no such file or directory"))).toEqual({
+      errorMessage: "ENOENT: no such file or directory",
+      kind: "failed",
+    });
+  });
+});

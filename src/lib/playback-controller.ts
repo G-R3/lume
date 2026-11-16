@@ -1,4 +1,4 @@
-import type { LumeApi, MusicLibrary, PlaylistDetails, Track } from "../../shared/lib";
+import type { LibraryRevision, LumeApi, MusicLibrary, PlaylistRead, Track } from "../../shared/lib";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
@@ -26,7 +26,7 @@ type SourceChange = Extract<
   }
 >;
 
-type PlaylistRestart = { playlistId: number; edited: boolean };
+type PlaylistRestart = { playlistId: number; coveredRevision: LibraryRevision };
 
 type SessionRequest = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
@@ -54,7 +54,7 @@ export function createPlaybackController(dependencies: {
   };
   storage: LumeApi["playbackSession"];
   playlistReader: {
-    read: (playlistId: number, refresh: boolean) => Promise<PlaylistDetails | null>;
+    read: (playlistId: number) => Promise<PlaylistRead>;
   };
   hasTrackFile: (trackId: number) => Promise<boolean>;
   random: () => number;
@@ -197,22 +197,24 @@ export function createPlaybackController(dependencies: {
     restart: PlaylistRestart,
     sort: TrackSort,
     request: SessionRequest,
-    refresh = false,
   ): Promise<void> => {
-    const data = await dependencies.playlistReader
-      .read(restart.playlistId, refresh)
+    const coveredBeforeRead = restart.coveredRevision;
+
+    const read = await dependencies.playlistReader
+      .read(restart.playlistId)
       .catch((error: Error) => {
-        if (restart !== playlistRestart || restart.edited) return null;
+        if (restart !== playlistRestart || restart.coveredRevision > coveredBeforeRead) return null;
         throw error;
       });
 
     if (restart !== playlistRestart) return;
 
-    if (restart.edited) {
-      restart.edited = false;
+    const readIsBehind = !read || read.revision < restart.coveredRevision;
 
-      return restartFromPlaylist(restart, sort, request, true);
-    }
+    if (readIsBehind) return restartFromPlaylist(restart, sort, request);
+
+    restart.coveredRevision = read.revision;
+    const data = read.playlist;
 
     if (data)
       dispatchSessionStart(
@@ -269,7 +271,7 @@ export function createPlaybackController(dependencies: {
       return;
     }
 
-    const restart = { playlistId: queue.source.playlistId, edited: false };
+    const restart = { playlistId: queue.source.playlistId, coveredRevision: -1 };
     playlistRestart = restart;
     void restartFromPlaylist(restart, queue.sort, request).catch((error: Error) =>
       setError(error.message || "Could not load playback source"),
@@ -453,10 +455,15 @@ export function createPlaybackController(dependencies: {
   };
 
   return {
-    applySourceChange: (change: SourceChange) => {
+    applySourceChange: (change: SourceChange, revision: LibraryRevision) => {
       if (lifecycle === "closed") return;
 
-      if (playlistRestart?.playlistId === change.playlistId) playlistRestart.edited = true;
+      if (playlistRestart?.playlistId === change.playlistId) {
+        if (revision <= playlistRestart.coveredRevision) return;
+
+        playlistRestart.coveredRevision = revision;
+      }
+
       dispatch(change);
     },
     clearManualQueue: userCommand(() => dispatch({ type: "clearManualQueue" })),

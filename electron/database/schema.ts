@@ -11,23 +11,41 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 
+const sourceStatuses = ["active", "off", "forgotten"] as const;
+
+const scanFailures = ["missing", "permission", "failed"] as const;
+
+const scanOutcomes = ["unscanned", "ok", ...scanFailures] as const;
+
+export type SourceStatusColumn = (typeof sourceStatuses)[number];
+
+export type ScanOutcomeColumn = (typeof scanOutcomes)[number];
+
+function sqlList(values: readonly string[]) {
+  return sql.raw(values.map((value) => `'${value}'`).join(", "));
+}
+
 export const librarySources = sqliteTable(
   "library_sources",
   {
     id: integer("id").primaryKey(),
     path: text("path").notNull().unique(),
-    enabled: integer("enabled", { mode: "boolean" }).notNull(),
-    forgottenAt: integer("forgotten_at"),
+    status: text("status", { enum: sourceStatuses }).notNull(),
+    lastScanOutcome: text("last_scan_outcome", { enum: scanOutcomes })
+      .notNull()
+      .default("unscanned"),
     lastScannedAt: integer("last_scanned_at"),
-    lastScanError: text("last_scan_error"),
+    lastScanErrorMessage: text("last_scan_error_message"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
-    check("library_sources_enabled_check", sql`${table.enabled} IN (0, 1)`),
+    check("library_sources_status_check", sql`${table.status} IN (${sqlList(sourceStatuses)})`),
     check(
-      "library_sources_forgotten_check",
-      sql`${table.forgottenAt} IS NULL OR ${table.enabled} = 0`,
+      "library_sources_scan_check",
+      sql`(${table.lastScanOutcome} = 'unscanned' AND ${table.lastScannedAt} IS NULL AND ${table.lastScanErrorMessage} IS NULL)
+        OR (${table.lastScanOutcome} = 'ok' AND ${table.lastScannedAt} IS NOT NULL AND ${table.lastScanErrorMessage} IS NULL)
+        OR (${table.lastScanOutcome} IN (${sqlList(scanFailures)}) AND ${table.lastScanErrorMessage} IS NOT NULL)`,
     ),
   ],
 );
@@ -55,7 +73,7 @@ export const tracks = sqliteTable(
     format: text("format").notNull(),
     fileSize: integer("file_size").notNull(),
     modifiedAt: integer("modified_at").notNull(),
-    available: integer("available", { mode: "boolean" }).notNull(),
+    missingSince: integer("missing_since"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     artists: text("artists", { mode: "json" }).$type<string[]>().notNull(),
@@ -78,9 +96,11 @@ export const tracks = sqliteTable(
   },
   (table) => [
     index("tracks_source_id").on(table.sourceId),
-    index("tracks_available").on(table.available),
     index("tracks_artwork_id").on(table.artworkId),
-    check("tracks_available_check", sql`${table.available} IN (0, 1)`),
+    check(
+      "tracks_missing_since_check",
+      sql`${table.missingSince} IS NULL OR ${table.missingSince} > 0`,
+    ),
     check("tracks_lossless_check", sql`${table.lossless} IN (0, 1)`),
   ],
 );
@@ -146,7 +166,16 @@ export const playbackSession = sqliteTable(
     position: real("position").notNull(),
   },
   (table) => [
-    check("playback_session_singleton", sql`${table.id} = 1`),
+    check("playback_session_singleton_check", sql`${table.id} = 1`),
     check("playback_session_position_check", sql`${table.position} >= 0`),
   ],
+);
+
+export const appState = sqliteTable(
+  "app_state",
+  {
+    id: integer("id").primaryKey(),
+    onboardedAt: integer("onboarded_at").notNull(),
+  },
+  (table) => [check("app_state_singleton_check", sql`${table.id} = 1`)],
 );
