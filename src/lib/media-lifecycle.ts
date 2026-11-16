@@ -58,7 +58,9 @@ export type ElementCall<Element> =
   | { type: "pause"; element: Element }
   | { type: "seek"; element: Element; time: number; report: boolean };
 
-export type MediaView = { request: PlaybackRequest | null; isPlaying: boolean; duration: number };
+export type MediaView =
+  | { kind: "empty" }
+  | { kind: "requested"; request: PlaybackRequest; playback: Playback; duration: number };
 
 type Requested<Element> = Extract<MediaLifecycle<Element>, { kind: "requested" }>;
 
@@ -70,10 +72,11 @@ export const emptyLifecycle: MediaLifecycle<never> = {
 
 export function mediaView<Element>(lifecycle: MediaLifecycle<Element>): MediaView {
   return lifecycle.kind === "empty"
-    ? { request: null, isPlaying: false, duration: 0 }
+    ? { kind: "empty" }
     : {
+        kind: "requested",
         request: lifecycle.request,
-        isPlaying: lifecycle.playback.kind === "playing",
+        playback: lifecycle.playback,
         duration: lifecycle.duration,
       };
 }

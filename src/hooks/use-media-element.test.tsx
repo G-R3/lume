@@ -4,6 +4,7 @@ import { Storage } from "happy-dom";
 import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from "vite-plus/test";
+import type { MediaView } from "@/lib/media-lifecycle";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { useMediaElement } from "./use-media-element";
 
@@ -27,6 +28,10 @@ function request(id: string, shouldPlay = false): PlaybackRequest {
     durationHint: 60,
   };
 }
+
+const playbackOf = (view: MediaView) => (view.kind === "requested" ? view.playback : null);
+
+const durationOf = (view: MediaView) => (view.kind === "requested" ? view.duration : 0);
 
 function mountMedia(strict = false, onRender = () => {}) {
   const attempts: ((error: DOMException) => void)[] = [];
@@ -141,7 +146,7 @@ it("only accepts the latest play rejection and explicit pause supersedes it", as
   await act(async () => probe.attempts[2]!(new DOMException("paused")));
   expect(probe.events).toHaveLength(1);
   emit(probe.audio, "play", { paused: false });
-  expect(probe.media.isPlaying).toBe(false);
+  expect(playbackOf(probe.media.view)).toEqual({ kind: "paused" });
   expect(probe.pause).toHaveBeenCalledTimes(2);
 });
 
@@ -164,8 +169,8 @@ it.each(["durationchange", "loadedmetadata", "timeupdate", "ended", "error", "pl
     expect(probe.positions).toEqual([]);
     expect(probe.pause).not.toHaveBeenCalled();
     expect(probe.media.getPosition()).toBe(30);
-    expect(probe.media.duration).toBe(90);
-    expect(probe.media.isPlaying).toBe(false);
+    expect(durationOf(probe.media.view)).toBe(90);
+    expect(playbackOf(probe.media.view)).toEqual({ kind: "paused" });
     emit(probe.audio, "loadedmetadata", { duration: 100 });
     expect(probe.audio.currentTime).toBe(30);
   },
@@ -211,7 +216,7 @@ it("keeps precommit pause and volume ref attachment from restarting playback", (
   expect(probe.audio.volume).toBe(0.4);
   expect(probe.attempts).toHaveLength(1);
   emit(probe.audio, "play", { paused: false });
-  expect(probe.media.isPlaying).toBe(true);
+  expect(playbackOf(probe.media.view)).toEqual({ kind: "playing" });
   expect(probe.events).toEqual([{ type: "started", requestId: "a", queueItemId: "same-item" }]);
 });
 
@@ -230,7 +235,7 @@ it.each(["play", "ended", "error"])(
     expect(probe.events[0]?.requestId).toBe("a");
     expect(probe.audio.src).toBe("file:///b.wav");
     expect(probe.media.getPosition()).toBe(30);
-    expect(probe.media.isPlaying).toBe(false);
+    expect(playbackOf(probe.media.view)).toEqual({ kind: "paused" });
   },
 );
 
@@ -247,7 +252,7 @@ it("retains deferred seek and playback ownership through StrictMode ref replay",
   expect(probe.events).toEqual([]);
   act(() => probe.media.play());
   emit(probe.audio, "play", { paused: false });
-  expect(probe.media.isPlaying).toBe(true);
+  expect(playbackOf(probe.media.view)).toEqual({ kind: "playing" });
   expect(probe.events).toEqual([{ type: "started", requestId: "a", queueItemId: "same-item" }]);
 });
 
@@ -255,10 +260,10 @@ it("publishes finite durations and reads live duration when seeking", () => {
   const probe = mountMedia();
   act(() => probe.media.load(request("a")));
   emit(probe.audio, "durationchange", { duration: 20 });
-  expect(probe.media.duration).toBe(20);
+  expect(durationOf(probe.media.view)).toBe(20);
   [NaN, Infinity, 0].forEach((duration) => {
     emit(probe.audio, "durationchange", { duration });
-    expect(probe.media.duration).toBe(20);
+    expect(durationOf(probe.media.view)).toBe(20);
   });
   emit(probe.audio, "loadedmetadata", { duration: Infinity });
   act(() => probe.media.seek(500));
@@ -277,7 +282,7 @@ it("distinguishes pause at natural end from a plain pause and reports media erro
   act(() => probe.media.load(request("a", true)));
   emit(probe.audio, "play", { paused: false });
   emit(probe.audio, "pause", { paused: true, ended: true });
-  expect(probe.media.isPlaying).toBe(false);
+  expect(playbackOf(probe.media.view)).toEqual({ kind: "paused" });
   emit(probe.audio, "ended");
   expect(probe.events.map((event) => event.type)).toEqual(["started", "ended"]);
   act(() => probe.media.play());
@@ -300,7 +305,7 @@ it("reports a failed load once, without a second error from its play rejection",
   expect(probe.events).toEqual([
     { type: "error", requestId: "a", queueItemId: "same-item", reason: "load" },
   ]);
-  expect(probe.media.isPlaying).toBe(false);
+  expect(playbackOf(probe.media.view)).toEqual({ kind: "failed", reason: "load" });
 });
 
 it("still reports a play rejection that follows an element pause", async () => {
@@ -365,4 +370,29 @@ it("still reports a play rejection that settles after the hook unmounts", async 
   expect(probe.events).toEqual([
     { type: "error", requestId: "a", queueItemId: "same-item", reason: "rejected" },
   ]);
+});
+
+it("publishes the starting view on load, before the element reports anything", () => {
+  const probe = mountMedia();
+  act(() => probe.media.load(request("a", true)));
+  expect(probe.events).toEqual([]);
+  expect(probe.media.view).toEqual({
+    kind: "requested",
+    request: request("a", true),
+    playback: { kind: "starting" },
+    duration: 60,
+  });
+});
+
+it("publishes a retried load of a failed queue item as starting again", () => {
+  const probe = mountMedia();
+  act(() => probe.media.load(request("a", true)));
+  emit(probe.audio, "error", { error: { code: 4 } });
+  expect(playbackOf(probe.media.view)).toEqual({ kind: "failed", reason: "load" });
+  act(() => probe.media.load(request("b", true)));
+  expect(probe.media.view).toMatchObject({
+    kind: "requested",
+    request: { requestId: "b", queueItemId: "same-item" },
+    playback: { kind: "starting" },
+  });
 });

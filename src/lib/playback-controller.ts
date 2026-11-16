@@ -228,7 +228,7 @@ export function createPlaybackController(dependencies: {
       );
   };
 
-  const advance = () => {
+  const advance = ({ restartPaused = true } = {}) => {
     dispatch({ type: "next" });
 
     const queue = snapshot.queue;
@@ -239,7 +239,7 @@ export function createPlaybackController(dependencies: {
     const request = {
       start: { kind: "first-available" },
       shuffled: queue.shuffleEnabled,
-      paused: true,
+      paused: restartPaused,
     } satisfies SessionRequest;
 
     if (queue.tracking.kind === "frozen") {
@@ -328,7 +328,7 @@ export function createPlaybackController(dependencies: {
     }
 
     if (snapshot.queue && !current) {
-      advance();
+      advance({ restartPaused: false });
 
       return;
     }
@@ -496,7 +496,7 @@ export function createPlaybackController(dependencies: {
       (input: Omit<Extract<QueueCommand, { type: "moveQueueItem" }>, "type">) =>
         dispatch({ type: "moveQueueItem", ...input }),
     ),
-    next: userCommand(advance),
+    next: userCommand(() => advance()),
     onPosition: (position: number) => {
       if (snapshot.queue) persist(snapshot.queue, position);
     },

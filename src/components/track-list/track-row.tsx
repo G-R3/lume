@@ -3,7 +3,7 @@ import { DotsThreeIcon } from "@phosphor-icons/react";
 import { memo } from "react";
 import type { Track } from "../../../shared/lib";
 import { LikeButton } from "@/components/like-button";
-import { type ArtworkState, TrackArtwork } from "@/components/track-artwork";
+import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
+import type { PlaybackPhase } from "@/lib/playback-phase";
 import { trackUnavailableLabels } from "@/lib/source-presentation";
 import { cn } from "@/lib/utils";
 import type { TrackAction } from "@/components/track-list/actions/track-actions";
@@ -32,7 +33,6 @@ export type TrackRowActions = {
 type TrackRowProps = {
   actions: TrackRowActions;
   addedToListAt: number;
-  artworkState: ArtworkState | undefined;
   canQueue: boolean;
   index: number;
   isActive: boolean;
@@ -41,6 +41,7 @@ type TrackRowProps = {
   isSelectionStart: boolean;
   isTabStop: boolean;
   menuTarget: RowMenu | null;
+  playbackPhase: PlaybackPhase | undefined;
   playlistTitle: string | null;
   sourceEntryId: number;
   track: Track;
@@ -49,7 +50,6 @@ type TrackRowProps = {
 export const TrackRow = memo(function TrackRow({
   actions,
   addedToListAt,
-  artworkState,
   canQueue,
   index,
   isActive,
@@ -58,6 +58,7 @@ export const TrackRow = memo(function TrackRow({
   isSelectionStart,
   isTabStop,
   menuTarget,
+  playbackPhase,
   playlistTitle,
   sourceEntryId,
   track,
@@ -115,7 +116,7 @@ export const TrackRow = memo(function TrackRow({
             <TrackArtwork
               artworkUrl={track.artworkUrl}
               className={cn("size-8", !track.available && "opacity-disabled")}
-              state={artworkState}
+              phase={playbackPhase}
             />
             <div className="min-w-0 flex-1">
               <p

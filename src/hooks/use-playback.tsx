@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { MusicLibrary, Track } from "../../shared/lib";
 import { useMediaElement } from "@/hooks/use-media-element";
 import { createPlaybackController } from "@/lib/playback-controller";
+import { derivePlaybackPhase, pausesOnToggle, type PlaybackPhase } from "@/lib/playback-phase";
 import { createPlaylistReader } from "@/lib/playlist-query";
 import {
   selectActiveSourceEntryId,
@@ -43,7 +44,7 @@ type PlaybackContextValue = Pick<
   duration: number;
   errorMessage: string | null;
   isMuted: boolean;
-  isPlaying: boolean;
+  phase: PlaybackPhase;
   queue: ReturnType<typeof selectQueueView>;
   isInitialized: boolean;
   next: () => void;
@@ -118,10 +119,17 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   const activeSourceEntryId = selectActiveSourceEntryId(snapshot.queue);
   const activeSourcePlaylistId = selectActiveSourcePlaylistId(snapshot.queue);
 
-  const togglePlayback = useCallback(() => {
-    if (media.isPlaying) controller.pause();
-    else controller.resume();
-  }, [controller, media.isPlaying]);
+  const duration = media.view.kind === "requested" ? media.view.duration : 0;
+
+  const phase = useMemo(
+    () => derivePlaybackPhase(snapshot.queue, media.view, snapshot.availableTrackIds),
+    [snapshot.queue, media.view, snapshot.availableTrackIds],
+  );
+
+  const togglePlayback = useCallback(
+    () => (pausesOnToggle(phase) ? controller.pause() : controller.resume()),
+    [controller, phase],
+  );
 
   const contextValue = useMemo(
     () =>
@@ -142,10 +150,10 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
         setShuffleEnabled: controller.setShuffleEnabled,
         shufflePlay: controller.shufflePlay,
         shuffleEnabled: snapshot.queue?.shuffleEnabled ?? false,
-        duration: media.duration,
+        duration,
         errorMessage: snapshot.errorMessage,
         isMuted: media.isMuted,
-        isPlaying: media.isPlaying,
+        phase,
         queue: selectQueueView(snapshot.queue),
         isInitialized: snapshot.isInitialized,
         next: controller.next,
@@ -161,9 +169,9 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       activeSourceEntryId,
       activeSourcePlaylistId,
       activeTrack,
-      media.duration,
+      duration,
+      phase,
       media.isMuted,
-      media.isPlaying,
       media.setVolume,
       media.toggleMute,
       media.volume,

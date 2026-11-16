@@ -71,7 +71,7 @@ export function TrackList({
   onReady,
   children,
 }: TrackListProps) {
-  const { activeSourceEntryId, activeSourcePlaylistId, isPlaying, playSourceEntry, queue } =
+  const { activeSourceEntryId, activeSourcePlaylistId, phase, playSourceEntry, queue } =
     usePlayback();
 
   const canQueue = queue !== null;
@@ -286,7 +286,6 @@ export function TrackList({
     return (
       <TrackRow
         actions={rowActions}
-        artworkState={isActive ? (isPlaying ? "playing" : "paused") : undefined}
         canQueue={canQueue}
         index={index}
         isActive={isActive}
@@ -297,6 +296,7 @@ export function TrackList({
         addedToListAt={item.addedToListAt}
         key={item.sourceEntryId}
         menuTarget={menu}
+        playbackPhase={isActive ? phase : undefined}
         playlistTitle={playlistTitle}
         sourceEntryId={item.sourceEntryId}
         track={item.track}
