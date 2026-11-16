@@ -22,15 +22,15 @@ import {
   enableSource,
   forgetSource,
   getLibrarySnapshotJson,
-  getLibraryUpdate,
-  type LibraryScanOutcome,
   getSources,
   hasTrackFile,
   saveSource,
   scanEnabledSources,
+  scanInBackground,
   scanSource,
   setTracksLiked,
 } from "./library";
+import { currentLibraryRevision, getLibraryState, onLibraryEvent } from "./library-events";
 import {
   addTracksToPlaylist,
   createPlaylist,
@@ -84,11 +84,7 @@ type LumeHandlers = {
   ) => ReturnType<LumeInvokeApi[Method]> | Awaited<ReturnType<LumeInvokeApi[Method]>>;
 };
 
-export function registerIpc(options: {
-  rendererUrl: string;
-  startupScan: Promise<LibraryScanOutcome>;
-  userDataDirectory: string;
-}) {
+export function registerIpc(options: { rendererUrl: string; userDataDirectory: string }) {
   const handlers = {
     addSource: async (window) => {
       const result = await dialog.showOpenDialog(window, {
@@ -100,46 +96,42 @@ export function registerIpc(options: {
 
       const folder = result.filePaths[0];
 
-      if (!folder) return getLibrarySnapshotJson();
+      if (folder) scanInBackground(scanSource((await saveSource(folder)).id));
 
-      const source = await saveSource(folder);
-      await scanSource(source.id);
-
-      return getLibrarySnapshotJson();
+      return currentLibraryRevision();
     },
-    addTracksToPlaylist: (_window, input) =>
-      addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
-    awaitStartupScan: () =>
-      options.startupScan.catch(() => "failed" as const).then(getLibraryUpdate),
+    addTracksToPlaylist: (_window, input) => ({
+      ...addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
+      revision: currentLibraryRevision(),
+    }),
     createPlaylist: (_window, input) => {
       const playlist = createPlaylist(playlistCreationSchema.parse(input));
 
-      return { library: getLibrarySnapshotJson(), playlist };
+      return { playlist, revision: currentLibraryRevision() };
     },
     deletePlaylist: (_window, playlistId) => {
       deletePlaylist(rowIdSchema.parse(playlistId));
 
-      return getLibrarySnapshotJson();
+      return currentLibraryRevision();
     },
     disableSource: (_window, input) => {
       disableSource(rowIdSchema.parse(input));
 
-      return getLibrarySnapshotJson();
+      return currentLibraryRevision();
     },
-    enableSource: async (_window, input) => {
-      const sourceId = rowIdSchema.parse(input);
-      enableSource(sourceId);
-      await scanSource(sourceId);
+    enableSource: (_window, input) => {
+      scanInBackground(enableSource(rowIdSchema.parse(input)));
 
-      return getLibrarySnapshotJson();
+      return currentLibraryRevision();
     },
     forgetSource: (_window, input) => {
       forgetSource(rowIdSchema.parse(input));
 
-      return getLibrarySnapshotJson();
+      return currentLibraryRevision();
     },
     hasTrackFile: (_window, trackId) => hasTrackFile(rowIdSchema.parse(trackId)),
     loadLibrary: () => getLibrarySnapshotJson(),
+    loadLibraryState: () => getLibraryState(),
     loadPlaybackSession: () => loadPlaybackSession(),
     loadPlaylist: (_window, playlistId) => getPlaylist(rowIdSchema.parse(playlistId)),
     openDataFolder: async () => {
@@ -149,16 +141,18 @@ export function registerIpc(options: {
     },
     removePlaylistTracks: (_window, input) => {
       removePlaylistTracks(removePlaylistTracksSchema.parse(input));
-    },
-    rescanSource: async (_window, input) => {
-      await scanSource(rowIdSchema.parse(input));
 
-      return getLibrarySnapshotJson();
+      return currentLibraryRevision();
     },
-    rescanSources: async () => {
-      await scanEnabledSources();
+    rescanSource: (_window, input) => {
+      scanInBackground(scanSource(rowIdSchema.parse(input)));
 
-      return getLibrarySnapshotJson();
+      return currentLibraryRevision();
+    },
+    rescanSources: () => {
+      scanInBackground(scanEnabledSources());
+
+      return currentLibraryRevision();
     },
     savePlaybackPosition: (_window, position) => {
       savePlaybackPosition(playbackPositionSchema.parse(position));
@@ -177,6 +171,12 @@ export function registerIpc(options: {
       handler(requireTrustedWindow(event, options.rendererUrl), ...args),
     );
   }
+
+  onLibraryEvent((event) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send(lumeEventChannels.libraryEvent, event);
+    }
+  });
 
   ipcMain.on(lumeEventChannels.flushPlaybackSession, (event, session) => {
     try {
