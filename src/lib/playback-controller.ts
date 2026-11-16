@@ -1,4 +1,12 @@
-import type { LibraryRevision, LumeApi, MusicLibrary, PlaylistRead, Track } from "../../shared/lib";
+import type {
+  LibraryRevision,
+  LumeApi,
+  MusicLibrary,
+  PlaylistRead,
+  SavedPlaybackSession,
+  Track,
+} from "../../shared/lib";
+import { createCoalescingWriter } from "@/lib/coalescing-writer";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
@@ -43,6 +51,19 @@ type SourceChange = Extract<
 
 type PlaylistRestart = { playlistId: number; coveredRevision: LibraryRevision };
 
+type Load = { kind: "unloaded" } | { kind: "loaded"; requestId: string };
+
+type Ready = { kind: "ready"; load: Load };
+
+type Lifecycle = "awaiting-library" | "restoring" | Ready | "closed";
+
+const unloaded: Load = { kind: "unloaded" };
+
+const isReady = (lifecycle: Lifecycle): lifecycle is Ready =>
+  lifecycle !== "awaiting-library" && lifecycle !== "restoring" && lifecycle !== "closed";
+
+type SavedSession = { state: QueueState; position: number };
+
 type SessionRequest = Pick<
   Extract<QueueCommand, { type: "startSession" }>,
   "start" | "shuffled" | "paused"
@@ -53,6 +74,19 @@ function createQueueRandom(random: () => number): QueueRandom {
     shuffle: (entries) => shuffleEntries(entries, random),
     index: (count) => Math.floor(random() * count),
   };
+}
+
+function readSavedSession(
+  raw: SavedPlaybackSession | null,
+  library: MusicLibrary,
+): ReturnType<typeof parseQueueSession> | "unreadable" {
+  try {
+    return parseQueueSession(raw, library);
+  } catch (error) {
+    console.error("Could not parse the saved playback session", error);
+
+    return "unreadable";
+  }
 }
 
 function savedPosition(position: number) {
@@ -86,14 +120,10 @@ export function createPlaybackController(dependencies: {
     failures: noFailures,
   };
 
-  let lifecycle: "awaiting-library" | "restoring" | "ready" | "closed" = "awaiting-library";
+  let lifecycle: Lifecycle = "awaiting-library";
   let playlistRestart: PlaylistRestart | null = null;
-  let requestId: string | null = null;
   // Chromium keeps reusing a failed load for the same URL, so these tracks reload under a fresh one.
   const failedTrackIds = new Set<number>();
-  let pendingSave: { state: QueueState; position: number } | null = null;
-  let savedState: QueueState | null = null;
-  let saving = false;
 
   const publish = (next: Snapshot) => {
     snapshot = next;
@@ -108,54 +138,41 @@ export function createPlaybackController(dependencies: {
     publish({ ...snapshot, failures: { ...snapshot.failures, [slot]: value } });
   };
 
-  const savePending = async () => {
-    if (saving) return;
-    saving = true;
+  const sessionWriter = createCoalescingWriter<SavedSession>({
+    write: (next, stored) =>
+      next.state === stored?.state
+        ? dependencies.storage.savePosition(next.position)
+        : dependencies.storage.save({
+            payload: serializeQueueSession(next.state),
+            position: next.position,
+          }),
+    // Electron handles sent saves before the final synchronous flush from this renderer.
+    writeFinal: (final) =>
+      dependencies.storage.flush({
+        payload: serializeQueueSession(final.state),
+        position: final.position,
+      }),
+    onResult: (result) => setFailure("save", result === "failed"),
+  });
 
-    while (pendingSave) {
-      const next = pendingSave;
-      pendingSave = null;
-      const saveQueue = next.state !== savedState;
-      savedState = next.state;
+  const persist = (state: QueueState, position: number) =>
+    sessionWriter.write({ state, position: savedPosition(position) });
 
-      await (
-        saveQueue
-          ? dependencies.storage.save({
-              payload: serializeQueueSession(next.state),
-              position: next.position,
-            })
-          : dependencies.storage.savePosition(next.position)
-      ).then(
-        () => setFailure("save", false),
-        () => {
-          savedState = null;
-          setFailure("save", true);
-        },
-      );
-    }
-
-    saving = false;
-  };
-
-  const persist = (state: QueueState, position: number) => {
-    if (lifecycle === "closed") return;
-
-    pendingSave = { state, position: savedPosition(position) };
-
-    void Promise.resolve().then(savePending);
-  };
+  const needsLoad = () => isReady(lifecycle) && lifecycle.load.kind === "unloaded";
 
   const loadCurrent = (
     position: number,
     shouldPlay = selectPlaybackStatus(snapshot.queue) === "playing",
   ) => {
+    if (!isReady(lifecycle)) return;
     const current = selectCurrentItem(snapshot.queue);
     const track = current ? snapshot.tracksById.get(current.trackId) : undefined;
+    const requestId = current && track?.available ? crypto.randomUUID() : null;
 
-    requestId = current && track?.available ? crypto.randomUUID() : null;
+    lifecycle = { kind: "ready", load: requestId ? { kind: "loaded", requestId } : unloaded };
 
     dependencies.audio.load(
-      current && track?.available && requestId
+      requestId && current && track
         ? {
             requestId,
             queueItemId: current.queueItemId,
@@ -187,7 +204,7 @@ export function createPlaybackController(dependencies: {
       failures:
         load && !keepFailures
           ? { ...snapshot.failures, track: null, restore: false, sourceReload: false }
-        : snapshot.failures,
+          : snapshot.failures,
     });
     persist(queue, load ? 0 : dependencies.audio.getPosition());
 
@@ -233,7 +250,7 @@ export function createPlaybackController(dependencies: {
   const userCommand =
     <Args extends unknown[]>(run: (...args: Args) => void) =>
     (...args: Args) => {
-      if (lifecycle !== "ready") return;
+      if (!isReady(lifecycle)) return;
       playlistRestart = null;
       run(...args);
     };
@@ -344,7 +361,7 @@ export function createPlaybackController(dependencies: {
     setFailure("track", null);
     const current = selectCurrentItem(snapshot.queue);
 
-    if (current && requestId === null) {
+    if (current && needsLoad()) {
       const trackId = current.trackId;
 
       if (snapshot.availableTrackIds.has(trackId)) {
@@ -387,7 +404,7 @@ export function createPlaybackController(dependencies: {
 
       const current = selectCurrentItem(snapshot.queue);
 
-      if (current && snapshot.availableTrackIds.has(current.trackId) && requestId === null)
+      if (current && snapshot.availableTrackIds.has(current.trackId) && needsLoad())
         loadCurrent(dependencies.audio.getPosition());
 
       return;
@@ -398,19 +415,11 @@ export function createPlaybackController(dependencies: {
       .load()
       .then((raw) => {
         if (lifecycle === "closed") return;
-        lifecycle = "ready";
+        lifecycle = { kind: "ready", load: unloaded };
         const latestLibrary = snapshot.library ?? library;
-        let restored: ReturnType<typeof parseQueueSession> = null;
-        let restore = false;
+        const restored = readSavedSession(raw, latestLibrary);
 
-        try {
-          restored = parseQueueSession(raw, latestLibrary);
-        } catch (error) {
-          console.error("Could not parse the saved playback session", error);
-          restore = true;
-        }
-
-        if (restored) {
+        if (restored && restored !== "unreadable") {
           const queue = transition(
             restored.state,
             {
@@ -424,12 +433,16 @@ export function createPlaybackController(dependencies: {
           loadCurrent(restored.position, false);
         }
 
-        publish({ ...snapshot, isInitialized: true, failures: { ...snapshot.failures, restore } });
+        publish({
+          ...snapshot,
+          isInitialized: true,
+          failures: { ...snapshot.failures, restore: restored === "unreadable" },
+        });
       })
       .catch((error) => {
         if (lifecycle === "closed") return;
         console.error("Could not load the saved playback session", error);
-        lifecycle = "ready";
+        lifecycle = { kind: "ready", load: unloaded };
         publish({
           ...snapshot,
           isInitialized: true,
@@ -442,8 +455,9 @@ export function createPlaybackController(dependencies: {
     const current = selectCurrentItem(snapshot.queue);
 
     if (
-      lifecycle !== "ready" ||
-      event.requestId !== requestId ||
+      !isReady(lifecycle) ||
+      lifecycle.load.kind !== "loaded" ||
+      event.requestId !== lifecycle.load.requestId ||
       !current ||
       current.queueItemId !== event.queueItemId
     )
@@ -476,7 +490,7 @@ export function createPlaybackController(dependencies: {
     }
 
     // A failed element never recovers, so Play must load the track again.
-    requestId = null;
+    lifecycle = { kind: "ready", load: unloaded };
     failedTrackIds.add(trackId);
 
     if (selectPlaybackStatus(snapshot.queue) === "playing") advance();
@@ -525,14 +539,12 @@ export function createPlaybackController(dependencies: {
     flush: () => {
       lifecycle = "closed";
       playlistRestart = null;
-      pendingSave = null;
-
-      // Electron handles sent saves before the final synchronous flush from this renderer.
-      if (snapshot.queue)
-        dependencies.storage.flush({
-          payload: serializeQueueSession(snapshot.queue),
+      sessionWriter.close(
+        snapshot.queue && {
+          state: snapshot.queue,
           position: savedPosition(dependencies.audio.getPosition()),
-        });
+        },
+      );
     },
     getSnapshot: () => snapshot,
     handleAudioEvent,

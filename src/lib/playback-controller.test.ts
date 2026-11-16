@@ -1365,19 +1365,28 @@ it("recovers from a failed restore with a restore failure and no queue, then pla
   }
 });
 
-it.each(["resolves", "rejects"] as const)(
-  "drops a restore that %s after closing",
+it.each(["resolves", "resolves unreadable", "rejects"] as const)(
+  "drops a restore that %s after closing, logging nothing",
   async (outcome) => {
     const saved = await savedSession(libraryOf([1]), 1, 4);
     const load = deferred<SavedPlaybackSession | null>();
     const playback = createTestPlayback({ storage: loadingStorage(() => load.promise) });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     playback.controller.syncLibrary(libraryOf([1]));
     playback.controller.flush();
     const closed = playback.controller.getSnapshot();
 
-    if (outcome === "resolves") load.resolve(saved);
-    else load.reject(new Error("Database locked"));
-    await settle();
+    try {
+      if (outcome === "resolves") load.resolve(saved);
+      else if (outcome === "resolves unreadable")
+        load.resolve({ payload: "{not json", position: 4 });
+      else load.reject(new Error("Database locked"));
+      await settle();
+
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
 
     expect(playback.controller.getSnapshot()).toBe(closed);
     expect(closed).toMatchObject({ isInitialized: false, queue: null, failures: noFailures });
@@ -1798,6 +1807,88 @@ it.each([
     });
   },
 );
+
+it.each(["resolves", "rejects"] as const)(
+  "closing while a save is in flight writes the latest queue once, and nothing after that save %s",
+  async (outcome) => {
+    const save = deferred<void>();
+
+    const playback = await createReadyPlayback(libraryOf([1, 2]), {
+      storage: {
+        load: () => Promise.resolve(null),
+        save: () => save.promise,
+        savePosition: () => Promise.resolve(),
+        flush: () => {},
+      },
+    });
+
+    playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+    await settle();
+    playback.controller.next();
+    playback.controller.seek(9);
+    playback.controller.flush();
+
+    expect(describeWrites(playback.writes, libraryOf([1, 2]))).toEqual(["queue 1 at 0"]);
+    expect(
+      describeWrites(
+        playback.flushes.map((session) => ({ kind: "session", session })),
+        libraryOf([1, 2]),
+      ),
+    ).toEqual(["queue 2 at 9"]);
+
+    if (outcome === "resolves") save.resolve();
+    else save.reject(new Error("Disk full"));
+    await settle();
+    playback.controller.flush();
+
+    expect(playback.writes).toHaveLength(1);
+    expect(playback.flushes).toHaveLength(1);
+    expect(playback.controller.getSnapshot().failures).toEqual(noFailures);
+  },
+);
+
+it("quitting right after a restore writes back the restored queue and position", async () => {
+  const saved = await savedSession(libraryOf([1, 2]), 2, 12);
+
+  const playback = await createReadyPlayback(libraryOf([1, 2]), {
+    storage: loadingStorage(() => Promise.resolve(saved)),
+  });
+
+  playback.controller.flush();
+
+  expect(playback.writes).toEqual([]);
+  expect(playback.flushes).toHaveLength(1);
+  const flushed = parseQueueSession(playback.flushes[0] ?? null, libraryOf([1, 2]));
+  expect(flushed?.position).toBe(12);
+  expect(flushed?.state.playback).toMatchObject({
+    kind: "active",
+    status: "paused",
+    current: { trackId: 2 },
+  });
+  expect(flushed?.state).toEqual(parseQueueSession(saved, libraryOf([1, 2]))?.state);
+});
+
+it("loads a track that failed earlier under a fresh URL when playback returns to it", async () => {
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  const failed = playback.requests.at(-1);
+
+  if (!failed) throw new Error("Expected the track to load");
+  playback.controller.handleAudioEvent({
+    type: "error",
+    requestId: failed.requestId,
+    queueItemId: failed.queueItemId,
+    reason: "load",
+  });
+
+  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2" });
+
+  playback.controller.previous();
+  const returned = playback.requests.at(-1);
+
+  expect(returned).toMatchObject({ url: `lume://track/1?retry=${returned?.requestId}` });
+  expect(returned?.requestId).not.toBe(failed.requestId);
+});
 
 it("keeps a save failure through a track change until a later save succeeds", async () => {
   let failSave = false;
