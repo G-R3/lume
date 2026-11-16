@@ -312,7 +312,7 @@ it("restarts the current track before navigating to the prior source item", asyn
   playback.media.seek(3);
   controller.previous();
   expect(playback.seeks).toEqual([3, 0]);
-  expect(playback.media.getPosition()).toBe(0);
+  expect(playback.media.readLivePosition()).toBe(0);
   expect(selectCurrentItem(controller.getSnapshot().queue)?.trackId).toBe(2);
 
   controller.previous();
@@ -2184,7 +2184,7 @@ function createTestPlayback(
       audioState.position = time;
       audioState.playing = request?.shouldPlay ?? false;
     },
-    getPosition: () => audioState.position,
+    readLivePosition: () => audioState.position,
     play: () => {
       audioState.playing = true;
     },
