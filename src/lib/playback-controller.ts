@@ -96,7 +96,7 @@ function savedPosition(position: number) {
 export function createPlaybackController(dependencies: {
   audio: {
     load: (request: PlaybackRequest | null, position?: number) => void;
-    getPosition: () => number;
+    readLivePosition: () => number;
     play: () => void;
     pause: () => void;
     seek: (time: number) => void;
@@ -206,7 +206,7 @@ export function createPlaybackController(dependencies: {
           ? { ...snapshot.failures, track: null, restore: false, sourceReload: false }
           : snapshot.failures,
     });
-    persist(queue, load ? 0 : dependencies.audio.getPosition());
+    persist(queue, load ? 0 : dependencies.audio.readLivePosition());
 
     if (load) loadCurrent(0);
   };
@@ -346,7 +346,7 @@ export function createPlaybackController(dependencies: {
     if (
       snapshot.queue &&
       selectCurrentItem(snapshot.queue) &&
-      dependencies.audio.getPosition() > 2
+      dependencies.audio.readLivePosition() > 2
     ) {
       dependencies.audio.seek(0);
       persist(snapshot.queue, 0);
@@ -365,7 +365,7 @@ export function createPlaybackController(dependencies: {
       const trackId = current.trackId;
 
       if (snapshot.availableTrackIds.has(trackId)) {
-        loadCurrent(dependencies.audio.getPosition(), true);
+        loadCurrent(dependencies.audio.readLivePosition(), true);
 
         return;
       }
@@ -405,7 +405,7 @@ export function createPlaybackController(dependencies: {
       const current = selectCurrentItem(snapshot.queue);
 
       if (current && snapshot.availableTrackIds.has(current.trackId) && needsLoad())
-        loadCurrent(dependencies.audio.getPosition());
+        loadCurrent(dependencies.audio.readLivePosition());
 
       return;
     }
@@ -542,7 +542,7 @@ export function createPlaybackController(dependencies: {
       sessionWriter.close(
         snapshot.queue && {
           state: snapshot.queue,
-          position: savedPosition(dependencies.audio.getPosition()),
+          position: savedPosition(dependencies.audio.readLivePosition()),
         },
       );
     },
@@ -589,7 +589,7 @@ export function createPlaybackController(dependencies: {
     seek: userCommand((position: number) => {
       dependencies.audio.seek(position);
 
-      if (snapshot.queue) persist(snapshot.queue, dependencies.audio.getPosition());
+      if (snapshot.queue) persist(snapshot.queue, dependencies.audio.readLivePosition());
     }),
     setShuffleEnabled: userCommand((enabled: boolean) => {
       if (!snapshot.queue || snapshot.queue.shuffleEnabled === enabled) return;

@@ -57,15 +57,14 @@ function pausedSessionOnFirstTrack(): SavedPlaybackSession {
 }
 
 async function mountRestoredPlayback(library = availableLibrary) {
-  vi.stubGlobal("lume", {
-    hasTrackFile: () => Promise.resolve(true),
-    playbackSession: {
-      flush: () => {},
-      load: () => Promise.resolve(pausedSessionOnFirstTrack()),
-      save: () => Promise.resolve(),
-      savePosition: () => Promise.resolve(),
-    },
-  });
+  const playbackSession = {
+    flush: vi.fn(),
+    load: () => Promise.resolve(pausedSessionOnFirstTrack()),
+    save: () => Promise.resolve(),
+    savePosition: () => Promise.resolve(),
+  };
+
+  vi.stubGlobal("lume", { hasTrackFile: () => Promise.resolve(true), playbackSession });
 
   const commits: string[] = [];
   const container = document.createElement("div");
@@ -104,17 +103,27 @@ async function mountRestoredPlayback(library = availableLibrary) {
   act(() => playback().syncLibrary(library));
   await act(() => new Promise((resolve) => setTimeout(resolve)));
 
+  const setAudio = (
+    values: Partial<Pick<HTMLAudioElement, "currentTime" | "duration" | "ended" | "paused">>,
+  ) => {
+    const audio = container.querySelector("audio");
+
+    if (!audio) throw new Error("No audio element mounted");
+    Object.entries(values).forEach(([key, value]) =>
+      Object.defineProperty(audio, key, { configurable: true, value, writable: true }),
+    );
+
+    return audio;
+  };
+
   return {
     commits,
     playback,
+    playbackSession,
+    setAudio,
     toggle: () => act(() => playback().togglePlayback()),
     emit: (type: string, values = {}) => {
-      const audio = container.querySelector("audio");
-
-      if (!audio) throw new Error("No audio element mounted");
-      Object.entries(values).forEach(([key, value]) =>
-        Object.defineProperty(audio, key, { configurable: true, value, writable: true }),
-      );
+      const audio = setAudio(values);
       act(() => {
         audio.dispatchEvent(new Event(type));
       });
@@ -148,6 +157,22 @@ it("shows loading from Play until the element plays, and loading the next track 
   probe.emit("play", { paused: false });
   probe.emit("ended");
   expect(probe.commits).toEqual(["1:loading", "1:playing", "2:loading"]);
+});
+
+it("saves the element's time on close, not the last time it reported", async () => {
+  const probe = await mountRestoredPlayback();
+  probe.emit("loadedmetadata", { duration: 60 });
+  probe.toggle();
+  probe.emit("play", { paused: false });
+  probe.emit("timeupdate", { currentTime: 4 });
+  probe.setAudio({ currentTime: 4.3 });
+
+  act(() => {
+    window.dispatchEvent(new Event("beforeunload"));
+  });
+
+  expect(probe.playbackSession.flush).toHaveBeenCalledTimes(1);
+  expect(probe.playbackSession.flush.mock.calls[0]?.[0]).toMatchObject({ position: 4.3 });
 });
 
 it("pauses a loading track on toggle and follows a pause the app did not request", async () => {

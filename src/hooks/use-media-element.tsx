@@ -95,6 +95,15 @@ export function useMediaElement(options: {
     [dispatch],
   );
 
+  const readLivePosition = useCallback(() => {
+    const lifecycle = lifecycleRef.current;
+    const element = currentElement(lifecycle);
+
+    return element && lifecycle.kind === "requested" && lifecycle.seek.kind === "direct"
+      ? element.currentTime
+      : timeStore.getSnapshot();
+  }, [timeStore]);
+
   useEffect(() => {
     if (request) dispatch({ type: "committed", requestId: request.requestId });
   }, [dispatch, request]);
@@ -172,11 +181,11 @@ export function useMediaElement(options: {
         src={request.url}
       />
     ),
-    getPosition: timeStore.getSnapshot,
     isMuted,
     load,
     pause,
     play,
+    readLivePosition,
     seek,
     setVolume,
     timeStore,

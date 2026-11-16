@@ -119,16 +119,28 @@ it("defers the latest seek until metadata and then clamps and reports direct see
     probe.media.seek(19);
     probe.media.seek(23);
   });
-  expect(probe.media.getPosition()).toBe(23);
+  expect(probe.media.readLivePosition()).toBe(23);
   expect(probe.positions).toEqual([19, 23]);
   emit(probe.audio, "loadedmetadata", { duration: 20 });
   expect(probe.audio.currentTime).toBe(20);
-  expect(probe.media.getPosition()).toBe(20);
+  expect(probe.media.readLivePosition()).toBe(20);
   expect(probe.positions).toEqual([19, 23]);
   act(() => probe.media.seek(5));
   emit(probe.audio, "timeupdate", { currentTime: 5.2 });
   emit(probe.audio, "timeupdate", { currentTime: 5.8 });
   expect(probe.positions).toEqual([19, 23, 5, 5.2]);
+});
+
+it("reads the element's time between reports, but the deferred position until metadata applies it", () => {
+  const probe = mountMedia();
+  act(() => probe.media.load(request("a")));
+  Object.defineProperty(probe.audio, "currentTime", { configurable: true, value: 0, writable: true });
+  expect(probe.media.readLivePosition()).toBe(12);
+
+  emit(probe.audio, "loadedmetadata", { duration: 60 });
+  emit(probe.audio, "timeupdate", { currentTime: 13 });
+  probe.audio.currentTime = 13.2;
+  expect(probe.media.readLivePosition()).toBe(13.2);
 });
 
 it("only accepts the latest play rejection and explicit pause supersedes it", async () => {
@@ -168,7 +180,7 @@ it.each(["durationchange", "loadedmetadata", "timeupdate", "ended", "error", "pl
     expect(probe.events).toEqual([]);
     expect(probe.positions).toEqual([]);
     expect(probe.pause).not.toHaveBeenCalled();
-    expect(probe.media.getPosition()).toBe(30);
+    expect(probe.media.readLivePosition()).toBe(30);
     expect(durationOf(probe.media.view)).toBe(90);
     expect(playbackOf(probe.media.view)).toEqual({ kind: "paused" });
     emit(probe.audio, "loadedmetadata", { duration: 100 });
@@ -182,7 +194,7 @@ it("supersedes play rejection when reloading the same queue item", async () => {
   act(() => probe.media.load({ ...request("b", true), position: 30 }));
   await act(async () => probe.attempts[0]!(new DOMException("stale")));
   expect(probe.events).toEqual([]);
-  expect(probe.media.getPosition()).toBe(30);
+  expect(probe.media.readLivePosition()).toBe(30);
   emit(probe.audio, "play", { paused: false });
   expect(probe.events).toEqual([{ type: "started", requestId: "b", queueItemId: "same-item" }]);
 });
@@ -190,16 +202,16 @@ it("supersedes play rejection when reloading the same queue item", async () => {
 it("preserves separate load positions and an unavailable track position", () => {
   const probe = mountMedia();
   act(() => probe.media.load(request("a"), 7));
-  expect(probe.media.getPosition()).toBe(7);
+  expect(probe.media.readLivePosition()).toBe(7);
   emit(probe.audio, "loadedmetadata", { duration: 60 });
-  expect(probe.media.getPosition()).toBe(12);
+  expect(probe.media.readLivePosition()).toBe(12);
   act(() => {
     probe.media.load(null, 19);
     probe.media.play();
     probe.media.seek(30);
   });
   expect(probe.media.element).toBeNull();
-  expect(probe.media.getPosition()).toBe(19);
+  expect(probe.media.readLivePosition()).toBe(19);
   act(() => probe.media.load(request("b")));
   expect(probe.attempts).toHaveLength(0);
 });
@@ -234,7 +246,7 @@ it.each(["play", "ended", "error"])(
     expect(probe.events).toHaveLength(1);
     expect(probe.events[0]?.requestId).toBe("a");
     expect(probe.audio.src).toBe("file:///b.wav");
-    expect(probe.media.getPosition()).toBe(30);
+    expect(probe.media.readLivePosition()).toBe(30);
     expect(playbackOf(probe.media.view)).toEqual({ kind: "paused" });
   },
 );
@@ -274,7 +286,7 @@ it("publishes finite durations and reads live duration when seeking", () => {
     probe.media.seek(NaN);
     probe.media.seek(Infinity);
   });
-  expect(probe.media.getPosition()).toBe(0);
+  expect(probe.media.readLivePosition()).toBe(0);
 });
 
 it("distinguishes pause at natural end from a plain pause and reports media errors", () => {
@@ -342,7 +354,7 @@ it("allows a synchronous replacement from a paused callback", () => {
   emit(probe.audio, "pause", { paused: true, ended: false });
   expect(probe.events).toEqual([{ type: "paused", requestId: "a", queueItemId: "same-item" }]);
   expect(probe.audio.src).toBe("file:///b.wav");
-  expect(probe.media.getPosition()).toBe(30);
+  expect(probe.media.readLivePosition()).toBe(30);
 });
 
 it("does not rerender for attachment, deferred seeks, or time updates within a second", () => {
@@ -356,7 +368,7 @@ it("does not rerender for attachment, deferred seeks, or time updates within a s
   emit(probe.audio, "timeupdate", { currentTime: 12.1 });
   emit(probe.audio, "timeupdate", { currentTime: 12.6 });
   expect(probe.positions).toEqual([3, 12.1]);
-  expect(probe.media.getPosition()).toBe(12.6);
+  expect(probe.media.readLivePosition()).toBe(12.6);
   expect(renders).toBe(settled);
   act(() => probe.media.setVolume(0.5));
   expect(renders).toBe(settled + 1);
