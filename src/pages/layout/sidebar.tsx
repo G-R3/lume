@@ -29,6 +29,7 @@ import { useMusicLibrary } from "@/hooks/use-music-library";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
 import { duration, ease } from "@/lib/motion";
 import { presentLibrarySources } from "@/lib/source-presentation";
+import { libraryRows } from "@/lib/track-sort";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -57,7 +58,7 @@ export function AppSidebar() {
                   <MusicNotesIcon aria-hidden="true" weight={isTracks ? "fill" : "regular"} />
                   <span className="min-w-0 flex-1 truncate">Tracks</span>
 
-                  <NavCount count={library.tracks.length} />
+                  <NavCount count={libraryRows(library.tracks).length} />
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

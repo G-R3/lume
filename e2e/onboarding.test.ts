@@ -189,7 +189,7 @@ it("finishes first run when a folder is chosen away from the tracks page", async
   await expect.poll(() => onboardingScreen(window).count(), { timeout: 5_000 }).toBe(0);
 });
 
-it("keeps the library after its only folder is forgotten and Lume restarts", async () => {
+it("keeps the library shell after its only folder is forgotten and Lume restarts", async () => {
   const { application, profile, window } = await launchFirstRun("lume-onboarding-forgotten-");
   const titles = ["alpha"];
   await answerPicker(application, { folder: await musicFolder(profile, "music", titles) });
@@ -203,6 +203,6 @@ it("keeps the library after its only folder is forgotten and Lume restarts", asy
   await application.close();
 
   const restartedWindow = await (await launchLume(profile)).firstWindow();
-  await restartedWindow.getByRole("heading", { exact: true, name: "Tracks" }).waitFor();
-  expect(await onboardingScreen(restartedWindow).count()).toBe(0);
+  await restartedWindow.getByRole("heading", { name: "Add your music" }).waitFor();
+  expect(await restartedWindow.getByRole("link", { name: "Settings" }).count()).toBe(1);
 });

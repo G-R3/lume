@@ -1,4 +1,14 @@
-import type { LibrarySource, MusicLibrary } from "../../shared/lib";
+import type { LibrarySource, MusicLibrary, TrackUnavailableReason } from "../../shared/lib";
+import { libraryRows } from "./track-sort";
+
+export const trackUnavailableLabels: Record<TrackUnavailableReason, string> = {
+  "file-missing": "File missing",
+  "source-forgotten": "Folder removed",
+  "source-missing": "Not connected",
+  "source-off": "Folder off",
+  "source-permission": "No access",
+  "source-unreadable": "Can’t read folder",
+};
 
 const permissionDetail =
   "Lume does not have permission to read this folder. Allow access in System Settings, then try again.";
@@ -25,7 +35,7 @@ export type SourceNotice =
   | { kind: "none" }
   | { kind: "issue"; title: string; detail: string; sourceId: number }
   | { kind: "off"; title: string }
-  | { kind: "unavailable"; title: string; detail: string };
+  | { kind: "missing-files"; title: string; detail: string };
 
 export type SourceEmpty =
   | { kind: "hidden" }
@@ -160,13 +170,15 @@ function presentNotice(library: MusicLibrary, facts: readonly FolderFacts[]): So
     return { kind: "off", title: "All folders are off" };
   }
 
-  const unavailableCount = library.tracks.filter((track) => !track.available).length;
+  const missingCount = library.tracks.filter(
+    (track) => track.unavailableReason === "file-missing",
+  ).length;
 
-  if (unavailableCount > 0 && facts.every((fact) => fact.folder.enabled)) {
+  if (missingCount > 0) {
     return {
-      detail: "Their files were moved or deleted.",
-      kind: "unavailable",
-      title: `${unavailableCount.toLocaleString()} ${unavailableCount === 1 ? "track is" : "tracks are"} unavailable`,
+      detail: "Their files were moved or deleted since the last scan.",
+      kind: "missing-files",
+      title: `${missingCount.toLocaleString()} ${missingCount === 1 ? "track is" : "tracks are"} missing`,
     };
   }
 
@@ -201,7 +213,7 @@ function presentFooter(facts: readonly FolderFacts[], now: number) {
 
 function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): SourceEmpty {
   if (
-    library.tracks.length > 0 ||
+    libraryRows(library.tracks).length > 0 ||
     facts.some((fact) => !fact.folder.enabled || fact.issue !== null)
   ) {
     return { kind: "hidden" };

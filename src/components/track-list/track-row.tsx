@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
+import { trackUnavailableLabels } from "@/lib/source-presentation";
 import { cn } from "@/lib/utils";
 import type { TrackAction } from "@/components/track-list/actions/track-actions";
 import { TrackRowMenuItems } from "@/components/track-list/track-row-menu-items";
@@ -135,8 +136,10 @@ export const TrackRow = memo(function TrackRow({
                 {track.artists.join(", ") || "Unknown artist"}
               </p>
             </div>
-            {!track.available && (
-              <span className="shrink-0 text-meta text-secondary">Unavailable</span>
+            {track.unavailableReason && (
+              <span className="shrink-0 text-meta text-secondary">
+                {trackUnavailableLabels[track.unavailableReason]}
+              </span>
             )}
             <div
               className="contents"

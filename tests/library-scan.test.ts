@@ -1,4 +1,4 @@
-import { chmod, rm, writeFile } from "node:fs/promises";
+import { chmod, rename, rm, writeFile } from "node:fs/promises";
 import { openTestDatabase } from "./helpers/database";
 import { failScan, getActiveSource, libraryTracks, readLibrary, scanWith } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
@@ -133,7 +133,7 @@ describe("enabled source scanning", () => {
   });
 
   it("reports a change only when a track's availability changed", async () => {
-    const database = await openTestDatabase();
+    await openTestDatabase();
     const folder = await createTemporaryFolder("lume-source-");
     await Promise.all(
       ["kept", "removed", "restored"].map((title) => writeFile(join(folder, `${title}.mp3`), "")),
@@ -147,11 +147,10 @@ describe("enabled source scanning", () => {
       libraryTracks().map(({ available, title }) => ({ available, title }));
 
     await scanWith(source.id, await scanAudioFiles(folder));
-    database.$client.exec(`
-      UPDATE tracks SET available = title <> 'restored';
-      UPDATE library_sources
-        SET last_scan_outcome = 'failed', last_scan_error_message = 'scan failed', last_scanned_at = 1;
-    `);
+    await rename(join(folder, "restored.mp3"), join(folder, "restored.bak"));
+    await scanUnchanged();
+    await rename(join(folder, "restored.bak"), join(folder, "restored.mp3"));
+    await failScan(source.id, "scan failed");
     await rm(join(folder, "removed.mp3"));
 
     expect(await scanUnchanged()).toEqual(committed(true));
@@ -160,7 +159,7 @@ describe("enabled source scanning", () => {
       { available: false, title: "removed" },
       { available: true, title: "restored" },
     ]);
-    expect(scannedAt(source.id)).toBeGreaterThan(1);
+    expect(getActiveSource(source.id).status.kind).toBe("scanned");
 
     expect(await scanUnchanged()).toEqual(committed(false));
     expect(getAvailability()).toEqual([
@@ -170,7 +169,11 @@ describe("enabled source scanning", () => {
     ]);
 
     await failScan(source.id, "scan failed");
-    expect(libraryTracks().map((track) => track.available)).toEqual([false, false, false]);
+    expect(libraryTracks().map((track) => track.unavailableReason)).toEqual([
+      "source-unreadable",
+      "source-unreadable",
+      "source-unreadable",
+    ]);
 
     expect(await scanUnchanged()).toEqual(committed(true));
     expect(getAvailability()).toEqual([
@@ -285,11 +288,14 @@ describe("startup scan update", () => {
     { change: "a file went missing", apply: (folder: string) => rm(join(folder, "first.mp3")) },
     {
       change: "a missing file reappeared",
-      apply: async (_folder: string, database: LibraryDatabase) =>
-        database.$client.exec("UPDATE tracks SET available = 0 WHERE title = 'first'"),
+      apply: async (folder: string) => {
+        await rename(join(folder, "first.mp3"), join(folder, "first.bak"));
+        await scanEnabledSources();
+        await rename(join(folder, "first.bak"), join(folder, "first.mp3"));
+      },
     },
     {
-      change: "an earlier failure marked its tracks unavailable",
+      change: "an earlier failure closed its folder",
       apply: (_folder: string, _database: LibraryDatabase, sourceId: number) =>
         failScan(sourceId, "Folder is missing"),
     },
@@ -463,16 +469,16 @@ describe("scan ownership", () => {
       expect(getActiveSource(source.id).status).toEqual({
         kind: "scanned",
         scannedAt: lastScannedAt,
-        trackCount: 0,
+        trackCount: 1,
       });
       expect(libraryTracks().map(({ available, title }) => ({ available, title }))).toEqual([
-        { available: false, title: "kept" },
+        { available: true, title: "kept" },
       ]);
     }
 
     await expect(
       scanWith(source.id, [{ kind: "unchanged", path: join(folder, "kept.mp3") }]),
-    ).resolves.toEqual(committed(true));
+    ).resolves.toEqual(committed(false));
     expect(libraryTracks().map((track) => track.available)).toEqual([true]);
   });
 
