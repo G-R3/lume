@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { _electron as electron, type ElectronApplication, type Page } from "playwright";
+import { _electron as electron, type ElectronApplication, type Locator, type Page } from "playwright";
 import { afterEach } from "vite-plus/test";
 import { closeDatabase, initializeDatabase } from "../electron/database";
 import { saveSource, scanSource } from "../electron/library";
@@ -87,4 +87,8 @@ export async function holdReplies(window: Page, channel: string) {
     ipcMain.removeHandler(heldChannel);
     ipcMain.handle(heldChannel, () => new Promise(() => {}));
   }, channel);
+}
+
+export async function waitForFocusWithin(locator: Locator) {
+  await locator.and(locator.page().locator(":focus-within")).waitFor();
 }
