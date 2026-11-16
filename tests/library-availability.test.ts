@@ -152,7 +152,9 @@ describe("derived track availability", () => {
     forgetSource(source.id);
     expect(getSources()).toEqual([]);
     expect(reasons()).toEqual([{ title: "song", unavailableReason: "source-forgotten" }]);
-    expect(getPlaylist(playlist.id)?.tracks.map((entry) => entry.trackId)).toEqual([song.id]);
+    expect(getPlaylist(playlist.id).playlist?.tracks.map((entry) => entry.trackId)).toEqual([
+      song.id,
+    ]);
 
     await saveSource(folder);
     expect(reasons()).toEqual([{ title: "song", unavailableReason: null }]);

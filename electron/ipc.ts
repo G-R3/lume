@@ -100,8 +100,10 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
       return currentLibraryRevision();
     },
-    addTracksToPlaylist: (_window, input) =>
-      addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
+    addTracksToPlaylist: (_window, input) => ({
+      ...addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
+      revision: currentLibraryRevision(),
+    }),
     createPlaylist: (_window, input) => {
       const playlist = createPlaylist(playlistCreationSchema.parse(input));
 
@@ -139,6 +141,8 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     },
     removePlaylistTracks: (_window, input) => {
       removePlaylistTracks(removePlaylistTracksSchema.parse(input));
+
+      return currentLibraryRevision();
     },
     rescanSource: (_window, input) => {
       scanInBackground(scanSource(rowIdSchema.parse(input)));
