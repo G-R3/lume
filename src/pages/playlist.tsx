@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import type { PlaylistDetails } from "../../shared/lib";
@@ -7,7 +6,7 @@ import { FilterNoResults } from "@/components/filter-no-results";
 import { buttonVariants } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { playlistQueryOptions } from "@/lib/playlist-query";
+import { usePlaylist } from "@/lib/playlist-query";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { playlistRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
@@ -18,7 +17,7 @@ import { TrackListSkeleton } from "@/components/track-list/track-list-skeleton";
 export function PlaylistPage() {
   const navigate = useNavigate();
   const { playlistId } = useParams({ from: "/_app/playlists/$playlistId" });
-  const playlist = useQuery(playlistQueryOptions(playlistId));
+  const playlist = usePlaylist(playlistId);
 
   useEffect(() => {
     if (playlist.data === null) {

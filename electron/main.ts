@@ -4,7 +4,7 @@ import { appScheme } from "../shared/lib";
 import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
 import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
 import { registerIpc } from "./ipc";
-import { scanEnabledSources } from "./library";
+import { scanEnabledSources, scanInBackground } from "./library";
 
 app.enableSandbox();
 
@@ -78,10 +78,8 @@ async function startApp() {
   });
   app.once("will-quit", closeDatabase);
 
-  const startupScan = scanEnabledSources();
-  startupScan.catch((error) => console.error("Could not scan the music library", error));
-
-  registerIpc({ rendererUrl, startupScan, userDataDirectory });
+  registerIpc({ rendererUrl, userDataDirectory });
+  scanInBackground(scanEnabledSources());
 
   registerProtocolHandler(rendererDirectory);
 

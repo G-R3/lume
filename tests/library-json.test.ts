@@ -6,12 +6,11 @@ import { createTemporaryFolder } from "./helpers/temp-folder";
 import {
   disableSource,
   getLibrarySnapshotJson,
-  getLibraryUpdate,
   saveSource,
   setTracksLiked,
 } from "../electron/library";
 import type { ScannedTrack } from "../electron/library-files";
-import { createPlaylist } from "../electron/playlists";
+import { createPlaylist, deletePlaylist } from "../electron/playlists";
 import { parseLibrarySnapshot } from "../shared/lib";
 
 describe("library transport from stored rows", () => {
@@ -21,39 +20,49 @@ describe("library transport from stored rows", () => {
     expect(parseLibrarySnapshot(getLibrarySnapshotJson())).toStrictEqual({
       kind: "first-run",
       revision: expect.any(Number),
+      scans: expect.objectContaining({ scanning: [] }),
     });
   });
 
-  it("numbers every payload above the ones built before it", async () => {
+  it("keeps the revision across reads and advances it once per committed write", async () => {
     await openTestDatabase();
-    const firstRun = parseLibrarySnapshot(getLibrarySnapshotJson());
+    const revision = () => parseLibrarySnapshot(getLibrarySnapshotJson()).revision;
+    const start = revision();
+
+    expect(revision()).toBe(start);
+
     const folder = await createTemporaryFolder("lume-source-");
     const source = await saveSource(folder);
+    expect(revision()).toBe(start + 1);
+
     await scanWith(source.id, [scannedTrack(join(folder, "song.mp3"), {})]);
-    const song = trackTitled("song");
-    const library = parseLibrarySnapshot(getLibrarySnapshotJson());
-    const like = setTracksLiked({ liked: true, trackIds: [song.id] });
-    const sources = getLibraryUpdate("tracks-unchanged");
-    const reread = parseLibrarySnapshot(getLibrarySnapshotJson());
+    expect(revision()).toBe(start + 2);
 
-    if (sources?.kind !== "sources") throw new Error("Expected a sources update");
+    const like = setTracksLiked({ liked: true, trackIds: [trackTitled("song").id] });
+    expect([like.revision, revision()]).toEqual([start + 3, start + 3]);
 
-    const revisions = [firstRun, library, like, sources, reread].map((payload) => payload.revision);
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [] });
+    deletePlaylist(playlist.id);
+    expect(revision()).toBe(start + 5);
 
-    expect(revisions).toStrictEqual(revisions.toSorted((left, right) => left - right));
-    expect(new Set(revisions).size).toBe(revisions.length);
+    expect(() => deletePlaylist(playlist.id)).toThrow("Playlist does not exist");
+    await expect(saveSource(folder)).resolves.toMatchObject({ id: source.id });
+    expect(revision()).toBe(start + 6);
+    expect(revision()).toBe(start + 6);
   });
 
   it("sends every stored field in its own position", async () => {
     const database = await openTestDatabase();
     database.$client.exec(`
-      INSERT INTO library_sources (id, path, enabled, created_at, updated_at) VALUES (1, '/s', 1, 1, 2);
+      INSERT INTO app_state (id, onboarded_at) VALUES (1, 1);
+      INSERT INTO library_sources (id, path, status, last_scan_outcome, last_scanned_at, created_at, updated_at)
+        VALUES (1, '/s', 'active', 'ok', 3, 1, 2);
       INSERT INTO artwork (id, media_type, data) VALUES ('art-s', 'image/png', x'00');
       INSERT INTO tracks (id, source_id, path, title, duration, format, file_size, modified_at,
-        available, created_at, updated_at, artists, album, album_artists, artwork_id, year,
+        missing_since, created_at, updated_at, artists, album, album_artists, artwork_id, year,
         track_number, track_total, disc_number, disc_total, genres, codec, bitrate, sample_rate,
         bits_per_sample, channel_count, lossless, metadata_version)
-      VALUES (113, 1, '/s/t.flac', 'title-s', 101.5, 'format-s', 3, 4, 1, 111, 5, '["artist-s"]',
+      VALUES (113, 1, '/s/t.flac', 'title-s', 101.5, 'format-s', 3, 4, 114, 111, 5, '["artist-s"]',
         'album-s', '["album-artist-s"]', 'art-s', 110, 106, 107, 108, 109, '["genre-s"]',
         'codec-s', 102.25, 103, 104, 105, 0, 1);
       INSERT INTO track_state (track_id, liked_at) VALUES (113, 112);
@@ -64,7 +73,7 @@ describe("library transport from stored rows", () => {
     if (decoded.kind !== "library") throw new Error("Expected a populated library");
     expect(decoded.playlists).toStrictEqual([]);
     expect(decoded.sources).toStrictEqual([
-      { enabled: true, id: 1, lastScanError: null, lastScannedAt: null, path: "/s", trackCount: 1 },
+      { id: 1, path: "/s", status: { kind: "scanned", scannedAt: 3, trackCount: 0 } },
     ]);
     expect(decoded.tracks).toStrictEqual([
       {
@@ -73,7 +82,7 @@ describe("library transport from stored rows", () => {
         albumArtists: ["album-artist-s"],
         artists: ["artist-s"],
         artworkUrl: "lume://app/artwork/art-s",
-        available: true,
+        available: false,
         bitrate: 102.25,
         bitsPerSample: 104,
         channelCount: 105,
@@ -90,9 +99,42 @@ describe("library transport from stored rows", () => {
         sampleRate: 103,
         trackNumber: 106,
         trackTotal: 107,
+        unavailableReason: "file-missing",
         url: "lume://app/media/113",
         year: 110,
       },
+    ]);
+  });
+
+  it("sends each stored source state as one status", async () => {
+    const database = await openTestDatabase();
+    database.$client.exec(`
+      INSERT INTO app_state (id, onboarded_at) VALUES (1, 1);
+      INSERT INTO library_sources
+        (id, path, status, last_scan_outcome, last_scanned_at, last_scan_error_message, created_at, updated_at)
+      VALUES
+        (1, '/unscanned', 'active', 'unscanned', NULL, NULL, 1, 1),
+        (2, '/scanned', 'active', 'ok', 10, NULL, 2, 2),
+        (3, '/missing', 'active', 'missing', 10, 'gone', 3, 3),
+        (4, '/permission', 'active', 'permission', NULL, 'denied', 4, 4),
+        (5, '/failed', 'active', 'failed', NULL, '', 5, 5),
+        (6, '/off', 'off', 'failed', 10, 'broken', 6, 6),
+        (7, '/forgotten', 'forgotten', 'ok', 10, NULL, 7, 7);
+    `);
+
+    const library = readLibrary();
+
+    if (library.kind !== "library") throw new Error("Expected a library snapshot");
+    expect(library.sources.map(({ path, status }) => ({ path, status }))).toStrictEqual([
+      { path: "/unscanned", status: { kind: "unscanned" } },
+      { path: "/scanned", status: { kind: "scanned", scannedAt: 10, trackCount: 0 } },
+      { path: "/missing", status: { errorMessage: "gone", kind: "missing", lastScannedAt: 10 } },
+      {
+        path: "/permission",
+        status: { errorMessage: "denied", kind: "permission", lastScannedAt: null },
+      },
+      { path: "/failed", status: { errorMessage: "", kind: "failed", lastScannedAt: null } },
+      { path: "/off", status: { kind: "off" } },
     ]);
   });
 
@@ -156,6 +198,7 @@ describe("library transport from stored rows", () => {
         available: track.available,
         likedAt: track.likedAt,
         title: track.title,
+        unavailableReason: track.unavailableReason,
         url: track.url,
       })),
     ).toStrictEqual([
@@ -167,6 +210,7 @@ describe("library transport from stored rows", () => {
         available: true,
         likedAt: null,
         title: "bare",
+        unavailableReason: null,
         url: `lume://app/media/${bare.id}`,
       },
       {
@@ -177,6 +221,7 @@ describe("library transport from stored rows", () => {
         available: false,
         likedAt: null,
         title: "gone",
+        unavailableReason: "source-off",
         url: `lume://app/media/${gone.id}`,
       },
       {
@@ -187,26 +232,17 @@ describe("library transport from stored rows", () => {
         available: true,
         likedAt: expect.any(Number),
         title: "tagged",
+        unavailableReason: null,
         url: `lume://app/media/${tagged.id}`,
       },
     ]);
     expect(library.sources).toStrictEqual([
       {
-        enabled: true,
         id: source.id,
-        lastScanError: null,
-        lastScannedAt: expect.any(Number),
         path: source.path,
-        trackCount: 2,
+        status: { kind: "scanned", scannedAt: expect.any(Number), trackCount: 2 },
       },
-      {
-        enabled: false,
-        id: failingSource.id,
-        lastScanError: "Folder is missing",
-        lastScannedAt: expect.any(Number),
-        path: failingSource.path,
-        trackCount: 0,
-      },
+      { id: failingSource.id, path: failingSource.path, status: { kind: "off" } },
     ]);
     expect(library.playlists).toStrictEqual([
       { description: null, id: playlist.id, title: "Mix", trackCount: 2 },
