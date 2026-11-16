@@ -10,6 +10,8 @@ import { presentLibrarySources } from "./source-presentation";
 
 const now = new Date(2026, 10, 11, 12, 0).getTime();
 
+const idle = new Set<number>();
+
 const minute = 60_000;
 
 const hour = 60 * minute;
@@ -230,8 +232,8 @@ describe("folder rows", () => {
       trackCountText: null,
     },
   ])("shows $row.statusText", ({ row, status, tooltip, trackCountText }) => {
-    expect(presentLibrarySources(library([source("a", status)]), now).folders).toStrictEqual([
-      { ...row, id: 1, name: "a", path: "/music/a", tooltip, trackCountText },
+    expect(presentLibrarySources(library([source("a", status)]), idle, now).folders).toStrictEqual([
+      { ...row, id: 1, name: "a", path: "/music/a", scanning: false, tooltip, trackCountText },
     ]);
   });
 });
@@ -255,7 +257,7 @@ describe("tracks notice", () => {
       tracks: [track(1, "source-missing"), track(2, "file-missing")],
       notice: {
         detail: "Its tracks can’t play until it’s back.",
-        kind: "issue",
+        kind: "issue", scanning: false,
         sourceId: 2,
         title: "b isn’t connected",
       },
@@ -266,7 +268,7 @@ describe("tracks notice", () => {
       tracks: [],
       notice: {
         detail: "Disk read failed",
-        kind: "issue",
+        kind: "issue", scanning: false,
         sourceId: 3,
         title: "c couldn’t be scanned",
       },
@@ -277,7 +279,7 @@ describe("tracks notice", () => {
       tracks: [],
       notice: {
         detail: permissionCopy,
-        kind: "issue",
+        kind: "issue", scanning: false,
         sourceId: 4,
         title: "d couldn’t be scanned",
       },
@@ -300,7 +302,7 @@ describe("tracks notice", () => {
       tracks: [track(1, "file-missing"), track(2)],
       notice: {
         detail: "Their files were moved or deleted since the last scan.",
-        kind: "missing-files",
+        kind: "missing-files", scanning: false,
         title: "1 track is missing",
       },
     },
@@ -310,7 +312,7 @@ describe("tracks notice", () => {
       tracks: [track(1, "source-off"), track(2, "file-missing"), track(3, "file-missing")],
       notice: {
         detail: "Their files were moved or deleted since the last scan.",
-        kind: "missing-files",
+        kind: "missing-files", scanning: false,
         title: "2 tracks are missing",
       },
     },
@@ -321,7 +323,7 @@ describe("tracks notice", () => {
       notice: { kind: "none" },
     },
   ])("shows $case", ({ notice, sources, tracks }) => {
-    expect(presentLibrarySources(library(sources, tracks), now).notice).toStrictEqual(notice);
+    expect(presentLibrarySources(library(sources, tracks), idle, now).notice).toStrictEqual(notice);
   });
 });
 
@@ -367,13 +369,13 @@ describe("sidebar footer", () => {
       text: "3 folders · scanned 3h",
     },
   ])("shows $case", ({ sources, text }) => {
-    expect(presentLibrarySources(library(sources), now).footer.text).toBe(text);
+    expect(presentLibrarySources(library(sources), idle, now).footer.text).toBe(text);
   });
 
   it("lists every folder path in its tooltip", () => {
-    expect(presentLibrarySources(library([]), now).footer.tooltip).toBeUndefined();
+    expect(presentLibrarySources(library([]), idle, now).footer.tooltip).toBeUndefined();
     expect(
-      presentLibrarySources(library([source("a", off, 1), source("b", unscanned, 2)]), now).footer
+      presentLibrarySources(library([source("a", off, 1), source("b", unscanned, 2)]), idle, now).footer
         .tooltip,
     ).toBe("/music/a\n/music/b");
   });
@@ -383,7 +385,7 @@ describe("tracks empty state", () => {
   const addMusic = {
     chooseLabel: "Choose folder",
     description: "Choose a folder of audio files. Lume plays them where they are.",
-    kind: "add",
+    kind: "add", scanning: false,
     title: "Add your music",
   };
 
@@ -397,7 +399,7 @@ describe("tracks empty state", () => {
       empty: {
         chooseLabel: "Choose another folder",
         description: "Lume plays FLAC, M4A, MP3, AAC, OGG, OPUS and WAV files.",
-        kind: "no-audio",
+        kind: "no-audio", scanning: false,
         sourceId: 2,
         title: "No audio in “quiet”",
       },
@@ -427,7 +429,55 @@ describe("tracks empty state", () => {
       empty: { kind: "hidden" },
     },
   ])("shows $case", ({ empty, sources, tracks }) => {
-    expect(presentLibrarySources(library(sources, tracks), now).empty).toStrictEqual(empty);
+    expect(presentLibrarySources(library(sources, tracks), idle, now).empty).toStrictEqual(empty);
   });
 });
 
+
+describe("while main scans a folder", () => {
+  const scanningA = new Set([1]);
+
+  it("shows the row scanning and keeps its last track count", () => {
+    const [row] = presentLibrarySources(
+      library([source("a", scanned(hour, 40))]),
+      scanningA,
+      now,
+    ).folders;
+
+    expect(row).toMatchObject({ scanning: true, statusText: "Scanning…", trackCountText: "40" });
+  });
+
+  it("keeps a folder's issue notice and marks its scan as running", () => {
+    const sources = [source("a", missing(hour))];
+
+    expect(presentLibrarySources(library(sources), scanningA, now).notice).toMatchObject({
+      kind: "issue",
+      scanning: true,
+      title: "a isn’t connected",
+    });
+    expect(presentLibrarySources(library(sources), scanningA, now).folders[0]).toMatchObject({
+      hasIssue: false,
+      statusText: "Scanning…",
+    });
+  });
+
+  it("says scanning in the footer before the last scan age", () => {
+    const sources = [source("a", scanned(3 * hour), 1), source("b", scanned(hour), 2)];
+
+    expect(presentLibrarySources(library(sources), scanningA, now).footer.text).toBe(
+      "2 folders · scanning",
+    );
+  });
+
+  it("marks the empty state busy while a first folder scans", () => {
+    expect(
+      presentLibrarySources(library([source("a", unscanned)]), scanningA, now).empty,
+    ).toMatchObject({ kind: "add", scanning: true });
+  });
+
+  it("ignores a scan reported for a folder that is off", () => {
+    const [row] = presentLibrarySources(library([source("a", off)]), scanningA, now).folders;
+
+    expect(row).toMatchObject({ scanning: false, statusText: "Off" });
+  });
+});

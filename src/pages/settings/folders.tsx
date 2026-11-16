@@ -10,7 +10,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { useMinuteClock } from "@/hooks/use-minute-clock";
-import { useLibraryMutation } from "@/lib/library-query";
+import { useLibraryMutation, useScanningSources } from "@/lib/library-query";
 import { type FolderPresentation, presentLibrarySources } from "@/lib/source-presentation";
 import { cn } from "@/lib/utils";
 
@@ -18,10 +18,8 @@ type LibraryMutation = ReturnType<typeof useLibraryMutation>;
 
 type LibraryCommand = Parameters<LibraryMutation["mutate"]>[0];
 
-export function FolderSettings({ library }: { library: MusicLibrary }) {
+function useFolderCommand() {
   const libraryMutation = useLibraryMutation();
-  const { folders } = presentLibrarySources(library, useMinuteClock());
-  const pending = libraryMutation.isPending ? libraryMutation.variables : undefined;
 
   const run = (command: LibraryCommand, failure: string) =>
     libraryMutation.mutate(command, {
@@ -30,27 +28,24 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
       },
     });
 
-  const isScanning = (folder: FolderPresentation) =>
-    pending?.kind === "rescan-sources"
-      ? folder.enabled
-      : (pending?.kind === "rescan-source" ||
-          (pending?.kind === "set-source-enabled" && pending.enabled)) &&
-        pending.sourceId === folder.id;
+  return { isPending: libraryMutation.isPending, run };
+}
 
-  const isAdding = pending?.kind === "add-source";
+export function FolderSettings({ library }: { library: MusicLibrary }) {
+  const addFolder = useFolderCommand();
+  const { folders } = presentLibrarySources(library, useScanningSources(), useMinuteClock());
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center gap-4 px-6" data-slot="page-header">
         <h1 className="min-w-0 flex-1 truncate text-title font-semibold text-primary">Folders</h1>
         <Button
-          busy={isAdding}
-          disabled={libraryMutation.isPending}
-          onClick={() => run({ kind: "add-source" }, "Couldn’t add folder")}
+          busy={addFolder.isPending}
+          onClick={() => addFolder.run({ kind: "add-source" }, "Couldn’t add folder")}
           type="button"
           variant="primary"
         >
-          {!isAdding && (
+          {!addFolder.isPending && (
             <PlusIcon aria-hidden="true" className="size-3.5" data-icon="inline-start" />
           )}
           Add folder
@@ -91,24 +86,7 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
             </thead>
             <tbody className="before:table-row before:h-1">
               {folders.map((folder) => (
-                <FolderRow
-                  folder={folder}
-                  isBusy={libraryMutation.isPending}
-                  isScanning={isScanning(folder)}
-                  key={folder.id}
-                  onForget={() =>
-                    run({ kind: "forget-source", sourceId: folder.id }, "Couldn’t forget folder")
-                  }
-                  onRescan={() =>
-                    run({ kind: "rescan-source", sourceId: folder.id }, "Couldn’t scan folder")
-                  }
-                  onToggle={() =>
-                    run(
-                      { enabled: !folder.enabled, kind: "set-source-enabled", sourceId: folder.id },
-                      folder.enabled ? "Couldn’t turn folder off" : "Couldn’t turn folder on",
-                    )
-                  }
-                />
+                <FolderRow folder={folder} key={folder.id} />
               ))}
             </tbody>
           </table>
@@ -118,23 +96,23 @@ export function FolderSettings({ library }: { library: MusicLibrary }) {
   );
 }
 
-function FolderRow({
-  folder,
-  isBusy,
-  isScanning,
-  onForget,
-  onRescan,
-  onToggle,
-}: {
-  folder: FolderPresentation;
-  isBusy: boolean;
-  isScanning: boolean;
-  onForget: () => void;
-  onRescan: () => void;
-  onToggle: () => void;
-}) {
-  const { hasIssue, name } = folder;
+function FolderRow({ folder }: { folder: FolderPresentation }) {
+  const command = useFolderCommand();
+  const { hasIssue, name, scanning } = folder;
   const isOff = !folder.enabled;
+  const isBusy = command.isPending;
+
+  const onForget = () =>
+    command.run({ kind: "forget-source", sourceId: folder.id }, "Couldn’t forget folder");
+
+  const onRescan = () =>
+    command.run({ kind: "rescan-source", sourceId: folder.id }, "Couldn’t scan folder");
+
+  const onToggle = () =>
+    command.run(
+      { enabled: !folder.enabled, kind: "set-source-enabled", sourceId: folder.id },
+      folder.enabled ? "Couldn’t turn folder off" : "Couldn’t turn folder on",
+    );
 
   const revealOnHover =
     "opacity-0 group-hover/folder:opacity-100 group-has-focus-visible/folder:opacity-100";
@@ -166,11 +144,11 @@ function FolderRow({
         <p
           className={cn(
             "truncate text-meta",
-            hasIssue && !isScanning ? "text-primary" : "text-secondary",
+            hasIssue ? "text-primary" : "text-secondary",
           )}
           title={folder.tooltip}
         >
-          {isScanning ? "Scanning…" : folder.statusText}
+          {folder.statusText}
         </p>
       </td>
       <td className="pl-4 text-right font-mono text-meta text-secondary tabular-nums">
@@ -180,7 +158,7 @@ function FolderRow({
         <div className="flex items-center justify-end gap-1">
           {folder.scanLabel && (
             <Button
-              busy={isScanning}
+              busy={scanning}
               disabled={isBusy}
               onClick={onRescan}
               size="sm"

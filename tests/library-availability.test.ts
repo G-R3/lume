@@ -82,16 +82,16 @@ describe("derived track availability", () => {
     const hidden = `${folder}-unplugged`;
 
     await rename(folder, hidden);
-    expect(await scan()).toEqual({ kind: "committed", tracksChanged: true });
+    expect(await scan()).toEqual({ kind: "committed" });
     expect(reasons()).toEqual([
       { title: "gone", unavailableReason: "source-missing" },
       { title: "kept", unavailableReason: "source-missing" },
     ]);
     expect(storedTracks()).toEqual(tracksBefore);
-    expect(await scan()).toEqual({ kind: "committed", tracksChanged: false });
+    expect(await scan()).toEqual({ kind: "committed" });
 
     await rename(hidden, folder);
-    expect(await scan()).toEqual({ kind: "committed", tracksChanged: true });
+    expect(await scan()).toEqual({ kind: "committed" });
     expect(reasons()).toEqual([
       { title: "gone", unavailableReason: "file-missing" },
       { title: "kept", unavailableReason: null },
@@ -100,7 +100,7 @@ describe("derived track availability", () => {
     expect(getActiveSource(source.id).status).toMatchObject({ kind: "scanned", trackCount: 1 });
   });
 
-  it("reports a change when a failed folder fails for a different reason", async () => {
+  it("shows a failed folder's newest failure reason on its tracks", async () => {
     const { source } = await createScannedSource(["song"]);
 
     const fail = (code: string) =>
@@ -108,10 +108,11 @@ describe("derived track availability", () => {
         throw Object.assign(new Error(code), { code });
       });
 
-    expect(await fail("ENOENT")).toEqual({ kind: "committed", tracksChanged: true });
-    expect(await fail("EACCES")).toEqual({ kind: "committed", tracksChanged: true });
+    expect(await fail("ENOENT")).toEqual({ kind: "committed" });
+    expect(reasons()).toEqual([{ title: "song", unavailableReason: "source-missing" }]);
+    expect(await fail("EACCES")).toEqual({ kind: "committed" });
     expect(reasons()).toEqual([{ title: "song", unavailableReason: "source-permission" }]);
-    expect(await fail("EACCES")).toEqual({ kind: "committed", tracksChanged: false });
+    expect(await fail("EACCES")).toEqual({ kind: "committed" });
   });
 
   it("keeps when a file first went missing and restores it with its ID and like", async () => {
@@ -120,12 +121,12 @@ describe("derived track availability", () => {
     setTracksLiked({ liked: true, trackIds: [song.id] });
 
     await rm(join(folder, "song.mp3"));
-    expect(await scan()).toEqual({ kind: "committed", tracksChanged: true });
+    expect(await scan()).toEqual({ kind: "committed" });
     expect(reasons()).toEqual([{ title: "song", unavailableReason: "file-missing" }]);
     const [missing] = storedTracks();
     expect(missing.missing_since).toEqual(expect.any(Number));
 
-    expect(await scan()).toEqual({ kind: "committed", tracksChanged: false });
+    expect(await scan()).toEqual({ kind: "committed" });
     expect(storedTracks()).toEqual([missing]);
 
     await writeFile(join(folder, "song.mp3"), "");
@@ -139,7 +140,7 @@ describe("derived track availability", () => {
     const { scan, storedTracks } = await createScannedSource(["first", "second"]);
     const tracksBefore = storedTracks();
 
-    expect(await scan()).toEqual({ kind: "committed", tracksChanged: false });
+    expect(await scan()).toEqual({ kind: "committed" });
     expect(storedTracks()).toEqual(tracksBefore);
   });
 

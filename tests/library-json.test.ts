@@ -6,12 +6,11 @@ import { createTemporaryFolder } from "./helpers/temp-folder";
 import {
   disableSource,
   getLibrarySnapshotJson,
-  getLibraryUpdate,
   saveSource,
   setTracksLiked,
 } from "../electron/library";
 import type { ScannedTrack } from "../electron/library-files";
-import { createPlaylist } from "../electron/playlists";
+import { createPlaylist, deletePlaylist } from "../electron/playlists";
 import { parseLibrarySnapshot } from "../shared/lib";
 
 describe("library transport from stored rows", () => {
@@ -21,27 +20,35 @@ describe("library transport from stored rows", () => {
     expect(parseLibrarySnapshot(getLibrarySnapshotJson())).toStrictEqual({
       kind: "first-run",
       revision: expect.any(Number),
+      scans: expect.objectContaining({ scanning: [] }),
     });
   });
 
-  it("numbers every payload above the ones built before it", async () => {
+  it("keeps the revision across reads and advances it once per committed write", async () => {
     await openTestDatabase();
-    const firstRun = parseLibrarySnapshot(getLibrarySnapshotJson());
+    const revision = () => parseLibrarySnapshot(getLibrarySnapshotJson()).revision;
+    const start = revision();
+
+    expect(revision()).toBe(start);
+
     const folder = await createTemporaryFolder("lume-source-");
     const source = await saveSource(folder);
+    expect(revision()).toBe(start + 1);
+
     await scanWith(source.id, [scannedTrack(join(folder, "song.mp3"), {})]);
-    const song = trackTitled("song");
-    const library = parseLibrarySnapshot(getLibrarySnapshotJson());
-    const like = setTracksLiked({ liked: true, trackIds: [song.id] });
-    const sources = getLibraryUpdate("tracks-unchanged");
-    const reread = parseLibrarySnapshot(getLibrarySnapshotJson());
+    expect(revision()).toBe(start + 2);
 
-    if (sources?.kind !== "sources") throw new Error("Expected a sources update");
+    const like = setTracksLiked({ liked: true, trackIds: [trackTitled("song").id] });
+    expect([like.revision, revision()]).toEqual([start + 3, start + 3]);
 
-    const revisions = [firstRun, library, like, sources, reread].map((payload) => payload.revision);
+    const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [] });
+    deletePlaylist(playlist.id);
+    expect(revision()).toBe(start + 5);
 
-    expect(revisions).toStrictEqual(revisions.toSorted((left, right) => left - right));
-    expect(new Set(revisions).size).toBe(revisions.length);
+    expect(() => deletePlaylist(playlist.id)).toThrow("Playlist does not exist");
+    await expect(saveSource(folder)).resolves.toMatchObject({ id: source.id });
+    expect(revision()).toBe(start + 6);
+    expect(revision()).toBe(start + 6);
   });
 
   it("sends every stored field in its own position", async () => {

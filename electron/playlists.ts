@@ -7,12 +7,8 @@ import type {
   PlaylistSummary,
   RemovePlaylistTracksInput,
 } from "../shared/lib";
-import {
-  getDatabase,
-  parameterChunks,
-  runImmediateTransaction,
-  type LibraryTransaction,
-} from "./database";
+import { getDatabase, parameterChunks, type LibraryTransaction } from "./database";
+import { commitLibrary } from "./library-events";
 import { playlistTracks, playlists, tracks } from "./database/schema";
 
 const playlistColumns = {
@@ -75,7 +71,7 @@ export function createPlaylist(input: PlaylistCreationInput): PlaylistDetails {
     throw new Error("Playlist descriptions cannot exceed 300 characters");
   }
 
-  return runImmediateTransaction(getDatabase(), (transaction) => {
+  return commitLibrary(getDatabase(), (transaction) => {
     requireTracks(transaction, input.trackIds);
 
     const now = Date.now();
@@ -99,17 +95,19 @@ export function createPlaylist(input: PlaylistCreationInput): PlaylistDetails {
 }
 
 export function deletePlaylist(playlistId: number) {
-  const playlist = getDatabase()
-    .delete(playlists)
-    .where(eq(playlists.id, playlistId))
-    .returning({ id: playlists.id })
-    .get();
+  commitLibrary(getDatabase(), (transaction) => {
+    const playlist = transaction
+      .delete(playlists)
+      .where(eq(playlists.id, playlistId))
+      .returning({ id: playlists.id })
+      .get();
 
-  if (!playlist) throw new Error("Playlist does not exist");
+    if (!playlist) throw new Error("Playlist does not exist");
+  });
 }
 
 export function addTracksToPlaylist(input: AddTracksToPlaylistInput): AddTracksToPlaylistResult {
-  return runImmediateTransaction(getDatabase(), (transaction) => {
+  return commitLibrary(getDatabase(), (transaction) => {
     requirePlaylist(transaction, input.playlistId);
     requireTracks(transaction, input.trackIds);
 
@@ -142,7 +140,7 @@ export function removePlaylistTracks(input: RemovePlaylistTracksInput) {
   const inPlaylist = (ids: readonly number[]) =>
     and(eq(playlistTracks.playlistId, input.playlistId), inArray(playlistTracks.id, ids));
 
-  runImmediateTransaction(getDatabase(), (transaction) => {
+  commitLibrary(getDatabase(), (transaction) => {
     requirePlaylist(transaction, input.playlistId);
 
     const ownedCount = chunks.reduce(

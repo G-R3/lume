@@ -34,9 +34,3 @@ export function trackUnavailableReason(
 
   return missingSince === null ? null : "file-missing";
 }
-
-export function gateChanged(before: SourceGate, after: SourceGate) {
-  if (before.kind === "open" || after.kind === "open") return before.kind !== after.kind;
-
-  return before.reason !== after.reason;
-}

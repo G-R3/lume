@@ -3,8 +3,8 @@
 import { act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, onTestFinished } from "vite-plus/test";
-import type { LibrarySnapshot } from "../../shared/lib";
 import {
+  type LibraryStage,
   type Onboarding,
   type OnboardingEvent,
   stepOnboarding,
@@ -17,8 +17,8 @@ const table = document.createElement("table");
 
 const otherTable = document.createElement("table");
 
-const shown = (kind: "first-run" | "library" | undefined, onTracksRoute = true) =>
-  ({ type: "library-shown", kind, onTracksRoute }) as const;
+const shown = (stage: LibraryStage | undefined, onTracksRoute = true) =>
+  ({ type: "library-shown", stage, onTracksRoute }) as const;
 
 const ready = (list: HTMLElement | null) => ({ type: "list-ready", list }) as const;
 
@@ -34,6 +34,20 @@ it("reveals the tracks list once the first folder turns first run into a library
   expect(
     run([shown("first-run"), shown("library"), ready(table), { type: "reveal-ended" }]),
   ).toEqual({ phase: "none" });
+});
+
+it("keeps first run up until the first folder's scan has finished", () => {
+  expect(run([shown("first-run"), shown("scanning"), shown("scanning")])).toEqual({
+    phase: "first-run",
+  });
+  expect(run([shown("first-run"), shown("scanning"), shown("library"), ready(table)])).toEqual({
+    list: table,
+    phase: "revealing",
+  });
+});
+
+it("never shows first run for a scan that starts in an open library", () => {
+  expect(run([shown(undefined), shown("scanning"), shown("library")])).toEqual({ phase: "none" });
 });
 
 it("stays on first run through cancels, errors and loading", () => {
@@ -96,15 +110,15 @@ it("accepts readiness that the library page reports in the commit that first sho
     return null;
   }
 
-  function App({ kind }: { kind: LibrarySnapshot["kind"] }) {
-    const { onboarding, reveal } = useOnboarding(kind, true);
+  function App({ stage }: { stage: LibraryStage }) {
+    const { onboarding, reveal } = useOnboarding(stage, true);
     phases.push(onboarding.phase);
 
-    return kind === "library" && <EmptyTracksPage onListReady={reveal.onListReady} />;
+    return stage === "library" && <EmptyTracksPage onListReady={reveal.onListReady} />;
   }
 
-  act(() => root.render(<App kind="first-run" />));
-  act(() => root.render(<App kind="library" />));
+  act(() => root.render(<App stage="first-run" />));
+  act(() => root.render(<App stage="library" />));
 
   expect(phases.at(-1)).toBe("fading-out");
 });
