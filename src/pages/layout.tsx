@@ -3,6 +3,7 @@ import { Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { AudioPlayerControls } from "@/components/audio-player-controls";
+import { PlaybackNotices } from "@/pages/layout/playback-notices";
 import { AppSidebar } from "@/pages/layout/sidebar";
 import { QueueSidebar } from "@/pages/layout/queue-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -10,7 +11,6 @@ import { usePlayback } from "@/hooks/use-playback";
 import { PlaylistCreationProvider } from "@/hooks/use-playlist-creation";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { getSidebarShortcut } from "@/lib/keyboard-shortcuts";
-import { formatPlaybackNotice } from "@/lib/playback-notices";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
@@ -38,16 +38,11 @@ export function AppLayout() {
             <div className="relative flex min-h-0 flex-1">
               <SidebarInset className="min-h-0 min-w-0 overflow-auto bg-page scroll-area-scrollbar">
                 <div className="flex min-h-0 flex-1 flex-col">
-                  {playback.notices.length > 0 && (
-                    <div
-                      className="flex flex-col gap-1 px-6 pt-4 text-meta text-danger"
-                      role="alert"
-                    >
-                      {playback.notices.map((notice) => (
-                        <p key={notice.kind}>{formatPlaybackNotice(notice)}</p>
-                      ))}
-                    </div>
-                  )}
+                  <PlaybackNotices
+                    className={queueOpen ? "sr-only" : "not-empty:px-6 not-empty:pt-4"}
+                    notices={playback.notices}
+                    role="alert"
+                  />
                   <Outlet />
                 </div>
               </SidebarInset>
