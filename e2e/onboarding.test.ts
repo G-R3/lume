@@ -114,7 +114,7 @@ it("keeps first run after a cancelled or failed pick and adds the next folder", 
   await expect.poll(() => chooseFolder(window).getAttribute("aria-busy")).toBe("true");
   await expect.poll(() => chooseFolder(window).getAttribute("aria-busy")).toBeNull();
   expect(await chooseFolder(window).isEnabled()).toBe(true);
-  expect(await window.getByRole("alert").count()).toBe(0);
+  expect(await window.getByRole("alert").filter({ hasText: /\S/ }).count()).toBe(0);
 
   await answerPicker(application, { error: "Picker exploded" });
   await chooseFolder(window).click();
@@ -124,7 +124,7 @@ it("keeps first run after a cancelled or failed pick and adds the next folder", 
   await answerPicker(application, { folder });
   await chooseFolder(window).click();
   await expectSettledLibrary(window, titles);
-  expect(await window.getByRole("alert").count()).toBe(0);
+  expect(await window.getByRole("alert").filter({ hasText: /\S/ }).count()).toBe(0);
 });
 
 it("covers the library with first run until the reveal finishes", async () => {

@@ -24,9 +24,9 @@ import {
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatDuration, formatTotalDuration } from "@/lib/format-duration";
-import { formatPlaybackNotice } from "@/lib/playback-notices";
 import type { PlaybackPhase } from "@/lib/playback-phase";
 import type { QueueItem, QueueLane } from "@/lib/queue/model";
+import { PlaybackNotices } from "@/pages/layout/playback-notices";
 import { showTruncatedText } from "@/lib/show-truncated-text";
 import { cn } from "@/lib/utils";
 
@@ -141,13 +141,7 @@ function QueuePanel() {
         className="gap-4 pb-2 scroll-area-scrollbar [scrollbar-width:auto]! [&::-webkit-scrollbar]:block!"
         onPointerOver={showTruncatedText}
       >
-        {playback.notices.length > 0 && (
-          <div className="flex flex-col gap-1 px-4 text-meta text-danger">
-            {playback.notices.map((notice) => (
-              <p key={notice.kind}>{formatPlaybackNotice(notice)}</p>
-            ))}
-          </div>
-        )}
+        <PlaybackNotices aria-hidden className="px-4 empty:hidden" notices={playback.notices} />
         {!queue ? (
           <div className="flex flex-col gap-1 px-4 py-2">
             <p className="text-body font-medium text-primary">Nothing queued</p>
