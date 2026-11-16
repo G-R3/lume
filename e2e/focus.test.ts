@@ -25,6 +25,10 @@ async function focusedName(window: Page) {
   return (await focused.getAttribute("aria-label")) ?? (await focused.textContent())?.trim();
 }
 
+async function waitForFocusWithin(locator: Locator) {
+  await locator.and(locator.page().locator(":focus-within")).waitFor();
+}
+
 async function isFocused(locator: Locator) {
   return (await locator.and(locator.page().locator(":focus")).count()) === 1;
 }
@@ -69,7 +73,7 @@ it("moves the track selection with the keyboard and plays it with Enter", async 
   const firstRow = grid.locator('tr[aria-rowindex="2"]');
   const firstTitle = (await firstRow.locator("p").first().textContent()) ?? "";
   await firstRow.click({ button: "right" });
-  await window.getByRole("menu").waitFor();
+  await waitForFocusWithin(window.getByRole("menu"));
   await window.keyboard.press("ArrowDown");
   await window.keyboard.press("End");
   await window.keyboard.press("Escape");
@@ -122,7 +126,7 @@ it("returns focus to the row after a menu closes", async () => {
 
   await row("bravo").click();
   await window.keyboard.press("Shift+F10");
-  await window.getByRole("menu").waitFor();
+  await waitForFocusWithin(window.getByRole("menu"));
   await window.keyboard.press("Escape");
   await window.getByRole("menu").waitFor({ state: "detached" });
   await expect.poll(focusedRowTitle).toBe("bravo");
@@ -152,7 +156,7 @@ it("makes the row whose menu opened the focused row without changing the selecti
 
   await row("alpha").click();
   await row("delta").click({ button: "right" });
-  await window.getByRole("menu").waitFor();
+  await waitForFocusWithin(window.getByRole("menu"));
   await window.keyboard.press("Escape");
   await window.getByRole("menu").waitFor({ state: "detached" });
   await expect.poll(focusedRowTitle).toBe("delta");
@@ -265,7 +269,7 @@ it("returns focus to where a playlist dialog was opened from", async () => {
   await row("bravo").click();
   await window.keyboard.press("Shift+F10");
   await window.getByRole("menuitem", { name: "Add to playlist" }).click();
-  await dialog.waitFor();
+  await waitForFocusWithin(dialog);
   await window.keyboard.press("Escape");
   await dialog.waitFor({ state: "detached" });
   await expect.poll(focusedRowTitle).toBe("bravo");
@@ -278,14 +282,14 @@ it("returns focus to where a playlist dialog was opened from", async () => {
 
   await window.keyboard.press("Meta+Shift+p");
   await dialog.getByRole("option", { name: /New playlist/ }).click();
-  await creation.getByLabel("Title").waitFor();
+  await waitForFocusWithin(creation.getByLabel("Title"));
   await window.keyboard.press("Escape");
   await creation.waitFor({ state: "detached" });
   await expect.poll(focusedRowTitle).toBe("bravo");
 
   await window.keyboard.press("Shift+F10");
   await window.getByRole("menuitem", { name: "New playlist" }).click();
-  await creation.getByLabel("Title").waitFor();
+  await waitForFocusWithin(creation.getByLabel("Title"));
   await window.keyboard.press("Escape");
   await creation.waitFor({ state: "detached" });
   await expect.poll(focusedRowTitle).toBe("bravo");
@@ -293,7 +297,7 @@ it("returns focus to where a playlist dialog was opened from", async () => {
   await window.keyboard.press("Shift+ArrowDown");
   const addButton = window.getByRole("toolbar").locator('[data-bar-action="addToPlaylist"]');
   await addButton.click();
-  await dialog.waitFor();
+  await waitForFocusWithin(dialog);
   await window.keyboard.press("Escape");
   await dialog.waitFor({ state: "detached" });
   await expect.poll(() => isFocused(addButton)).toBe(true);
@@ -301,7 +305,7 @@ it("returns focus to where a playlist dialog was opened from", async () => {
   await window.keyboard.press("Meta+Shift+p");
   await dialog.waitFor();
   await dialog.getByRole("option", { name: /Mix/ }).click();
-  await window.getByRole("alertdialog").waitFor();
+  await waitForFocusWithin(window.getByRole("alertdialog"));
   await window.keyboard.press("Escape");
   await window.getByRole("alertdialog").waitFor({ state: "detached" });
   await expect.poll(() => isFocused(addButton)).toBe(true);
@@ -341,7 +345,7 @@ it("moves focus to a surviving control after a playlist is deleted", async () =>
   const headerMenu = window.locator("header").getByRole("button", { name: "More options for Two" });
   await headerMenu.click();
   await window.getByRole("menuitem", { name: "Delete playlist" }).click();
-  await alert.waitFor();
+  await waitForFocusWithin(alert);
   await window.keyboard.press("Escape");
   await alert.waitFor({ state: "detached" });
   await expect.poll(() => focusedName(window)).toBe("More options for Two");
