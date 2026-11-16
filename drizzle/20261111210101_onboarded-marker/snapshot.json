@@ -1,17 +1,25 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "41a8b7b5-3c50-40bf-911e-3ff8475d7ccc",
+  "id": "d662b533-46ad-4a93-a975-44e9d7147148",
   "prevIds": [
     "2968fe51-d125-4d05-9163-7715ecfc1fa7"
   ],
   "ddl": [
+    {
+      "name": "app_state",
+      "entityType": "tables"
+    },
     {
       "name": "artwork",
       "entityType": "tables"
     },
     {
       "name": "library_sources",
+      "entityType": "tables"
+    },
+    {
+      "name": "playback_position",
       "entityType": "tables"
     },
     {
@@ -33,6 +41,26 @@
     {
       "name": "tracks",
       "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "app_state"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "onboarded_at",
+      "entityType": "columns",
+      "table": "app_state"
     },
     {
       "type": "text",
@@ -152,6 +180,26 @@
       "generated": null,
       "name": "id",
       "entityType": "columns",
+      "table": "playback_position"
+    },
+    {
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "position",
+      "entityType": "columns",
+      "table": "playback_position"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
       "table": "playback_session"
     },
     {
@@ -161,16 +209,6 @@
       "default": null,
       "generated": null,
       "name": "payload",
-      "entityType": "columns",
-      "table": "playback_session"
-    },
-    {
-      "type": "real",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "position",
       "entityType": "columns",
       "table": "playback_session"
     },
@@ -672,8 +710,26 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "app_state_pk",
+      "table": "app_state",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "library_sources_pk",
       "table": "library_sources",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "playback_position_pk",
+      "table": "playback_position",
       "entityType": "pks"
     },
     {
@@ -815,6 +871,12 @@
       "table": "tracks"
     },
     {
+      "value": "\"id\" = 1",
+      "name": "app_state_singleton_check",
+      "entityType": "checks",
+      "table": "app_state"
+    },
+    {
       "value": "\"enabled\" IN (0, 1)",
       "name": "library_sources_enabled_check",
       "entityType": "checks",
@@ -825,18 +887,6 @@
       "name": "library_sources_forgotten_check",
       "entityType": "checks",
       "table": "library_sources"
-    },
-    {
-      "value": "\"id\" = 1",
-      "name": "playback_session_singleton",
-      "entityType": "checks",
-      "table": "playback_session"
-    },
-    {
-      "value": "\"position\" >= 0",
-      "name": "playback_session_position_check",
-      "entityType": "checks",
-      "table": "playback_session"
     },
     {
       "value": "\"position\" >= 0",

@@ -222,12 +222,20 @@ function normalizeArtworkMediaType(value: string) {
   return artworkMediaTypes.get(value.trim().toLowerCase()) ?? null;
 }
 
-export function describeFolderReadError(error: Error) {
-  if (isPermissionError(error)) {
-    return "Lume does not have permission to read this folder. Allow access in System Settings, then try again.";
-  }
+export type FolderReadFailure = {
+  kind: "missing" | "permission" | "failed";
+  errorMessage: string;
+};
 
-  return error.message;
+export function classifyFolderReadError(error: Error): FolderReadFailure {
+  return {
+    errorMessage: error.message,
+    kind: isMissingError(error) ? "missing" : isPermissionError(error) ? "permission" : "failed",
+  };
+}
+
+function isMissingError(error: Error) {
+  return "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR");
 }
 
 function isPermissionError(error: Error) {
