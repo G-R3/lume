@@ -7,7 +7,7 @@ import { saveSource, scanSource } from "../electron/library";
 import { libraryTracks } from "../tests/helpers/library";
 import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { createWaveAudio } from "../tests/helpers/wave-audio";
-import { electronEnvironment, launchLume, openDatabase } from "./launch";
+import { electronEnvironment, launchLume, openDatabase, waitForFocusWithin } from "./launch";
 
 it("keeps a scanned track and playlist working after restart", async () => {
   const profile = await createTemporaryFolder("lume-electron-smoke-");
@@ -54,6 +54,7 @@ it("keeps a scanned track and playlist working after restart", async () => {
   await firstWindow.getByRole("menu").waitFor({ state: "detached" });
 
   await firstWindow.getByRole("button", { exact: true, name: "More options for smoke" }).click();
+  await waitForFocusWithin(firstWindow.getByRole("menu"));
   const trackMenuActions = await firstWindow.getByRole("menuitem").allTextContents();
   await firstWindow.keyboard.press("Escape");
   await firstWindow

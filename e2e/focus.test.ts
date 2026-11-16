@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
 import { expect, it } from "vite-plus/test";
-import { launchWithLibrary } from "./launch";
+import { launchWithLibrary, waitForFocusWithin } from "./launch";
 
 const letters = ["alpha", "bravo", "charlie", "delta", "echo"];
 
@@ -23,10 +23,6 @@ async function focusedName(window: Page) {
   if ((await focused.count()) === 0) return null;
 
   return (await focused.getAttribute("aria-label")) ?? (await focused.textContent())?.trim();
-}
-
-async function waitForFocusWithin(locator: Locator) {
-  await locator.and(locator.page().locator(":focus-within")).waitFor();
 }
 
 async function isFocused(locator: Locator) {
