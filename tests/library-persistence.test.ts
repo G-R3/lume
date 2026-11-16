@@ -13,6 +13,7 @@ import {
   getSources,
   getTrackPath,
   saveSource,
+  scanSource,
   setTracksLiked,
 } from "../electron/library";
 import { createPlaylist, getPlaylist } from "../electron/playlists";
@@ -30,14 +31,7 @@ describe("library source persistence", () => {
 
     await openTestDatabase(databasePath);
     expect(getSources()).toEqual([
-      {
-        enabled: true,
-        id: source.id,
-        lastScanError: null,
-        lastScannedAt: null,
-        path: source.path,
-        trackCount: 0,
-      },
+      { id: source.id, path: source.path, status: { kind: "unscanned" } },
     ]);
     await expect(saveSource(folder)).resolves.toEqual(source);
   });
@@ -65,10 +59,10 @@ describe("library source persistence", () => {
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(folder);
     await scanWith(source.id, await scanAudioFiles(folder));
-    expect(getActiveSource(source.id).trackCount).toBe(1);
+    expect(getActiveSource(source.id).status).toMatchObject({ kind: "scanned", trackCount: 1 });
 
     disableSource(source.id);
-    expect(getActiveSource(source.id).enabled).toBe(false);
+    expect(getActiveSource(source.id).status).toEqual({ kind: "off" });
     expect(libraryTracks().map((track) => track.available)).toEqual([false]);
     expect(await scanWith(source.id, await scanAudioFiles(folder))).toEqual({
       kind: "dropped",
@@ -77,7 +71,7 @@ describe("library source persistence", () => {
     expect(libraryTracks().map((track) => track.available)).toEqual([false]);
 
     enableSource(source.id);
-    expect(getActiveSource(source.id).enabled).toBe(true);
+    expect(getActiveSource(source.id).status).toMatchObject({ kind: "scanned", trackCount: 0 });
     expect(libraryTracks().map((track) => track.available)).toEqual([false]);
 
     expect(await scanWith(source.id, await scanAudioFiles(folder))).toEqual({
@@ -93,16 +87,10 @@ describe("library source persistence", () => {
     const folder = await createTemporaryFolder("lume-source-");
     await writeFile(join(folder, "song.mp3"), "");
     const source = await saveSource(folder);
-    expect(database.$client.prepare("SELECT forgotten_at FROM library_sources").all()).toEqual([
-      { forgotten_at: null },
-    ]);
     await scanWith(source.id, await scanAudioFiles(folder));
     const trackId = database.$client.prepare("SELECT id FROM tracks").get()?.id;
 
     forgetSource(source.id);
-    expect(database.$client.prepare("SELECT forgotten_at FROM library_sources").all()).toEqual([
-      { forgotten_at: expect.any(Number) },
-    ]);
     expect(getSources()).toEqual([]);
     expect(readLibrary().kind).toBe("library");
     expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
@@ -111,11 +99,32 @@ describe("library source persistence", () => {
     });
 
     await expect(saveSource(folder)).resolves.toEqual(source);
+    expect(getActiveSource(source.id).status).toMatchObject({ kind: "scanned", trackCount: 0 });
     await scanWith(source.id, await scanAudioFiles(folder));
     expect(database.$client.prepare("SELECT id, available FROM tracks").get()).toEqual({
       available: 1,
       id: trackId,
     });
+  });
+
+  it("keeps a folder's last scan outcome while it is off", async () => {
+    await openTestDatabase();
+    const source = await saveSource(await createTemporaryFolder("lume-source-"));
+    await scanSource(source.id, async () => {
+      throw Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    });
+    const failed = getActiveSource(source.id).status;
+    expect(failed).toEqual({
+      errorMessage: "EACCES: permission denied",
+      kind: "permission",
+      lastScannedAt: null,
+    });
+
+    disableSource(source.id);
+    expect(getActiveSource(source.id).status).toEqual({ kind: "off" });
+
+    enableSource(source.id);
+    expect(getActiveSource(source.id).status).toEqual(failed);
   });
 
   it("moves preserved tracks when a new source replaces a forgotten overlap", async () => {
@@ -142,6 +151,57 @@ describe("library source persistence", () => {
       liked_at: 1,
       track_id: trackId,
     });
+  });
+});
+
+describe("onboarding", () => {
+  it("leaves first run once a folder is saved, across restarts", async () => {
+    const databasePath = join(await createTemporaryFolder("lume-database-"), "library.sqlite");
+    await openTestDatabase(databasePath);
+    expect(readLibrary().kind).toBe("first-run");
+
+    await saveSource(await createTemporaryFolder("lume-source-"));
+    closeDatabase();
+    await openTestDatabase(databasePath);
+
+    expect(readLibrary().kind).toBe("library");
+  });
+
+  it("stays in first run when the folder can't be saved", async () => {
+    const database = await openTestDatabase();
+    const file = join(await createTemporaryFolder("lume-source-"), "song.mp3");
+    await writeFile(file, "");
+
+    await expect(saveSource(file)).rejects.toThrow("must be a folder");
+    expect(readLibrary().kind).toBe("first-run");
+
+    for (const table of ["library_sources", "app_state"]) {
+      database.$client.exec(`
+        CREATE TRIGGER reject_write
+        BEFORE INSERT ON ${table}
+        BEGIN
+          SELECT RAISE(ABORT, 'disk full');
+        END;
+      `);
+
+      await expect(saveSource(await createTemporaryFolder("lume-source-"))).rejects.toThrow(
+        "disk full",
+      );
+      expect(getSources()).toEqual([]);
+      expect(readLibrary().kind).toBe("first-run");
+
+      database.$client.exec("DROP TRIGGER reject_write");
+    }
+  });
+
+  it("keeps the library after every folder is forgotten", async () => {
+    await openTestDatabase();
+    const source = await saveSource(await createTemporaryFolder("lume-source-"));
+
+    forgetSource(source.id);
+
+    expect(getSources()).toEqual([]);
+    expect(readLibrary().kind).toBe("library");
   });
 });
 

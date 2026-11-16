@@ -1,16 +1,16 @@
 import { useDeferredValue, useLayoutEffect, useRef, useState } from "react";
 import { TrackCount } from "@/pages/tracks/track-count";
 import { useLibraryReveal } from "@/hooks/use-onboarding";
-import type { MusicLibrary } from "../../shared/lib";
 import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
 import { FilterNoResults } from "@/components/filter-no-results";
 import { LibraryOnboarding } from "@/components/library-onboarding";
 import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
+import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatTotalDuration } from "@/lib/format-duration";
 import { useLibraryMutation } from "@/lib/library-query";
-import { getSourceName } from "@/lib/source-name";
+import { presentLibrarySources, type SourceEmpty } from "@/lib/source-presentation";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
 import { libraryRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
@@ -27,16 +27,13 @@ export function TracksPage() {
   const [filterText, setFilterText] = useState("");
   const filter = parseTrackFilter(useDeferredValue(filterText));
   const filterRef = useRef<FilterFieldHandle>(null);
+  const sources = presentLibrarySources(library, useMinuteClock());
 
   useLayoutEffect(() => {
     if (library.tracks.length === 0) onListReady(null);
   }, [library.tracks.length, onListReady]);
 
-  const isEmpty =
-    library.tracks.length === 0 &&
-    library.sources.every((source) => source.enabled && !source.lastScanError);
-
-  if (isEmpty) return <EmptyLibrary library={library} />;
+  if (sources.empty.kind !== "hidden") return <EmptyLibrary empty={sources.empty} />;
 
   const sorted = sortRows(allTracks, libraryRows(library.tracks), sort);
   const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
@@ -83,7 +80,7 @@ export function TracksPage() {
         />
         <SortMenu onStepSort={stepSort} sort={sort} />
       </header>
-      <LibraryStatus library={library} />
+      <LibraryStatus notice={sources.notice} />
       {(items.length > 0 || filter) && (
         <TrackList
           caption="Tracks"
@@ -103,11 +100,10 @@ export function TracksPage() {
   );
 }
 
-function EmptyLibrary({ library }: { library: MusicLibrary }) {
+function EmptyLibrary({ empty }: { empty: Exclude<SourceEmpty, { kind: "hidden" }> }) {
   const libraryMutation = useLibraryMutation();
-  const emptySource = library.sources.find((source) => source.lastScannedAt !== null);
 
-  const chooseFolderButton = (label: string) => (
+  const chooseFolderButton = (
     <Button
       busy={libraryMutation.isPending && libraryMutation.variables?.kind === "add-source"}
       disabled={libraryMutation.isPending}
@@ -115,43 +111,37 @@ function EmptyLibrary({ library }: { library: MusicLibrary }) {
       type="button"
       variant="primary"
     >
-      {label}
+      {empty.chooseLabel}
     </Button>
   );
 
   return (
     <div className="flex flex-1 justify-center px-6 pt-54">
-      {emptySource ? (
-        <LibraryOnboarding
-          actions={
+      <LibraryOnboarding
+        actions={
+          empty.kind === "no-audio" ? (
             <>
-              {chooseFolderButton("Choose another folder")}
+              {chooseFolderButton}
               <Button
                 busy={libraryMutation.isPending && libraryMutation.variables?.kind !== "add-source"}
                 disabled={libraryMutation.isPending}
                 onClick={() =>
-                  libraryMutation.mutate({ kind: "rescan-source", sourceId: emptySource.id })
+                  libraryMutation.mutate({ kind: "rescan-source", sourceId: empty.sourceId })
                 }
                 type="button"
               >
                 Scan again
               </Button>
             </>
-          }
-          busy={libraryMutation.isPending}
-          description="Lume plays FLAC, M4A, MP3, AAC, OGG, OPUS and WAV files."
-          errorMessage={libraryMutation.error?.message}
-          title={`No audio in “${getSourceName(emptySource.path)}”`}
-        />
-      ) : (
-        <LibraryOnboarding
-          actions={chooseFolderButton("Choose folder")}
-          busy={libraryMutation.isPending}
-          description="Choose a folder of audio files. Lume plays them where they are."
-          errorMessage={libraryMutation.error?.message}
-          title="Add your music"
-        />
-      )}
+          ) : (
+            chooseFolderButton
+          )
+        }
+        busy={libraryMutation.isPending}
+        description={empty.description}
+        errorMessage={libraryMutation.error?.message}
+        title={empty.title}
+      />
     </div>
   );
 }
