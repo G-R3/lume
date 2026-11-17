@@ -89,19 +89,32 @@ export function FloatingSelectionBar({
   const [toastLiftWhileShown, setToastLiftWhileShown] = useState<number | null>(null);
   const toastLift = shown ? toastLiftWhileShown : null;
 
+  const toastsLifted = toastLift !== null;
+
   useLayoutEffect(() => {
     if (toastLift === null) return;
 
     const root = document.documentElement;
 
     root.style.setProperty("--toast-lift", `${toastLift}px`);
-    root.dataset.toastsLifted = "";
 
     return () => {
       root.style.removeProperty("--toast-lift");
-      delete root.dataset.toastsLifted;
     };
   }, [toastLift]);
+
+  useLayoutEffect(() => {
+    if (!toastsLifted) return;
+
+    const root = document.documentElement;
+
+    root.dataset.toastsLifted = "";
+
+    return () => {
+      delete root.dataset.toastsLifted;
+      flushToastViewportStyles();
+    };
+  }, [toastsLifted]);
 
   const observeBar = (bar: HTMLDivElement | null) => {
     if (!bar) return;
@@ -147,6 +160,10 @@ export function FloatingSelectionBar({
       )}
     </AnimatePresence>
   );
+}
+
+function flushToastViewportStyles() {
+  document.querySelector("[data-slot='toast-viewport']")?.getBoundingClientRect();
 }
 
 function toastLiftFor(bar: HTMLElement) {
