@@ -1,6 +1,6 @@
 import { getLibrarySnapshotJson, getSources, scanSource } from "../../electron/library";
 import type { ScannedTrack } from "../../electron/library-files";
-import { parseLibrarySnapshot } from "../../shared/library-json";
+import { parseLibrarySnapshot } from "@shared/library-json";
 
 export function getActiveSource(sourceId: number) {
   const source = getSources().find((candidate) => candidate.id === sourceId);

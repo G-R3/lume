@@ -8,7 +8,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { MusicLibrary, Track } from "../../shared/library";
+import type { MusicLibrary, Track } from "@shared/library";
 import { useMediaElement } from "@/hooks/use-media-element";
 import { createPlaybackController } from "@/lib/playback-controller";
 import { derivePlaybackNotices, type PlaybackNotice } from "@/lib/playback-notices";

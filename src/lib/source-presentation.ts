@@ -1,4 +1,4 @@
-import type { LibrarySource, MusicLibrary, TrackUnavailableReason } from "../../shared/library";
+import type { LibrarySource, MusicLibrary, TrackUnavailableReason } from "@shared/library";
 import { libraryRows } from "./track-sort";
 
 export const trackUnavailableLabels: Record<TrackUnavailableReason, string> = {

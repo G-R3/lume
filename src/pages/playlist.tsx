@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
-import type { PlaylistDetails } from "../../shared/library";
+import type { PlaylistDetails } from "@shared/library";
 import { FilterField, type FilterFieldHandle } from "@/components/filter-field";
 import { FilterNoResults } from "@/components/filter-no-results";
 import { buttonVariants } from "@/components/ui/button";

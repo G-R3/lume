@@ -25,13 +25,13 @@ import {
   type ScanFrame,
   type Track,
   type TracksLikedResult,
-} from "../../shared/library";
-import { getTrackUrl } from "../../shared/app-urls";
+} from "@shared/library";
+import { getTrackUrl } from "@shared/app-urls";
 import {
   type LibrarySnapshotJson,
   stringifyLibrary,
   type TrackTuple,
-} from "../../shared/library-json";
+} from "@shared/library-json";
 import { AppRoot } from "@/App";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation, useScanningSources, useSetTracksLiked } from "@/lib/library-query";

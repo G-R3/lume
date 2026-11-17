@@ -1,4 +1,4 @@
-import type { TrackUnavailableReason } from "../shared/library";
+import type { TrackUnavailableReason } from "@shared/library";
 import type { ScanOutcomeColumn, SourceStatusColumn } from "./database/schema";
 
 export type SourceGate =

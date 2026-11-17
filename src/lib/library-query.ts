@@ -19,8 +19,8 @@ import {
   type ScanFrame,
   type SetTracksLikedInput,
   type TrackLikeResult,
-} from "../../shared/library";
-import { parseLibrarySnapshot } from "../../shared/library-json";
+} from "@shared/library";
+import { parseLibrarySnapshot } from "@shared/library-json";
 import { z } from "zod";
 import { type ScanFrames, receiveScanFrame, settleScanFrames } from "@/lib/scan-frames";
 import { withLikedAt } from "@/lib/liked-at";

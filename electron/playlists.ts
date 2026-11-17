@@ -7,7 +7,7 @@ import type {
   PlaylistRead,
   PlaylistSummary,
   RemovePlaylistTracksInput,
-} from "../shared/library";
+} from "@shared/library";
 import { getDatabase, parameterChunks, type LibraryTransaction } from "./database";
 import { commitLibrary, currentLibraryRevision } from "./library-events";
 import { playlistTracks, playlists, tracks } from "./database/schema";

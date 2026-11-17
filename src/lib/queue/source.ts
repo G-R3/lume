@@ -1,4 +1,4 @@
-import type { MusicLibrary, PlaylistDetails, Track } from "../../../shared/library";
+import type { MusicLibrary, PlaylistDetails, Track } from "@shared/library";
 import { libraryRows, playlistRows, sortRows, type TrackSort } from "../track-sort";
 import type { SessionSource } from "./commands";
 import type { PlayableSource, QueueSource, SourceEntry, SourceIdentity } from "./model";

@@ -6,7 +6,7 @@ import {
   type SetTracksLikedInput,
   type SourceStatus,
   type TracksLikedResult,
-} from "../shared/library";
+} from "@shared/library";
 import {
   type TrackTuple,
   type TrackTupleKey,
@@ -14,8 +14,8 @@ import {
   trackTupleKeys,
   stringifyLibrary,
   stringifyFirstRunLibrary,
-} from "../shared/library-json";
-import { getArtworkUrl } from "../shared/app-urls";
+} from "@shared/library-json";
+import { getArtworkUrl } from "@shared/app-urls";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   getDatabase,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { MusicLibrary } from "../../../shared/library";
-import type { SavedPlaybackSession } from "../../../shared/ipc";
+import type { MusicLibrary } from "@shared/library";
+import type { SavedPlaybackSession } from "@shared/ipc";
 import { queueStateSchema, type QueueState } from "./model";
 
 const positionSchema = z.number().finite().nonnegative();

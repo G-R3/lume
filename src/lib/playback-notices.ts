@@ -1,4 +1,4 @@
-import type { Track } from "../../shared/library";
+import type { Track } from "@shared/library";
 import type { PlaybackFailures } from "@/lib/playback-controller";
 import type { FileCheck, PlaybackPhase, TrackFailure } from "@/lib/playback-phase";
 import type { QueueState } from "@/lib/queue/model";

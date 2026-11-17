@@ -16,7 +16,7 @@ import {
 } from "../electron/library";
 import { scanAudioFiles, type ScannedTrack } from "../electron/library-files";
 import { getLibraryState, onLibraryEvent } from "../electron/library-events";
-import type { LibraryEvent } from "../shared/library";
+import type { LibraryEvent } from "@shared/library";
 
 describe("enabled source scanning", () => {
   it("discards an older scan that finishes after a newer scan", async () => {

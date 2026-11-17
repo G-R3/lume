@@ -1,4 +1,4 @@
-import type { LibraryRevision, ScanFrame } from "../../shared/library";
+import type { LibraryRevision, ScanFrame } from "@shared/library";
 
 export type ScanFrames = { shown: ScanFrame; waiting: readonly ScanFrame[] };
 

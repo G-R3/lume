@@ -5,7 +5,7 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { type ReactNode, useRef, useState } from "react";
-import type { PlaylistDetails } from "../../../shared/library";
+import type { PlaylistDetails } from "@shared/library";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";

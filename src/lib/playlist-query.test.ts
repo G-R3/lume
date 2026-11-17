@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { expect, it } from "vite-plus/test";
-import type { PlaylistRead } from "../../shared/library";
+import type { PlaylistRead } from "@shared/library";
 import { playlistEffects } from "./playlist-events";
 import { applyPlaylistRead, createPlaylistReader } from "./playlist-query";
 

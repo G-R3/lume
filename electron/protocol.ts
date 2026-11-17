@@ -4,7 +4,7 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
-import { appScheme } from "../shared/app-urls";
+import { appScheme } from "@shared/app-urls";
 import { getArtworkData, getTrackPath, type ArtworkData } from "./library";
 import { audioContentTypes } from "./library-files";
 

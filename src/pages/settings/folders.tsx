@@ -1,5 +1,5 @@
 import { DotsThreeIcon, FolderMinusIcon, PlusIcon } from "@phosphor-icons/react";
-import type { MusicLibrary } from "../../../shared/library";
+import type { MusicLibrary } from "@shared/library";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

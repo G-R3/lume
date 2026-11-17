@@ -12,13 +12,13 @@ import {
   lumeEventChannels,
   type LumeInvokeApi,
   type SavedPlaybackSession,
-} from "../shared/ipc";
+} from "@shared/ipc";
 import {
   type AddTracksToPlaylistInput,
   type PlaylistCreationInput,
   type RemovePlaylistTracksInput,
   type SetTracksLikedInput,
-} from "../shared/library";
+} from "@shared/library";
 import {
   disableSource,
   enableSource,

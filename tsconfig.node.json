@@ -5,6 +5,9 @@
     "lib": ["ES2023"],
     "types": ["electron", "node"],
     "skipLibCheck": true,
+    "paths": {
+      "@shared/*": ["./shared/*"]
+    },
 
     /* Bundler mode */
     "module": "esnext",

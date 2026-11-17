@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
-import { getArtworkUrl, getTrackUrl } from "../shared/app-urls";
+import { getArtworkUrl, getTrackUrl } from "@shared/app-urls";
 import {
   createArtworkResponse,
   createTrackResponse,

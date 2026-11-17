@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { lumeChannels, lumeEventChannels, type LumeApi, type LumeInvokeApi } from "../shared/ipc";
-import { type LibraryEvent } from "../shared/library";
+import { lumeChannels, lumeEventChannels, type LumeApi, type LumeInvokeApi } from "@shared/ipc";
+import { type LibraryEvent } from "@shared/library";
 
 // Forward only the first argument: TanStack calls a `mutationFn` with a second `context` argument.
 // SAFETY: one entry per `lumeChannels` key, and `lumeChannels` has exactly the keys of `LumeInvokeApi`.

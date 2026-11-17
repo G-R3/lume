@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ZodError } from "zod";
-import type { MusicLibrary } from "../../../shared/library";
+import type { MusicLibrary } from "@shared/library";
 import type { QueueRandom } from "./commands";
 import type { PlayableSource, QueueState } from "./model";
 import { parseQueueSession, serializeQueueSession } from "./persistence";
