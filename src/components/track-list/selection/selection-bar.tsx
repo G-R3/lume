@@ -89,19 +89,33 @@ export function FloatingSelectionBar({
   const [toastLiftWhileShown, setToastLiftWhileShown] = useState<number | null>(null);
   const toastLift = shown ? toastLiftWhileShown : null;
 
+  const toastsLifted = toastLift !== null;
+
   useLayoutEffect(() => {
     if (toastLift === null) return;
 
     const root = document.documentElement;
 
     root.style.setProperty("--toast-lift", `${toastLift}px`);
-    root.dataset.toastsLifted = "";
 
     return () => {
       root.style.removeProperty("--toast-lift");
-      delete root.dataset.toastsLifted;
     };
   }, [toastLift]);
+
+  useLayoutEffect(() => {
+    if (!toastsLifted) return;
+
+    const root = document.documentElement;
+
+    root.dataset.toastsLifted = "";
+
+    return () => {
+      delete root.dataset.toastsLifted;
+      // Forces a style update so the viewport drops before a toast can mount and animate it.
+      document.querySelector("[data-slot='toast-viewport']")?.getBoundingClientRect();
+    };
+  }, [toastsLifted]);
 
   const observeBar = (bar: HTMLDivElement | null) => {
     if (!bar) return;

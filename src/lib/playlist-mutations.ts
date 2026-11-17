@@ -4,7 +4,7 @@ import type {
   PlaylistCreationInput,
   RemovePlaylistTracksInput,
 } from "../../shared/lib";
-import { waitForLibraryRevision } from "@/lib/library-query";
+import { waitUntilLibraryRevisionShown } from "@/lib/library-query";
 import { forgetViewSort } from "@/lib/view-sort";
 
 export function useCreatePlaylistMutation() {
@@ -14,7 +14,7 @@ export function useCreatePlaylistMutation() {
     networkMode: "always",
     mutationFn: async (input: PlaylistCreationInput) => {
       const result = await window.lume.createPlaylist(input);
-      await waitForLibraryRevision(queryClient, result.revision);
+      await waitUntilLibraryRevisionShown(queryClient, result.revision);
 
       return result;
     },
@@ -28,7 +28,7 @@ export function useDeletePlaylistMutation() {
   return useMutation({
     networkMode: "always",
     mutationFn: async (playlistId: number) =>
-      waitForLibraryRevision(queryClient, await window.lume.deletePlaylist(playlistId)),
+      waitUntilLibraryRevisionShown(queryClient, await window.lume.deletePlaylist(playlistId)),
     onSuccess: (_result, playlistId) => forgetViewSort({ kind: "playlist", playlistId }),
   });
 }
@@ -40,7 +40,7 @@ export function useAddTracksToPlaylistMutation() {
     networkMode: "always",
     mutationFn: async (input: AddTracksToPlaylistInput) => {
       const result = await window.lume.addTracksToPlaylist(input);
-      await waitForLibraryRevision(queryClient, result.revision);
+      await waitUntilLibraryRevisionShown(queryClient, result.revision);
 
       return result;
     },
@@ -53,6 +53,6 @@ export function useRemovePlaylistTracksMutation() {
   return useMutation({
     networkMode: "always",
     mutationFn: async (input: RemovePlaylistTracksInput) =>
-      waitForLibraryRevision(queryClient, await window.lume.removePlaylistTracks(input)),
+      waitUntilLibraryRevisionShown(queryClient, await window.lume.removePlaylistTracks(input)),
   });
 }

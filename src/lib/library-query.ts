@@ -1,5 +1,6 @@
 import {
   type Mutation,
+  notifyManager,
   queryOptions,
   type QueryClient,
   skipToken,
@@ -126,10 +127,12 @@ export async function reachLibraryRevision(queryClient: QueryClient, revision: L
   }
 }
 
-export function waitForLibraryRevision(queryClient: QueryClient, revision: LibraryRevision) {
+export function waitUntilLibraryRevisionShown(queryClient: QueryClient, revision: LibraryRevision) {
   return new Promise<void>((resolve) => {
+    const resolveAfterObservers = () => notifyManager.schedule(resolve);
+
     if (libraryRevisionOf(queryClient) >= revision) {
-      resolve();
+      resolveAfterObservers();
 
       return;
     }
@@ -138,7 +141,7 @@ export function waitForLibraryRevision(queryClient: QueryClient, revision: Libra
       if (libraryRevisionOf(queryClient) < revision) return;
 
       stop();
-      resolve();
+      resolveAfterObservers();
     });
   });
 }
