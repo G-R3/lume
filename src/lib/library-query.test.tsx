@@ -262,6 +262,34 @@ describe("a playlist edit", () => {
     expect(app.lume.playlists.calls).toHaveLength(1);
   });
 
+  it.each(["before", "after"])(
+    "settles after the open playlist shows it when the reply comes %s the pushed edit",
+    async (reply) => {
+      const app = await startApp(stored({ likedAt: null, revision: 1 }));
+      await app.answer(await app.lume.playlists.call(0), mixRead(1, [entry(8, 1)]));
+      let shownWhenSettled: string | undefined;
+
+      await app.do.addToPlaylist(2, () => {
+        shownWhenSettled = app.playlistEntries();
+      });
+
+      const answerReply = async () =>
+        app.answer(await app.lume.addTracks.call(0), {
+          kind: "added",
+          revision: 2,
+          tracks: [entry(9, 2)],
+        });
+
+      if (reply === "before") await answerReply();
+
+      await app.push(added(2, [entry(9, 2)], 2));
+
+      if (reply === "after") await answerReply();
+
+      expect(shownWhenSettled).toBe("8,9");
+    },
+  );
+
   it("keeps an edit that lands while the open playlist is still loading", async () => {
     const app = await startApp(stored({ likedAt: null, revision: 1 }));
     const staleRead = await app.lume.playlists.call(0);
@@ -464,7 +492,7 @@ describe("scanning folders", () => {
 type LikedState = "liked" | "unliked";
 
 type Actions = {
-  addToPlaylist: (trackId: number) => void;
+  addToPlaylist: (trackId: number, onSuccess?: () => void) => void;
   createPlaylist: () => void;
   enableSource: (sourceId: number) => void;
   like: (...trackIds: number[]) => void;
@@ -490,8 +518,8 @@ function SyncProbe() {
   const playlist = usePlaylist(1);
 
   probe.actions = {
-    addToPlaylist: (trackId) =>
-      addTracks.mutate({ duplicates: "allow", playlistId: 1, trackIds: [trackId] }),
+    addToPlaylist: (trackId, onSuccess) =>
+      addTracks.mutate({ duplicates: "allow", playlistId: 1, trackIds: [trackId] }, { onSuccess }),
     createPlaylist: () => createPlaylist.mutate({ description: null, title: "New", trackIds: [1] }),
     enableSource: (sourceId) =>
       command.mutate({ enabled: true, kind: "set-source-enabled", sourceId }),
@@ -558,7 +586,8 @@ async function startApp(
     commandPending: () =>
       document.querySelector<HTMLElement>("[data-command-pending]")?.textContent === "true",
     do: {
-      addToPlaylist: (trackId: number) => step(() => probe.actions?.addToPlaylist(trackId)),
+      addToPlaylist: (trackId: number, onSuccess?: () => void) =>
+        step(() => probe.actions?.addToPlaylist(trackId, onSuccess)),
       createPlaylist: () => step(() => probe.actions?.createPlaylist()),
       enableSource: (sourceId: number) => step(() => probe.actions?.enableSource(sourceId)),
       like: (...trackIds: number[]) => step(() => probe.actions?.like(...trackIds)),
