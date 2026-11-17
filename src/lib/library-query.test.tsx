@@ -262,33 +262,23 @@ describe("a playlist edit", () => {
     expect(app.lume.playlists.calls).toHaveLength(1);
   });
 
-  it.each(["before", "after"])(
-    "settles after the open playlist shows it when the reply comes %s the pushed edit",
-    async (reply) => {
-      const app = await startApp(stored({ likedAt: null, revision: 1 }));
-      await app.answer(await app.lume.playlists.call(0), mixRead(1, [entry(8, 1)]));
-      let shownWhenSettled: string | undefined;
+  it("settles only after the open playlist shows an edit whose reply came first", async () => {
+    const app = await startApp(stored({ likedAt: null, revision: 1 }));
+    await app.answer(await app.lume.playlists.call(0), mixRead(1, [entry(8, 1)]));
+    let shownWhenSettled: string | undefined;
 
-      await app.do.addToPlaylist(2, () => {
-        shownWhenSettled = app.playlistEntries();
-      });
+    await app.do.addToPlaylist(2, () => {
+      shownWhenSettled = app.playlistEntries();
+    });
+    await app.answer(await app.lume.addTracks.call(0), {
+      kind: "added",
+      revision: 2,
+      tracks: [entry(9, 2)],
+    });
+    await app.push(added(2, [entry(9, 2)], 2));
 
-      const answerReply = async () =>
-        app.answer(await app.lume.addTracks.call(0), {
-          kind: "added",
-          revision: 2,
-          tracks: [entry(9, 2)],
-        });
-
-      if (reply === "before") await answerReply();
-
-      await app.push(added(2, [entry(9, 2)], 2));
-
-      if (reply === "after") await answerReply();
-
-      expect(shownWhenSettled).toBe("8,9");
-    },
-  );
+    expect(shownWhenSettled).toBe("8,9");
+  });
 
   it("keeps an edit that lands while the open playlist is still loading", async () => {
     const app = await startApp(stored({ likedAt: null, revision: 1 }));

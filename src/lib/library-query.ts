@@ -127,8 +127,7 @@ export async function reachLibraryRevision(queryClient: QueryClient, revision: L
   }
 }
 
-// Settles once components have been notified of `revision`, so callers act on what's on screen.
-export function waitForLibraryRevision(queryClient: QueryClient, revision: LibraryRevision) {
+export function waitUntilLibraryRevisionShown(queryClient: QueryClient, revision: LibraryRevision) {
   return new Promise<void>((resolve) => {
     const resolveAfterObservers = () => notifyManager.schedule(resolve);
 
