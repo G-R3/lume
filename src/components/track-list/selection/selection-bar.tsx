@@ -112,7 +112,8 @@ export function FloatingSelectionBar({
 
     return () => {
       delete root.dataset.toastsLifted;
-      flushToastViewportStyles();
+      // Forces a style update so the viewport drops before a toast can mount and animate it.
+      document.querySelector("[data-slot='toast-viewport']")?.getBoundingClientRect();
     };
   }, [toastsLifted]);
 
@@ -160,10 +161,6 @@ export function FloatingSelectionBar({
       )}
     </AnimatePresence>
   );
-}
-
-function flushToastViewportStyles() {
-  document.querySelector("[data-slot='toast-viewport']")?.getBoundingClientRect();
 }
 
 function toastLiftFor(bar: HTMLElement) {
