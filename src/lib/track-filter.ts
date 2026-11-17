@@ -1,4 +1,4 @@
-import type { Track } from "../../shared/lib";
+import type { Track } from "@shared/library";
 
 export type TrackFilter = {
   readonly normalizedText: string;

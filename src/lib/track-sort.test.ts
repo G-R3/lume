@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { PlaylistDetails, Track } from "../../shared/lib";
+import type { PlaylistDetails, Track } from "@shared/library";
 import {
   defaultSort,
   formatTrackSort,

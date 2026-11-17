@@ -1,7 +1,7 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { DotsThreeIcon } from "@phosphor-icons/react";
 import { memo } from "react";
-import type { Track } from "../../../shared/lib";
+import type { Track } from "@shared/library";
 import { LikeButton } from "@/components/like-button";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";

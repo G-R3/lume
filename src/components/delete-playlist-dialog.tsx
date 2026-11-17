@@ -1,7 +1,7 @@
 import { BackspaceIcon, CommandIcon } from "@phosphor-icons/react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import type { KeyboardEvent, RefObject } from "react";
-import type { PlaylistSummary } from "../../shared/lib";
+import type { PlaylistSummary } from "@shared/library";
 import {
   AlertDialog,
   AlertDialogAction,

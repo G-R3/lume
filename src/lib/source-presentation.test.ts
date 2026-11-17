@@ -5,7 +5,7 @@ import type {
   SourceStatus,
   Track,
   TrackUnavailableReason,
-} from "../../shared/lib";
+} from "@shared/library";
 import { presentLibrarySources } from "./source-presentation";
 
 const now = new Date(2026, 10, 11, 12, 0).getTime();

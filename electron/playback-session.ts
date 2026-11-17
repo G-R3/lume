@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { SavedPlaybackSession } from "../shared/lib";
+import type { SavedPlaybackSession } from "@shared/ipc";
 import { getDatabase } from "./database";
 import { playbackSession } from "./database/schema";
 

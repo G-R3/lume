@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { Track } from "../../shared/lib";
+import type { Track } from "@shared/library";
 import { matchesTrackFilter, parseTrackFilter } from "./track-filter";
 
 function track(fields: Partial<Pick<Track, "title" | "artists" | "album">>): Track {

@@ -10,13 +10,15 @@ import { z } from "zod";
 import {
   lumeChannels,
   lumeEventChannels,
-  type AddTracksToPlaylistInput,
   type LumeInvokeApi,
+  type SavedPlaybackSession,
+} from "@shared/ipc";
+import {
+  type AddTracksToPlaylistInput,
   type PlaylistCreationInput,
   type RemovePlaylistTracksInput,
-  type SavedPlaybackSession,
   type SetTracksLikedInput,
-} from "../shared/lib";
+} from "@shared/library";
 import {
   disableSource,
   enableSource,

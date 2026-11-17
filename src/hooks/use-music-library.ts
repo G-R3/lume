@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { MusicLibrary } from "../../shared/lib";
+import type { MusicLibrary } from "@shared/library";
 
 export const MusicLibraryContext = createContext<MusicLibrary | null>(null);
 

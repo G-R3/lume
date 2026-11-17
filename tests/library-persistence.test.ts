@@ -18,7 +18,7 @@ import {
 } from "../electron/library";
 import { createPlaylist, getPlaylist } from "../electron/playlists";
 import { scanAudioFiles } from "../electron/library-files";
-import { getArtworkUrl } from "../shared/lib";
+import { getArtworkUrl } from "@shared/app-urls";
 
 describe("library source persistence", () => {
   it("reuses a source ID after the database is reopened", async () => {

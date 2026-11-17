@@ -15,12 +15,12 @@ import {
   type LibraryRevision,
   type LibrarySnapshot,
   type MusicLibrary,
-  parseLibrarySnapshot,
   type PlaylistEvent,
   type ScanFrame,
   type SetTracksLikedInput,
   type TrackLikeResult,
-} from "../../shared/lib";
+} from "@shared/library";
+import { parseLibrarySnapshot } from "@shared/library-json";
 import { z } from "zod";
 import { type ScanFrames, receiveScanFrame, settleScanFrames } from "@/lib/scan-frames";
 import { withLikedAt } from "@/lib/liked-at";

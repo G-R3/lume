@@ -8,7 +8,7 @@ import {
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
-import type { PlaylistSummary } from "../../../../shared/lib";
+import type { PlaylistSummary } from "@shared/library";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";

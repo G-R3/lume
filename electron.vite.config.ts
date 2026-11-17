@@ -9,6 +9,11 @@ import type { Plugin } from "vite";
 
 export default defineConfig(({ command }) => ({
   main: {
+    resolve: {
+      alias: {
+        "@shared": resolve(import.meta.dirname, "shared"),
+      },
+    },
     plugins: [migrationAssets()],
     build: {
       rollupOptions: {
@@ -22,6 +27,11 @@ export default defineConfig(({ command }) => ({
     },
   },
   preload: {
+    resolve: {
+      alias: {
+        "@shared": resolve(import.meta.dirname, "shared"),
+      },
+    },
     build: {
       rollupOptions: {
         external: ["electron"],
@@ -43,6 +53,7 @@ export default defineConfig(({ command }) => ({
     resolve: {
       alias: {
         "@": resolve(import.meta.dirname, "src"),
+        "@shared": resolve(import.meta.dirname, "shared"),
       },
     },
     plugins: [

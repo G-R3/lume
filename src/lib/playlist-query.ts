@@ -4,7 +4,7 @@ import {
   type QueryClient,
   useQuery,
 } from "@tanstack/react-query";
-import type { PlaylistRead } from "../../shared/lib";
+import type { PlaylistRead } from "@shared/library";
 import type { PlaylistEffects } from "@/lib/playlist-events";
 
 export function playlistQueryOptions(playlistId: number) {

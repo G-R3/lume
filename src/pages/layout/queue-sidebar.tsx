@@ -1,7 +1,7 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { BackspaceIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
 import { type ReactNode, type Ref, useMemo, useRef, useState } from "react";
-import type { Track } from "../../../shared/lib";
+import type { Track } from "@shared/library";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
 import {

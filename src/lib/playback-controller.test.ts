@@ -5,14 +5,8 @@ import {
 } from "./queue/selectors";
 import { expect, it, vi } from "vite-plus/test";
 import { ZodError } from "zod";
-import type {
-  LumeApi,
-  MusicLibrary,
-  PlaylistDetails,
-  PlaylistRead,
-  SavedPlaybackSession,
-  Track,
-} from "../../shared/lib";
+import type { LumeApi, SavedPlaybackSession } from "@shared/ipc";
+import type { MusicLibrary, PlaylistDetails, PlaylistRead, Track } from "@shared/library";
 import { createPlaybackController, noFailures } from "./playback-controller";
 import type { PlaybackRequest } from "./playback-media";
 import type { SessionSource } from "./queue/commands";

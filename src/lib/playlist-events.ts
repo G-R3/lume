@@ -3,7 +3,7 @@ import type {
   PlaylistEvent,
   PlaylistRead,
   PlaylistSummary,
-} from "../../shared/lib";
+} from "@shared/library";
 import type { QueueCommand } from "./queue/commands";
 
 export type PlaylistSourceChange = Extract<

@@ -6,14 +6,16 @@ import {
   type SetTracksLikedInput,
   type SourceStatus,
   type TracksLikedResult,
+} from "@shared/library";
+import {
   type TrackTuple,
   type TrackTupleKey,
   albumArtistsIfDifferent,
   trackTupleKeys,
-  getArtworkUrl,
   stringifyLibrary,
   stringifyFirstRunLibrary,
-} from "../shared/lib";
+} from "@shared/library-json";
+import { getArtworkUrl } from "@shared/app-urls";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   getDatabase,

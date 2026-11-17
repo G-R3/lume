@@ -1,4 +1,4 @@
-import type { LibraryEvent, LibraryRevision, LibraryState, ScanFrame } from "../shared/lib";
+import type { LibraryEvent, LibraryRevision, LibraryState, ScanFrame } from "@shared/library";
 import { runImmediateTransaction, type LibraryDatabase } from "./database";
 
 type LibraryChange = Exclude<LibraryEvent, { kind: "scans" }>;
