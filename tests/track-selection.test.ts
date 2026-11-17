@@ -1,5 +1,5 @@
 import { expect, it } from "vite-plus/test";
-import type { Track } from "../shared/lib";
+import type { Track } from "../shared/library";
 import type { TrackRow } from "../src/lib/track-sort";
 import {
   captureSelectionInDisplayedOrder,

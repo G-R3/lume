@@ -11,7 +11,7 @@ import {
 } from "../electron/library";
 import type { ScannedTrack } from "../electron/library-files";
 import { createPlaylist, deletePlaylist } from "../electron/playlists";
-import { parseLibrarySnapshot } from "../shared/lib";
+import { parseLibrarySnapshot } from "../shared/library-json";
 
 describe("library transport from stored rows", () => {
   it("sends first-run before any source exists", async () => {

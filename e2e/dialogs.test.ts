@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
 import { expect, it } from "vite-plus/test";
-import { lumeChannels } from "../shared/lib";
+import { lumeChannels } from "../shared/ipc";
 import { holdReplies, launchWithLibrary } from "./launch";
 
 const letters = ["alpha", "bravo", "charlie"];

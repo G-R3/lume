@@ -1,4 +1,4 @@
-import type { AddTracksToPlaylistResult } from "../../../../shared/lib";
+import type { AddTracksToPlaylistResult } from "../../../../shared/library";
 import type { ActionTarget } from "../selection/track-selection";
 
 export type Destination = { readonly playlistId: number; readonly title: string };

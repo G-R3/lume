@@ -1,11 +1,5 @@
-import type {
-  LibraryRevision,
-  LumeApi,
-  MusicLibrary,
-  PlaylistRead,
-  SavedPlaybackSession,
-  Track,
-} from "../../shared/lib";
+import type { LibraryRevision, MusicLibrary, PlaylistRead, Track } from "../../shared/library";
+import type { LumeApi, SavedPlaybackSession } from "../../shared/ipc";
 import { createCoalescingWriter } from "@/lib/coalescing-writer";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";

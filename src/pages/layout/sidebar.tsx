@@ -9,7 +9,7 @@ import {
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { type Ref, type RefObject, useRef, useState } from "react";
-import type { MusicLibrary, PlaylistSummary } from "../../../shared/lib";
+import type { MusicLibrary, PlaylistSummary } from "../../../shared/library";
 import { DeletePlaylistDialog } from "@/components/delete-playlist-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {

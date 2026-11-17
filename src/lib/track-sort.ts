@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PlaylistDetails, Track } from "../../shared/lib";
+import type { PlaylistDetails, Track } from "../../shared/library";
 import type { SourceIdentity } from "./queue/model";
 
 export const sortFields = [

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { Readable } from "node:stream";
-import type { TrackMetadata } from "../shared/lib";
+import type { TrackMetadata } from "../shared/library";
 import type { tracks } from "./database/schema";
 
 export const audioContentTypes: ReadonlyMap<string, string> = new Map([

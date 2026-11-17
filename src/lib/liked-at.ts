@@ -1,4 +1,4 @@
-import type { MusicLibrary, Track } from "../../shared/lib";
+import type { MusicLibrary, Track } from "../../shared/library";
 
 const lastProjections = new WeakMap<Track, Track>();
 

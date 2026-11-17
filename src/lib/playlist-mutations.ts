@@ -3,7 +3,7 @@ import type {
   AddTracksToPlaylistInput,
   PlaylistCreationInput,
   RemovePlaylistTracksInput,
-} from "../../shared/lib";
+} from "../../shared/library";
 import { waitUntilLibraryRevisionShown } from "@/lib/library-query";
 import { forgetViewSort } from "@/lib/view-sort";
 

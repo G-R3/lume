@@ -6,12 +6,8 @@ import { createTemporaryFolder } from "./helpers/temp-folder";
 import { registerIpc } from "../electron/ipc";
 import { saveSource, scanSource } from "../electron/library";
 import { getLibraryState } from "../electron/library-events";
-import {
-  type LibraryEvent,
-  type LibraryRevision,
-  lumeChannels,
-  lumeEventChannels,
-} from "../shared/lib";
+import { type LibraryEvent, type LibraryRevision } from "../shared/library";
+import { lumeChannels, lumeEventChannels } from "../shared/ipc";
 
 type IpcEvent = { sender: { mainFrame: { url: string } }; senderFrame: { url: string } };
 

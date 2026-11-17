@@ -1,4 +1,4 @@
-import type { LumeApi } from "../shared/lib";
+import type { LumeApi } from "../shared/ipc";
 
 declare global {
   interface Window {

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, protocol, session, shell } from "electron";
-import { appScheme } from "../shared/lib";
+import { appScheme } from "../shared/app-urls";
 import { loadRenderer, packagedRendererUrl, registerProtocolHandler } from "./protocol";
 import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
 import { registerIpc } from "./ipc";
