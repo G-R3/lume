@@ -10,6 +10,7 @@ import { selectCurrentItem, selectPlaybackStatus } from "@/lib/queue/selectors";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
 import { libraryEntries, playlistEntries } from "@/lib/queue/source";
 import type { FailedTrack } from "@/lib/playback-phase";
+import { trackIndex } from "@/lib/track-index";
 import { defaultSort, type TrackSort } from "@/lib/track-sort";
 import { transition } from "@/lib/queue/transition";
 
@@ -384,7 +385,7 @@ export function createPlaybackController(dependencies: {
     publish({
       ...snapshot,
       library,
-      tracksById: new Map(library.tracks.map((track) => [track.id, track])),
+      tracksById: trackIndex(library.tracks),
       availableTrackIds: new Set(
         library.tracks.filter((track) => track.available).map((track) => track.id),
       ),
