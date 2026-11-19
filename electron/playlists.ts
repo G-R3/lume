@@ -8,6 +8,11 @@ import type {
   PlaylistSummary,
   RemovePlaylistTracksInput,
 } from "@shared/library";
+import {
+  normalizePlaylistText,
+  playlistDescriptionMaxLength,
+  playlistTitleMaxLength,
+} from "@shared/playlists";
 import { getDatabase, parameterChunks, type LibraryTransaction } from "./database";
 import { commitLibrary, currentLibraryRevision } from "./library-events";
 import { playlistTracks, playlists, tracks } from "./database/schema";
@@ -64,15 +69,18 @@ export function getPlaylist(playlistId: number): PlaylistRead {
 }
 
 export function createPlaylist(input: PlaylistCreationInput): PlaylistDetails {
-  const title = input.title.trim();
-  const description = input.description?.trim() || null;
+  const { description, title } = normalizePlaylistText(input);
 
-  if (title.length === 0 || title.length > 100) {
-    throw new Error("Playlist titles must contain between 1 and 100 characters");
+  if (title.length === 0 || title.length > playlistTitleMaxLength) {
+    throw new Error(
+      `Playlist titles must contain between 1 and ${playlistTitleMaxLength} characters`,
+    );
   }
 
-  if (description !== null && description.length > 300) {
-    throw new Error("Playlist descriptions cannot exceed 300 characters");
+  if (description !== null && description.length > playlistDescriptionMaxLength) {
+    throw new Error(
+      `Playlist descriptions cannot exceed ${playlistDescriptionMaxLength} characters`,
+    );
   }
 
   return commitLibrary(

@@ -10,6 +10,7 @@ import {
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
+import { playlistDescriptionMaxLength, playlistTitleMaxLength } from "@shared/playlists";
 
 const sourceStatuses = ["active", "off", "forgotten"] as const;
 
@@ -129,11 +130,11 @@ export const playlists = sqliteTable(
     index("playlists_created_at").on(table.createdAt),
     check(
       "playlists_title_check",
-      sql`${table.title} = trim(${table.title}) AND length(${table.title}) BETWEEN 1 AND 100`,
+      sql`${table.title} = trim(${table.title}) AND length(${table.title}) BETWEEN 1 AND ${sql.raw(String(playlistTitleMaxLength))}`,
     ),
     check(
       "playlists_description_check",
-      sql`${table.description} IS NULL OR length(${table.description}) BETWEEN 1 AND 300`,
+      sql`${table.description} IS NULL OR length(${table.description}) BETWEEN 1 AND ${sql.raw(String(playlistDescriptionMaxLength))}`,
     ),
   ],
 );

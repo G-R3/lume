@@ -20,6 +20,7 @@ import {
 import { onLibraryEvent } from "../electron/library-events";
 import { playlistEffects } from "../src/lib/playlist-events";
 import type { LibraryEvent, PlaylistRead, PlaylistSummary } from "@shared/library";
+import { playlistDescriptionMaxLength, playlistTitleMaxLength } from "@shared/playlists";
 import { queueContext } from "./helpers/queue-context";
 import { defaultSort } from "../src/lib/track-sort";
 
@@ -154,11 +155,17 @@ describe("playlist behavior", () => {
         )
         .run(title, description);
 
-    expect(() => insert("T".repeat(100), "D".repeat(300))).not.toThrow();
-    expect(() => insert("T".repeat(101), null)).toThrow(/playlists_title_check/);
+    expect(() =>
+      insert("T".repeat(playlistTitleMaxLength), "D".repeat(playlistDescriptionMaxLength)),
+    ).not.toThrow();
+    expect(() => insert("T".repeat(playlistTitleMaxLength + 1), null)).toThrow(
+      /playlists_title_check/,
+    );
     expect(() => insert("", null)).toThrow(/playlists_title_check/);
     expect(() => insert(" padded ", null)).toThrow(/playlists_title_check/);
-    expect(() => insert("Valid", "D".repeat(301))).toThrow(/playlists_description_check/);
+    expect(() => insert("Valid", "D".repeat(playlistDescriptionMaxLength + 1))).toThrow(
+      /playlists_description_check/,
+    );
     expect(() => insert("Valid", "")).toThrow(/playlists_description_check/);
   });
 
