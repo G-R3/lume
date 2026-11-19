@@ -62,6 +62,10 @@ describe("neighbors of a selection shortcut", () => {
     ["Delete", { key: "Delete" }],
     ["Cmd+Shift+Backspace", { key: "Backspace", meta: true, shift: true }],
     ["plain L", { key: "l" }],
+    ["Ctrl+Shift+P", { ctrl: true, key: "P", shift: true }],
+    ["Ctrl+Shift+N", { ctrl: true, key: "N", shift: true }],
+    ["Ctrl+Backspace", { ctrl: true, key: "Backspace" }],
+    ["Ctrl+Alt+Enter", { alt: true, ctrl: true, key: "Enter" }],
   ])("%s does nothing on macOS", (_, chord) => {
     expect(matchSelectionShortcut(press(chord), true, everywhere)).toBeNull();
   });
@@ -76,6 +80,8 @@ describe("neighbors of a selection shortcut", () => {
     ["Ctrl+Delete", { ctrl: true, key: "Delete" }],
     ["Shift+Delete", { key: "Delete", shift: true }],
     ["plain Backspace", { key: "Backspace" }],
+    ["Meta+Shift+P", { key: "P", meta: true, shift: true }],
+    ["Meta+Alt+Enter", { alt: true, key: "Enter", meta: true }],
   ])("%s does nothing on Windows and Linux", (_, chord) => {
     expect(matchSelectionShortcut(press(chord), false, everywhere)).toBeNull();
   });

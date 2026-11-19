@@ -46,6 +46,18 @@ describe("keyboard shortcut matching", () => {
       unexpectedEventInit: { key: "k", metaKey: true },
     },
     {
+      description: "Control alongside Command on macOS",
+      isMac: true,
+      matchingEventInit: { key: "k", metaKey: true },
+      unexpectedEventInit: { ctrlKey: true, key: "k", metaKey: true },
+    },
+    {
+      description: "Command alongside Control on other platforms",
+      isMac: false,
+      matchingEventInit: { ctrlKey: true, key: "k" },
+      unexpectedEventInit: { ctrlKey: true, key: "k", metaKey: true },
+    },
+    {
       description: "an extra Shift key on macOS",
       isMac: true,
       matchingEventInit: { key: "k", metaKey: true },
