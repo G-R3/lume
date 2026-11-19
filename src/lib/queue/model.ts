@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { trackSortSchema } from "../track-sort";
+import { allQueueItems, listedItems } from "./items";
 import { sameSource } from "./source";
 
 export const databaseId = z.number().int().positive().safe();
@@ -92,14 +93,15 @@ export const queueStateSchema = queueStateObjectSchema.superRefine((state, conte
   )
     reject("Suppressed entries must be unique and known");
 
-  const listed = [...state.manualQueue, ...state.previousSourceItems, ...state.sourceQueue];
+  const listed = listedItems(state);
   const playback = state.playback;
-  const occupied = playback.kind === "active" ? [...listed, playback.current] : listed;
+  // A stopped session's last played item usually stays in its history, so it may repeat an ID.
+  const occupied = playback.kind === "active" ? allQueueItems(state) : listed;
 
   if (new Set(occupied.map((item) => item.queueItemId)).size !== occupied.length)
     reject("Duplicate queue item");
 
-  for (const item of playback.kind === "stopped" ? [...occupied, playback.lastPlayed] : occupied) {
+  for (const item of allQueueItems(state)) {
     if (item.anchor && !entriesById.has(item.anchor.sourceEntryId))
       reject("Anchor names an unknown entry");
 

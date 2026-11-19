@@ -221,7 +221,7 @@ export function markSourceDeleted(
   state: QueueState,
   { playlistId }: CommandOf<"sourceDeleted">,
 ): QueueState {
-  return state.source.kind === "playlist" && state.source.playlistId === playlistId
+  return isActivePlaylist(state, playlistId)
     ? { ...state, source: { ...state.source, kind: "deleted-playlist" } }
     : state;
 }

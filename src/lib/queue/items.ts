@@ -2,6 +2,7 @@ import type {
   ActivePlayback,
   CurrentRole,
   QueueItem,
+  QueueSource,
   QueueState,
   SourceEntry,
   SourceIdentity,
@@ -46,6 +47,14 @@ export function playbackItem(state: QueueState) {
   return state.playback.kind === "active" ? state.playback.current : state.playback.lastPlayed;
 }
 
+export function listedItems(state: QueueState) {
+  return [...state.manualQueue, ...state.previousSourceItems, ...state.sourceQueue];
+}
+
+export function allQueueItems(state: QueueState) {
+  return [...listedItems(state), playbackItem(state)];
+}
+
 export function sourceStepItem(state: QueueState) {
   return state.playback.kind === "active" && state.playback.role === "source-step"
     ? state.playback.current
@@ -64,16 +73,7 @@ export function createSourceItems(
   source: SourceIdentity,
   sessionId: string,
 ): QueueItem[] {
-  const usedIds = new Set(
-    existing
-      ? [
-          ...existing.manualQueue,
-          ...existing.sourceQueue,
-          ...existing.previousSourceItems,
-          playbackItem(existing),
-        ].map((item) => item.queueItemId)
-      : [],
-  );
+  const usedIds = new Set(existing ? allQueueItems(existing).map((item) => item.queueItemId) : []);
 
   return entries.map((entry) => {
     let visit = 0;
@@ -121,6 +121,9 @@ export function addUnique(items: readonly number[], value: number) {
   return items.includes(value) ? [...items] : [...items, value];
 }
 
-export function isActivePlaylist(state: QueueState, playlistId: number) {
+export function isActivePlaylist(
+  state: QueueState,
+  playlistId: number,
+): state is QueueState & { source: Extract<QueueSource, { kind: "playlist" }> } {
   return state.source.kind === "playlist" && state.source.playlistId === playlistId;
 }
