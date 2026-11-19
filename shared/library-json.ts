@@ -41,6 +41,18 @@ export const trackTupleKeys = [
 
 export type TrackTupleKey = (typeof trackTupleKeys)[number];
 
+type TupleIndexes<Keys extends readonly string[]> = {
+  [Index in keyof Keys as Index extends `${number}`
+    ? Keys[Index]
+    : never]: Index extends `${infer Position extends number}` ? Position : never;
+};
+
+// The position of each key in a track tuple, so code reads tuples by name instead of by position
+// SAFETY: Object.fromEntries returns an untyped record. It holds the index of every key in trackTupleKeys.
+export const trackTupleIndex = Object.fromEntries(
+  trackTupleKeys.map((key, index) => [key, index]),
+) as TupleIndexes<typeof trackTupleKeys>;
+
 type TrackTupleValue<Key extends TrackTupleKey> = Key extends "albumArtists"
   ? Track[Key] | null
   : Track[Key];
@@ -50,6 +62,13 @@ type TupleValues<Keys extends readonly TrackTupleKey[]> = {
 };
 
 export type TrackTuple = TupleValues<typeof trackTupleKeys>;
+
+export type TrackTupleFields = { [Key in TrackTupleKey]: TrackTupleValue<Key> };
+
+export function trackTupleOf(fields: TrackTupleFields): TrackTuple {
+  // SAFETY: the tuple takes the order of trackTupleKeys, which is how TrackTuple is defined.
+  return trackTupleKeys.map((key) => fields[key]) as TrackTuple;
+}
 
 type LibraryWithTrackTuples = LibraryState &
   (
@@ -123,58 +142,37 @@ export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot
   };
 }
 
-function trackFromTuple(track: TrackTuple) {
-  const [
-    addedAt,
-    album,
-    albumArtists,
-    artists,
-    artworkUrl,
-    unavailableReason,
-    bitrate,
-    bitsPerSample,
-    channelCount,
-    codec,
-    discNumber,
-    discTotal,
-    duration,
-    format,
-    genres,
-    id,
-    likedAt,
-    lossless,
-    title,
-    sampleRate,
-    trackNumber,
-    trackTotal,
-    year,
-  ] = track;
+function trackFromTuple(tuple: TrackTuple) {
+  const at = trackTupleIndex;
+  const artists = tuple[at.artists];
+  const id = tuple[at.id];
+  const unavailableReason = tuple[at.unavailableReason];
 
   return {
-    addedAt,
-    album,
-    albumArtists: albumArtists ?? artists,
+    addedAt: tuple[at.addedAt],
+    album: tuple[at.album],
+    albumArtists: tuple[at.albumArtists] ?? artists,
     artists,
-    artworkUrl,
+    artworkUrl: tuple[at.artworkUrl],
     available: unavailableReason === null,
-    bitrate,
-    bitsPerSample,
-    channelCount,
-    codec,
-    discNumber,
-    discTotal,
-    duration,
-    format,
-    genres,
+    bitrate: tuple[at.bitrate],
+    bitsPerSample: tuple[at.bitsPerSample],
+    channelCount: tuple[at.channelCount],
+    codec: tuple[at.codec],
+    discNumber: tuple[at.discNumber],
+    discTotal: tuple[at.discTotal],
+    duration: tuple[at.duration],
+    format: tuple[at.format],
+    genres: tuple[at.genres],
     id,
-    likedAt,
-    lossless,
-    title,
-    sampleRate,
-    trackNumber,
-    trackTotal,
+    likedAt: tuple[at.likedAt],
+    lossless: tuple[at.lossless],
+    title: tuple[at.title],
+    sampleRate: tuple[at.sampleRate],
+    trackNumber: tuple[at.trackNumber],
+    trackTotal: tuple[at.trackTotal],
     unavailableReason,
     url: getTrackUrl(id),
-    year,
+    year: tuple[at.year],
   } satisfies Track;
 }

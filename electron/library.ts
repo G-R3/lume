@@ -22,7 +22,9 @@ import {
   type TrackTuple,
   type TrackTupleKey,
   albumArtistsIfDifferent,
+  trackTupleIndex,
   trackTupleKeys,
+  trackTupleOf,
   stringifyLibrary,
   stringifyFirstRunLibrary,
 } from "@shared/library-json";
@@ -194,69 +196,47 @@ function trackTupleFromRow(
   row: StoredTrackRow,
   gates: ReadonlyMap<number, SourceGate>,
 ): TrackTuple {
-  const [
-    addedAt,
-    album,
-    storedAlbumArtists,
-    storedArtists,
-    artworkId,
-    missingSince,
-    bitrate,
-    bitsPerSample,
-    channelCount,
-    codec,
-    discNumber,
-    discTotal,
-    duration,
-    format,
-    genres,
-    id,
-    likedAt,
-    lossless,
-    title,
-    sampleRate,
-    trackNumber,
-    trackTotal,
-    year,
-    sourceId,
-  ] = row;
-
+  const at = trackTupleIndex;
+  const sourceId = row[trackTupleKeys.length];
   const gate = gates.get(sourceId);
 
-  if (!gate) throw new Error(`Track ${id} belongs to unknown library source ${sourceId}`);
+  if (!gate) throw new Error(`Track ${row[at.id]} belongs to unknown library source ${sourceId}`);
 
-  const artists = tracks.artists.mapFromDriverValue(storedArtists);
+  const artists = tracks.artists.mapFromDriverValue(row[at.artists]);
 
   const albumArtists = displayAlbumArtists(
-    tracks.albumArtists.mapFromDriverValue(storedAlbumArtists),
+    tracks.albumArtists.mapFromDriverValue(row[at.albumArtists]),
     artists,
   );
 
-  return [
-    addedAt,
-    album,
-    albumArtistsIfDifferent(albumArtists, artists),
+  const artworkId = row[at.artworkUrl];
+  const lossless = row[at.lossless];
+
+  return trackTupleOf({
+    addedAt: row[at.addedAt],
+    album: row[at.album],
+    albumArtists: albumArtistsIfDifferent(albumArtists, artists),
     artists,
-    artworkId ? getArtworkUrl(artworkId) : null,
-    trackUnavailableReason(gate, missingSince),
-    bitrate,
-    bitsPerSample,
-    channelCount,
-    codec,
-    discNumber,
-    discTotal,
-    duration,
-    format,
-    tracks.genres.mapFromDriverValue(genres),
-    id,
-    likedAt,
-    lossless === null ? null : tracks.lossless.mapFromDriverValue(lossless),
-    title,
-    sampleRate,
-    trackNumber,
-    trackTotal,
-    year,
-  ];
+    artworkUrl: artworkId ? getArtworkUrl(artworkId) : null,
+    unavailableReason: trackUnavailableReason(gate, row[at.unavailableReason]),
+    bitrate: row[at.bitrate],
+    bitsPerSample: row[at.bitsPerSample],
+    channelCount: row[at.channelCount],
+    codec: row[at.codec],
+    discNumber: row[at.discNumber],
+    discTotal: row[at.discTotal],
+    duration: row[at.duration],
+    format: row[at.format],
+    genres: tracks.genres.mapFromDriverValue(row[at.genres]),
+    id: row[at.id],
+    likedAt: row[at.likedAt],
+    lossless: lossless === null ? null : tracks.lossless.mapFromDriverValue(lossless),
+    title: row[at.title],
+    sampleRate: row[at.sampleRate],
+    trackNumber: row[at.trackNumber],
+    trackTotal: row[at.trackTotal],
+    year: row[at.year],
+  });
 }
 
 export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
