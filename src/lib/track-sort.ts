@@ -244,7 +244,7 @@ type SortSlot = { input: readonly TrackRow[]; order: Int32Array; output: readonl
 
 const sortSlots = new Map<string, SortSlot>();
 
-function viewKey(view: SourceIdentity) {
+export function viewKey(view: SourceIdentity) {
   return view.kind === "all-tracks" ? "all-tracks" : `playlist:${view.playlistId}`;
 }
 
