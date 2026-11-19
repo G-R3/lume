@@ -275,12 +275,16 @@ export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
   return { likes, revision: currentLibraryRevision() };
 }
 
+const notForgottenSource = ne(librarySources.status, "forgotten");
+
+const enabledSource = eq(librarySources.status, "active");
+
 export function getSources() {
-  return selectSources(ne(librarySources.status, "forgotten")).map(sourceFromRow);
+  return selectSources(notForgottenSource).map(sourceFromRow);
 }
 
 function getEnabledSources() {
-  return selectSources(eq(librarySources.status, "active"));
+  return selectSources(enabledSource);
 }
 
 function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
@@ -288,7 +292,7 @@ function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
     database
       .select({ path: librarySources.path })
       .from(librarySources)
-      .where(and(eq(librarySources.id, sourceId), eq(librarySources.status, "active")))
+      .where(and(eq(librarySources.id, sourceId), enabledSource))
       .get()?.path ?? null
   );
 }
@@ -401,7 +405,7 @@ function setSourceStatus(sourceId: number, status: SourceRow["status"]) {
       .where(
         status === "forgotten"
           ? eq(librarySources.id, sourceId)
-          : and(eq(librarySources.id, sourceId), ne(librarySources.status, "forgotten")),
+          : and(eq(librarySources.id, sourceId), notForgottenSource),
       )
       .returning({ id: librarySources.id })
       .get();
@@ -696,7 +700,7 @@ function rejectSourceOverlap(database: LibraryTransaction, path: string) {
   const overlappingPath = database
     .select({ path: librarySources.path })
     .from(librarySources)
-    .where(ne(librarySources.status, "forgotten"))
+    .where(notForgottenSource)
     .all()
     .find((source) => source.path !== path && pathsOverlap(source.path, path));
 
