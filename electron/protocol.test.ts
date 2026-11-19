@@ -81,6 +81,15 @@ describe("app protocol track URLs", () => {
     });
   });
 
+  it.each(["0", "-1", "1.5", "9007199254740993", ""])(
+    "never looks up track ID %j, which is not a database ID",
+    (id) => {
+      expect(resolveTrackRequest(`lume://app/media/${id}`, () => audioPath)).toEqual({
+        path: null,
+      });
+    },
+  );
+
   it("rejects a malformed track ID", () => {
     expect(resolveTrackRequest("lume://app/media/%", getTrackPath)).toEqual({
       path: null,
