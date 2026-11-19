@@ -6,21 +6,14 @@ export const sortFields = [
   {
     field: "added",
     label: "Recently added",
-    column: true,
     directions: { asc: "Oldest first", desc: "Newest first" },
   },
-  { field: "title", label: "Title", column: true, directions: { asc: "A to Z", desc: "Z to A" } },
-  {
-    field: "artist",
-    label: "Artist",
-    column: false,
-    directions: { asc: "A to Z", desc: "Z to A" },
-  },
-  { field: "album", label: "Album", column: true, directions: { asc: "A to Z", desc: "Z to A" } },
+  { field: "title", label: "Title", directions: { asc: "A to Z", desc: "Z to A" } },
+  { field: "artist", label: "Artist", directions: { asc: "A to Z", desc: "Z to A" } },
+  { field: "album", label: "Album", directions: { asc: "A to Z", desc: "Z to A" } },
   {
     field: "duration",
     label: "Duration",
-    column: true,
     directions: { asc: "Shortest first", desc: "Longest first" },
   },
 ] as const;
