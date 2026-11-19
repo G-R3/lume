@@ -119,7 +119,13 @@ describe("playlist behavior", () => {
       trackIds: [],
     });
 
-    expect([firstPlaylist.id, secondPlaylist.id]).toEqual([1, 2]);
+    const thirdPlaylist = createPlaylist({
+      description: "",
+      title: "Valid",
+      trackIds: [],
+    });
+
+    expect([firstPlaylist.id, secondPlaylist.id, thirdPlaylist.id]).toEqual([1, 2, 3]);
     expect(firstPlaylist.tracks).toEqual([]);
     closeDatabase();
 
@@ -134,7 +140,26 @@ describe("playlist behavior", () => {
     ).toEqual([
       { description: maximumDescription, title: maximumTitle, trackCount: 0 },
       { description: null, title: maximumTitle, trackCount: 0 },
+      { description: null, title: "Valid", trackCount: 0 },
     ]);
+  });
+
+  it("rejects stored titles and descriptions outside their limits even when main is bypassed", async () => {
+    const database = await openTestDatabase();
+
+    const insert = (title: string, description: string | null) =>
+      database.$client
+        .prepare(
+          "INSERT INTO playlists (title, description, created_at, updated_at) VALUES (?, ?, 0, 0)",
+        )
+        .run(title, description);
+
+    expect(() => insert("T".repeat(100), "D".repeat(300))).not.toThrow();
+    expect(() => insert("T".repeat(101), null)).toThrow(/playlists_title_check/);
+    expect(() => insert("", null)).toThrow(/playlists_title_check/);
+    expect(() => insert(" padded ", null)).toThrow(/playlists_title_check/);
+    expect(() => insert("Valid", "D".repeat(301))).toThrow(/playlists_description_check/);
+    expect(() => insert("Valid", "")).toThrow(/playlists_description_check/);
   });
 
   it("preserves track order and identity through duplicate confirmation, removal, and deletion", async () => {
