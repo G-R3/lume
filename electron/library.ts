@@ -167,7 +167,6 @@ export function getLibrarySnapshotJson() {
     .select(storedTrackRowColumns)
     .from(tracks)
     .leftJoin(trackState, eq(trackState.trackId, tracks.id))
-    .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
     .values() as StoredTrackRow[];
 
   return stringifyLibrary(
