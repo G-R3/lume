@@ -1,6 +1,17 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import { and, count, eq, inArray, isNull, ne, notExists, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  getColumns,
+  inArray,
+  isNull,
+  ne,
+  notExists,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import {
   type LibrarySource,
   type SetTracksLikedInput,
@@ -16,7 +27,7 @@ import {
   stringifyFirstRunLibrary,
 } from "@shared/library-json";
 import { getArtworkUrl } from "@shared/app-urls";
-import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
+import type { SQLiteColumn, SQLiteInsertValue } from "drizzle-orm/sqlite-core";
 import {
   getDatabase,
   parameterChunks,
@@ -601,64 +612,47 @@ function commitSourceScan(
       .onConflictDoNothing({ target: artwork.id })
       .prepare();
 
+    const scannedTrackValues = {
+      album: sql.placeholder("album"),
+      albumArtists: sql.placeholder("albumArtists"),
+      artists: sql.placeholder("artists"),
+      artworkId: sql.placeholder("artworkId"),
+      bitrate: sql.placeholder("bitrate"),
+      bitsPerSample: sql.placeholder("bitsPerSample"),
+      channelCount: sql.placeholder("channelCount"),
+      codec: sql.placeholder("codec"),
+      createdAt: now,
+      discNumber: sql.placeholder("discNumber"),
+      discTotal: sql.placeholder("discTotal"),
+      duration: sql.placeholder("duration"),
+      fileSize: sql.placeholder("fileSize"),
+      format: sql.placeholder("format"),
+      genres: sql.placeholder("genres"),
+      lossless: sql.placeholder("lossless"),
+      metadataVersion: trackMetadataVersion,
+      modifiedAt: sql.placeholder("modifiedAt"),
+      path: sql.placeholder("path"),
+      sampleRate: sql.placeholder("sampleRate"),
+      sourceId,
+      title: sql.placeholder("title"),
+      trackNumber: sql.placeholder("trackNumber"),
+      trackTotal: sql.placeholder("trackTotal"),
+      updatedAt: now,
+      year: sql.placeholder("year"),
+    } satisfies Required<Omit<SQLiteInsertValue<typeof tracks>, "id" | "missingSince">>;
+
     const saveTrack = transaction
       .insert(tracks)
-      .values({
-        album: sql.placeholder("album"),
-        albumArtists: sql.placeholder("albumArtists"),
-        artists: sql.placeholder("artists"),
-        artworkId: sql.placeholder("artworkId"),
-        bitrate: sql.placeholder("bitrate"),
-        bitsPerSample: sql.placeholder("bitsPerSample"),
-        channelCount: sql.placeholder("channelCount"),
-        codec: sql.placeholder("codec"),
-        createdAt: now,
-        discNumber: sql.placeholder("discNumber"),
-        discTotal: sql.placeholder("discTotal"),
-        duration: sql.placeholder("duration"),
-        fileSize: sql.placeholder("fileSize"),
-        format: sql.placeholder("format"),
-        genres: sql.placeholder("genres"),
-        lossless: sql.placeholder("lossless"),
-        metadataVersion: trackMetadataVersion,
-        modifiedAt: sql.placeholder("modifiedAt"),
-        path: sql.placeholder("path"),
-        sampleRate: sql.placeholder("sampleRate"),
-        sourceId,
-        title: sql.placeholder("title"),
-        trackNumber: sql.placeholder("trackNumber"),
-        trackTotal: sql.placeholder("trackTotal"),
-        updatedAt: now,
-        year: sql.placeholder("year"),
-      })
+      .values(scannedTrackValues)
       .onConflictDoUpdate({
         target: tracks.path,
         set: {
-          album: sql`excluded.album`,
-          albumArtists: sql`excluded.album_artists`,
-          artists: sql`excluded.artists`,
-          artworkId: sql`excluded.artwork_id`,
-          bitrate: sql`excluded.bitrate`,
-          bitsPerSample: sql`excluded.bits_per_sample`,
-          channelCount: sql`excluded.channel_count`,
-          codec: sql`excluded.codec`,
-          discNumber: sql`excluded.disc_number`,
-          discTotal: sql`excluded.disc_total`,
-          duration: sql`excluded.duration`,
-          fileSize: sql`excluded.file_size`,
-          format: sql`excluded.format`,
-          genres: sql`excluded.genres`,
-          lossless: sql`excluded.lossless`,
-          metadataVersion: sql`excluded.metadata_version`,
+          ...Object.fromEntries(
+            Object.entries(getColumns(tracks))
+              .filter(([key]) => key in scannedTrackValues && key !== "createdAt" && key !== "path")
+              .map(([key, column]) => [key, sql`excluded.${sql.identifier(column.name)}`]),
+          ),
           missingSince: null,
-          modifiedAt: sql`excluded.modified_at`,
-          sampleRate: sql`excluded.sample_rate`,
-          sourceId: sql`excluded.source_id`,
-          title: sql`excluded.title`,
-          trackNumber: sql`excluded.track_number`,
-          trackTotal: sql`excluded.track_total`,
-          updatedAt: sql`excluded.updated_at`,
-          year: sql`excluded.year`,
         },
       })
       .prepare();
