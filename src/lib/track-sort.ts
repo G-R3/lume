@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PlaylistDetails, Track } from "@shared/library";
+import { artistNames } from "./artist-names";
 import type { SourceIdentity } from "./queue/model";
 
 export const sortFields = [
@@ -138,7 +139,7 @@ function sortKeys(row: TrackRow, index: number): SortKeys {
     index,
     row,
     title: track.title || null,
-    artist: track.artists.join(", ") || null,
+    artist: artistNames(track.artists) || null,
     album: track.album || null,
     disc: track.discNumber,
     trackNumber: track.trackNumber,
