@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, getDatabase, getLibraryDatabasePath, initializeDatabase } from ".";
+import { closeDatabase, getDatabase, initializeDatabase } from ".";
+import { getLibraryDatabasePath } from "./location";
 
 afterEach(closeDatabase);
 
