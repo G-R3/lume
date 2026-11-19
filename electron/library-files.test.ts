@@ -3,7 +3,22 @@ import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { createWaveAudio } from "../tests/helpers/wave-audio";
-import { classifyFolderReadError, scanAudioFiles } from "./library-files";
+import { audioContentTypes, classifyFolderReadError, scanAudioFiles } from "./library-files";
+
+describe("audioContentTypes", () => {
+  it("serves every supported extension with its media type", () => {
+    expect(Object.fromEntries(audioContentTypes)).toEqual({
+      ".aac": "audio/aac",
+      ".flac": "audio/flac",
+      ".m4a": "audio/mp4",
+      ".mp3": "audio/mpeg",
+      ".oga": "audio/ogg",
+      ".ogg": "audio/ogg",
+      ".opus": "audio/ogg",
+      ".wav": "audio/wav",
+    });
+  });
+});
 
 describe("scanAudioFiles", () => {
   it("recursively finds supported audio files", async () => {
