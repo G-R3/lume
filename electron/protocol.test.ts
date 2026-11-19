@@ -87,7 +87,14 @@ describe("app protocol track URLs", () => {
     });
   });
 
+  it.each(["0", "-1", "1.5", "", "9007199254740993"])("rejects the track ID %j", (id) => {
+    expect(resolveTrackRequest(`lume://app/media/${id}`, getTrackPath)).toEqual({ path: null });
+  });
+
   it.each([
+    { description: "an encoded prefix", url: `lume://app/%6Dedia/${trackId}` },
+    { description: "no trailing slash", url: "lume://app/media" },
+    { description: "the artwork prefix", url: "lume://app/artwork/cover-id" },
     { description: "the wrong protocol", url: `https://app/media/${trackId}` },
     { description: "the wrong host", url: `lume://other/media/${trackId}` },
     { description: "a malformed URL", url: "not a url" },
@@ -108,6 +115,29 @@ describe("app protocol artwork URLs", () => {
     expect(resolveArtworkRequest("lume://app/artwork/missing", () => null)).toEqual({
       artwork: null,
     });
+  });
+
+  it("decodes the artwork ID", () => {
+    expect(
+      resolveArtworkRequest("lume://app/artwork/a%20b", (id) => ({
+        data: new Uint8Array(),
+        mediaType: id,
+      })),
+    ).toEqual({
+      artwork: { data: new Uint8Array(), mediaType: "a b" },
+    });
+  });
+
+  it.each([
+    {
+      description: "malformed percent encoding",
+      url: "lume://app/artwork/%",
+      expected: { artwork: null },
+    },
+    { description: "the wrong host", url: "lume://other/artwork/cover-id", expected: null },
+    { description: "the media prefix", url: "lume://app/media/42", expected: null },
+  ])("handles artwork URLs with $description", (testCase) => {
+    expect(resolveArtworkRequest(testCase.url, () => null)).toEqual(testCase.expected);
   });
 });
 
