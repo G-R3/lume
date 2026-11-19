@@ -1,21 +1,24 @@
 import { z } from "zod";
+import { databaseIdSchema } from "@shared/schemas";
 import { trackSortSchema } from "../track-sort";
 import { allQueueItems, listedItems } from "./items";
 import { sameSource } from "./source";
-
-export const databaseId = z.number().int().positive().safe();
 
 const queueItemId = z.string().min(1);
 
 const sourceIdentitySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all-tracks") }),
-  z.object({ kind: z.literal("playlist"), playlistId: databaseId }),
+  z.object({ kind: z.literal("playlist"), playlistId: databaseIdSchema }),
 ]);
 
 const queueSourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all-tracks") }),
-  z.object({ kind: z.literal("playlist"), playlistId: databaseId, title: z.string() }),
-  z.object({ kind: z.literal("deleted-playlist"), playlistId: databaseId, title: z.string() }),
+  z.object({ kind: z.literal("playlist"), playlistId: databaseIdSchema, title: z.string() }),
+  z.object({
+    kind: z.literal("deleted-playlist"),
+    playlistId: databaseIdSchema,
+    title: z.string(),
+  }),
 ]);
 
 const sourceTrackingSchema = z.discriminatedUnion("kind", [
@@ -23,28 +26,32 @@ const sourceTrackingSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("frozen"), filter: z.string().min(1) }),
 ]);
 
-const sourceEntrySchema = z.object({ sourceEntryId: databaseId, trackId: databaseId }).readonly();
+const sourceEntrySchema = z
+  .object({ sourceEntryId: databaseIdSchema, trackId: databaseIdSchema })
+  .readonly();
 
 const sourcePositionSchema = z
   .discriminatedUnion("kind", [
-    z.object({ kind: z.literal("entry"), sourceEntryId: databaseId }),
+    z.object({ kind: z.literal("entry"), sourceEntryId: databaseIdSchema }),
     z.object({ kind: z.literal("boundary"), index: z.number().int().nonnegative().safe() }),
   ])
   .nullable();
 
 const queueItemSchema = z.object({
   queueItemId,
-  trackId: databaseId,
+  trackId: databaseIdSchema,
   origin: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("manual") }),
     z.object({
       kind: z.literal("source"),
-      sourceEntryId: databaseId,
+      sourceEntryId: databaseIdSchema,
       source: sourceIdentitySchema,
       sessionId: queueItemId,
     }),
   ]),
-  anchor: z.object({ sourceEntryId: databaseId, side: z.enum(["before", "after"]) }).optional(),
+  anchor: z
+    .object({ sourceEntryId: databaseIdSchema, side: z.enum(["before", "after"]) })
+    .optional(),
 });
 
 const queuePlaybackSchema = z.discriminatedUnion("kind", [
@@ -69,7 +76,7 @@ const queueStateObjectSchema = z.object({
   manualQueue: z.array(queueItemSchema),
   sourceQueue: z.array(queueItemSchema),
   previousSourceItems: z.array(queueItemSchema),
-  suppressedSourceEntryIds: z.array(databaseId),
+  suppressedSourceEntryIds: z.array(databaseIdSchema),
 });
 
 export const queueStateSchema = queueStateObjectSchema.superRefine((state, context) => {

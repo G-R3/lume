@@ -1,9 +1,9 @@
-import type { AddTracksToPlaylistResult } from "@shared/library";
+import type { AddTracksToPlaylistInput, AddTracksToPlaylistResult } from "@shared/library";
 import type { ActionTarget } from "../selection/track-selection";
 
 export type Destination = { readonly playlistId: number; readonly title: string };
 
-export type DuplicateMode = "allow" | "skip";
+export type DuplicateMode = Exclude<AddTracksToPlaylistInput["duplicates"], "check">;
 
 export type DuplicateCounts = {
   readonly alreadyInPlaylist: number;
@@ -46,7 +46,7 @@ export type AddToPlaylistEvent =
 
 export type AddRequest = {
   readonly destination: Destination;
-  readonly duplicates: "check" | DuplicateMode;
+  readonly duplicates: AddTracksToPlaylistInput["duplicates"];
   readonly trackIds: readonly number[];
 };
 

@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { databaseIdSchema } from "@shared/schemas";
 import { PlaylistPage } from "@/pages/playlist";
 
 export const Route = createFileRoute("/_app/playlists/$playlistId")({
   component: PlaylistPage,
   params: {
     parse: (params) => {
-      const playlistId = Number(params.playlistId);
+      const playlistId = databaseIdSchema.safeParse(Number(params.playlistId));
 
-      return Number.isSafeInteger(playlistId) && playlistId > 0 ? { playlistId } : false;
+      return playlistId.success ? { playlistId: playlistId.data } : false;
     },
     stringify: (params) => ({ playlistId: String(params.playlistId) }),
   },

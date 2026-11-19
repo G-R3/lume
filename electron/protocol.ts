@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { appScheme } from "@shared/app-urls";
+import { databaseIdSchema } from "@shared/schemas";
 import { getArtworkData, getTrackPath, type ArtworkData } from "./library";
 import { audioContentTypes } from "./library-files";
 
@@ -188,7 +189,7 @@ export function resolveTrackRequest(url: string, getTrackPath: (trackId: number)
     const trackId = Number(decodeURIComponent(parsedUrl.pathname.slice("/media/".length)));
 
     return {
-      path: Number.isSafeInteger(trackId) && trackId > 0 ? getTrackPath(trackId) : null,
+      path: databaseIdSchema.safeParse(trackId).success ? getTrackPath(trackId) : null,
     };
   } catch {
     return { path: null };
