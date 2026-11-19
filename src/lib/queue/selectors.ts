@@ -9,7 +9,7 @@ export function selectDisplayItem(state: QueueState | null) {
   return state ? playbackItem(state) : null;
 }
 
-export function selectPlaybackStatus(state: QueueState | null) {
+export function selectPlaybackIntent(state: QueueState | null) {
   return state?.playback.kind === "active" ? state.playback.status : "stopped";
 }
 

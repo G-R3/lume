@@ -1,7 +1,7 @@
 import {
   selectActiveSourceEntryId,
   selectCurrentItem,
-  selectPlaybackStatus,
+  selectPlaybackIntent,
 } from "./queue/selectors";
 import { expect, it, vi } from "vite-plus/test";
 import { ZodError } from "zod";
@@ -144,7 +144,7 @@ it.each([
     });
 
     await expect
-      .poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue))
+      .poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue))
       .toBe("paused");
 
     expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(2);
@@ -180,7 +180,7 @@ it("stays stopped when the source no longer has any available tracks", async () 
 
   playback.controller.next();
 
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("stopped");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("stopped");
   expect(playback.requests.at(-1)).toBeNull();
 });
 
@@ -209,7 +209,7 @@ it.each([
     });
     playback.controller.next();
     await settle();
-    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("stopped");
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("stopped");
 
     playback.controller.syncLibrary(library);
     playback.controller.resume();
@@ -221,7 +221,7 @@ it.each([
         position: 0,
         shouldPlay: true,
       });
-    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
 
     const restarted = playback.requests.at(-1);
 
@@ -235,7 +235,7 @@ it.each([
     await expect
       .poll(() => playback.requests.at(-1))
       .toMatchObject({ url: "lume://track/1", shouldPlay: false });
-    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
   },
 );
 
@@ -617,13 +617,13 @@ it("restarts the current shuffled row in place and ignores events from its old l
     requestId: current.requestId,
     queueItemId: current.queueItemId,
   });
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
   playback.controller.handleAudioEvent({
     type: "started",
     requestId: current.requestId,
     queueItemId: current.queueItemId,
   });
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
 });
 
 it("saves only the latest pending queue and flushes the final position before closing", async () => {
@@ -1292,7 +1292,7 @@ it("starts the first queued track of a stopped session and clears the track fail
 
   expect(published).toEqual([{ track: null, current: 3 }]);
   const queue = playback.controller.getSnapshot().queue;
-  expect(selectPlaybackStatus(queue)).toBe("playing");
+  expect(selectPlaybackIntent(queue)).toBe("playing");
   expect(selectCurrentItem(queue)?.trackId).toBe(3);
   expect(selectActiveSourceEntryId(queue)).toBeNull();
   expect(playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId)).toEqual([
@@ -1494,7 +1494,7 @@ it("re-reads instead of failing when the playlist is edited during a failed queu
   firstRead.reject(new Error("Playlist unavailable"));
 
   await expect
-    .poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue))
+    .poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue))
     .toBe("paused");
   expect(playback.controller.getSnapshot()).toMatchObject({
     failures: noFailures,
@@ -1529,7 +1529,7 @@ it.each(["before", "after"] as const)(
 
     if (pushed === "before") playback.commit(addition);
     read.resolve({ revision: 1, playlist: twoTrackPlaylist });
-    await expect.poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+    await expect.poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
 
     if (pushed === "after") playback.commit(addition);
 
@@ -1545,7 +1545,7 @@ it("keeps out an edit older than the read a queue-end restart started from", asy
 
   playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
   playback.controller.next();
-  await expect.poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+  await expect.poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
   playback.controller.applySourceChange(
     { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 11, trackId: 2 }] },
     1,
@@ -1622,7 +1622,7 @@ it("keeps playing into the next track when skipping before the first one starts"
   const playback = await createReadyPlayback(libraryOf([1, 2]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
 
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
 
   playback.controller.next();
 
@@ -1651,7 +1651,7 @@ it.each(["the Pause control before the element confirms it", "the media element"
       });
     else playback.controller.pause();
 
-    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
     await expect
       .poll(() => JSON.parse(playback.stored()?.payload ?? "null")?.playback)
       .toMatchObject({ status: "paused", current: { trackId: 1 } });
@@ -1681,7 +1681,7 @@ it("records the intent to play only once the element starts after Play", async (
   if (!loaded) throw new Error("Expected the track to load");
   playback.controller.resume();
 
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
 
   playback.controller.handleAudioEvent({
     type: "started",
@@ -1689,7 +1689,7 @@ it("records the intent to play only once the element starts after Play", async (
     queueItemId: loaded.queueItemId,
   });
 
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
 
   playback.controller.handleAudioEvent({
     type: "ended",
@@ -1812,7 +1812,7 @@ it.each([
       .toEqual(failedTrack && expect.objectContaining(failedTrack));
     const queue = playback.controller.getSnapshot().queue;
     expect(selectCurrentItem(queue)?.trackId).toBe(current);
-    expect(selectPlaybackStatus(queue)).toBe("paused");
+    expect(selectPlaybackIntent(queue)).toBe("paused");
     expect(checked).toEqual(reason === "load" ? [1] : []);
   },
 );
