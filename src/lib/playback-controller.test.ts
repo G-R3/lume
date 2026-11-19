@@ -1618,6 +1618,88 @@ it.each(["resolves", "rejects"] as const)(
   },
 );
 
+it("keeps playing into the next track when skipping before the first one starts", async () => {
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+
+  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+
+  playback.controller.next();
+
+  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
+});
+
+it.each(["the Pause control before the element confirms it", "the media element"] as const)(
+  "stays on a track that fails after a pause from %s, and saves the pause",
+  async (pausedBy) => {
+    const playback = await createReadyPlayback(libraryOf([1, 2]));
+    playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+    const loaded = playback.requests.at(-1);
+
+    if (!loaded) throw new Error("Expected the track to load");
+    playback.controller.handleAudioEvent({
+      type: "started",
+      requestId: loaded.requestId,
+      queueItemId: loaded.queueItemId,
+    });
+
+    if (pausedBy === "the media element")
+      playback.controller.handleAudioEvent({
+        type: "paused",
+        requestId: loaded.requestId,
+        queueItemId: loaded.queueItemId,
+      });
+    else playback.controller.pause();
+
+    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+    await expect
+      .poll(() => JSON.parse(playback.stored()?.payload ?? "null")?.playback)
+      .toMatchObject({ status: "paused", current: { trackId: 1 } });
+
+    playback.controller.handleAudioEvent({
+      type: "error",
+      requestId: loaded.requestId,
+      queueItemId: loaded.queueItemId,
+      reason: "load",
+    });
+
+    expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(1);
+    expect(playback.requests).toEqual([loaded]);
+
+    playback.controller.next();
+
+    expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
+  },
+);
+
+it("records the intent to play only once the element starts after Play", async () => {
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.pause();
+  const loaded = playback.requests.at(-1);
+
+  if (!loaded) throw new Error("Expected the track to load");
+  playback.controller.resume();
+
+  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+
+  playback.controller.handleAudioEvent({
+    type: "started",
+    requestId: loaded.requestId,
+    queueItemId: loaded.queueItemId,
+  });
+
+  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+
+  playback.controller.handleAudioEvent({
+    type: "ended",
+    requestId: loaded.requestId,
+    queueItemId: loaded.queueItemId,
+  });
+
+  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
+});
+
 it("resumes the loaded track in place without reloading it", async () => {
   const playback = await createReadyPlayback(libraryOf([1]));
   playback.controller.playSourceEntry(allTracks(playback.controller), 1);
