@@ -1,4 +1,5 @@
 import type { LibrarySource, MusicLibrary, TrackUnavailableReason } from "@shared/library";
+import { formatDayMonth, formatShortDate } from "./format-short-date";
 import { libraryRows } from "./track-sort";
 
 export const trackUnavailableLabels: Record<TrackUnavailableReason, string> = {
@@ -272,14 +273,6 @@ function getSourceName(path: string) {
   return path.split(/[/\\]/).filter(Boolean).at(-1) ?? path;
 }
 
-const scanDateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
-
-const scanDateWithYearFormatter = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-
 function formatScanTime(scannedAt: number, now: number) {
   const minutes = Math.floor((now - scannedAt) / 60_000);
 
@@ -291,9 +284,7 @@ function formatScanTime(scannedAt: number, now: number) {
 
   if (hours < 24) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
 
-  return new Date(scannedAt).getFullYear() === new Date(now).getFullYear()
-    ? scanDateFormatter.format(scannedAt)
-    : scanDateWithYearFormatter.format(scannedAt);
+  return formatShortDate(scannedAt, now);
 }
 
 function formatScanAge(scannedAt: number, now: number) {
@@ -305,5 +296,5 @@ function formatScanAge(scannedAt: number, now: number) {
 
   if (minutes < 24 * 60) return `scanned ${Math.floor(minutes / 60)}h`;
 
-  return `scanned ${scanDateFormatter.format(scannedAt)}`;
+  return `scanned ${formatDayMonth(scannedAt)}`;
 }
