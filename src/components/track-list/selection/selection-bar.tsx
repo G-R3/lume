@@ -22,13 +22,12 @@ import { Kbd } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDuration } from "@/lib/format-duration";
 import { duration as motionDuration, ease, spring } from "@/lib/motion";
-import {
-  SelectionMenuShortcut,
-  SelectionShortcutKeys,
-} from "@/components/track-list/selection/selection-shortcut-keys";
+import { ariaOf } from "@/lib/keyboard-shortcuts";
+import { ShortcutKeys } from "@/components/shortcut-keys";
+import { SelectionMenuShortcut } from "@/components/track-list/selection/selection-menu-shortcut";
 import {
   type SelectionAction,
-  selectionKeyShortcuts,
+  selectionChords,
 } from "@/components/track-list/selection/selection-shortcuts";
 
 type SelectionBarProps = {
@@ -286,7 +285,7 @@ function SelectionBar({
           <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
             {canQueue && (
               <DropdownMenuItem
-                aria-keyshortcuts={selectionKeyShortcuts("playNext", window.lume.isMac)}
+                aria-keyshortcuts={ariaOf(selectionChords.playNext)}
                 className="whitespace-nowrap"
                 onClick={() => onAction("playNext")}
               >
@@ -296,7 +295,7 @@ function SelectionBar({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              aria-keyshortcuts={selectionKeyShortcuts("createPlaylist", window.lume.isMac)}
+              aria-keyshortcuts={ariaOf(selectionChords.createPlaylist)}
               className="whitespace-nowrap"
               onClick={() => onAction("createPlaylist")}
             >
@@ -350,7 +349,7 @@ function BarAction({
       }}
     >
       <TooltipTrigger
-        aria-keyshortcuts={selectionKeyShortcuts(action, window.lume.isMac)}
+        aria-keyshortcuts={ariaOf(selectionChords[action])}
         data-bar-action={action}
         render={<Toolbar.Button render={render} />}
       >
@@ -359,7 +358,7 @@ function BarAction({
       <TooltipContent className="rounded-lg pr-1" sideOffset={8}>
         {label}
         <Kbd>
-          <SelectionShortcutKeys action={action} />
+          <ShortcutKeys chord={selectionChords[action]} />
         </Kbd>
       </TooltipContent>
     </Tooltip>

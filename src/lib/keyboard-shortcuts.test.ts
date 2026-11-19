@@ -2,33 +2,86 @@
 
 import { createElement, StrictMode } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
-  createKeyboardShortcutHandler,
-  type KeyboardShortcut,
+  selectAllChord,
+  selectionChords,
+} from "@/components/track-list/selection/selection-shortcuts";
+import {
+  ariaOf,
+  dialogChords,
+  type GlobalShortcutId,
+  globalShortcuts,
+  matches,
+  type PlatformChord,
+  resolve,
   useKeyboardShortcuts,
 } from "./keyboard-shortcuts";
 
+type Actions = Partial<Record<GlobalShortcutId, () => void>>;
+
+let root: Root | null = null;
+
 afterEach(() => {
+  if (root) flushSync(() => root?.unmount());
+  root = null;
   document.body.replaceChildren();
+  vi.unstubAllGlobals();
 });
 
-describe("keyboard shortcut matching", () => {
+function mountShortcuts(actions: Actions, isMac = false) {
+  vi.stubGlobal("lume", { isMac });
+
+  function TestShortcuts() {
+    useKeyboardShortcuts(actions);
+
+    return null;
+  }
+
+  root = createRoot(document.body.appendChild(document.createElement("div")));
+  flushSync(() => root?.render(createElement(StrictMode, null, createElement(TestShortcuts))));
+}
+
+function press(target: EventTarget, eventInit: KeyboardEventInit) {
+  const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...eventInit });
+  target.dispatchEvent(event);
+
+  return event;
+}
+
+function counter() {
+  const calls = { count: 0 };
+
+  return [calls, () => calls.count++] as const;
+}
+
+describe("global shortcut matching", () => {
   it.each([
-    { bindingKey: " ", description: "Space", eventKey: " " },
-    { bindingKey: "ArrowRight", description: "ArrowRight", eventKey: "ArrowRight" },
-    { bindingKey: "B", description: "letters without case sensitivity", eventKey: "b" },
-  ])("matches $description using event.key", (testCase) => {
-    let calls = 0;
+    { description: "Space", id: "togglePlayback", eventInit: { key: " " } },
+    {
+      description: "Command+ArrowRight",
+      id: "nextTrack",
+      eventInit: { key: "ArrowRight", metaKey: true },
+    },
+    {
+      description: "letters without case sensitivity",
+      id: "toggleSidebar",
+      eventInit: { key: "B", metaKey: true },
+    },
+    { description: "slash", id: "focusFilter", eventInit: { key: "/" } },
+    {
+      description: "Shift+slash on layouts that need it",
+      id: "focusFilterWithShift",
+      eventInit: { key: "/", shiftKey: true },
+    },
+  ] as const)("matches $description using event.key", ({ id, eventInit }) => {
+    const [calls, action] = counter();
+    mountShortcuts({ [id]: action }, true);
 
-    const event = dispatchShortcut(
-      document.body,
-      [{ name: "Test shortcut", key: testCase.bindingKey, action: () => calls++ }],
-      { key: testCase.eventKey },
-    );
+    const event = press(document.body, eventInit);
 
-    expect(calls).toBe(1);
+    expect(calls.count).toBe(1);
     expect(event.defaultPrevented).toBe(true);
   });
 
@@ -36,273 +89,238 @@ describe("keyboard shortcut matching", () => {
     {
       description: "Control on macOS",
       isMac: true,
-      matchingEventInit: { key: "k", metaKey: true },
-      unexpectedEventInit: { ctrlKey: true, key: "k" },
+      matchingEventInit: { key: "b", metaKey: true },
+      unexpectedEventInit: { ctrlKey: true, key: "b" },
     },
     {
       description: "Command on other platforms",
       isMac: false,
-      matchingEventInit: { ctrlKey: true, key: "k" },
-      unexpectedEventInit: { key: "k", metaKey: true },
+      matchingEventInit: { ctrlKey: true, key: "b" },
+      unexpectedEventInit: { key: "b", metaKey: true },
     },
     {
       description: "Control alongside Command on macOS",
       isMac: true,
-      matchingEventInit: { key: "k", metaKey: true },
-      unexpectedEventInit: { ctrlKey: true, key: "k", metaKey: true },
+      matchingEventInit: { key: "b", metaKey: true },
+      unexpectedEventInit: { ctrlKey: true, key: "b", metaKey: true },
     },
     {
       description: "Command alongside Control on other platforms",
       isMac: false,
-      matchingEventInit: { ctrlKey: true, key: "k" },
-      unexpectedEventInit: { ctrlKey: true, key: "k", metaKey: true },
+      matchingEventInit: { ctrlKey: true, key: "b" },
+      unexpectedEventInit: { ctrlKey: true, key: "b", metaKey: true },
     },
     {
       description: "an extra Shift key on macOS",
       isMac: true,
-      matchingEventInit: { key: "k", metaKey: true },
-      unexpectedEventInit: { key: "k", metaKey: true, shiftKey: true },
+      matchingEventInit: { key: "b", metaKey: true },
+      unexpectedEventInit: { key: "b", metaKey: true, shiftKey: true },
     },
     {
       description: "an extra Alt key on other platforms",
       isMac: false,
-      matchingEventInit: { ctrlKey: true, key: "k" },
-      unexpectedEventInit: { altKey: true, ctrlKey: true, key: "k" },
+      matchingEventInit: { ctrlKey: true, key: "b" },
+      unexpectedEventInit: { altKey: true, ctrlKey: true, key: "b" },
     },
   ])("rejects $description", (testCase) => {
-    let calls = 0;
+    const [calls, action] = counter();
+    mountShortcuts({ toggleSidebar: action }, testCase.isMac);
 
-    const shortcut = {
-      name: "Open search",
-      key: "k",
-      commandOrControl: true,
-      action: () => calls++,
-    };
+    const matchingEvent = press(document.body, testCase.matchingEventInit);
+    const unexpectedEvent = press(document.body, testCase.unexpectedEventInit);
 
-    const matchingEvent = dispatchShortcut(
-      document.body,
-      [shortcut],
-      testCase.matchingEventInit,
-      testCase.isMac,
-    );
-
-    const unexpectedEvent = dispatchShortcut(
-      document.body,
-      [shortcut],
-      testCase.unexpectedEventInit,
-      testCase.isMac,
-    );
-
-    expect(calls).toBe(1);
+    expect(calls.count).toBe(1);
     expect(matchingEvent.defaultPrevented).toBe(true);
     expect(unexpectedEvent.defaultPrevented).toBe(false);
   });
 
-  it("rejects duplicate bindings", () => {
-    expect(() =>
-      createKeyboardShortcutHandler(
-        [
-          { name: "First search", key: "K", commandOrControl: true, action: () => undefined },
-          { name: "Second search", key: "k", commandOrControl: true, action: () => undefined },
-        ],
-        true,
-      ),
-    ).toThrow('Keyboard shortcut "Second search" duplicates "First search" (Command/Control+k)');
+  it("ignores chords whose action the caller did not provide", () => {
+    const [calls, action] = counter();
+    mountShortcuts({ togglePlayback: action });
+
+    const event = press(document.body, { key: "m" });
+
+    expect(calls.count).toBe(0);
+    expect(event.defaultPrevented).toBe(false);
   });
 });
 
-describe("keyboard shortcut event policy", () => {
-  it.each([
-    { description: "text inputs", tag: "input" },
-    { description: "textareas", tag: "textarea" },
-    { description: "selects", tag: "select" },
-  ])("allows native behavior in $description", (testCase) => {
-    let calls = 0;
-    const element = document.body.appendChild(document.createElement(testCase.tag));
-    const shortcut = { name: "Toggle playback", key: " ", action: () => calls++ };
+describe("global shortcut event policy", () => {
+  it.each(["input", "textarea", "select"])("allows native behavior in a %s", (tag) => {
+    const [calls, action] = counter();
+    const element = document.body.appendChild(document.createElement(tag));
+    mountShortcuts({ togglePlayback: action });
 
-    const matchingEvent = dispatchShortcut(document.body, [shortcut], { key: " " });
-    const editableEvent = dispatchShortcut(element, [shortcut], { key: " " });
+    const matchingEvent = press(document.body, { key: " " });
+    const editableEvent = press(element, { key: " " });
 
-    expect(calls).toBe(1);
+    expect(calls.count).toBe(1);
     expect(matchingEvent.defaultPrevented).toBe(true);
     expect(editableEvent.defaultPrevented).toBe(false);
   });
 
   it.each([
-    { description: "Space", eventInit: { key: " " }, key: " ", commandOrControl: false },
-    {
-      description: "Command+ArrowLeft",
-      eventInit: { key: "ArrowLeft", metaKey: true },
-      key: "ArrowLeft",
-      commandOrControl: true,
-    },
-    {
-      description: "Command+ArrowRight",
-      eventInit: { key: "ArrowRight", metaKey: true },
-      key: "ArrowRight",
-      commandOrControl: true,
-    },
-  ])("handles $description from range inputs", (testCase) => {
-    let calls = 0;
+    { description: "Space", eventInit: { key: " " } },
+    { description: "Command+ArrowLeft", eventInit: { key: "ArrowLeft", metaKey: true } },
+    { description: "Command+ArrowRight", eventInit: { key: "ArrowRight", metaKey: true } },
+  ])("handles $description from range inputs", ({ eventInit }) => {
+    const [calls, action] = counter();
     const input = document.body.appendChild(document.createElement("input"));
     input.type = "range";
+    mountShortcuts({ togglePlayback: action, previousTrack: action, nextTrack: action }, true);
 
-    const event = dispatchShortcut(
-      input,
-      [
-        {
-          name: "Audio shortcut",
-          key: testCase.key,
-          commandOrControl: testCase.commandOrControl,
-          action: () => calls++,
-        },
-      ],
-      testCase.eventInit,
-      true,
-    );
+    const event = press(input, eventInit);
 
-    expect(calls).toBe(1);
+    expect(calls.count).toBe(1);
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("lets a focused button handle Space", () => {
+    const [calls, action] = counter();
+    const button = document.body.appendChild(document.createElement("button"));
+    mountShortcuts({ togglePlayback: action });
+
+    const event = press(button, { key: " " });
+
+    expect(calls.count).toBe(0);
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it.each(["dialog", "alertdialog", "menu", "listbox"])(
     "yields to an open %s when the shortcut asks to",
     (role) => {
-      let calls = 0;
+      const [calls, action] = counter();
       const overlay = document.body.appendChild(document.createElement("div"));
       overlay.setAttribute("role", role);
       const item = overlay.appendChild(document.createElement("div"));
+      mountShortcuts({ newPlaylist: action }, true);
 
-      const shortcut = {
-        name: "New playlist",
-        key: "n",
-        commandOrControl: true,
-        yieldToOverlays: true,
-        action: () => calls++,
-      };
+      const insideEvent = press(item, { key: "n", metaKey: true });
+      const outsideEvent = press(document.body, { key: "n", metaKey: true });
 
-      const insideEvent = dispatchShortcut(item, [shortcut], { key: "n", metaKey: true }, true);
-
-      const outsideEvent = dispatchShortcut(
-        document.body,
-        [shortcut],
-        { key: "n", metaKey: true },
-        true,
-      );
-
-      expect(calls).toBe(1);
+      expect(calls.count).toBe(1);
       expect(insideEvent.defaultPrevented).toBe(false);
       expect(outsideEvent.defaultPrevented).toBe(true);
     },
   );
 
   it("ignores repeated events", () => {
-    let calls = 0;
-    const shortcut = { name: "Toggle playback", key: " ", action: () => calls++ };
+    const [calls, action] = counter();
+    mountShortcuts({ togglePlayback: action });
 
-    const matchingEvent = dispatchShortcut(document.body, [shortcut], { key: " " });
-    const repeatedEvent = dispatchShortcut(document.body, [shortcut], { key: " ", repeat: true });
+    const matchingEvent = press(document.body, { key: " " });
+    const repeatedEvent = press(document.body, { key: " ", repeat: true });
 
-    expect(calls).toBe(1);
+    expect(calls.count).toBe(1);
     expect(matchingEvent.defaultPrevented).toBe(true);
     expect(repeatedEvent.defaultPrevented).toBe(false);
   });
 
   it("prevents native behavior before invoking an action", () => {
-    const event = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: " ",
+    const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: " " });
+    let wasPreventedDuringAction = false;
+    mountShortcuts({
+      togglePlayback: () => {
+        wasPreventedDuringAction = event.defaultPrevented;
+      },
     });
 
-    let wasPreventedDuringAction = false;
-
-    dispatchEventWithShortcuts(document.body, event, [
-      {
-        name: "Toggle playback",
-        key: " ",
-        action: () => {
-          wasPreventedDuringAction = event.defaultPrevented;
-        },
-      },
-    ]);
+    document.body.dispatchEvent(event);
 
     expect(wasPreventedDuringAction).toBe(true);
   });
 
   it("prevents native behavior when a matched action does nothing", () => {
-    const event = dispatchShortcut(
-      document.body,
-      [{ name: "Next track", key: "ArrowRight", commandOrControl: true, action: () => undefined }],
-      { key: "ArrowRight", metaKey: true },
-      true,
-    );
+    mountShortcuts({ nextTrack: () => undefined }, true);
 
-    expect(event.defaultPrevented).toBe(true);
+    expect(press(document.body, { key: "ArrowRight", metaKey: true }).defaultPrevented).toBe(true);
   });
 
   it("leaves unmatched keys untouched", () => {
-    let calls = 0;
-    const shortcut = { name: "Toggle playback", key: " ", action: () => calls++ };
+    const [calls, action] = counter();
+    mountShortcuts({ togglePlayback: action });
 
-    const matchingEvent = dispatchShortcut(document.body, [shortcut], { key: " " });
-    const unmatchedEvent = dispatchShortcut(document.body, [shortcut], { key: "Enter" });
+    const matchingEvent = press(document.body, { key: " " });
+    const unmatchedEvent = press(document.body, { key: "Enter" });
 
-    expect(calls).toBe(1);
+    expect(calls.count).toBe(1);
     expect(matchingEvent.defaultPrevented).toBe(true);
     expect(unmatchedEvent.defaultPrevented).toBe(false);
   });
 
   it("keeps one listener through Strict Mode and removes it on unmount", () => {
-    let calls = 0;
-    const root = createRoot(document.body.appendChild(document.createElement("div")));
+    const [calls, action] = counter();
+    mountShortcuts({ togglePlayback: action });
 
-    function TestShortcuts() {
-      useKeyboardShortcuts([{ name: "Toggle playback", key: " ", action: () => calls++ }], false);
+    press(document.body, { key: " " });
+    expect(calls.count).toBe(1);
 
-      return null;
-    }
-
-    flushSync(() => root.render(createElement(StrictMode, null, createElement(TestShortcuts))));
-    document.body.dispatchEvent(
-      new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: " " }),
-    );
-    expect(calls).toBe(1);
-
-    flushSync(() => root.unmount());
-    document.body.dispatchEvent(
-      new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: " " }),
-    );
-    expect(calls).toBe(1);
+    flushSync(() => root?.unmount());
+    root = null;
+    press(document.body, { key: " " });
+    expect(calls.count).toBe(1);
   });
 });
 
-function dispatchShortcut(
-  target: EventTarget,
-  shortcuts: readonly KeyboardShortcut[],
-  eventInit: KeyboardEventInit,
-  isMac = false,
+describe("aria-keyshortcuts", () => {
+  it.each([
+    ["toggle sidebar", globalShortcuts.toggleSidebar.chord, "Meta+B", "Control+B"],
+    ["new playlist", globalShortcuts.newPlaylist.chord, "Meta+N", "Control+N"],
+    ["delete playlist", dialogChords.confirmDelete, "Meta+Backspace", "Control+Backspace"],
+    ["create from search", dialogChords.createFromSearch, "Meta+Enter", "Control+Enter"],
+  ] as const)("%s announces %s on macOS and %s elsewhere", (_, chord, mac, other) => {
+    expect(ariaOf(chord, true)).toBe(mac);
+    expect(ariaOf(chord, false)).toBe(other);
+  });
+});
+
+function pressOf(chord: PlatformChord, isMac: boolean) {
+  const { key, mod = false, shift = false, alt = false } = resolve(chord, isMac);
+
+  return { altKey: alt, ctrlKey: mod && !isMac, key, metaKey: mod && isMac, shiftKey: shift };
+}
+
+function clashes(
+  left: Record<string, PlatformChord>,
+  right: Record<string, PlatformChord>,
+  isMac: boolean,
 ) {
-  const event = new KeyboardEvent("keydown", {
-    bubbles: true,
-    cancelable: true,
-    ...eventInit,
+  return Object.entries(left).flatMap(([leftId, leftChord]) =>
+    Object.entries(right)
+      .filter(
+        ([rightId, rightChord]) =>
+          (left !== right || leftId !== rightId) &&
+          matches(leftChord, pressOf(rightChord, isMac), isMac),
+      )
+      .map(([rightId]) => `${leftId} = ${rightId}`),
+  );
+}
+
+const globalChords = Object.fromEntries(
+  Object.entries(globalShortcuts).map(([id, shortcut]) => [id, shortcut.chord]),
+);
+
+const globalChordsInsideOverlays = Object.fromEntries(
+  Object.entries(globalShortcuts)
+    .filter(([, shortcut]) => !("yieldToOverlays" in shortcut))
+    .map(([id, shortcut]) => [id, shortcut.chord]),
+);
+
+describe.each([
+  { isMac: true, name: "macOS" },
+  { isMac: false, name: "Windows and Linux" },
+])("shortcut collisions on $name", ({ isMac }) => {
+  it("gives every global shortcut its own chord", () => {
+    expect(clashes(globalChords, globalChords, isMac)).toEqual([]);
   });
 
-  dispatchEventWithShortcuts(target, event, shortcuts, isMac);
+  it("keeps global shortcuts off the track list chords they would swallow", () => {
+    const listChords = { ...selectionChords, selectAll: selectAllChord };
 
-  return event;
-}
+    expect(clashes(globalChords, listChords, isMac)).toEqual([]);
+  });
 
-function dispatchEventWithShortcuts(
-  target: EventTarget,
-  event: KeyboardEvent,
-  shortcuts: readonly KeyboardShortcut[],
-  isMac = false,
-) {
-  const handler = createKeyboardShortcutHandler(shortcuts, isMac);
-  window.addEventListener("keydown", handler, { capture: true });
-  target.dispatchEvent(event);
-  window.removeEventListener("keydown", handler, { capture: true });
-}
+  it("keeps dialog chords off global shortcuts that fire inside dialogs", () => {
+    expect(clashes(dialogChords, globalChordsInsideOverlays, isMac)).toEqual([]);
+  });
+});

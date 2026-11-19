@@ -43,20 +43,7 @@ export function FilterField({
 
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
 
-  // Layouts such as German or French AZERTY type "/" with Shift.
-  useKeyboardShortcuts(
-    [
-      { name: "Focus filter", key: "/", yieldToOverlays: true, action: focusField },
-      {
-        name: "Focus filter with Shift",
-        key: "/",
-        shift: true,
-        yieldToOverlays: true,
-        action: focusField,
-      },
-    ],
-    window.lume.isMac,
-  );
+  useKeyboardShortcuts({ focusFilter: focusField, focusFilterWithShift: focusField });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     onKeyDown?.(event);

@@ -1,4 +1,3 @@
-import { BackspaceIcon, CommandIcon } from "@phosphor-icons/react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import type { KeyboardEvent, RefObject } from "react";
 import type { PlaylistSummary } from "@shared/library";
@@ -12,8 +11,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import { FieldError } from "@/components/ui/field";
 import { Kbd } from "@/components/ui/kbd";
+import { ariaOf, dialogChords, matches } from "@/lib/keyboard-shortcuts";
 import { useDeletePlaylistMutation } from "@/lib/playlist-mutations";
 
 type DeletePlaylistDialogProps = {
@@ -58,7 +59,7 @@ export function DeletePlaylistDialog({
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Backspace" || !(window.lume.isMac ? event.metaKey : event.ctrlKey)) return;
+    if (!matches(dialogChords.confirmDelete, event)) return;
 
     event.preventDefault();
 
@@ -80,19 +81,14 @@ export function DeletePlaylistDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deletePlaylist.isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            aria-keyshortcuts={window.lume.isMac ? "Meta+Backspace" : "Control+Backspace"}
+            aria-keyshortcuts={ariaOf(dialogChords.confirmDelete)}
             busy={deletePlaylist.isPending}
             onClick={handleDelete}
             variant="danger"
           >
             Delete playlist
-            <Kbd
-              aria-hidden="true"
-              className={window.lume.isMac ? "gap-0" : undefined}
-              variant="danger"
-            >
-              {window.lume.isMac ? <CommandIcon className="size-3" weight="bold" /> : "Ctrl"}
-              <BackspaceIcon className="size-3" weight="bold" />
+            <Kbd variant="danger">
+              <ShortcutKeys chord={dialogChords.confirmDelete} />
             </Kbd>
           </AlertDialogAction>
         </AlertDialogFooter>

@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { usePlayback } from "@/hooks/use-playback";
-import { isEditableElement } from "@/lib/keyboard-shortcuts";
+import { isEditableElement, isInOverlay, matches } from "@/lib/keyboard-shortcuts";
 import type { PlayableSource } from "@/lib/queue/model";
 import { sessionSource } from "@/lib/queue/source";
 import { showTruncatedText } from "@/lib/show-truncated-text";
@@ -17,6 +17,7 @@ import { isListBackgroundPointerDown } from "@/components/track-list/list-backgr
 import { FloatingSelectionBar } from "@/components/track-list/selection/selection-bar";
 import {
   matchSelectionShortcut,
+  selectAllChord,
   type SelectionAction,
 } from "@/components/track-list/selection/selection-shortcuts";
 import { useTrackActions } from "@/components/track-list/actions/track-actions";
@@ -58,8 +59,6 @@ function isNavigationKey(key: string): key is NavigationKey {
 function rowOf(target: EventTarget) {
   return target instanceof Element ? target.closest("tr[data-entry-id]") : null;
 }
-
-const popupRoles = "[role='menu'], [role='dialog'], [role='alertdialog']";
 
 export function TrackList({
   caption,
@@ -118,7 +117,7 @@ export function TrackList({
     const followFocus = (event: FocusEvent) => {
       const target = event.target;
 
-      if (!(target instanceof Element) || target.closest(popupRoles)) return;
+      if (!(target instanceof Element) || isInOverlay(target)) return;
 
       listOwnsFocusRef.current = regionRef.current?.contains(target) ?? false;
     };
@@ -176,13 +175,9 @@ export function TrackList({
       return;
     }
 
-    const isMac = window.lume.isMac;
-    const hasPrimary = isMac ? event.metaKey : event.ctrlKey;
-    const hasSecondary = isMac ? event.ctrlKey : event.metaKey;
-    const hasOnlyPrimary = hasPrimary && !hasSecondary && !event.shiftKey && !event.altKey;
     const hasNoModifiers = !event.metaKey && !event.ctrlKey && !event.altKey;
 
-    if (event.key.toLowerCase() === "a" && hasOnlyPrimary && !isEditableElement(target)) {
+    if (matches(selectAllChord, event) && !isEditableElement(target)) {
       event.preventDefault();
       dispatchSelection({ type: "selectAll" });
 
@@ -191,7 +186,7 @@ export function TrackList({
 
     const shortcut = isEditableElement(target)
       ? null
-      : matchSelectionShortcut(event, isMac, { playlist: isPlaylist, queue: canQueue });
+      : matchSelectionShortcut(event, { playlist: isPlaylist, queue: canQueue });
 
     if (shortcut) {
       if (event.repeat || runOnSelection(shortcut)) event.preventDefault();

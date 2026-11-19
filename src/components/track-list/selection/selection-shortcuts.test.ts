@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
+import { ariaOf } from "@/lib/keyboard-shortcuts";
 import {
   matchSelectionShortcut,
   type SelectionCapabilities,
-  selectionKeyShortcuts,
-} from "../src/components/track-list/selection/selection-shortcuts";
+  selectionChords,
+} from "@/components/track-list/selection/selection-shortcuts";
 
 type Press = { key: string; alt?: boolean; ctrl?: boolean; meta?: boolean; shift?: boolean };
 
@@ -42,7 +43,7 @@ const platforms = [
 
 describe.each(platforms)("selection shortcuts on $name", ({ isMac, presses }) => {
   it.each(Object.entries(presses))("%s matches its chord", (action, chord) => {
-    expect(matchSelectionShortcut(press(chord), isMac, everywhere)).toBe(action);
+    expect(matchSelectionShortcut(press(chord), everywhere, isMac)).toBe(action);
   });
 });
 
@@ -67,7 +68,7 @@ describe("neighbors of a selection shortcut", () => {
     ["Ctrl+Backspace", { ctrl: true, key: "Backspace" }],
     ["Ctrl+Alt+Enter", { alt: true, ctrl: true, key: "Enter" }],
   ])("%s does nothing on macOS", (_, chord) => {
-    expect(matchSelectionShortcut(press(chord), true, everywhere)).toBeNull();
+    expect(matchSelectionShortcut(press(chord), everywhere, true)).toBeNull();
   });
 
   it.each<[string, Press]>([
@@ -83,7 +84,7 @@ describe("neighbors of a selection shortcut", () => {
     ["Meta+Shift+P", { key: "P", meta: true, shift: true }],
     ["Meta+Alt+Enter", { alt: true, key: "Enter", meta: true }],
   ])("%s does nothing on Windows and Linux", (_, chord) => {
-    expect(matchSelectionShortcut(press(chord), false, everywhere)).toBeNull();
+    expect(matchSelectionShortcut(press(chord), everywhere, false)).toBeNull();
   });
 });
 
@@ -93,11 +94,11 @@ describe("shortcuts for unavailable actions", () => {
     (isMac) => {
       const noQueue = { playlist: true, queue: false };
 
-      expect(matchSelectionShortcut(press({ alt: true, key: "Enter" }), isMac, noQueue)).toBeNull();
+      expect(matchSelectionShortcut(press({ alt: true, key: "Enter" }), noQueue, isMac)).toBeNull();
       expect(
-        matchSelectionShortcut(press({ alt: true, key: "Enter", shift: true }), isMac, noQueue),
+        matchSelectionShortcut(press({ alt: true, key: "Enter", shift: true }), noQueue, isMac),
       ).toBeNull();
-      expect(matchSelectionShortcut(press({ key: "l", meta: true }), true, noQueue)).toBe("like");
+      expect(matchSelectionShortcut(press({ key: "l", meta: true }), noQueue, true)).toBe("like");
     },
   );
 
@@ -105,9 +106,9 @@ describe("shortcuts for unavailable actions", () => {
     const tracksView = { playlist: false, queue: true };
 
     expect(
-      matchSelectionShortcut(press({ key: "Backspace", meta: true }), true, tracksView),
+      matchSelectionShortcut(press({ key: "Backspace", meta: true }), tracksView, true),
     ).toBeNull();
-    expect(matchSelectionShortcut(press({ key: "Delete" }), false, tracksView)).toBeNull();
+    expect(matchSelectionShortcut(press({ key: "Delete" }), tracksView, false)).toBeNull();
   });
 });
 
@@ -120,7 +121,7 @@ describe("aria-keyshortcuts", () => {
     ["createPlaylist", "Meta+Shift+N", "Control+Shift+N"],
     ["removeFromPlaylist", "Meta+Backspace", "Delete"],
   ] as const)("%s announces %s on macOS and %s elsewhere", (action, mac, other) => {
-    expect(selectionKeyShortcuts(action, true)).toBe(mac);
-    expect(selectionKeyShortcuts(action, false)).toBe(other);
+    expect(ariaOf(selectionChords[action], true)).toBe(mac);
+    expect(ariaOf(selectionChords[action], false)).toBe(other);
   });
 });

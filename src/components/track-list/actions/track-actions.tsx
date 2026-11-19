@@ -20,15 +20,10 @@ import {
   reduceAddToPlaylist,
   requestOf,
 } from "@/components/track-list/actions/add-to-playlist-flow";
+import type { SelectionAction } from "@/components/track-list/selection/selection-shortcuts";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
-export type TrackAction =
-  | { kind: "queue"; target: ActionTarget }
-  | { kind: "playNext"; target: ActionTarget }
-  | { kind: "like"; target: ActionTarget }
-  | { kind: "addToPlaylist"; target: ActionTarget }
-  | { kind: "createPlaylist"; target: ActionTarget }
-  | { kind: "removeFromPlaylist"; target: ActionTarget };
+export type TrackAction = { kind: SelectionAction; target: ActionTarget };
 
 export function useTrackActions(source: PlayableSource) {
   const { enqueueTracks, queue } = usePlayback();
