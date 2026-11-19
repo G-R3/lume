@@ -12,7 +12,8 @@ export function formatDuration(duration: number | null) {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}:${remainingSeconds}`;
 }
 
-export function formatTotalDuration(duration: number) {
+export function formatTotalDuration(tracks: readonly { duration: number | null }[]) {
+  const duration = tracks.reduce((total, track) => total + (track.duration ?? 0), 0);
   const minutes = duration > 0 ? Math.max(1, Math.round(duration / 60)) : 0;
   const hours = Math.floor(minutes / 60);
 

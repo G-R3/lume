@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { formatDuration } from "./format-duration";
+import { formatDuration, formatTotalDuration } from "./format-duration";
 
 describe("formatDuration", () => {
   it.each([
@@ -17,5 +17,17 @@ describe("formatDuration", () => {
     { description: "a negative duration", duration: -1 },
   ])("uses a placeholder for $description", (testCase) => {
     expect(formatDuration(testCase.duration)).toBe("--:--");
+  });
+});
+
+describe("formatTotalDuration", () => {
+  it.each([
+    { case: "no tracks", durations: [], text: "0m" },
+    { case: "under a minute", durations: [5], text: "1m" },
+    { case: "missing durations", durations: [65, null, 65], text: "2m" },
+    { case: "over an hour", durations: [3_600, 125], text: "1h 02m" },
+    { case: "over a day", durations: [90_000], text: "1d 1h" },
+  ])("sums $case", ({ durations, text }) => {
+    expect(formatTotalDuration(durations.map((duration) => ({ duration })))).toBe(text);
   });
 });
