@@ -240,7 +240,7 @@ function presentFooter(facts: readonly FolderFacts[], now: number) {
 
 const audioFormatLabels = audioFormats.map(({ label }) => label);
 
-const audioFormatList = `${audioFormatLabels.slice(0, -1).join(", ")} and ${audioFormatLabels.at(-1)}`;
+const audioFormatsText = `${audioFormatLabels.slice(0, -1).join(", ")} and ${audioFormatLabels.at(-1)}`;
 
 function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): SourceEmpty {
   if (
@@ -265,7 +265,7 @@ function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): Sou
 
   return {
     chooseLabel: "Choose another folder",
-    description: `Lume plays ${audioFormatList} files.`,
+    description: `Lume plays ${audioFormatsText} files.`,
     kind: "no-audio",
     scanning,
     sourceId: scanned.folder.id,
