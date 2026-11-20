@@ -47,7 +47,6 @@ type TupleIndexes<Keys extends readonly string[]> = {
     : never]: Index extends `${infer Position extends number}` ? Position : never;
 };
 
-// The position of each key in a track tuple, so code reads tuples by name instead of by position
 // SAFETY: Object.fromEntries returns an untyped record. It holds the index of every key in trackTupleKeys.
 export const trackTupleIndex = Object.fromEntries(
   trackTupleKeys.map((key, index) => [key, index]),
@@ -66,7 +65,7 @@ export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 export type TrackTupleFields = { [Key in TrackTupleKey]: TrackTupleValue<Key> };
 
 export function trackTupleOf(fields: TrackTupleFields): TrackTuple {
-  // SAFETY: the tuple takes the order of trackTupleKeys, which is how TrackTuple is defined.
+  // SAFETY: Array.map returns a plain array. It keeps the order of trackTupleKeys, which defines TrackTuple.
   return trackTupleKeys.map((key) => fields[key]) as TrackTuple;
 }
 

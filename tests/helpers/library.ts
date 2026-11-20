@@ -10,7 +10,6 @@ export function getActiveSource(sourceId: number) {
   return source;
 }
 
-// The snapshot leaves track order to the renderer, so tests compare tracks in title order.
 export function readLibrary() {
   const library = parseLibrarySnapshot(getLibrarySnapshotJson());
 
