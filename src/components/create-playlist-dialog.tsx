@@ -20,7 +20,7 @@ import {
   normalizePlaylistText,
   playlistDescriptionMaxLength,
   playlistTitleMaxLength,
-} from "@shared/playlists";
+} from "@shared/playlist-text";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
 export type PlaylistCreationRequest = {

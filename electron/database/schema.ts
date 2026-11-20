@@ -10,7 +10,7 @@ import {
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
-import { playlistDescriptionMaxLength, playlistTitleMaxLength } from "@shared/playlists";
+import { playlistDescriptionMaxLength, playlistTitleMaxLength } from "@shared/playlist-text";
 
 const sourceStatuses = ["active", "off", "forgotten"] as const;
 

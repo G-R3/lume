@@ -12,7 +12,7 @@ import {
   normalizePlaylistText,
   playlistDescriptionMaxLength,
   playlistTitleMaxLength,
-} from "@shared/playlists";
+} from "@shared/playlist-text";
 import { getDatabase, parameterChunks, type LibraryTransaction } from "./database";
 import { commitLibrary, currentLibraryRevision } from "./library-events";
 import { playlistTracks, playlists, tracks } from "./database/schema";
