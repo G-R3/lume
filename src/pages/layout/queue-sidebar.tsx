@@ -30,7 +30,7 @@ import type { PlaybackPhase } from "@/lib/playback-phase";
 import type { QueueItem, QueueLane } from "@/lib/queue/model";
 import { PlaybackNotices } from "@/pages/layout/playback-notices";
 import { showTruncatedText } from "@/lib/show-truncated-text";
-import { trackIndex } from "@/lib/track-index";
+import { getTracksById } from "@/lib/tracks-by-id";
 import { cn } from "@/lib/utils";
 
 const VISIBLE_ROWS = 50;
@@ -77,7 +77,7 @@ function QueuePanel() {
 
   const currentHeading = useRef<HTMLHeadingElement>(null);
 
-  const tracksById = trackIndex(library.tracks);
+  const tracksById = getTracksById(library.tracks);
 
   const queue = playback.queue;
 

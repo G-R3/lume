@@ -8,7 +8,7 @@ import { toast } from "@/components/ui/toast";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { usePlaylist } from "@/lib/playlist-query";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
-import { trackIndex } from "@/lib/track-index";
+import { getTracksById } from "@/lib/tracks-by-id";
 import { playlistRows, sortRows } from "@/lib/track-sort";
 import { useViewSort } from "@/lib/view-sort";
 import { PlaylistHeader } from "@/pages/playlist/playlist-header";
@@ -54,7 +54,7 @@ export function PlaylistContent({ playlist }: { playlist: PlaylistDetails }) {
   const filterRef = useRef<FilterFieldHandle>(null);
   const source = { kind: "playlist", playlistId: playlist.id, title: playlist.title } as const;
   const [sort, stepSort] = useViewSort(source);
-  const sorted = sortRows(source, playlistRows(playlist, trackIndex(library.tracks)), sort);
+  const sorted = sortRows(source, playlistRows(playlist, getTracksById(library.tracks)), sort);
   const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
 
   const clearFilter = () => {

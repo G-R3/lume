@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Track } from "@shared/library";
-import { trackIndex } from "./track-index";
+import { getTracksById } from "./tracks-by-id";
 
 function track(id: number): Track {
   return {
@@ -32,10 +32,10 @@ function track(id: number): Track {
   };
 }
 
-describe("trackIndex", () => {
+describe("getTracksById", () => {
   it("finds each track by id", () => {
     const tracks = [track(3), track(7)];
-    const index = trackIndex(tracks);
+    const index = getTracksById(tracks);
 
     expect(index.get(7)).toBe(tracks[1]);
     expect(index.get(3)).toBe(tracks[0]);
@@ -45,14 +45,14 @@ describe("trackIndex", () => {
   it("returns the same index for the same tracks array", () => {
     const tracks = [track(1)];
 
-    expect(trackIndex(tracks)).toBe(trackIndex(tracks));
+    expect(getTracksById(tracks)).toBe(getTracksById(tracks));
   });
 
   it("builds a new index for a new tracks array", () => {
     const first = [track(1)];
     const second = [track(1), track(2)];
 
-    expect(trackIndex(first)).not.toBe(trackIndex(second));
-    expect(trackIndex(second).get(2)).toBe(second[1]);
+    expect(getTracksById(first)).not.toBe(getTracksById(second));
+    expect(getTracksById(second).get(2)).toBe(second[1]);
   });
 });
