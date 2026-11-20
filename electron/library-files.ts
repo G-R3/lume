@@ -2,19 +2,15 @@ import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { Readable } from "node:stream";
+import { audioFormats } from "@shared/audio-formats";
 import type { TrackMetadata } from "@shared/library";
 import type { tracks } from "./database/schema";
 
-export const audioContentTypes: ReadonlyMap<string, string> = new Map([
-  [".aac", "audio/aac"],
-  [".flac", "audio/flac"],
-  [".m4a", "audio/mp4"],
-  [".mp3", "audio/mpeg"],
-  [".oga", "audio/ogg"],
-  [".ogg", "audio/ogg"],
-  [".opus", "audio/ogg"],
-  [".wav", "audio/wav"],
-]);
+export const audioContentTypes: ReadonlyMap<string, string> = new Map(
+  audioFormats.flatMap(({ contentType, extensions }) =>
+    extensions.map((extension) => [extension, contentType] as const),
+  ),
+);
 
 const artworkMediaTypes: ReadonlyMap<string, string> = new Map([
   ["image/jpeg", "image/jpeg"],

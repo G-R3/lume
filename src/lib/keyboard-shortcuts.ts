@@ -1,94 +1,76 @@
 import { useEffect, useRef } from "react";
 
-export type KeyboardShortcut = {
-  name: string;
-  key: string;
-  commandOrControl?: boolean;
-  shift?: boolean;
-  alt?: boolean;
-  allowInEditable?: boolean;
-  yieldToButtons?: boolean;
-  yieldToOverlays?: boolean;
-  action: () => void;
+export type Chord = {
+  readonly key: string;
+  readonly mod?: true;
+  readonly shift?: true;
+  readonly alt?: true;
 };
 
-export function useKeyboardShortcuts(shortcuts: readonly KeyboardShortcut[], isMac: boolean) {
-  const handler = createKeyboardShortcutHandler(shortcuts, isMac);
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+export type PlatformChord = Chord | { readonly mac: Chord; readonly other: Chord };
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => handlerRef.current(event);
+export type KeyPress = Pick<KeyboardEvent, "key" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey">;
 
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
+type GlobalShortcut = {
+  readonly chord: PlatformChord;
+  readonly allowInEditable?: true;
+  readonly yieldToButtons?: true;
+  readonly yieldToOverlays?: true;
+};
 
-    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
-  }, []);
+export const globalShortcuts = {
+  togglePlayback: { chord: { key: " " }, yieldToButtons: true },
+  nextTrack: { chord: { key: "ArrowRight", mod: true } },
+  previousTrack: { chord: { key: "ArrowLeft", mod: true } },
+  toggleSidebar: { chord: { key: "b", mod: true } },
+  newPlaylist: { chord: { key: "n", mod: true }, yieldToOverlays: true },
+  toggleMute: { chord: { key: "m" } },
+  toggleQueue: { chord: { key: "q" } },
+  focusFilter: { chord: { key: "/" }, yieldToOverlays: true },
+  // Layouts such as German or French AZERTY type "/" with Shift.
+  focusFilterWithShift: { chord: { key: "/", shift: true }, yieldToOverlays: true },
+} satisfies Record<string, GlobalShortcut>;
+
+export type GlobalShortcutId = keyof typeof globalShortcuts;
+
+function isGlobalShortcutId(id: string): id is GlobalShortcutId {
+  return Object.hasOwn(globalShortcuts, id);
 }
 
-export function createKeyboardShortcutHandler(
-  shortcuts: readonly KeyboardShortcut[],
-  isMac: boolean,
-) {
-  const shortcutsBySignature = new Map<string, KeyboardShortcut>();
+export const dialogChords = {
+  confirmDelete: { key: "Backspace", mod: true },
+  createFromSearch: { key: "Enter", mod: true },
+  submitDescription: { key: "Enter", mod: true },
+} satisfies Record<string, Chord>;
 
-  shortcuts.forEach((shortcut) => {
-    const signature = getShortcutSignature(shortcut, isMac);
-    const duplicate = shortcutsBySignature.get(signature);
+export function resolveChord(chord: PlatformChord, isMac = window.lume.isMac): Chord {
+  if (!("mac" in chord)) return chord;
 
-    if (duplicate) {
-      throw new Error(
-        `Keyboard shortcut "${shortcut.name}" duplicates "${duplicate.name}" (${formatShortcut(shortcut)})`,
-      );
-    }
-
-    shortcutsBySignature.set(signature, shortcut);
-  });
-
-  return (event: KeyboardEvent) => {
-    if (event.repeat || event.isComposing) return;
-
-    const shortcut = shortcutsBySignature.get(
-      createSignature(event.key, event.ctrlKey, event.metaKey, event.shiftKey, event.altKey),
-    );
-
-    if (
-      !shortcut ||
-      (!shortcut.allowInEditable && eventTargetMatches(event, editableSelector)) ||
-      (shortcut.yieldToButtons && eventTargetMatches(event, buttonSelector)) ||
-      (shortcut.yieldToOverlays && eventTargetMatches(event, overlaySelector))
-    )
-      return;
-
-    event.preventDefault();
-    shortcut.action();
-  };
+  return isMac ? chord.mac : chord.other;
 }
 
-function getShortcutSignature(shortcut: KeyboardShortcut, isMac: boolean) {
-  return createSignature(
-    shortcut.key,
-    Boolean(shortcut.commandOrControl && !isMac),
-    Boolean(shortcut.commandOrControl && isMac),
-    Boolean(shortcut.shift),
-    Boolean(shortcut.alt),
+export function matchesChord(chord: PlatformChord, event: KeyPress, isMac = window.lume.isMac) {
+  const { key, mod, shift, alt } = resolveChord(chord, isMac);
+
+  return (
+    key.toLowerCase() === event.key.toLowerCase() &&
+    Boolean(mod) === (isMac ? event.metaKey : event.ctrlKey) &&
+    !(isMac ? event.ctrlKey : event.metaKey) &&
+    Boolean(shift) === event.shiftKey &&
+    Boolean(alt) === event.altKey
   );
 }
 
-function createSignature(
-  key: string,
-  control: boolean,
-  meta: boolean,
-  shift: boolean,
-  alt: boolean,
-) {
-  return `${normalizeKey(key)}:${Number(control)}${Number(meta)}${Number(shift)}${Number(alt)}`;
+export function keyName(key: string) {
+  return key.length === 1 ? key.toUpperCase() : key;
 }
 
-function normalizeKey(key: string) {
-  if (key === " ") return "space";
+export function ariaKeyShortcuts(chord: PlatformChord, isMac = window.lume.isMac) {
+  const { key, mod, shift, alt } = resolveChord(chord, isMac);
 
-  return key.toLowerCase();
+  return [mod && (isMac ? "Meta" : "Control"), shift && "Shift", alt && "Alt", keyName(key)]
+    .filter(Boolean)
+    .join("+");
 }
 
 const editableSelector =
@@ -102,26 +84,49 @@ export function isEditableElement(element: Element) {
   return element.closest(editableSelector) !== null;
 }
 
-function eventTargetMatches(event: KeyboardEvent, selector: string) {
-  return event
-    .composedPath()
-    .some((target) => target instanceof Element && target.matches(selector));
+export function isInOverlay(element: Element) {
+  return element.closest(overlaySelector) !== null;
 }
 
-function formatShortcut(shortcut: KeyboardShortcut) {
-  return [
-    shortcut.commandOrControl && "Command/Control",
-    shortcut.shift && "Shift",
-    shortcut.alt && "Alt",
-    shortcut.key === " " ? "Space" : shortcut.key,
-  ]
-    .filter(Boolean)
-    .join("+");
+function isEligible(shortcut: GlobalShortcut, target: EventTarget | null) {
+  if (!(target instanceof Element)) return true;
+
+  return !(
+    (!shortcut.allowInEditable && isEditableElement(target)) ||
+    (shortcut.yieldToButtons && target.closest(buttonSelector)) ||
+    (shortcut.yieldToOverlays && isInOverlay(target))
+  );
 }
 
-export function getSidebarShortcut(isMac: boolean) {
-  return {
-    ariaKeyShortcuts: isMac ? "Meta+B" : "Control+B",
-    key: "b",
-  };
+export function useGlobalShortcuts(actions: Partial<Record<GlobalShortcutId, () => void>>) {
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.isComposing) return;
+
+      for (const id of Object.keys(actionsRef.current).filter(isGlobalShortcutId)) {
+        const shortcut: GlobalShortcut = globalShortcuts[id];
+        const action = actionsRef.current[id];
+
+        if (
+          !action ||
+          !matchesChord(shortcut.chord, event) ||
+          !isEligible(shortcut, event.target)
+        ) {
+          continue;
+        }
+
+        event.preventDefault();
+        action();
+
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, []);
 }

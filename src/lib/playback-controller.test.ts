@@ -1,7 +1,7 @@
 import {
   selectActiveSourceEntryId,
   selectCurrentItem,
-  selectPlaybackStatus,
+  selectPlaybackIntent,
 } from "./queue/selectors";
 import { expect, it, vi } from "vite-plus/test";
 import { ZodError } from "zod";
@@ -144,7 +144,7 @@ it.each([
     });
 
     await expect
-      .poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue))
+      .poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue))
       .toBe("paused");
 
     expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(2);
@@ -180,7 +180,7 @@ it("stays stopped when the source no longer has any available tracks", async () 
 
   playback.controller.next();
 
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("stopped");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("stopped");
   expect(playback.requests.at(-1)).toBeNull();
 });
 
@@ -209,7 +209,7 @@ it.each([
     });
     playback.controller.next();
     await settle();
-    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("stopped");
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("stopped");
 
     playback.controller.syncLibrary(library);
     playback.controller.resume();
@@ -221,7 +221,7 @@ it.each([
         position: 0,
         shouldPlay: true,
       });
-    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
 
     const restarted = playback.requests.at(-1);
 
@@ -235,7 +235,7 @@ it.each([
     await expect
       .poll(() => playback.requests.at(-1))
       .toMatchObject({ url: "lume://track/1", shouldPlay: false });
-    expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
   },
 );
 
@@ -617,13 +617,13 @@ it("restarts the current shuffled row in place and ignores events from its old l
     requestId: current.requestId,
     queueItemId: current.queueItemId,
   });
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
   playback.controller.handleAudioEvent({
     type: "started",
     requestId: current.requestId,
     queueItemId: current.queueItemId,
   });
-  expect(selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("playing");
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
 });
 
 it("saves only the latest pending queue and flushes the final position before closing", async () => {
@@ -1292,7 +1292,7 @@ it("starts the first queued track of a stopped session and clears the track fail
 
   expect(published).toEqual([{ track: null, current: 3 }]);
   const queue = playback.controller.getSnapshot().queue;
-  expect(selectPlaybackStatus(queue)).toBe("playing");
+  expect(selectPlaybackIntent(queue)).toBe("playing");
   expect(selectCurrentItem(queue)?.trackId).toBe(3);
   expect(selectActiveSourceEntryId(queue)).toBeNull();
   expect(playback.controller.getSnapshot().queue?.manualQueue.map((item) => item.trackId)).toEqual([
@@ -1338,7 +1338,6 @@ it("recovers from a failed restore with a restore failure and no queue, then pla
     expect(consoleError.mock.calls).toEqual([
       ["Could not load the saved playback session", rejection],
     ]);
-    expect(consoleError.mock.calls[0]?.[1]).toBe(rejection);
     expect(playback.controller.getSnapshot()).toMatchObject({
       queue: null,
       failures: { ...noFailures, restore: true },
@@ -1494,7 +1493,7 @@ it("re-reads instead of failing when the playlist is edited during a failed queu
   firstRead.reject(new Error("Playlist unavailable"));
 
   await expect
-    .poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue))
+    .poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue))
     .toBe("paused");
   expect(playback.controller.getSnapshot()).toMatchObject({
     failures: noFailures,
@@ -1529,7 +1528,7 @@ it.each(["before", "after"] as const)(
 
     if (pushed === "before") playback.commit(addition);
     read.resolve({ revision: 1, playlist: twoTrackPlaylist });
-    await expect.poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+    await expect.poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
 
     if (pushed === "after") playback.commit(addition);
 
@@ -1545,7 +1544,7 @@ it("keeps out an edit older than the read a queue-end restart started from", asy
 
   playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
   playback.controller.next();
-  await expect.poll(() => selectPlaybackStatus(playback.controller.getSnapshot().queue)).toBe("paused");
+  await expect.poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
   playback.controller.applySourceChange(
     { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 11, trackId: 2 }] },
     1,
@@ -1617,6 +1616,88 @@ it.each(["resolves", "rejects"] as const)(
     expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
   },
 );
+
+it("keeps playing into the next track when skipping before the first one starts", async () => {
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
+
+  playback.controller.next();
+
+  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
+});
+
+it.each(["the Pause control before the element confirms it", "the media element"] as const)(
+  "stays on a track that fails after a pause from %s, and saves the pause",
+  async (pausedBy) => {
+    const playback = await createReadyPlayback(libraryOf([1, 2]));
+    playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+    const loaded = playback.requests.at(-1);
+
+    if (!loaded) throw new Error("Expected the track to load");
+    playback.controller.handleAudioEvent({
+      type: "started",
+      requestId: loaded.requestId,
+      queueItemId: loaded.queueItemId,
+    });
+
+    if (pausedBy === "the media element")
+      playback.controller.handleAudioEvent({
+        type: "paused",
+        requestId: loaded.requestId,
+        queueItemId: loaded.queueItemId,
+      });
+    else playback.controller.pause();
+
+    expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
+    await expect
+      .poll(() => JSON.parse(playback.stored()?.payload ?? "null")?.playback)
+      .toMatchObject({ status: "paused", current: { trackId: 1 } });
+
+    playback.controller.handleAudioEvent({
+      type: "error",
+      requestId: loaded.requestId,
+      queueItemId: loaded.queueItemId,
+      reason: "load",
+    });
+
+    expect(selectCurrentItem(playback.controller.getSnapshot().queue)?.trackId).toBe(1);
+    expect(playback.requests).toEqual([loaded]);
+
+    playback.controller.next();
+
+    expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
+  },
+);
+
+it("records the intent to play only once the element starts after Play", async () => {
+  const playback = await createReadyPlayback(libraryOf([1, 2]));
+  playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+  playback.controller.pause();
+  const loaded = playback.requests.at(-1);
+
+  if (!loaded) throw new Error("Expected the track to load");
+  playback.controller.resume();
+
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
+
+  playback.controller.handleAudioEvent({
+    type: "started",
+    requestId: loaded.requestId,
+    queueItemId: loaded.queueItemId,
+  });
+
+  expect(selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("playing");
+
+  playback.controller.handleAudioEvent({
+    type: "ended",
+    requestId: loaded.requestId,
+    queueItemId: loaded.queueItemId,
+  });
+
+  expect(playback.requests.at(-1)).toMatchObject({ url: "lume://track/2", shouldPlay: true });
+});
 
 it("resumes the loaded track in place without reloading it", async () => {
   const playback = await createReadyPlayback(libraryOf([1]));
@@ -1730,7 +1811,7 @@ it.each([
       .toEqual(failedTrack && expect.objectContaining(failedTrack));
     const queue = playback.controller.getSnapshot().queue;
     expect(selectCurrentItem(queue)?.trackId).toBe(current);
-    expect(selectPlaybackStatus(queue)).toBe("paused");
+    expect(selectPlaybackIntent(queue)).toBe("paused");
     expect(checked).toEqual(reason === "load" ? [1] : []);
   },
 );

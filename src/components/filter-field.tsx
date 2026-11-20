@@ -9,7 +9,7 @@ import {
 } from "react";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
-import { useKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
+import { useGlobalShortcuts } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 export type FilterFieldHandle = { focus: () => void };
@@ -43,20 +43,7 @@ export function FilterField({
 
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
 
-  // Layouts such as German or French AZERTY type "/" with Shift.
-  useKeyboardShortcuts(
-    [
-      { name: "Focus filter", key: "/", yieldToOverlays: true, action: focusField },
-      {
-        name: "Focus filter with Shift",
-        key: "/",
-        shift: true,
-        yieldToOverlays: true,
-        action: focusField,
-      },
-    ],
-    window.lume.isMac,
-  );
+  useGlobalShortcuts({ focusFilter: focusField, focusFilterWithShift: focusField });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     onKeyDown?.(event);

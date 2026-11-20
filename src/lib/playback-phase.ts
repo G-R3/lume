@@ -1,6 +1,6 @@
 import type { MediaView } from "@/lib/media-lifecycle";
 import type { QueueState } from "@/lib/queue/model";
-import { selectCurrentItem, selectPlaybackStatus } from "@/lib/queue/selectors";
+import { selectCurrentItem, selectPlaybackIntent } from "@/lib/queue/selectors";
 
 export type FileCheck = "checking" | "missing" | "unreadable";
 
@@ -59,7 +59,7 @@ export function derivePlaybackPhase(
   if (!availableTrackIds.has(current.trackId))
     return { kind: "failed", reason: { kind: "unavailable" } };
 
-  return selectPlaybackStatus(queue) === "playing" ? { kind: "loading" } : { kind: "paused" };
+  return selectPlaybackIntent(queue) === "playing" ? { kind: "loading" } : { kind: "paused" };
 }
 
 export function pausesOnToggle(phase: PlaybackPhase) {

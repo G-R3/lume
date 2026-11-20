@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePlayback } from "@/hooks/use-playback";
 import { formatTotalDuration } from "@/lib/format-duration";
+import { formatTrackCount } from "@/lib/format-track-count";
 import { sessionSource } from "@/lib/queue/source";
 import type { SortField, TrackRow, TrackSort } from "@/lib/track-sort";
 
@@ -41,7 +42,6 @@ export function PlaylistHeader({
   const trackCount = filter === null ? playlist.tracks.length : items.length;
   const showsCount = filter !== null || trackCount > 0;
   const canPlay = playback.isInitialized && items.some((item) => item.track.available);
-  const totalDuration = items.reduce((total, item) => total + (item.track.duration ?? 0), 0);
 
   return (
     <header className="flex h-22 shrink-0 items-center gap-4 pr-4 pl-6" data-slot="page-header">
@@ -56,9 +56,9 @@ export function PlaylistHeader({
             )}
             {showsCount && (
               <span className="shrink-0 text-meta tabular-nums">
-                {trackCount.toLocaleString()} {trackCount === 1 ? "track" : "tracks"}
+                {formatTrackCount(trackCount)}
                 {" · "}
-                {formatTotalDuration(totalDuration)}
+                {formatTotalDuration(items.map((item) => item.track))}
               </span>
             )}
           </p>

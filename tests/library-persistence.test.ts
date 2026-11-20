@@ -17,7 +17,7 @@ import {
   setTracksLiked,
 } from "../electron/library";
 import { createPlaylist, getPlaylist } from "../electron/playlists";
-import { scanAudioFiles } from "../electron/library-files";
+import { scanAudioFiles, trackMetadataVersion, type ScannedTrack } from "../electron/library-files";
 import { getArtworkUrl } from "@shared/app-urls";
 
 describe("library source persistence", () => {
@@ -289,6 +289,88 @@ describe("track persistence", () => {
     expect(getArtworkData(artwork.id)).toEqual({
       data: artwork.data,
       mediaType: artwork.mediaType,
+    });
+  });
+
+  it("updates every scanned field when a rescan finds changed tags", async () => {
+    const database = await openTestDatabase();
+    const folder = await createTemporaryFolder("lume-source-");
+    const source = await saveSource(folder);
+    const path = join(folder, "song.flac");
+
+    await scanWith(source.id, [
+      {
+        album: "Old album",
+        albumArtists: ["Old album artist"],
+        artists: ["Old artist"],
+        artwork: { data: Uint8Array.from([1]), id: "old-artwork", mediaType: "image/png" },
+        bitrate: 128_000,
+        bitsPerSample: 16,
+        channelCount: 1,
+        codec: "MP3",
+        discNumber: 1,
+        discTotal: 1,
+        duration: 100,
+        fileSize: 10,
+        format: "MP3",
+        genres: ["Old genre"],
+        kind: "changed",
+        lossless: false,
+        modifiedAt: 20,
+        path,
+        sampleRate: 44_100,
+        title: "Old title",
+        trackNumber: 1,
+        trackTotal: 2,
+        year: 1999,
+      },
+    ]);
+    const [original] = libraryTracks();
+
+    const rescanned = {
+      album: "New album",
+      albumArtists: ["New album artist"],
+      artists: ["New artist", "Guest"],
+      artwork: { data: Uint8Array.from([2]), id: "new-artwork", mediaType: "image/jpeg" },
+      bitrate: 2_304_000,
+      bitsPerSample: 24,
+      channelCount: 2,
+      codec: "FLAC",
+      discNumber: 2,
+      discTotal: 3,
+      duration: 200,
+      fileSize: 11,
+      format: "FLAC",
+      genres: ["New genre"],
+      kind: "changed",
+      lossless: true,
+      modifiedAt: 21,
+      path,
+      sampleRate: 96_000,
+      title: "New title",
+      trackNumber: 4,
+      trackTotal: 9,
+      year: 2024,
+    } satisfies ScannedTrack;
+
+    await scanWith(source.id, [rescanned]);
+
+    const { artwork, fileSize, kind: _kind, modifiedAt, path: _path, ...metadata } = rescanned;
+    expect(libraryTracks()).toStrictEqual([
+      {
+        ...original,
+        ...metadata,
+        artworkUrl: getArtworkUrl(artwork.id),
+      },
+    ]);
+    expect(
+      database.$client
+        .prepare("SELECT file_size, modified_at, metadata_version FROM tracks WHERE path = ?")
+        .get(path),
+    ).toEqual({
+      file_size: fileSize,
+      metadata_version: trackMetadataVersion,
+      modified_at: modifiedAt,
     });
   });
 

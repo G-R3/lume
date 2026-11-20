@@ -1,4 +1,4 @@
-import { selectActiveSourceEntryId, selectCurrentItem, selectPlaybackStatus } from "./selectors";
+import { selectActiveSourceEntryId, selectCurrentItem, selectPlaybackIntent } from "./selectors";
 import { expect, it } from "vite-plus/test";
 import type { QueuePosition } from "./commands";
 import type { QueueState } from "./model";
@@ -258,7 +258,7 @@ it.each([
 
     expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(expected);
     expect(selectCurrentItem(placed)).toEqual(selectCurrentItem(queued));
-    expect(selectPlaybackStatus(placed)).toBe(selectPlaybackStatus(queued));
+    expect(selectPlaybackIntent(placed)).toBe(selectPlaybackIntent(queued));
     expect(placed?.sourceQueue).toEqual(queued?.sourceQueue);
     expect(placed?.previousSourceItems).toEqual(queued?.previousSourceItems);
   },
@@ -326,7 +326,7 @@ it("starts the first Play next item of a stopped queue and queues the rest in or
 
   const placed = enqueue(ended, ["A", "B", "C"], "start", context);
 
-  expect(selectPlaybackStatus(placed)).toBe("playing");
+  expect(selectPlaybackIntent(placed)).toBe("playing");
   expect(selectCurrentItem(placed)?.queueItemId).toBe("A");
   expect(selectActiveSourceEntryId(placed)).toBeNull();
   expect(placed?.manualQueue.map((item) => item.queueItemId)).toEqual(["B", "C"]);

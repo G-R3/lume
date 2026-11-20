@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { formatTotalDuration } from "@/lib/format-duration";
+import { formatTrackCount } from "@/lib/format-track-count";
 import { useLibraryMutation, useScanningSources } from "@/lib/library-query";
 import { presentLibrarySources, type SourceEmpty } from "@/lib/source-presentation";
 import { matchesTrackFilter, parseTrackFilter } from "@/lib/track-filter";
@@ -39,7 +40,7 @@ export function TracksPage() {
   const sorted = sortRows(allTracks, listed, sort);
   const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
   const unavailableCount = items.filter((row) => !row.track.available).length;
-  const totalDuration = items.reduce((total, row) => total + (row.track.duration ?? 0), 0);
+  const totalDurationText = formatTotalDuration(items.map((row) => row.track));
 
   const unavailableText =
     unavailableCount > 0 ? ` · ${unavailableCount.toLocaleString()} unavailable` : "";
@@ -57,15 +58,15 @@ export function TracksPage() {
           <p className="truncate text-meta text-secondary tabular-nums">
             {filter ? (
               <>
-                {items.length.toLocaleString()} {items.length === 1 ? "track" : "tracks"}
+                {formatTrackCount(items.length)}
                 {" · "}
-                {formatTotalDuration(totalDuration)}
+                {totalDurationText}
                 {unavailableText}
               </>
             ) : (
               <TrackCount total={listed.length} isRevealing={reveal.isRevealing}>
                 {" · "}
-                {formatTotalDuration(totalDuration)}
+                {totalDurationText}
                 {unavailableText}
               </TrackCount>
             )}

@@ -1,6 +1,17 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import { and, count, eq, inArray, isNull, ne, notExists, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  getColumns,
+  inArray,
+  isNull,
+  ne,
+  notExists,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import {
   type LibrarySource,
   type SetTracksLikedInput,
@@ -11,12 +22,14 @@ import {
   type TrackTuple,
   type TrackTupleKey,
   albumArtistsIfDifferent,
+  trackTuplePositions,
   trackTupleKeys,
+  toTrackTuple,
   stringifyLibrary,
   stringifyFirstRunLibrary,
 } from "@shared/library-json";
 import { getArtworkUrl } from "@shared/app-urls";
-import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
+import type { SQLiteColumn, SQLiteInsertValue } from "drizzle-orm/sqlite-core";
 import {
   getDatabase,
   parameterChunks,
@@ -154,7 +167,6 @@ export function getLibrarySnapshotJson() {
     .select(storedTrackRowColumns)
     .from(tracks)
     .leftJoin(trackState, eq(trackState.trackId, tracks.id))
-    .orderBy(sql`${tracks.title} COLLATE NOCASE`, tracks.path)
     .values() as StoredTrackRow[];
 
   return stringifyLibrary(
@@ -183,69 +195,47 @@ function trackTupleFromRow(
   row: StoredTrackRow,
   gates: ReadonlyMap<number, SourceGate>,
 ): TrackTuple {
-  const [
-    addedAt,
-    album,
-    storedAlbumArtists,
-    storedArtists,
-    artworkId,
-    missingSince,
-    bitrate,
-    bitsPerSample,
-    channelCount,
-    codec,
-    discNumber,
-    discTotal,
-    duration,
-    format,
-    genres,
-    id,
-    likedAt,
-    lossless,
-    title,
-    sampleRate,
-    trackNumber,
-    trackTotal,
-    year,
-    sourceId,
-  ] = row;
-
+  const at = trackTuplePositions;
+  const sourceId = row[trackTupleKeys.length];
   const gate = gates.get(sourceId);
 
-  if (!gate) throw new Error(`Track ${id} belongs to unknown library source ${sourceId}`);
+  if (!gate) throw new Error(`Track ${row[at.id]} belongs to unknown library source ${sourceId}`);
 
-  const artists = tracks.artists.mapFromDriverValue(storedArtists);
+  const artists = tracks.artists.mapFromDriverValue(row[at.artists]);
 
   const albumArtists = displayAlbumArtists(
-    tracks.albumArtists.mapFromDriverValue(storedAlbumArtists),
+    tracks.albumArtists.mapFromDriverValue(row[at.albumArtists]),
     artists,
   );
 
-  return [
-    addedAt,
-    album,
-    albumArtistsIfDifferent(albumArtists, artists),
+  const artworkId = row[at.artworkUrl];
+  const lossless = row[at.lossless];
+
+  return toTrackTuple({
+    addedAt: row[at.addedAt],
+    album: row[at.album],
+    albumArtists: albumArtistsIfDifferent(albumArtists, artists),
     artists,
-    artworkId ? getArtworkUrl(artworkId) : null,
-    trackUnavailableReason(gate, missingSince),
-    bitrate,
-    bitsPerSample,
-    channelCount,
-    codec,
-    discNumber,
-    discTotal,
-    duration,
-    format,
-    tracks.genres.mapFromDriverValue(genres),
-    id,
-    likedAt,
-    lossless === null ? null : tracks.lossless.mapFromDriverValue(lossless),
-    title,
-    sampleRate,
-    trackNumber,
-    trackTotal,
-    year,
-  ];
+    artworkUrl: artworkId ? getArtworkUrl(artworkId) : null,
+    unavailableReason: trackUnavailableReason(gate, row[at.unavailableReason]),
+    bitrate: row[at.bitrate],
+    bitsPerSample: row[at.bitsPerSample],
+    channelCount: row[at.channelCount],
+    codec: row[at.codec],
+    discNumber: row[at.discNumber],
+    discTotal: row[at.discTotal],
+    duration: row[at.duration],
+    format: row[at.format],
+    genres: tracks.genres.mapFromDriverValue(row[at.genres]),
+    id: row[at.id],
+    likedAt: row[at.likedAt],
+    lossless: lossless === null ? null : tracks.lossless.mapFromDriverValue(lossless),
+    title: row[at.title],
+    sampleRate: row[at.sampleRate],
+    trackNumber: row[at.trackNumber],
+    trackTotal: row[at.trackTotal],
+    year: row[at.year],
+  });
 }
 
 export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
@@ -284,12 +274,16 @@ export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
   return { likes, revision: currentLibraryRevision() };
 }
 
+const notForgottenSource = ne(librarySources.status, "forgotten");
+
+const enabledSource = eq(librarySources.status, "active");
+
 export function getSources() {
-  return selectSources(ne(librarySources.status, "forgotten")).map(sourceFromRow);
+  return selectSources(notForgottenSource).map(sourceFromRow);
 }
 
 function getEnabledSources() {
-  return selectSources(eq(librarySources.status, "active"));
+  return selectSources(enabledSource);
 }
 
 function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
@@ -297,7 +291,7 @@ function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
     database
       .select({ path: librarySources.path })
       .from(librarySources)
-      .where(and(eq(librarySources.id, sourceId), eq(librarySources.status, "active")))
+      .where(and(eq(librarySources.id, sourceId), enabledSource))
       .get()?.path ?? null
   );
 }
@@ -410,7 +404,7 @@ function setSourceStatus(sourceId: number, status: SourceRow["status"]) {
       .where(
         status === "forgotten"
           ? eq(librarySources.id, sourceId)
-          : and(eq(librarySources.id, sourceId), ne(librarySources.status, "forgotten")),
+          : and(eq(librarySources.id, sourceId), notForgottenSource),
       )
       .returning({ id: librarySources.id })
       .get();
@@ -601,64 +595,47 @@ function commitSourceScan(
       .onConflictDoNothing({ target: artwork.id })
       .prepare();
 
+    const scannedTrackValues = {
+      album: sql.placeholder("album"),
+      albumArtists: sql.placeholder("albumArtists"),
+      artists: sql.placeholder("artists"),
+      artworkId: sql.placeholder("artworkId"),
+      bitrate: sql.placeholder("bitrate"),
+      bitsPerSample: sql.placeholder("bitsPerSample"),
+      channelCount: sql.placeholder("channelCount"),
+      codec: sql.placeholder("codec"),
+      createdAt: now,
+      discNumber: sql.placeholder("discNumber"),
+      discTotal: sql.placeholder("discTotal"),
+      duration: sql.placeholder("duration"),
+      fileSize: sql.placeholder("fileSize"),
+      format: sql.placeholder("format"),
+      genres: sql.placeholder("genres"),
+      lossless: sql.placeholder("lossless"),
+      metadataVersion: trackMetadataVersion,
+      modifiedAt: sql.placeholder("modifiedAt"),
+      path: sql.placeholder("path"),
+      sampleRate: sql.placeholder("sampleRate"),
+      sourceId,
+      title: sql.placeholder("title"),
+      trackNumber: sql.placeholder("trackNumber"),
+      trackTotal: sql.placeholder("trackTotal"),
+      updatedAt: now,
+      year: sql.placeholder("year"),
+    } satisfies Required<Omit<SQLiteInsertValue<typeof tracks>, "id" | "missingSince">>;
+
     const saveTrack = transaction
       .insert(tracks)
-      .values({
-        album: sql.placeholder("album"),
-        albumArtists: sql.placeholder("albumArtists"),
-        artists: sql.placeholder("artists"),
-        artworkId: sql.placeholder("artworkId"),
-        bitrate: sql.placeholder("bitrate"),
-        bitsPerSample: sql.placeholder("bitsPerSample"),
-        channelCount: sql.placeholder("channelCount"),
-        codec: sql.placeholder("codec"),
-        createdAt: now,
-        discNumber: sql.placeholder("discNumber"),
-        discTotal: sql.placeholder("discTotal"),
-        duration: sql.placeholder("duration"),
-        fileSize: sql.placeholder("fileSize"),
-        format: sql.placeholder("format"),
-        genres: sql.placeholder("genres"),
-        lossless: sql.placeholder("lossless"),
-        metadataVersion: trackMetadataVersion,
-        modifiedAt: sql.placeholder("modifiedAt"),
-        path: sql.placeholder("path"),
-        sampleRate: sql.placeholder("sampleRate"),
-        sourceId,
-        title: sql.placeholder("title"),
-        trackNumber: sql.placeholder("trackNumber"),
-        trackTotal: sql.placeholder("trackTotal"),
-        updatedAt: now,
-        year: sql.placeholder("year"),
-      })
+      .values(scannedTrackValues)
       .onConflictDoUpdate({
         target: tracks.path,
         set: {
-          album: sql`excluded.album`,
-          albumArtists: sql`excluded.album_artists`,
-          artists: sql`excluded.artists`,
-          artworkId: sql`excluded.artwork_id`,
-          bitrate: sql`excluded.bitrate`,
-          bitsPerSample: sql`excluded.bits_per_sample`,
-          channelCount: sql`excluded.channel_count`,
-          codec: sql`excluded.codec`,
-          discNumber: sql`excluded.disc_number`,
-          discTotal: sql`excluded.disc_total`,
-          duration: sql`excluded.duration`,
-          fileSize: sql`excluded.file_size`,
-          format: sql`excluded.format`,
-          genres: sql`excluded.genres`,
-          lossless: sql`excluded.lossless`,
-          metadataVersion: sql`excluded.metadata_version`,
+          ...Object.fromEntries(
+            Object.entries(getColumns(tracks))
+              .filter(([key]) => key in scannedTrackValues && key !== "createdAt" && key !== "path")
+              .map(([key, column]) => [key, sql`excluded.${sql.identifier(column.name)}`]),
+          ),
           missingSince: null,
-          modifiedAt: sql`excluded.modified_at`,
-          sampleRate: sql`excluded.sample_rate`,
-          sourceId: sql`excluded.source_id`,
-          title: sql`excluded.title`,
-          trackNumber: sql`excluded.track_number`,
-          trackTotal: sql`excluded.track_total`,
-          updatedAt: sql`excluded.updated_at`,
-          year: sql`excluded.year`,
         },
       })
       .prepare();
@@ -722,7 +699,7 @@ function rejectSourceOverlap(database: LibraryTransaction, path: string) {
   const overlappingPath = database
     .select({ path: librarySources.path })
     .from(librarySources)
-    .where(ne(librarySources.status, "forgotten"))
+    .where(notForgottenSource)
     .all()
     .find((source) => source.path !== path && pathsOverlap(source.path, path));
 

@@ -1,6 +1,6 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { BackspaceIcon, DotsThreeIcon, MinusCircleIcon } from "@phosphor-icons/react";
-import { type ReactNode, type Ref, useMemo, useRef, useState } from "react";
+import { type ReactNode, type Ref, useRef, useState } from "react";
 import type { Track } from "@shared/library";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,14 @@ import {
 } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
+import { formatArtists } from "@/lib/format-artist";
 import { formatDuration, formatTotalDuration } from "@/lib/format-duration";
+import { formatTrackCount } from "@/lib/format-track-count";
 import type { PlaybackPhase } from "@/lib/playback-phase";
 import type { QueueItem, QueueLane } from "@/lib/queue/model";
 import { PlaybackNotices } from "@/pages/layout/playback-notices";
 import { showTruncatedText } from "@/lib/show-truncated-text";
+import { getTracksById } from "@/lib/tracks-by-id";
 import { cn } from "@/lib/utils";
 
 const VISIBLE_ROWS = 50;
@@ -74,10 +77,7 @@ function QueuePanel() {
 
   const currentHeading = useRef<HTMLHeadingElement>(null);
 
-  const tracksById = useMemo(
-    () => new Map(library.tracks.map((track) => [track.id, track])),
-    [library],
-  );
+  const tracksById = getTracksById(library.tracks);
 
   const queue = playback.queue;
 
@@ -94,11 +94,6 @@ function QueuePanel() {
   const queuedItems = queue
     ? [...(queue.current ? [queue.current] : []), ...queue.manualQueue, ...queue.sourceQueue]
     : [];
-
-  const queuedDuration = queuedItems.reduce(
-    (total, item) => total + (tracksById.get(item.trackId)?.duration ?? 0),
-    0,
-  );
 
   const remove = (
     queueItemId: string,
@@ -134,7 +129,7 @@ function QueuePanel() {
         <h2 className="text-title font-semibold text-primary">Queue</h2>
         <p className="min-w-0 flex-1 truncate text-meta text-secondary">
           {queuedItems.length > 0 &&
-            `${queuedItems.length.toLocaleString()} ${queuedItems.length === 1 ? "track" : "tracks"} · ${formatTotalDuration(queuedDuration)}`}
+            `${formatTrackCount(queuedItems.length)} · ${formatTotalDuration(queuedItems.flatMap((item) => tracksById.get(item.trackId) ?? []))}`}
         </p>
       </SidebarHeader>
       <SidebarContent
@@ -359,7 +354,7 @@ function QueueTrack({
           data-truncate
           dir="auto"
         >
-          {track?.artists.join(", ") || "Unknown artist"}
+          {formatArtists(track?.artists)}
         </span>
       </span>
       {unavailable && <span className="shrink-0 text-meta text-secondary">Unavailable</span>}

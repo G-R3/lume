@@ -93,6 +93,22 @@ describe("createTrackResponse", () => {
   });
 
   it.each([
+    [".aac", "audio/aac"],
+    [".flac", "audio/flac"],
+    [".m4a", "audio/mp4"],
+    [".mp3", "audio/mpeg"],
+    [".oga", "audio/ogg"],
+    [".ogg", "audio/ogg"],
+    [".opus", "audio/ogg"],
+    [".wav", "audio/wav"],
+  ])("serves %s files as %s", async (extension, contentType) => {
+    const path = await createAudioFile(`track${extension}`);
+    const response = await createTrackResponse(path, new Request("lume://app/media/track"));
+
+    expect(response.headers.get("content-type")).toBe(contentType);
+  });
+
+  it.each([
     {
       description: "a bounded range",
       expectedBody: [2, 3, 4, 5],

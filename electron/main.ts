@@ -2,7 +2,8 @@ import { join } from "node:path";
 import { app, BrowserWindow, dialog, protocol, session, shell } from "electron";
 import { appScheme, packagedRendererUrl } from "@shared/app-urls";
 import { loadRenderer, registerProtocolHandler } from "./protocol";
-import { closeDatabase, getLibraryDatabasePath, initializeDatabase } from "./database";
+import { closeDatabase, initializeDatabase } from "./database";
+import { getLibraryDatabasePath } from "./database/location";
 import { registerIpc } from "./ipc";
 import { scanEnabledSources, scanInBackground } from "./library";
 

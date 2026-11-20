@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { _electron as electron, type ElectronApplication, type Locator, type Page } from "playwright";
 import { afterEach } from "vite-plus/test";
 import { closeDatabase, initializeDatabase } from "../electron/database";
+import { getLibraryDatabasePath } from "../electron/database/location";
 import { saveSource, scanSource } from "../electron/library";
 import { createPlaylist } from "../electron/playlists";
 import { libraryTracks } from "../tests/helpers/library";
@@ -40,7 +41,7 @@ export async function launchLume(profile: string) {
 
 export async function openDatabase(profile: string) {
   await initializeDatabase({
-    location: join(profile, "lume-dev.sqlite"),
+    location: getLibraryDatabasePath(profile, false),
     migrationsFolder: join(process.cwd(), "drizzle"),
   });
 }
