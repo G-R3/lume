@@ -16,7 +16,11 @@ function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
   return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />;
 }
 
-function AlertDialogOverlay({ className, onMouseDown, ...props }: AlertDialogPrimitive.Backdrop.Props) {
+function AlertDialogOverlay({
+  className,
+  onMouseDown,
+  ...props
+}: AlertDialogPrimitive.Backdrop.Props) {
   return (
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"

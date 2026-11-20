@@ -11,8 +11,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary:
-          "bg-inverse-control text-inverse hover:not-data-disabled:bg-inverse-control-hover",
+        primary: "bg-inverse-control text-inverse hover:not-data-disabled:bg-inverse-control-hover",
         secondary:
           "bg-control text-primary inset-ring inset-ring-control hover:not-data-disabled:bg-control-hover",
         ghost:
