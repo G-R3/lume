@@ -3,20 +3,22 @@ import {
   ArrowElbowDownLeftIcon,
   ArrowRightIcon,
   ArrowUpIcon,
-  CommandIcon,
 } from "@phosphor-icons/react";
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
 import type { PlaylistSummary } from "@shared/library";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
-import { cn } from "@/lib/utils";
+import { ariaKeyShortcuts, dialogChords, matchesChord } from "@/lib/keyboard-shortcuts";
 import { Kbd } from "@/components/ui/kbd";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { SelectionShortcutKeys } from "@/components/track-list/selection/selection-shortcut-keys";
-import { matchSelectionShortcut } from "@/components/track-list/selection/selection-shortcuts";
+import {
+  matchSelectionShortcut,
+  selectionChords,
+} from "@/components/track-list/selection/selection-shortcuts";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 import type { QueuePosition } from "@/lib/queue/commands";
 
@@ -174,25 +176,23 @@ export function AddToPlaylistDialog({
                 <span className="truncate text-meta text-primary">{targetLabel}</span>
               </span>
               <Autocomplete.Input
-                aria-keyshortcuts={window.lume.isMac ? "Meta+Enter" : "Control+Enter"}
+                aria-keyshortcuts={ariaKeyShortcuts(dialogChords.createFromSearch)}
                 aria-label="Find a playlist"
                 className="h-full min-w-0 flex-1 bg-transparent text-title font-normal tracking-normal text-primary caret-accent outline-none placeholder:text-placeholder"
                 onKeyDown={(event) => {
-                  if (event.key !== "Enter") return;
-
-                  if (window.lume.isMac ? event.metaKey : event.ctrlKey) {
+                  if (matchesChord(dialogChords.createFromSearch, event)) {
                     event.preventDefault();
                     handleSelect(createItem);
 
                     return;
                   }
 
-                  const shortcut = matchSelectionShortcut(event, window.lume.isMac, {
+                  const shortcut = matchSelectionShortcut(event, {
                     playlist: false,
                     queue: onQueue !== null,
                   });
 
-                  if (shortcut === "queue" || shortcut === "playNext") {
+                  if (shortcut === "addToQueue" || shortcut === "playNext") {
                     event.preventDefault();
                     handleSelect(shortcut === "playNext" ? playNextItem : addToQueueItem);
                   }
@@ -240,7 +240,7 @@ export function AddToPlaylistDialog({
               </span>
               {highlighted?.kind !== "create" && (
                 <span className="flex items-center gap-1">
-                  <CreateShortcut />
+                  <ShortcutKeys chord={dialogChords.createFromSearch} />
                   create
                 </span>
               )}
@@ -300,24 +300,17 @@ function PaletteRow({
         </Kbd>
         {item.kind === "create" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
-            <CreateShortcut />
+            <ShortcutKeys chord={dialogChords.createFromSearch} />
           </Kbd>
         )}
         {item.kind === "queue" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
-            <SelectionShortcutKeys action={item.position === "start" ? "playNext" : "queue"} />
+            <ShortcutKeys
+              chord={selectionChords[item.position === "start" ? "playNext" : "addToQueue"]}
+            />
           </Kbd>
         )}
       </span>
     </Autocomplete.Item>
-  );
-}
-
-function CreateShortcut() {
-  return (
-    <span aria-hidden="true" className={cn("flex items-center", !window.lume.isMac && "gap-1")}>
-      {window.lume.isMac ? <CommandIcon className="size-3" weight="bold" /> : "Ctrl"}
-      <ArrowElbowDownLeftIcon className="size-3" weight="bold" />
-    </span>
   );
 }

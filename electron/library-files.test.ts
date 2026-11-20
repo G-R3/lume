@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { createTemporaryFolder } from "../tests/helpers/temp-folder";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { createWaveAudio } from "../tests/helpers/wave-audio";
 import { classifyFolderReadError, scanAudioFiles } from "./library-files";
@@ -40,6 +40,17 @@ describe("scanAudioFiles", () => {
         path: join(folder, "song-one.MP3"),
       },
     ]);
+  });
+
+  it("finds every supported audio extension", async () => {
+    const supported = ["a.aac", "b.flac", "c.m4a", "d.mp3", "e.oga", "f.ogg", "g.opus", "h.wav"];
+    const folder = await createTemporaryFolder("lume-library-");
+
+    await Promise.all([...supported, "i.wma"].map((name) => writeFile(join(folder, name), "")));
+
+    const tracks = await scanAudioFiles(folder);
+
+    expect(tracks.map((track) => basename(track.path)).sort()).toEqual(supported);
   });
 
   it("reads track duration from audio metadata", async () => {

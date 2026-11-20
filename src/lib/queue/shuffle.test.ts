@@ -1,4 +1,4 @@
-import { selectCurrentItem, selectPlaybackStatus } from "./selectors";
+import { selectCurrentItem, selectPlaybackIntent } from "./selectors";
 import { expect, it } from "vite-plus/test";
 import { ZodError } from "zod";
 import type { QueueRandom } from "./commands";
@@ -174,7 +174,7 @@ it("stops after a manual song when the deleted source anchor was last", () => {
   expect(sequential.sourceQueue).toEqual([]);
   const completed = transition(sequential, { type: "next" }, context);
   expect(selectCurrentItem(completed)).toBe(null);
-  expect(selectPlaybackStatus(completed)).toBe("stopped");
+  expect(selectPlaybackIntent(completed)).toBe("stopped");
 });
 
 it("keeps a carried source item independent of the next session's occurrence", () => {
@@ -423,7 +423,7 @@ it("rejects duplicate stored queue IDs and restores valid deleted-anchor continu
   expect(restored.position).toBe(7.25);
   expect(selectCurrentItem(restored.state)?.trackId).toBe(6);
   expect(restored.state.sourceQueue.map((item) => item.trackId)).toEqual([5, 1, 4, 3]);
-  expect(selectPlaybackStatus(restored.state)).toBe("paused");
+  expect(selectPlaybackIntent(restored.state)).toBe("paused");
 
   const sequential = unshuffle(restored.state);
   expect(selectCurrentItem(sequential)?.trackId).toBe(6);

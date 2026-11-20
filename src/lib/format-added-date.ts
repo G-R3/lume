@@ -1,10 +1,4 @@
-const dayFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
-
-const dayAndYearFormatter = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
+import { formatShortDate } from "./format-short-date";
 
 export function formatAddedDate(addedAt: number, now = Date.now()) {
   if (now - addedAt >= 0 && now - addedAt < 5 * 60_000) return "Just now";
@@ -17,9 +11,7 @@ export function formatAddedDate(addedAt: number, now = Date.now()) {
 
   if (days === 1) return "Yesterday";
 
-  return added.getFullYear() === today.getFullYear()
-    ? dayFormatter.format(added)
-    : dayAndYearFormatter.format(added);
+  return formatShortDate(addedAt, now);
 }
 
 function startOfDay(date: Date) {

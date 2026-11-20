@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, getDatabase, getLibraryDatabasePath, initializeDatabase } from ".";
+import { closeDatabase, getDatabase, initializeDatabase } from ".";
+import { getLibraryDatabasePath } from "./location";
 
 afterEach(closeDatabase);
 
@@ -28,14 +29,6 @@ describe("library database lifecycle", () => {
         VALUES ('/Music', ${columns}, 1, 1)
       `),
     ).toThrow(check);
-  });
-
-  it("keeps a single onboarding row", async () => {
-    const database = await openTestDatabase();
-
-    expect(() => database.exec("INSERT INTO app_state (id, onboarded_at) VALUES (2, 1)")).toThrow(
-      "app_state_singleton_check",
-    );
   });
 });
 

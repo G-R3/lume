@@ -1,4 +1,4 @@
-import { selectCurrentItem, selectPlaybackStatus } from "../src/lib/queue/selectors";
+import { selectCurrentItem, selectPlaybackIntent } from "../src/lib/queue/selectors";
 import { join } from "node:path";
 import { expect, it } from "vite-plus/test";
 import { parseQueueSession, serializeQueueSession } from "../src/lib/queue/persistence";
@@ -58,7 +58,7 @@ it("restores a saved queue paused at its position after its playlist is deleted"
   });
 
   expect(restored?.position).toBe(7.25);
-  expect(selectPlaybackStatus(restored?.state ?? null)).toBe("paused");
+  expect(selectPlaybackIntent(restored?.state ?? null)).toBe("paused");
   expect(restored?.state.source).toEqual({
     kind: "deleted-playlist",
     playlistId: 1,

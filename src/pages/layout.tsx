@@ -1,8 +1,8 @@
-import { CommandIcon } from "@phosphor-icons/react";
 import { Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppKeyboardShortcuts } from "@/components/app-keyboard-shortcuts";
 import { AudioPlayerControls } from "@/components/audio-player-controls";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import { PlaybackNotices } from "@/pages/layout/playback-notices";
 import { AppSidebar } from "@/pages/layout/sidebar";
 import { QueueSidebar } from "@/pages/layout/queue-sidebar";
@@ -10,7 +10,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { usePlayback } from "@/hooks/use-playback";
 import { PlaylistCreationProvider } from "@/hooks/use-playlist-creation";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { getSidebarShortcut } from "@/lib/keyboard-shortcuts";
+import { ariaKeyShortcuts, globalShortcuts } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
@@ -58,14 +58,8 @@ export function AppLayout() {
             <SidebarTrigger
               className="pointer-events-auto [-webkit-app-region:no-drag]"
               shortcut={{
-                ...getSidebarShortcut(window.lume.isMac),
-                label: window.lume.isMac ? (
-                  <>
-                    <CommandIcon aria-hidden="true" className="size-3" weight="bold" />B
-                  </>
-                ) : (
-                  "Ctrl+B"
-                ),
+                ariaKeyShortcuts: ariaKeyShortcuts(globalShortcuts.toggleSidebar.chord),
+                label: <ShortcutKeys chord={globalShortcuts.toggleSidebar.chord} />,
               }}
             />
           </div>

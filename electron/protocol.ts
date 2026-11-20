@@ -4,28 +4,30 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
-import { appScheme } from "@shared/app-urls";
-import { databaseIdSchema } from "@shared/schemas";
+import { appScheme, parseAppUrl } from "@shared/app-urls";
 import { getArtworkData, getTrackPath, type ArtworkData } from "./library";
 import { audioContentTypes } from "./library-files";
 
-export const packagedRendererUrl = `${appScheme}://app/index.html`;
-
 export function registerProtocolHandler(rendererDirectory: string) {
   protocol.handle(appScheme, async (request) => {
-    const trackRequest = resolveTrackRequest(request.url, getTrackPath);
+    const appUrl = parseAppUrl(request.url);
 
-    if (trackRequest) {
-      if (!trackRequest.path) return new Response(null, { status: 404 });
+    if (appUrl?.kind === "track") {
+      const trackPath = appUrl.trackId === null ? null : getTrackPath(appUrl.trackId);
 
-      return createTrackResponse(trackRequest.path, request);
+      if (!trackPath) return new Response(null, { status: 404 });
+
+      return createTrackResponse(trackPath, request);
     }
 
-    const artworkRequest = resolveArtworkRequest(request.url, getArtworkData);
+    if (appUrl?.kind === "artwork") {
+      return createArtworkResponse(
+        appUrl.artworkId === null ? null : getArtworkData(appUrl.artworkId),
+      );
+    }
 
-    if (artworkRequest) return createArtworkResponse(artworkRequest.artwork);
-
-    const assetPath = getRendererAssetPath(rendererDirectory, request.url);
+    const assetPath =
+      appUrl?.kind === "asset" ? getRendererAssetPath(rendererDirectory, appUrl.path) : null;
 
     if (!assetPath) return new Response(null, { status: 404 });
 
@@ -147,76 +149,15 @@ export function isTrustedRendererUrl(rendererUrl: string, candidateUrl: string) 
   );
 }
 
-export function getRendererAssetPath(rendererDirectory: string, requestUrl: string) {
-  if (!URL.canParse(requestUrl)) return null;
+export function getRendererAssetPath(rendererDirectory: string, path: string | null) {
+  if (path === null) return null;
 
-  const url = new URL(requestUrl);
+  const assetPath = resolve(rendererDirectory, path.replace(/^\/+/, "") || "index.html");
+  const relativePath = relative(rendererDirectory, assetPath);
 
-  if (url.protocol !== `${appScheme}:` || url.host !== "app") return null;
-
-  try {
-    const assetPath = resolve(
-      rendererDirectory,
-      decodeURIComponent(url.pathname).replace(/^\/+/, "") || "index.html",
-    );
-
-    const relativePath = relative(rendererDirectory, assetPath);
-
-    if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
-      return null;
-    }
-
-    return assetPath;
-  } catch {
-    return null;
-  }
-}
-
-export function resolveTrackRequest(url: string, getTrackPath: (trackId: number) => string | null) {
-  if (!URL.canParse(url)) return null;
-
-  const parsedUrl = new URL(url);
-
-  if (
-    parsedUrl.protocol !== `${appScheme}:` ||
-    parsedUrl.host !== "app" ||
-    !parsedUrl.pathname.startsWith("/media/")
-  ) {
+  if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
     return null;
   }
 
-  try {
-    const trackId = Number(decodeURIComponent(parsedUrl.pathname.slice("/media/".length)));
-
-    return {
-      path: databaseIdSchema.safeParse(trackId).success ? getTrackPath(trackId) : null,
-    };
-  } catch {
-    return { path: null };
-  }
-}
-
-export function resolveArtworkRequest(
-  url: string,
-  getArtworkData: (artworkId: string) => ArtworkData | null,
-) {
-  if (!URL.canParse(url)) return null;
-
-  const parsedUrl = new URL(url);
-
-  if (
-    parsedUrl.protocol !== `${appScheme}:` ||
-    parsedUrl.host !== "app" ||
-    !parsedUrl.pathname.startsWith("/artwork/")
-  ) {
-    return null;
-  }
-
-  try {
-    return {
-      artwork: getArtworkData(decodeURIComponent(parsedUrl.pathname.slice("/artwork/".length))),
-    };
-  } catch {
-    return { artwork: null };
-  }
+  return assetPath;
 }

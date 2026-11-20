@@ -1,26 +1,20 @@
 import { z } from "zod";
 import type { PlaylistDetails, Track } from "@shared/library";
+import { joinArtists } from "./format-artist";
 import type { SourceIdentity } from "./queue/model";
 
 export const sortFields = [
   {
     field: "added",
     label: "Recently added",
-    column: true,
     directions: { asc: "Oldest first", desc: "Newest first" },
   },
-  { field: "title", label: "Title", column: true, directions: { asc: "A to Z", desc: "Z to A" } },
-  {
-    field: "artist",
-    label: "Artist",
-    column: false,
-    directions: { asc: "A to Z", desc: "Z to A" },
-  },
-  { field: "album", label: "Album", column: true, directions: { asc: "A to Z", desc: "Z to A" } },
+  { field: "title", label: "Title", directions: { asc: "A to Z", desc: "Z to A" } },
+  { field: "artist", label: "Artist", directions: { asc: "A to Z", desc: "Z to A" } },
+  { field: "album", label: "Album", directions: { asc: "A to Z", desc: "Z to A" } },
   {
     field: "duration",
     label: "Duration",
-    column: true,
     directions: { asc: "Shortest first", desc: "Longest first" },
   },
 ] as const;
@@ -138,7 +132,7 @@ function sortKeys(row: TrackRow, index: number): SortKeys {
     index,
     row,
     title: track.title || null,
-    artist: track.artists.join(", ") || null,
+    artist: joinArtists(track.artists) || null,
     album: track.album || null,
     disc: track.discNumber,
     trackNumber: track.trackNumber,
@@ -251,7 +245,7 @@ type SortSlot = { input: readonly TrackRow[]; order: Int32Array; output: readonl
 
 const sortSlots = new Map<string, SortSlot>();
 
-function viewKey(view: SourceIdentity) {
+export function viewKey(view: SourceIdentity) {
   return view.kind === "all-tracks" ? "all-tracks" : `playlist:${view.playlistId}`;
 }
 

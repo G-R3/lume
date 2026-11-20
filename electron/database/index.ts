@@ -112,7 +112,3 @@ function configureLibraryDatabase(database: DatabaseSync) {
     PRAGMA wal_checkpoint(PASSIVE);
   `);
 }
-
-export function getLibraryDatabasePath(userDataDirectory: string, isPackaged: boolean) {
-  return join(userDataDirectory, isPackaged ? "lume.sqlite" : "lume-dev.sqlite");
-}

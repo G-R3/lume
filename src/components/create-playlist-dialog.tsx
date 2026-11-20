@@ -15,7 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { ariaKeyShortcuts, dialogChords, matchesChord } from "@/lib/keyboard-shortcuts";
 import { useCreatePlaylistMutation } from "@/lib/playlist-mutations";
+import {
+  normalizePlaylistText,
+  playlistDescriptionMaxLength,
+  playlistTitleMaxLength,
+} from "@shared/playlist-text";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
 export type PlaylistCreationRequest = {
@@ -59,8 +65,10 @@ export function CreatePlaylistDialog({
     event.preventDefault();
     const form = event.currentTarget;
 
-    const title = titleRef.current?.value.trim() ?? "";
-    const description = descriptionRef.current?.value.trim() ?? "";
+    const { description, title } = normalizePlaylistText({
+      description: descriptionRef.current?.value ?? null,
+      title: titleRef.current?.value ?? "",
+    });
 
     if (title.length === 0) {
       setTitleError("Give the playlist a title.");
@@ -73,7 +81,7 @@ export function CreatePlaylistDialog({
 
     createPlaylist.mutate(
       {
-        description: description.length > 0 ? description : null,
+        description,
         title,
         trackIds: entries.map((entry) => entry.trackId),
       },
@@ -91,7 +99,7 @@ export function CreatePlaylistDialog({
   };
 
   const handleDescriptionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    if (matchesChord(dialogChords.submitDescription, event)) {
       event.preventDefault();
       formRef.current?.requestSubmit();
     }
@@ -126,10 +134,12 @@ export function CreatePlaylistDialog({
                   aria-describedby={titleError ? "title-error" : undefined}
                   aria-invalid={titleError ? true : undefined}
                   defaultValue={
-                    isGroup ? "Playlist" : (entries[0]?.title.trim().slice(0, 100) ?? "")
+                    isGroup
+                      ? "Playlist"
+                      : (entries[0]?.title.trim().slice(0, playlistTitleMaxLength) ?? "")
                   }
                   id="title"
-                  maxLength={100}
+                  maxLength={playlistTitleMaxLength}
                   name="title"
                   onChange={() => setTitleError(null)}
                   ref={titleRef}
@@ -147,9 +157,10 @@ export function CreatePlaylistDialog({
                 </Label>
                 <Textarea
                   id="description"
-                  maxLength={300}
+                  maxLength={playlistDescriptionMaxLength}
                   name="description"
                   ref={descriptionRef}
+                  aria-keyshortcuts={ariaKeyShortcuts(dialogChords.submitDescription)}
                   onKeyDown={handleDescriptionKeyDown}
                   placeholder="What’s it for?"
                 />
