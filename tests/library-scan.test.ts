@@ -1,4 +1,4 @@
-import { chmod, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, rm, writeFile } from "node:fs/promises";
 import { openTestDatabase } from "./helpers/database";
 import { getActiveSource, libraryTracks, readLibrary, scanWith } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
@@ -220,7 +220,7 @@ describe("scan frames", () => {
   it("ends a failing scan with the folder's failure and nothing left scanning", async () => {
     await openTestDatabase();
     const source = await createSource(["song"]);
-    await rename(source.path, `${source.path}-away`);
+    await rm(source.path, { force: true, recursive: true });
 
     await scanSource(source.id);
 
