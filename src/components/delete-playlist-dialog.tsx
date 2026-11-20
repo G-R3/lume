@@ -14,7 +14,7 @@ import {
 import { ShortcutKeys } from "@/components/shortcut-keys";
 import { FieldError } from "@/components/ui/field";
 import { Kbd } from "@/components/ui/kbd";
-import { ariaOf, dialogChords, matches } from "@/lib/keyboard-shortcuts";
+import { ariaKeyShortcuts, dialogChords, matchesChord } from "@/lib/keyboard-shortcuts";
 import { useDeletePlaylistMutation } from "@/lib/playlist-mutations";
 
 type DeletePlaylistDialogProps = {
@@ -59,7 +59,7 @@ export function DeletePlaylistDialog({
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (!matches(dialogChords.confirmDelete, event)) return;
+    if (!matchesChord(dialogChords.confirmDelete, event)) return;
 
     event.preventDefault();
 
@@ -81,7 +81,7 @@ export function DeletePlaylistDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deletePlaylist.isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            aria-keyshortcuts={ariaOf(dialogChords.confirmDelete)}
+            aria-keyshortcuts={ariaKeyShortcuts(dialogChords.confirmDelete)}
             busy={deletePlaylist.isPending}
             onClick={handleDelete}
             variant="danger"

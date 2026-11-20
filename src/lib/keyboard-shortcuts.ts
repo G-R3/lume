@@ -43,14 +43,14 @@ export const dialogChords = {
   submitDescription: { key: "Enter", mod: true },
 } satisfies Record<string, Chord>;
 
-export function resolve(chord: PlatformChord, isMac = window.lume.isMac): Chord {
+export function resolveChord(chord: PlatformChord, isMac = window.lume.isMac): Chord {
   if (!("mac" in chord)) return chord;
 
   return isMac ? chord.mac : chord.other;
 }
 
-export function matches(chord: PlatformChord, event: KeyPress, isMac = window.lume.isMac) {
-  const { key, mod, shift, alt } = resolve(chord, isMac);
+export function matchesChord(chord: PlatformChord, event: KeyPress, isMac = window.lume.isMac) {
+  const { key, mod, shift, alt } = resolveChord(chord, isMac);
 
   return (
     key.toLowerCase() === event.key.toLowerCase() &&
@@ -65,8 +65,8 @@ export function keyName(key: string) {
   return key.length === 1 ? key.toUpperCase() : key;
 }
 
-export function ariaOf(chord: PlatformChord, isMac = window.lume.isMac) {
-  const { key, mod, shift, alt } = resolve(chord, isMac);
+export function ariaKeyShortcuts(chord: PlatformChord, isMac = window.lume.isMac) {
+  const { key, mod, shift, alt } = resolveChord(chord, isMac);
 
   return [mod && (isMac ? "Meta" : "Control"), shift && "Shift", alt && "Alt", keyName(key)]
     .filter(Boolean)
@@ -98,7 +98,7 @@ function isEligible(shortcut: GlobalShortcut, target: EventTarget | null) {
   );
 }
 
-export function useKeyboardShortcuts(actions: Partial<Record<GlobalShortcutId, () => void>>) {
+export function useGlobalShortcuts(actions: Partial<Record<GlobalShortcutId, () => void>>) {
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
 
@@ -110,7 +110,11 @@ export function useKeyboardShortcuts(actions: Partial<Record<GlobalShortcutId, (
         const shortcut: GlobalShortcut = globalShortcuts[id];
         const action = actionsRef.current[id];
 
-        if (!action || !matches(shortcut.chord, event) || !isEligible(shortcut, event.target)) {
+        if (
+          !action ||
+          !matchesChord(shortcut.chord, event) ||
+          !isEligible(shortcut, event.target)
+        ) {
           continue;
         }
 

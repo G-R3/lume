@@ -12,7 +12,7 @@ import { ShortcutKeys } from "@/components/shortcut-keys";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
-import { ariaOf, dialogChords, matches } from "@/lib/keyboard-shortcuts";
+import { ariaKeyShortcuts, dialogChords, matchesChord } from "@/lib/keyboard-shortcuts";
 import { Kbd } from "@/components/ui/kbd";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import {
@@ -176,11 +176,11 @@ export function AddToPlaylistDialog({
                 <span className="truncate text-meta text-primary">{targetLabel}</span>
               </span>
               <Autocomplete.Input
-                aria-keyshortcuts={ariaOf(dialogChords.createFromSearch)}
+                aria-keyshortcuts={ariaKeyShortcuts(dialogChords.createFromSearch)}
                 aria-label="Find a playlist"
                 className="h-full min-w-0 flex-1 bg-transparent text-title font-normal tracking-normal text-primary caret-accent outline-none placeholder:text-placeholder"
                 onKeyDown={(event) => {
-                  if (matches(dialogChords.createFromSearch, event)) {
+                  if (matchesChord(dialogChords.createFromSearch, event)) {
                     event.preventDefault();
                     handleSelect(createItem);
 
@@ -192,7 +192,7 @@ export function AddToPlaylistDialog({
                     queue: onQueue !== null,
                   });
 
-                  if (shortcut === "queue" || shortcut === "playNext") {
+                  if (shortcut === "addToQueue" || shortcut === "playNext") {
                     event.preventDefault();
                     handleSelect(shortcut === "playNext" ? playNextItem : addToQueueItem);
                   }
@@ -306,7 +306,7 @@ function PaletteRow({
         {item.kind === "queue" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
             <ShortcutKeys
-              chord={selectionChords[item.position === "start" ? "playNext" : "queue"]}
+              chord={selectionChords[item.position === "start" ? "playNext" : "addToQueue"]}
             />
           </Kbd>
         )}

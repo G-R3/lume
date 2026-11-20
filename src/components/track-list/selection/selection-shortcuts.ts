@@ -1,10 +1,15 @@
-import { type Chord, type KeyPress, matches, type PlatformChord } from "@/lib/keyboard-shortcuts";
+import {
+  type Chord,
+  type KeyPress,
+  matchesChord,
+  type PlatformChord,
+} from "@/lib/keyboard-shortcuts";
 
 export type SelectionCapabilities = { readonly queue: boolean; readonly playlist: boolean };
 
 export const selectionChords = {
   addToPlaylist: { key: "p", mod: true, shift: true },
-  queue: { key: "Enter", alt: true },
+  addToQueue: { key: "Enter", alt: true },
   playNext: { key: "Enter", alt: true, shift: true },
   like: { key: "l", mod: true },
   createPlaylist: { key: "n", mod: true, shift: true },
@@ -17,8 +22,8 @@ function isSelectionAction(action: string): action is SelectionAction {
   return Object.hasOwn(selectionChords, action);
 }
 
-const requires: Partial<Record<SelectionAction, keyof SelectionCapabilities>> = {
-  queue: "queue",
+const requiredCapability: Partial<Record<SelectionAction, keyof SelectionCapabilities>> = {
+  addToQueue: "queue",
   playNext: "queue",
   removeFromPlaylist: "playlist",
 };
@@ -32,11 +37,11 @@ export function matchSelectionShortcut(
 ) {
   const action = Object.keys(selectionChords)
     .filter(isSelectionAction)
-    .find((candidate) => matches(selectionChords[candidate], event, isMac));
+    .find((candidate) => matchesChord(selectionChords[candidate], event, isMac));
 
   if (!action) return null;
 
-  const requirement = requires[action];
+  const requirement = requiredCapability[action];
 
   return requirement && !capabilities[requirement] ? null : action;
 }

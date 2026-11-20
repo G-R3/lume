@@ -9,7 +9,7 @@ import {
 } from "react";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
-import { useKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
+import { useGlobalShortcuts } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 export type FilterFieldHandle = { focus: () => void };
@@ -43,7 +43,7 @@ export function FilterField({
 
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
 
-  useKeyboardShortcuts({ focusFilter: focusField, focusFilterWithShift: focusField });
+  useGlobalShortcuts({ focusFilter: focusField, focusFilterWithShift: focusField });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     onKeyDown?.(event);

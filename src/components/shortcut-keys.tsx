@@ -6,7 +6,7 @@ import {
   type Icon,
   OptionIcon,
 } from "@phosphor-icons/react";
-import { keyName, type PlatformChord, resolve } from "@/lib/keyboard-shortcuts";
+import { keyName, type PlatformChord, resolveChord } from "@/lib/keyboard-shortcuts";
 
 const keyIcons = new Map<string, Icon>([
   ["Backspace", BackspaceIcon],
@@ -15,7 +15,7 @@ const keyIcons = new Map<string, Icon>([
 
 export function ShortcutKeys({ chord }: { chord: PlatformChord }) {
   const isMac = window.lume.isMac;
-  const { key, mod, shift, alt } = resolve(chord, isMac);
+  const { key, mod, shift, alt } = resolveChord(chord, isMac);
 
   if (!isMac) {
     return (

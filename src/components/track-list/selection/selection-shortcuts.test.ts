@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { ariaOf } from "@/lib/keyboard-shortcuts";
+import { ariaKeyShortcuts } from "@/lib/keyboard-shortcuts";
 import {
   matchSelectionShortcut,
   type SelectionCapabilities,
@@ -22,7 +22,7 @@ const platforms = [
       addToPlaylist: { key: "P", meta: true, shift: true },
       createPlaylist: { key: "N", meta: true, shift: true },
       like: { key: "l", meta: true },
-      queue: { alt: true, key: "Enter" },
+      addToQueue: { alt: true, key: "Enter" },
       playNext: { alt: true, key: "Enter", shift: true },
       removeFromPlaylist: { key: "Backspace", meta: true },
     },
@@ -34,7 +34,7 @@ const platforms = [
       addToPlaylist: { ctrl: true, key: "P", shift: true },
       createPlaylist: { ctrl: true, key: "N", shift: true },
       like: { ctrl: true, key: "l" },
-      queue: { alt: true, key: "Enter" },
+      addToQueue: { alt: true, key: "Enter" },
       playNext: { alt: true, key: "Enter", shift: true },
       removeFromPlaylist: { key: "Delete" },
     },
@@ -115,13 +115,13 @@ describe("shortcuts for unavailable actions", () => {
 describe("aria-keyshortcuts", () => {
   it.each([
     ["addToPlaylist", "Meta+Shift+P", "Control+Shift+P"],
-    ["queue", "Alt+Enter", "Alt+Enter"],
+    ["addToQueue", "Alt+Enter", "Alt+Enter"],
     ["playNext", "Shift+Alt+Enter", "Shift+Alt+Enter"],
     ["like", "Meta+L", "Control+L"],
     ["createPlaylist", "Meta+Shift+N", "Control+Shift+N"],
     ["removeFromPlaylist", "Meta+Backspace", "Delete"],
   ] as const)("%s announces %s on macOS and %s elsewhere", (action, mac, other) => {
-    expect(ariaOf(selectionChords[action], true)).toBe(mac);
-    expect(ariaOf(selectionChords[action], false)).toBe(other);
+    expect(ariaKeyShortcuts(selectionChords[action], true)).toBe(mac);
+    expect(ariaKeyShortcuts(selectionChords[action], false)).toBe(other);
   });
 });

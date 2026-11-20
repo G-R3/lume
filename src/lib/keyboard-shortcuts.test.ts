@@ -9,14 +9,14 @@ import {
   selectionChords,
 } from "@/components/track-list/selection/selection-shortcuts";
 import {
-  ariaOf,
+  ariaKeyShortcuts,
   dialogChords,
   type GlobalShortcutId,
   globalShortcuts,
-  matches,
+  matchesChord,
   type PlatformChord,
-  resolve,
-  useKeyboardShortcuts,
+  resolveChord,
+  useGlobalShortcuts,
 } from "./keyboard-shortcuts";
 
 type Actions = Partial<Record<GlobalShortcutId, () => void>>;
@@ -34,7 +34,7 @@ function mountShortcuts(actions: Actions, isMac = false) {
   vi.stubGlobal("lume", { isMac });
 
   function TestShortcuts() {
-    useKeyboardShortcuts(actions);
+    useGlobalShortcuts(actions);
 
     return null;
   }
@@ -269,13 +269,13 @@ describe("aria-keyshortcuts", () => {
     ["delete playlist", dialogChords.confirmDelete, "Meta+Backspace", "Control+Backspace"],
     ["create from search", dialogChords.createFromSearch, "Meta+Enter", "Control+Enter"],
   ] as const)("%s announces %s on macOS and %s elsewhere", (_, chord, mac, other) => {
-    expect(ariaOf(chord, true)).toBe(mac);
-    expect(ariaOf(chord, false)).toBe(other);
+    expect(ariaKeyShortcuts(chord, true)).toBe(mac);
+    expect(ariaKeyShortcuts(chord, false)).toBe(other);
   });
 });
 
 function pressOf(chord: PlatformChord, isMac: boolean) {
-  const { key, mod = false, shift = false, alt = false } = resolve(chord, isMac);
+  const { key, mod = false, shift = false, alt = false } = resolveChord(chord, isMac);
 
   return { altKey: alt, ctrlKey: mod && !isMac, key, metaKey: mod && isMac, shiftKey: shift };
 }
@@ -290,7 +290,7 @@ function clashes(
       .filter(
         ([rightId, rightChord]) =>
           (left !== right || leftId !== rightId) &&
-          matches(leftChord, pressOf(rightChord, isMac), isMac),
+          matchesChord(leftChord, pressOf(rightChord, isMac), isMac),
       )
       .map(([rightId]) => `${leftId} = ${rightId}`),
   );

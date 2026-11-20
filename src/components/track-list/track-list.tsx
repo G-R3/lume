@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { usePlayback } from "@/hooks/use-playback";
-import { isEditableElement, isInOverlay, matches } from "@/lib/keyboard-shortcuts";
+import { isEditableElement, isInOverlay, matchesChord } from "@/lib/keyboard-shortcuts";
 import type { PlayableSource } from "@/lib/queue/model";
 import { sessionSource } from "@/lib/queue/source";
 import { showTruncatedText } from "@/lib/show-truncated-text";
@@ -177,7 +177,7 @@ export function TrackList({
 
     const hasNoModifiers = !event.metaKey && !event.ctrlKey && !event.altKey;
 
-    if (matches(selectAllChord, event) && !isEditableElement(target)) {
+    if (matchesChord(selectAllChord, event) && !isEditableElement(target)) {
       event.preventDefault();
       dispatchSelection({ type: "selectAll" });
 

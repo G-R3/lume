@@ -135,7 +135,7 @@ export function useTrackActions(source: PlayableSource) {
     const { target } = action;
 
     switch (action.kind) {
-      case "queue":
+      case "addToQueue":
         enqueue(target, "end");
 
         return;
