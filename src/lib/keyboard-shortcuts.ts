@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 
-// `mod` is Command on macOS and Control elsewhere.
 export type Chord = {
   readonly key: string;
   readonly mod?: true;
