@@ -1,4 +1,5 @@
 import type { AddTracksToPlaylistResult } from "@shared/library";
+import { formatTrackCount } from "../../../lib/format-track-count";
 import type { ActionTarget } from "../selection/track-selection";
 
 export type Destination = { readonly playlistId: number; readonly title: string };
@@ -165,7 +166,7 @@ export function describeAddition(request: AddRequest, addedCount: number): strin
 
   if (request.duplicates !== "skip" && targetCount === 1) return `Added to ${title}`;
 
-  return `Added ${addedCount.toLocaleString()} ${addedCount === 1 ? "track" : "tracks"} to ${title}`;
+  return `Added ${formatTrackCount(addedCount)} to ${title}`;
 }
 
 export function describeDuplicates(
