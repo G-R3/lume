@@ -2,14 +2,12 @@ import { writeFile } from "node:fs/promises";
 import { createTemporaryFolder } from "../tests/helpers/temp-folder";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
-import { getArtworkUrl, getTrackUrl } from "@shared/app-urls";
+import { parseAppUrl } from "@shared/app-urls";
 import {
   createArtworkResponse,
   createTrackResponse,
   getRendererAssetPath,
   isTrustedRendererUrl,
-  resolveArtworkRequest,
-  resolveTrackRequest,
 } from "./protocol";
 
 const rendererDirectory = resolve("app", "out", "renderer");
@@ -39,75 +37,27 @@ describe("isTrustedRendererUrl", () => {
 });
 
 describe("getRendererAssetPath", () => {
+  const getAssetPath = (url: string) => {
+    const appUrl = parseAppUrl(url);
+
+    return getRendererAssetPath(rendererDirectory, appUrl?.kind === "asset" ? appUrl.path : null);
+  };
+
   it("maps app URLs into the renderer directory", () => {
-    expect(getRendererAssetPath(rendererDirectory, "lume://app/")).toBe(
-      join(rendererDirectory, "index.html"),
-    );
-    expect(getRendererAssetPath(rendererDirectory, "lume://app/assets/application.js")).toBe(
+    expect(getAssetPath("lume://app/")).toBe(join(rendererDirectory, "index.html"));
+    expect(getAssetPath("lume://app/assets/application.js")).toBe(
       join(rendererDirectory, "assets", "application.js"),
     );
   });
 
   it.each([
-    { description: "the wrong protocol", requestUrl: "https://app/index.html" },
-    { description: "the wrong host", requestUrl: "lume://other/index.html" },
-    { description: "a malformed URL", requestUrl: "not a url" },
     { description: "malformed percent encoding", requestUrl: "lume://app/%" },
     {
       description: "an encoded parent-directory traversal",
       requestUrl: "lume://app/%2e%2e%2fsecrets.txt",
     },
   ])("rejects $description", (testCase) => {
-    expect(getRendererAssetPath(rendererDirectory, testCase.requestUrl)).toBeNull();
-  });
-});
-
-describe("app protocol track URLs", () => {
-  const trackId = 42;
-  const audioPath = "/Users/listener/Music/Artist/track one.mp3";
-  const getTrackPath = (candidateId: number) => (candidateId === trackId ? audioPath : null);
-
-  it("resolves an indexed track through the app protocol", () => {
-    const url = getTrackUrl(trackId);
-
-    expect(url).toBe("lume://app/media/42");
-    expect(url).not.toContain(audioPath);
-    expect(resolveTrackRequest(url, getTrackPath)).toEqual({ path: audioPath });
-  });
-
-  it("rejects a track outside the index", () => {
-    expect(resolveTrackRequest("lume://app/media/unknown", getTrackPath)).toEqual({
-      path: null,
-    });
-  });
-
-  it("rejects a malformed track ID", () => {
-    expect(resolveTrackRequest("lume://app/media/%", getTrackPath)).toEqual({
-      path: null,
-    });
-  });
-
-  it.each([
-    { description: "the wrong protocol", url: `https://app/media/${trackId}` },
-    { description: "the wrong host", url: `lume://other/media/${trackId}` },
-    { description: "a malformed URL", url: "not a url" },
-  ])("rejects track URLs with $description", (testCase) => {
-    expect(resolveTrackRequest(testCase.url, getTrackPath)).toBeNull();
-  });
-});
-
-describe("app protocol artwork URLs", () => {
-  it("resolves indexed artwork without exposing database bytes in the URL", () => {
-    const artwork = { data: Uint8Array.from([1, 2, 3]), mediaType: "image/png" };
-    const url = getArtworkUrl("cover-id");
-
-    expect(url).toBe("lume://app/artwork/cover-id");
-    expect(resolveArtworkRequest(url, (id) => (id === "cover-id" ? artwork : null))).toEqual({
-      artwork,
-    });
-    expect(resolveArtworkRequest("lume://app/artwork/missing", () => null)).toEqual({
-      artwork: null,
-    });
+    expect(getAssetPath(testCase.requestUrl)).toBeNull();
   });
 });
 
