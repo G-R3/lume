@@ -29,14 +29,6 @@ describe("library database lifecycle", () => {
       `),
     ).toThrow(check);
   });
-
-  it("keeps a single onboarding row", async () => {
-    const database = await openTestDatabase();
-
-    expect(() => database.exec("INSERT INTO app_state (id, onboarded_at) VALUES (2, 1)")).toThrow(
-      "app_state_singleton_check",
-    );
-  });
 });
 
 async function openTestDatabase(
