@@ -6,7 +6,7 @@ import { shuffleEntries } from "@/lib/fisher-yates";
 import type { QueueCommand, QueuePosition, QueueRandom, SessionSource } from "@/lib/queue/commands";
 import type { QueueState } from "@/lib/queue/model";
 import { parseQueueSession, serializeQueueSession } from "@/lib/queue/persistence";
-import { selectCurrentItem, selectPlaybackStatus } from "@/lib/queue/selectors";
+import { selectCurrentItem, selectPlaybackIntent } from "@/lib/queue/selectors";
 import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
 import { libraryEntries, playlistEntries } from "@/lib/queue/source";
 import type { FailedTrack } from "@/lib/playback-phase";
@@ -156,7 +156,7 @@ export function createPlaybackController(dependencies: {
 
   const loadCurrent = (
     position: number,
-    shouldPlay = selectPlaybackStatus(snapshot.queue) === "playing",
+    shouldPlay = selectPlaybackIntent(snapshot.queue) === "playing",
   ) => {
     if (!isReady(lifecycle)) return;
     const current = selectCurrentItem(snapshot.queue);
@@ -470,7 +470,7 @@ export function createPlaybackController(dependencies: {
     }
 
     if (event.type === "ended") {
-      if (selectPlaybackStatus(snapshot.queue) === "playing") advance();
+      if (selectPlaybackIntent(snapshot.queue) === "playing") advance();
 
       return;
     }
@@ -487,7 +487,7 @@ export function createPlaybackController(dependencies: {
     lifecycle = { kind: "ready", load: unloaded };
     failedTrackIds.add(trackId);
 
-    if (selectPlaybackStatus(snapshot.queue) === "playing") advance();
+    if (selectPlaybackIntent(snapshot.queue) === "playing") advance();
 
     const failed: FailedTrack = {
       kind: "load",
@@ -555,6 +555,7 @@ export function createPlaybackController(dependencies: {
     },
     pause: userCommand(() => {
       dependencies.audio.pause();
+      // Record the intent now. The element reports its pause a task later, or never when none is attached.
       dispatch({ type: "playbackPaused" });
     }),
     playSource: userCommand((view: SessionSource) =>
