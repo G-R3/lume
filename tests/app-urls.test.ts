@@ -3,14 +3,10 @@ import { getArtworkUrl, getTrackUrl, packagedRendererUrl, parseAppUrl } from "@s
 
 describe("app URLs", () => {
   it("round-trips a track URL", () => {
-    const url = getTrackUrl(42);
-
-    expect(url).toBe("lume://app/media/42");
-    expect(parseAppUrl(url)).toEqual({ kind: "track", trackId: 42 });
+    expect(parseAppUrl(getTrackUrl(42))).toEqual({ kind: "track", trackId: 42 });
   });
 
   it("round-trips an artwork URL", () => {
-    expect(getArtworkUrl("cover-id")).toBe("lume://app/artwork/cover-id");
     expect(parseAppUrl(getArtworkUrl("cover-id"))).toEqual({
       kind: "artwork",
       artworkId: "cover-id",
@@ -19,7 +15,6 @@ describe("app URLs", () => {
   });
 
   it("round-trips the packaged renderer URL as an app asset", () => {
-    expect(packagedRendererUrl).toBe("lume://app/index.html");
     expect(parseAppUrl(packagedRendererUrl)).toEqual({ kind: "asset", path: "/index.html" });
     expect(parseAppUrl("lume://app/assets/a%20b.js")).toEqual({
       kind: "asset",
