@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { usePlayback, usePlaybackTime } from "@/hooks/use-playback";
 import { pausesOnToggle } from "@/lib/playback-phase";
-import { artistLabel } from "@/lib/artist-names";
+import { formatArtists } from "@/lib/format-artist";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
 
@@ -205,7 +205,7 @@ function PlayerDisplay() {
 }
 
 function PlayerMetadata({ track }: { track: Track | null }) {
-  const artist = artistLabel(track?.artists);
+  const artist = formatArtists(track?.artists);
 
   const format = track
     ? [

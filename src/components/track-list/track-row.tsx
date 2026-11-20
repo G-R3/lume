@@ -10,7 +10,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { artistLabel } from "@/lib/artist-names";
+import { formatArtists } from "@/lib/format-artist";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
 import type { PlaybackPhase } from "@/lib/playback-phase";
@@ -135,7 +135,7 @@ export const TrackRow = memo(function TrackRow({
                 data-truncate
                 dir="auto"
               >
-                {artistLabel(track.artists)}
+                {formatArtists(track.artists)}
               </p>
             </div>
             {track.unavailableReason && (

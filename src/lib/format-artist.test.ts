@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vite-plus/test";
-import { artistLabel, artistNames } from "./artist-names";
+import { formatArtists, joinArtists } from "./format-artist";
 
-describe("artistNames", () => {
+describe("joinArtists", () => {
   it("joins artists with a comma", () => {
-    expect(artistNames(["Nina", "Ray"])).toBe("Nina, Ray");
+    expect(joinArtists(["Nina", "Ray"])).toBe("Nina, Ray");
   });
 
   it("is empty when the track has no artists", () => {
-    expect(artistNames([])).toBe("");
+    expect(joinArtists([])).toBe("");
   });
 });
 
-describe("artistLabel", () => {
+describe("formatArtists", () => {
   it("shows the joined artists", () => {
-    expect(artistLabel(["Nina", "Ray"])).toBe("Nina, Ray");
+    expect(formatArtists(["Nina", "Ray"])).toBe("Nina, Ray");
   });
 
   it.each([
@@ -21,6 +21,6 @@ describe("artistLabel", () => {
     { case: "a blank artist", artists: [""] },
     { case: "no track", artists: undefined },
   ])("falls back to Unknown artist for $case", ({ artists }) => {
-    expect(artistLabel(artists)).toBe("Unknown artist");
+    expect(formatArtists(artists)).toBe("Unknown artist");
   });
 });

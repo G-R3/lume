@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { usePlayback } from "@/hooks/use-playback";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { artistLabel } from "@/lib/artist-names";
+import { formatArtists } from "@/lib/format-artist";
 import { formatDuration, formatTotalDuration } from "@/lib/format-duration";
 import { formatTrackCount } from "@/lib/format-track-count";
 import type { PlaybackPhase } from "@/lib/playback-phase";
@@ -354,7 +354,7 @@ function QueueTrack({
           data-truncate
           dir="auto"
         >
-          {artistLabel(track?.artists)}
+          {formatArtists(track?.artists)}
         </span>
       </span>
       {unavailable && <span className="shrink-0 text-meta text-secondary">Unavailable</span>}
