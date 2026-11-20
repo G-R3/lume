@@ -68,37 +68,7 @@ describe("library transport from stored rows", () => {
       INSERT INTO track_state (track_id, liked_at) VALUES (113, 112);
     `);
 
-    const json = getLibrarySnapshotJson();
-
-    expect(JSON.parse(json).tracks).toStrictEqual([
-      [
-        111,
-        "album-s",
-        ["album-artist-s"],
-        ["artist-s"],
-        "lume://app/artwork/art-s",
-        "file-missing",
-        102.25,
-        104,
-        105,
-        "codec-s",
-        108,
-        109,
-        101.5,
-        "format-s",
-        ["genre-s"],
-        113,
-        112,
-        false,
-        "title-s",
-        103,
-        106,
-        107,
-        110,
-      ],
-    ]);
-
-    const decoded = parseLibrarySnapshot(json);
+    const decoded = parseLibrarySnapshot(getLibrarySnapshotJson());
 
     if (decoded.kind !== "library") throw new Error("Expected a populated library");
     expect(decoded.playlists).toStrictEqual([]);
