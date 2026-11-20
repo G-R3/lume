@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { ariaKeyShortcuts, dialogChords, matchesChord } from "@/lib/keyboard-shortcuts";
 import { useCreatePlaylistMutation } from "@/lib/playlist-mutations";
 import {
   normalizePlaylistText,
@@ -98,7 +99,7 @@ export function CreatePlaylistDialog({
   };
 
   const handleDescriptionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    if (matchesChord(dialogChords.submitDescription, event)) {
       event.preventDefault();
       formRef.current?.requestSubmit();
     }
@@ -159,6 +160,7 @@ export function CreatePlaylistDialog({
                   maxLength={playlistDescriptionMaxLength}
                   name="description"
                   ref={descriptionRef}
+                  aria-keyshortcuts={ariaKeyShortcuts(dialogChords.submitDescription)}
                   onKeyDown={handleDescriptionKeyDown}
                   placeholder="What’s it for?"
                 />

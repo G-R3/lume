@@ -27,6 +27,7 @@ import {
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
+import { ariaKeyShortcuts, globalShortcuts } from "@/lib/keyboard-shortcuts";
 import { duration, ease } from "@/lib/motion";
 import { useScanningSources } from "@/lib/library-query";
 import { presentLibrarySources } from "@/lib/source-presentation";
@@ -69,7 +70,7 @@ export function AppSidebar() {
           <div className="flex items-center justify-between pr-1">
             <SidebarGroupLabel render={<h2 />}>Playlists</SidebarGroupLabel>
             <Button
-              aria-keyshortcuts={window.lume.isMac ? "Meta+N" : "Control+N"}
+              aria-keyshortcuts={ariaKeyShortcuts(globalShortcuts.newPlaylist.chord)}
               aria-label="Create playlist"
               onClick={() => openPlaylistCreation({ finalFocus: createTriggerRef, target: null })}
               ref={createTriggerRef}

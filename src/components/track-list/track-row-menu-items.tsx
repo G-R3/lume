@@ -13,10 +13,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { SelectionMenuShortcut } from "@/components/track-list/selection/selection-shortcut-keys";
+import { ariaKeyShortcuts } from "@/lib/keyboard-shortcuts";
+import { SelectionMenuShortcut } from "@/components/track-list/selection/selection-menu-shortcut";
 import {
   type SelectionAction,
-  selectionKeyShortcuts,
+  selectionChords,
 } from "@/components/track-list/selection/selection-shortcuts";
 import type { TrackAction } from "@/components/track-list/actions/track-actions";
 import type { RowMenu } from "@/components/track-list/selection/track-selection";
@@ -38,7 +39,7 @@ export function TrackRowMenuItems({
   const likes = target.entries.some((entry) => !entry.liked);
 
   const keyShortcuts = (action: SelectionAction) =>
-    targetsSelection ? selectionKeyShortcuts(action, window.lume.isMac) : undefined;
+    targetsSelection ? ariaKeyShortcuts(selectionChords[action]) : undefined;
 
   const shortcut = (action: SelectionAction) =>
     targetsSelection && <SelectionMenuShortcut action={action} />;
@@ -57,13 +58,13 @@ export function TrackRowMenuItems({
             {shortcut("playNext")}
           </DropdownMenuItem>
           <DropdownMenuItem
-            aria-keyshortcuts={keyShortcuts("queue")}
+            aria-keyshortcuts={keyShortcuts("addToQueue")}
             className="whitespace-nowrap"
-            onClick={() => run({ kind: "queue", target })}
+            onClick={() => run({ kind: "addToQueue", target })}
           >
             <ListPlusIcon aria-hidden="true" />
             Add to queue
-            {shortcut("queue")}
+            {shortcut("addToQueue")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
         </>
