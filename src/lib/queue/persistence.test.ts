@@ -65,36 +65,36 @@ function saved(payload: string, position = 12.5) {
   return { payload, position };
 }
 
-it("saves a session with Play next items in the stored format and restores it paused", () => {
+const storedPlayNextSession =
+  '{"sessionId":"session","source":{"kind":"playlist","playlistId":1,"title":"Mix"},' +
+  '"tracking":{"kind":"follows-source"},"sort":{"field":"added","direction":"asc"},' +
+  '"sourceEntries":[{"sourceEntryId":10,"trackId":1},{"sourceEntryId":20,"trackId":2},{"sourceEntryId":30,"trackId":3}],' +
+  '"sourcePosition":{"kind":"entry","sourceEntryId":20},"shuffleEnabled":false,' +
+  '"playback":{"kind":"active","current":{"queueItemId":"session:source:20","trackId":2,' +
+  '"origin":{"kind":"source","sourceEntryId":20,"source":{"kind":"playlist","playlistId":1},"sessionId":"session"}},' +
+  '"status":"playing","role":"source-step"},' +
+  '"manualQueue":[{"queueItemId":"manual-7","trackId":7,"origin":{"kind":"manual"}},' +
+  '{"queueItemId":"manual-8","trackId":8,"origin":{"kind":"manual"}}],' +
+  '"sourceQueue":[{"queueItemId":"session:source:30","trackId":3,' +
+  '"origin":{"kind":"source","sourceEntryId":30,"source":{"kind":"playlist","playlistId":1},"sessionId":"session"}}],' +
+  '"previousSourceItems":[{"queueItemId":"session:source:10","trackId":1,' +
+  '"origin":{"kind":"source","sourceEntryId":10,"source":{"kind":"playlist","playlistId":1},"sessionId":"session"}}],' +
+  '"suppressedSourceEntryIds":[]}';
+
+it("restores a stored session with Play next items, paused", () => {
   const state = apply(
     playlistSession("session", null),
     enqueue("start", [7, "manual-7"]),
     enqueue("end", [8, "manual-8"]),
   );
 
-  const payload = serializeQueueSession(state);
-
-  expect(payload).toBe(
-    '{"sessionId":"session","source":{"kind":"playlist","playlistId":1,"title":"Mix"},' +
-      '"tracking":{"kind":"follows-source"},"sort":{"field":"added","direction":"asc"},' +
-      '"sourceEntries":[{"sourceEntryId":10,"trackId":1},{"sourceEntryId":20,"trackId":2},{"sourceEntryId":30,"trackId":3}],' +
-      '"sourcePosition":{"kind":"entry","sourceEntryId":20},"shuffleEnabled":false,' +
-      '"playback":{"kind":"active","current":{"queueItemId":"session:source:20","trackId":2,' +
-      '"origin":{"kind":"source","sourceEntryId":20,"source":{"kind":"playlist","playlistId":1},"sessionId":"session"}},' +
-      '"status":"playing","role":"source-step"},' +
-      '"manualQueue":[{"queueItemId":"manual-7","trackId":7,"origin":{"kind":"manual"}},' +
-      '{"queueItemId":"manual-8","trackId":8,"origin":{"kind":"manual"}}],' +
-      '"sourceQueue":[{"queueItemId":"session:source:30","trackId":3,' +
-      '"origin":{"kind":"source","sourceEntryId":30,"source":{"kind":"playlist","playlistId":1},"sessionId":"session"}}],' +
-      '"previousSourceItems":[{"queueItemId":"session:source:10","trackId":1,' +
-      '"origin":{"kind":"source","sourceEntryId":10,"source":{"kind":"playlist","playlistId":1},"sessionId":"session"}}],' +
-      '"suppressedSourceEntryIds":[]}',
-  );
-
-  expect(parseQueueSession(saved(payload), library)).toEqual({
+  const restored = {
     state: { ...state, playback: { ...state.playback, status: "paused" } },
     position: 12.5,
-  });
+  };
+
+  expect(parseQueueSession(saved(storedPlayNextSession), library)).toEqual(restored);
+  expect(parseQueueSession(saved(serializeQueueSession(state)), library)).toEqual(restored);
 });
 
 it("restores a stopped session whose last played item is also in its history", () => {

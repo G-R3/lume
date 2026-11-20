@@ -112,13 +112,8 @@ export type PlaylistCreationInput = {
 };
 
 export type AddTracksToPlaylistInput = {
-  /**
-   * `check` writes nothing when any target is already in the playlist and reports the overlap.
-   * `allow` appends every target. `skip` appends each target not already there, once.
-   */
   duplicates: z.infer<typeof playlistDuplicatesSchema>;
   playlistId: number;
-  /** One entry per new membership, in order. A repeated ID adds that track again. */
   trackIds: readonly Track["id"][];
 };
 

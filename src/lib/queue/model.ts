@@ -102,7 +102,6 @@ export const queueStateSchema = queueStateObjectSchema.superRefine((state, conte
 
   const listed = listedItems(state);
   const playback = state.playback;
-  // A stopped session's last played item usually stays in its history, so it may repeat an ID.
   const occupied = playback.kind === "active" ? allQueueItems(state) : listed;
 
   if (new Set(occupied.map((item) => item.queueItemId)).size !== occupied.length)
