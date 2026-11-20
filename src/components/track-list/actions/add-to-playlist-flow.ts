@@ -3,7 +3,7 @@ import type { ActionTarget } from "../selection/track-selection";
 
 export type Destination = { readonly playlistId: number; readonly title: string };
 
-export type DuplicateMode = Exclude<AddTracksToPlaylistInput["duplicates"], "check">;
+export type DuplicateChoice = Exclude<AddTracksToPlaylistInput["duplicates"], "reject">;
 
 export type DuplicateCounts = {
   readonly alreadyInPlaylist: number;
@@ -23,7 +23,7 @@ export type ConfirmationPhase = Origin & {
   readonly duplicates: DuplicateCounts;
 } & (
     | { readonly phase: "confirmingDuplicates"; readonly error: string | null }
-    | { readonly phase: "adding"; readonly mode: DuplicateMode }
+    | { readonly phase: "adding"; readonly mode: DuplicateChoice }
   );
 
 export type OpenPhase = PickerPhase | ConfirmationPhase;
@@ -38,7 +38,7 @@ export type AddToPlaylistEvent =
   | { type: "pick"; destination: Destination }
   | { type: "createInstead" }
   | { type: "queue" }
-  | { type: "choose"; mode: DuplicateMode }
+  | { type: "choose"; mode: DuplicateChoice }
   | { type: "settled"; result: AddTracksToPlaylistResult }
   | { type: "failed"; message: string }
   | { type: "dismiss" }
@@ -137,7 +137,7 @@ export function requestOf(state: AddToPlaylistFlow): AddRequest | null {
   if (state.phase === "checking") {
     return {
       destination: state.destination,
-      duplicates: "check",
+      duplicates: "reject",
       trackIds: state.target.entries.map((entry) => entry.trackId),
     };
   }

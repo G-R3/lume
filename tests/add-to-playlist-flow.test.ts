@@ -52,12 +52,12 @@ it("checks the picked playlist with the whole ordered target, repeats included",
   expect(checking.phase).toBe("checking");
   expect(requestOf(checking)).toEqual({
     destination: mix,
-    duplicates: "check",
+    duplicates: "reject",
     trackIds: [10, 20, 10, 30],
   });
 });
 
-it("closes when the check adds without duplicates", () => {
+it("closes when the reject add finds no duplicates", () => {
   const state = run(open, pick(), added);
 
   expect(state).toMatchObject({ phase: "closed" });
@@ -187,14 +187,14 @@ it("forgets the closed flow once its exit finishes and reopens from scratch", ()
 });
 
 it("describes what the add did", () => {
-  const request = (duplicates: "check" | "allow" | "skip", trackIds: number[]) => ({
+  const request = (duplicates: "reject" | "allow" | "skip", trackIds: number[]) => ({
     destination: mix,
     duplicates,
     trackIds,
   });
 
-  expect(describeAddition(request("check", [10]), 1)).toBe("Added to Mix");
-  expect(describeAddition(request("check", [10, 20, 10, 30]), 4)).toBe("Added 4 tracks to Mix");
+  expect(describeAddition(request("reject", [10]), 1)).toBe("Added to Mix");
+  expect(describeAddition(request("reject", [10, 20, 10, 30]), 4)).toBe("Added 4 tracks to Mix");
   expect(describeAddition(request("allow", [10, 20, 10, 30]), 4)).toBe("Added 4 tracks to Mix");
   expect(describeAddition(request("skip", [10, 20, 10, 30]), 2)).toBe("Added 2 tracks to Mix");
   expect(describeAddition(request("skip", [10, 20, 10, 30]), 1)).toBe("Added 1 track to Mix");

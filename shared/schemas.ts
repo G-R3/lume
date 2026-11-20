@@ -6,7 +6,7 @@ export const databaseIdsSchema = z.array(databaseIdSchema, "Invalid database IDs
 
 export const playbackPositionSchema = z.number().finite().nonnegative();
 
-export const playlistDuplicatesSchema = z.enum(["check", "allow", "skip"]);
+export const playlistDuplicatesSchema = z.enum(["allow", "skip", "reject"]);
 
 export const setTracksLikedInputSchema = z.object({
   liked: z.boolean("Invalid track like input"),
