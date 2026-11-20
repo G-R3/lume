@@ -27,11 +27,7 @@ import {
   type TracksLikedResult,
 } from "@shared/library";
 import { getTrackUrl } from "@shared/app-urls";
-import {
-  type LibrarySnapshotJson,
-  stringifyLibrary,
-  type TrackTuple,
-} from "@shared/library-json";
+import { type LibrarySnapshotJson, stringifyLibrary, type TrackTuple } from "@shared/library-json";
 import { AppRoot } from "@/App";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { useLibraryMutation, useScanningSources, useSetTracksLiked } from "@/lib/library-query";
@@ -543,7 +539,9 @@ function SyncProbe() {
       <p data-playlist-count>{library.playlists[0]?.trackCount}</p>
       <p data-playlist-titles>{library.playlists.map((summary) => summary.title).join(",")}</p>
       <p data-playlist-entries>
-        {playlist.data === null ? "deleted" : playlist.data?.tracks.map((track) => track.id).join(",")}
+        {playlist.data === null
+          ? "deleted"
+          : playlist.data?.tracks.map((track) => track.id).join(",")}
       </p>
       <p data-playlist-pending>{String(addTracks.isPending || createPlaylist.isPending)}</p>
       <p data-command-pending>{String(command.isPending)}</p>

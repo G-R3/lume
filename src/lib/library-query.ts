@@ -99,8 +99,7 @@ export function useScanningSources(): ReadonlySet<number> {
     useQuery<ScanFrames>({ queryFn: skipToken, queryKey: scanFramesKey, staleTime: Infinity })
       .data ?? noScanFrames;
 
-  const revision = useQuery({ ...libraryQueryOptions, select: (library) => library.revision })
-    .data;
+  const revision = useQuery({ ...libraryQueryOptions, select: (library) => library.revision }).data;
 
   const scanning = settleScanFrames(frames, revision ?? -1).shown.scanning;
 

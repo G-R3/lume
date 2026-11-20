@@ -134,7 +134,11 @@ it("defers the latest seek until metadata and then clamps and reports direct see
 it("reads the element's time between reports, but the deferred position until metadata applies it", () => {
   const probe = mountMedia();
   act(() => probe.media.load(request("a")));
-  Object.defineProperty(probe.audio, "currentTime", { configurable: true, value: 0, writable: true });
+  Object.defineProperty(probe.audio, "currentTime", {
+    configurable: true,
+    value: 0,
+    writable: true,
+  });
   expect(probe.media.readLivePosition()).toBe(12);
 
   emit(probe.audio, "loadedmetadata", { duration: 60 });
