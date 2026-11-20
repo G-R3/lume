@@ -1,8 +1,15 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { getLibraryDatabasePath } from "../electron/database/location.ts";
+import packageJson from "../package.json" with { type: "json" };
 
 export function getDevelopmentDatabasePath() {
-  return join(getApplicationDataDirectory(), "lume", "lume-dev.sqlite");
+  return getLibraryDatabasePath(getUserDataDirectory(), false);
+}
+
+// Electron names the userData folder after package.json productName, falling back to name.
+function getUserDataDirectory() {
+  return join(getApplicationDataDirectory(), packageJson.productName ?? packageJson.name);
 }
 
 function getApplicationDataDirectory() {
