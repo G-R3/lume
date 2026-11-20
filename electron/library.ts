@@ -22,9 +22,9 @@ import {
   type TrackTuple,
   type TrackTupleKey,
   albumArtistsIfDifferent,
-  trackTupleIndex,
+  trackTuplePositions,
   trackTupleKeys,
-  trackTupleOf,
+  toTrackTuple,
   stringifyLibrary,
   stringifyFirstRunLibrary,
 } from "@shared/library-json";
@@ -195,7 +195,7 @@ function trackTupleFromRow(
   row: StoredTrackRow,
   gates: ReadonlyMap<number, SourceGate>,
 ): TrackTuple {
-  const at = trackTupleIndex;
+  const at = trackTuplePositions;
   const sourceId = row[trackTupleKeys.length];
   const gate = gates.get(sourceId);
 
@@ -211,7 +211,7 @@ function trackTupleFromRow(
   const artworkId = row[at.artworkUrl];
   const lossless = row[at.lossless];
 
-  return trackTupleOf({
+  return toTrackTuple({
     addedAt: row[at.addedAt],
     album: row[at.album],
     albumArtists: albumArtistsIfDifferent(albumArtists, artists),

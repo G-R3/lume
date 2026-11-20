@@ -41,16 +41,16 @@ export const trackTupleKeys = [
 
 export type TrackTupleKey = (typeof trackTupleKeys)[number];
 
-type TupleIndexes<Keys extends readonly string[]> = {
+type TuplePositions<Keys extends readonly string[]> = {
   [Index in keyof Keys as Index extends `${number}`
     ? Keys[Index]
     : never]: Index extends `${infer Position extends number}` ? Position : never;
 };
 
 // SAFETY: Object.fromEntries returns an untyped record. It holds the index of every key in trackTupleKeys.
-export const trackTupleIndex = Object.fromEntries(
+export const trackTuplePositions = Object.fromEntries(
   trackTupleKeys.map((key, index) => [key, index]),
-) as TupleIndexes<typeof trackTupleKeys>;
+) as TuplePositions<typeof trackTupleKeys>;
 
 type TrackTupleValue<Key extends TrackTupleKey> = Key extends "albumArtists"
   ? Track[Key] | null
@@ -64,7 +64,7 @@ export type TrackTuple = TupleValues<typeof trackTupleKeys>;
 
 export type TrackTupleFields = { [Key in TrackTupleKey]: TrackTupleValue<Key> };
 
-export function trackTupleOf(fields: TrackTupleFields): TrackTuple {
+export function toTrackTuple(fields: TrackTupleFields): TrackTuple {
   // SAFETY: Array.map returns a plain array. It keeps the order of trackTupleKeys, which defines TrackTuple.
   return trackTupleKeys.map((key) => fields[key]) as TrackTuple;
 }
@@ -142,7 +142,7 @@ export function parseLibrarySnapshot(json: LibrarySnapshotJson): LibrarySnapshot
 }
 
 function trackFromTuple(tuple: TrackTuple) {
-  const at = trackTupleIndex;
+  const at = trackTuplePositions;
   const artists = tuple[at.artists];
   const id = tuple[at.id];
   const unavailableReason = tuple[at.unavailableReason];
