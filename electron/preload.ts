@@ -27,7 +27,9 @@ const lumeApi = {
   },
   isMac: process.platform === "darwin",
   onLibraryEvent: (listener) => {
-    const forward = (_event: IpcRendererEvent, libraryEvent: LibraryEvent) => listener(libraryEvent);
+    const forward = (_event: IpcRendererEvent, libraryEvent: LibraryEvent) =>
+      listener(libraryEvent);
+
     ipcRenderer.on(lumeEventChannels.libraryEvent, forward);
 
     return () => {

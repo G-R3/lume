@@ -142,10 +142,7 @@ function FolderRow({ folder }: { folder: FolderPresentation }) {
       </td>
       <td className="hidden pl-4 @3xl:table-cell">
         <p
-          className={cn(
-            "truncate text-meta",
-            hasIssue ? "text-primary" : "text-secondary",
-          )}
+          className={cn("truncate text-meta", hasIssue ? "text-primary" : "text-secondary")}
           title={folder.tooltip}
         >
           {folder.statusText}

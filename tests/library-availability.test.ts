@@ -1,6 +1,6 @@
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, onTestFinished } from "vite-plus/test";
 import { openTestDatabase } from "./helpers/database";
 import { getActiveSource, libraryTracks } from "./helpers/library";
 import { createTemporaryFolder } from "./helpers/temp-folder";
@@ -80,6 +80,7 @@ describe("derived track availability", () => {
     await scan();
     const tracksBefore = storedTracks();
     const hidden = `${folder}-unplugged`;
+    onTestFinished(() => rm(hidden, { force: true, recursive: true }));
 
     await rename(folder, hidden);
     expect(await scan()).toEqual({ kind: "committed" });

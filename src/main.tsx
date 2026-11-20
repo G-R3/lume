@@ -4,13 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
 import "./index.css";
-import {
-  ToastList,
-  ToastPortal,
-  ToastProvider,
-  ToastViewport,
-  toast,
-} from "@/components/ui/toast";
+import { ToastList, ToastPortal, ToastProvider, ToastViewport, toast } from "@/components/ui/toast";
 import { PlaybackProvider } from "@/hooks/use-playback";
 import { trackFocusModality } from "@/lib/focus-modality";
 import { createAppRouter } from "@/router";

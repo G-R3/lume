@@ -2,9 +2,7 @@
   "version": "7",
   "dialect": "sqlite",
   "id": "1b8cef1c-edf8-4200-939c-3f1e502453ce",
-  "prevIds": [
-    "e6e9b2a3-efdc-4c63-8b8d-a1ba23f1b389"
-  ],
+  "prevIds": ["e6e9b2a3-efdc-4c63-8b8d-a1ba23f1b389"],
   "ddl": [
     {
       "name": "artwork",
@@ -565,13 +563,9 @@
       "table": "tracks"
     },
     {
-      "columns": [
-        "playlist_id"
-      ],
+      "columns": ["playlist_id"],
       "tableTo": "playlists",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -580,13 +574,9 @@
       "table": "playlist_entries"
     },
     {
-      "columns": [
-        "track_id"
-      ],
+      "columns": ["track_id"],
       "tableTo": "tracks",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -595,13 +585,9 @@
       "table": "playlist_entries"
     },
     {
-      "columns": [
-        "track_id"
-      ],
+      "columns": ["track_id"],
       "tableTo": "tracks",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -610,13 +596,9 @@
       "table": "track_state"
     },
     {
-      "columns": [
-        "source_id"
-      ],
+      "columns": ["source_id"],
       "tableTo": "library_sources",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -625,13 +607,9 @@
       "table": "tracks"
     },
     {
-      "columns": [
-        "artwork_id"
-      ],
+      "columns": ["artwork_id"],
       "tableTo": "artwork",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -640,63 +618,49 @@
       "table": "tracks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "artwork_pk",
       "entityType": "pks",
       "table": "artwork"
     },
     {
-      "columns": [
-        "track_id"
-      ],
+      "columns": ["track_id"],
       "nameExplicit": false,
       "name": "track_state_pk",
       "entityType": "pks",
       "table": "track_state"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "library_sources_pk",
       "table": "library_sources",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "playback_session_pk",
       "table": "playback_session",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "playlist_entries_pk",
       "table": "playlist_entries",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "playlists_pk",
       "table": "playlists",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "tracks_pk",
       "table": "tracks",
@@ -777,28 +741,21 @@
       "table": "tracks"
     },
     {
-      "columns": [
-        "playlist_id",
-        "position"
-      ],
+      "columns": ["playlist_id", "position"],
       "nameExplicit": false,
       "name": "playlist_entries_playlist_id_position_unique",
       "entityType": "uniques",
       "table": "playlist_entries"
     },
     {
-      "columns": [
-        "path"
-      ],
+      "columns": ["path"],
       "nameExplicit": false,
       "name": "library_sources_path_unique",
       "entityType": "uniques",
       "table": "library_sources"
     },
     {
-      "columns": [
-        "path"
-      ],
+      "columns": ["path"],
       "nameExplicit": false,
       "name": "tracks_path_unique",
       "entityType": "uniques",

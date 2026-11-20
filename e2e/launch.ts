@@ -1,6 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { _electron as electron, type ElectronApplication, type Locator, type Page } from "playwright";
+import {
+  _electron as electron,
+  type ElectronApplication,
+  type Locator,
+  type Page,
+} from "playwright";
 import { afterEach } from "vite-plus/test";
 import { closeDatabase, initializeDatabase } from "../electron/database";
 import { getLibraryDatabasePath } from "../electron/database/location";

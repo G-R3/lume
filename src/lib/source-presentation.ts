@@ -159,7 +159,10 @@ function presentFolder(source: LibrarySource, now: number): FolderFacts {
   }
 }
 
-function displayDetail(status: { kind: "missing" | "permission" | "failed"; errorMessage: string }) {
+function displayDetail(status: {
+  kind: "missing" | "permission" | "failed";
+  errorMessage: string;
+}) {
   if (status.kind === "permission") return permissionDetail;
 
   return status.errorMessage || "Unknown scan error.";
@@ -229,12 +232,12 @@ function presentFooter(facts: readonly FolderFacts[], now: number) {
       : scanningCount > 0
         ? "scanning"
         : issues > 0
-        ? issues === 1
-          ? "1 issue"
-          : `${issues} issues`
-        : scannedAt.length > 0
-          ? formatScanAge(Math.min(...scannedAt), now)
-          : null;
+          ? issues === 1
+            ? "1 issue"
+            : `${issues} issues`
+          : scannedAt.length > 0
+            ? formatScanAge(Math.min(...scannedAt), now)
+            : null;
 
   return { text: detail ? `${name} · ${detail}` : name, tooltip };
 }

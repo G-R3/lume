@@ -1528,7 +1528,9 @@ it.each(["before", "after"] as const)(
 
     if (pushed === "before") playback.commit(addition);
     read.resolve({ revision: 1, playlist: twoTrackPlaylist });
-    await expect.poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
+    await expect
+      .poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue))
+      .toBe("paused");
 
     if (pushed === "after") playback.commit(addition);
 
@@ -1544,7 +1546,9 @@ it("keeps out an edit older than the read a queue-end restart started from", asy
 
   playback.controller.playSourceEntry(playlistView(singleTrackPlaylist), 10);
   playback.controller.next();
-  await expect.poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue)).toBe("paused");
+  await expect
+    .poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue))
+    .toBe("paused");
   playback.controller.applySourceChange(
     { type: "sourceEntriesAdded", playlistId: 1, entries: [{ sourceEntryId: 11, trackId: 2 }] },
     1,

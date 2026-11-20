@@ -49,7 +49,11 @@ function failed(errorMessage: string): SourceStatus {
   return { errorMessage, kind: "failed", lastScannedAt: null };
 }
 
-const permission: SourceStatus = { errorMessage: "EACCES", kind: "permission", lastScannedAt: null };
+const permission: SourceStatus = {
+  errorMessage: "EACCES",
+  kind: "permission",
+  lastScannedAt: null,
+};
 
 function source(name: string, status: SourceStatus, id = 1): LibrarySource {
   return { id, path: `/music/${name}`, status };
@@ -257,7 +261,8 @@ describe("tracks notice", () => {
       tracks: [track(1, "source-missing"), track(2, "file-missing")],
       notice: {
         detail: "Its tracks can’t play until it’s back.",
-        kind: "issue", scanning: false,
+        kind: "issue",
+        scanning: false,
         sourceId: 2,
         title: "b isn’t connected",
       },
@@ -268,7 +273,8 @@ describe("tracks notice", () => {
       tracks: [],
       notice: {
         detail: "Disk read failed",
-        kind: "issue", scanning: false,
+        kind: "issue",
+        scanning: false,
         sourceId: 3,
         title: "c couldn’t be scanned",
       },
@@ -279,7 +285,8 @@ describe("tracks notice", () => {
       tracks: [],
       notice: {
         detail: permissionCopy,
-        kind: "issue", scanning: false,
+        kind: "issue",
+        scanning: false,
         sourceId: 4,
         title: "d couldn’t be scanned",
       },
@@ -302,7 +309,8 @@ describe("tracks notice", () => {
       tracks: [track(1, "file-missing"), track(2)],
       notice: {
         detail: "Their files were moved or deleted since the last scan.",
-        kind: "missing-files", scanning: false,
+        kind: "missing-files",
+        scanning: false,
         title: "1 track is missing",
       },
     },
@@ -312,7 +320,8 @@ describe("tracks notice", () => {
       tracks: [track(1, "source-off"), track(2, "file-missing"), track(3, "file-missing")],
       notice: {
         detail: "Their files were moved or deleted since the last scan.",
-        kind: "missing-files", scanning: false,
+        kind: "missing-files",
+        scanning: false,
         title: "2 tracks are missing",
       },
     },
@@ -375,8 +384,8 @@ describe("sidebar footer", () => {
   it("lists every folder path in its tooltip", () => {
     expect(presentLibrarySources(library([]), idle, now).footer.tooltip).toBeUndefined();
     expect(
-      presentLibrarySources(library([source("a", off, 1), source("b", unscanned, 2)]), idle, now).footer
-        .tooltip,
+      presentLibrarySources(library([source("a", off, 1), source("b", unscanned, 2)]), idle, now)
+        .footer.tooltip,
     ).toBe("/music/a\n/music/b");
   });
 });
@@ -385,7 +394,8 @@ describe("tracks empty state", () => {
   const addMusic = {
     chooseLabel: "Choose folder",
     description: "Choose a folder of audio files. Lume plays them where they are.",
-    kind: "add", scanning: false,
+    kind: "add",
+    scanning: false,
     title: "Add your music",
   };
 
@@ -399,7 +409,8 @@ describe("tracks empty state", () => {
       empty: {
         chooseLabel: "Choose another folder",
         description: "Lume plays FLAC, M4A, MP3, AAC, OGG, OPUS and WAV files.",
-        kind: "no-audio", scanning: false,
+        kind: "no-audio",
+        scanning: false,
         sourceId: 2,
         title: "No audio in “quiet”",
       },
@@ -432,7 +443,6 @@ describe("tracks empty state", () => {
     expect(presentLibrarySources(library(sources, tracks), idle, now).empty).toStrictEqual(empty);
   });
 });
-
 
 describe("while main scans a folder", () => {
   const scanningA = new Set([1]);

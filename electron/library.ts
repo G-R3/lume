@@ -685,7 +685,12 @@ function commitSourceScan(
 
     transaction
       .update(librarySources)
-      .set({ lastScanErrorMessage: null, lastScanOutcome: "ok", lastScannedAt: now, updatedAt: now })
+      .set({
+        lastScanErrorMessage: null,
+        lastScanOutcome: "ok",
+        lastScannedAt: now,
+        updatedAt: now,
+      })
       .where(eq(librarySources.id, sourceId))
       .run();
   });
