@@ -37,8 +37,6 @@ export default defineConfig({
       ".pi/**",
       ".roo/**",
       ".windsurf/**",
-      "drizzle/**",
-      "src/components/ui/**",
       "src/routeTree.gen.ts",
       "tools/oxlint/anti-slop/**",
     ],
