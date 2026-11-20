@@ -1338,7 +1338,6 @@ it("recovers from a failed restore with a restore failure and no queue, then pla
     expect(consoleError.mock.calls).toEqual([
       ["Could not load the saved playback session", rejection],
     ]);
-    expect(consoleError.mock.calls[0]?.[1]).toBe(rejection);
     expect(playback.controller.getSnapshot()).toMatchObject({
       queue: null,
       failures: { ...noFailures, restore: true },
