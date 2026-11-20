@@ -1,3 +1,4 @@
+import { audioFormats } from "@shared/audio-formats";
 import type { LibrarySource, MusicLibrary, TrackUnavailableReason } from "@shared/library";
 import { libraryRows } from "./track-sort";
 
@@ -237,6 +238,10 @@ function presentFooter(facts: readonly FolderFacts[], now: number) {
   return { text: detail ? `${name} · ${detail}` : name, tooltip };
 }
 
+const audioFormatLabels = audioFormats.map(({ label }) => label);
+
+const audioFormatsText = `${audioFormatLabels.slice(0, -1).join(", ")} and ${audioFormatLabels.at(-1)}`;
+
 function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): SourceEmpty {
   if (
     libraryRows(library.tracks).length > 0 ||
@@ -260,7 +265,7 @@ function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): Sou
 
   return {
     chooseLabel: "Choose another folder",
-    description: "Lume plays FLAC, M4A, MP3, AAC, OGG, OPUS and WAV files.",
+    description: `Lume plays ${audioFormatsText} files.`,
     kind: "no-audio",
     scanning,
     sourceId: scanned.folder.id,

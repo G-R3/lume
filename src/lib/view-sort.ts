@@ -8,6 +8,7 @@ import {
   parseTrackSort,
   type SortField,
   type TrackSort,
+  viewKey,
 } from "./track-sort";
 
 const sortsInMemory = new Map<string, TrackSort>();
@@ -19,9 +20,7 @@ try {
 } catch {}
 
 function storageKey(view: SourceIdentity) {
-  return view.kind === "all-tracks"
-    ? "lume:sort:all-tracks"
-    : `lume:sort:playlist:${view.playlistId}`;
+  return `lume:sort:${viewKey(view)}`;
 }
 
 function readSort(key: string) {

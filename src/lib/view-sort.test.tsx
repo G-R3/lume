@@ -77,6 +77,16 @@ describe("view sorts", () => {
     expect(localStorage.length).toBe(0);
   });
 
+  it("saves each view under its own lume:sort key", async () => {
+    const store = await freshStore();
+    store.stepViewSort(allTracks, "title");
+    store.stepViewSort(playlist(3), "duration");
+
+    expect(localStorage.getItem("lume:sort:all-tracks")).toBe("title:asc");
+    expect(localStorage.getItem("lume:sort:playlist:3")).toBe("duration:asc");
+    expect(localStorage.length).toBe(2);
+  });
+
   it.each(["garbage", "title", "title:sideways", ""])(
     "reads a stored %j as the default",
     async (raw) => {
