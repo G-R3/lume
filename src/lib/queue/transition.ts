@@ -2,10 +2,10 @@ import type { QueueCommand, QueueContext, QueuePosition } from "./commands";
 import {
   activeSourceEntryId,
   addUnique,
+  allQueueItems,
   clearAnchorsTo,
   createSourceItems,
   historyWithCurrent,
-  playbackItem,
   playItem,
   sourceStepItem,
 } from "./items";
@@ -137,14 +137,7 @@ function enqueueTracks(
   state: QueueState,
   command: Extract<QueueCommand, { type: "enqueueTracks" }>,
 ): QueueState {
-  const usedIds = new Set(
-    [
-      playbackItem(state),
-      ...state.manualQueue,
-      ...state.sourceQueue,
-      ...state.previousSourceItems,
-    ].map((item) => item.queueItemId),
-  );
+  const usedIds = new Set(allQueueItems(state).map((item) => item.queueItemId));
 
   const items = command.items.flatMap(({ trackId, queueItemId }): QueueItem[] => {
     if (usedIds.has(queueItemId)) return [];

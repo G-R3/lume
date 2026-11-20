@@ -1,3 +1,5 @@
+import { databaseIdSchema } from "./schemas";
+
 export const appScheme = "lume";
 
 const appHost = "app";
@@ -35,7 +37,7 @@ export function parseAppUrl(url: string): AppUrl | null {
 
     return {
       kind: "track",
-      trackId: Number.isSafeInteger(trackId) && trackId > 0 ? trackId : null,
+      trackId: databaseIdSchema.safeParse(trackId).success ? trackId : null,
     };
   }
 

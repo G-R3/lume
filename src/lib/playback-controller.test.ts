@@ -2219,6 +2219,29 @@ function pausedCopy(queue: QueueState | null) {
     : queue;
 }
 
+it("flushes position 0 when the live position is not a usable time", async () => {
+  const library = {
+    kind: "library",
+    playlists: [],
+    sources: [],
+    tracks: [1, 2].map(track),
+  } satisfies MusicLibrary;
+
+  const flushedAt = async (livePosition: number) => {
+    const playback = await createReadyPlayback(library);
+    playback.controller.playSourceEntry(allTracks(playback.controller), 1);
+    playback.audioState.position = livePosition;
+    playback.controller.flush();
+
+    return playback.flushes.at(-1)?.position;
+  };
+
+  expect(await flushedAt(4.5)).toBe(4.5);
+  expect(await flushedAt(-3)).toBe(0);
+  expect(await flushedAt(Number.NaN)).toBe(0);
+  expect(await flushedAt(Number.POSITIVE_INFINITY)).toBe(0);
+});
+
 async function createReadyPlayback(
   library: MusicLibrary,
   options: Parameters<typeof createTestPlayback>[0] = {},

@@ -1,5 +1,6 @@
 import type { LibraryRevision, MusicLibrary, PlaylistRead, Track } from "@shared/library";
 import type { LumeApi, SavedPlaybackSession } from "@shared/ipc";
+import { playbackPositionSchema } from "@shared/schemas";
 import { createCoalescingWriter } from "@/lib/coalescing-writer";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
@@ -85,7 +86,7 @@ function readSavedSession(
 }
 
 function savedPosition(position: number) {
-  return Number.isFinite(position) ? Math.max(0, position) : 0;
+  return playbackPositionSchema.catch(0).parse(position);
 }
 
 export function createPlaybackController(dependencies: {

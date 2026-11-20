@@ -17,8 +17,14 @@ import {
   type AddTracksToPlaylistInput,
   type PlaylistCreationInput,
   type RemovePlaylistTracksInput,
-  type SetTracksLikedInput,
 } from "@shared/library";
+import {
+  databaseIdSchema,
+  databaseIdsSchema,
+  playbackPositionSchema,
+  playlistDuplicatesSchema,
+  setTracksLikedInputSchema,
+} from "@shared/schemas";
 import {
   disableSource,
   enableSource,
@@ -43,36 +49,25 @@ import {
 import { loadPlaybackSession, savePlaybackPosition, savePlaybackSession } from "./playback-session";
 import { isTrustedRendererEvent } from "./protocol";
 
-const rowIdSchema = z.number("Invalid database ID").int().positive().safe();
-
-const rowIdsSchema = z.array(rowIdSchema, "Invalid database IDs");
-
 const playlistCreationSchema = z.object(
   {
     description: z.string("Invalid playlist creation input").nullable(),
     title: z.string("Invalid playlist creation input"),
-    trackIds: rowIdsSchema,
+    trackIds: databaseIdsSchema,
   },
   "Invalid playlist creation input",
 ) satisfies z.ZodType<PlaylistCreationInput>;
 
 const addTracksToPlaylistSchema = z.object({
-  duplicates: z.enum(["check", "allow", "skip"]),
-  playlistId: rowIdSchema,
-  trackIds: rowIdsSchema.min(1),
+  duplicates: playlistDuplicatesSchema,
+  playlistId: databaseIdSchema,
+  trackIds: databaseIdsSchema.min(1),
 }) satisfies z.ZodType<AddTracksToPlaylistInput>;
 
 const removePlaylistTracksSchema = z.object({
-  playlistTrackIds: rowIdsSchema.min(1),
-  playlistId: rowIdSchema,
+  playlistTrackIds: databaseIdsSchema.min(1),
+  playlistId: databaseIdSchema,
 }) satisfies z.ZodType<RemovePlaylistTracksInput>;
-
-const setTracksLikedSchema = z.object({
-  liked: z.boolean("Invalid track like input"),
-  trackIds: rowIdsSchema.min(1),
-}) satisfies z.ZodType<SetTracksLikedInput>;
-
-const playbackPositionSchema = z.number().finite().nonnegative();
 
 const playbackSessionSchema = z.object({
   payload: z.string(),
@@ -112,30 +107,30 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
       return { playlist, revision: currentLibraryRevision() };
     },
     deletePlaylist: (_window, playlistId) => {
-      deletePlaylist(rowIdSchema.parse(playlistId));
+      deletePlaylist(databaseIdSchema.parse(playlistId));
 
       return currentLibraryRevision();
     },
     disableSource: (_window, input) => {
-      disableSource(rowIdSchema.parse(input));
+      disableSource(databaseIdSchema.parse(input));
 
       return currentLibraryRevision();
     },
     enableSource: (_window, input) => {
-      scanInBackground(enableSource(rowIdSchema.parse(input)));
+      scanInBackground(enableSource(databaseIdSchema.parse(input)));
 
       return currentLibraryRevision();
     },
     forgetSource: (_window, input) => {
-      forgetSource(rowIdSchema.parse(input));
+      forgetSource(databaseIdSchema.parse(input));
 
       return currentLibraryRevision();
     },
-    hasTrackFile: (_window, trackId) => hasTrackFile(rowIdSchema.parse(trackId)),
+    hasTrackFile: (_window, trackId) => hasTrackFile(databaseIdSchema.parse(trackId)),
     loadLibrary: () => getLibrarySnapshotJson(),
     loadLibraryState: () => getLibraryState(),
     loadPlaybackSession: () => loadPlaybackSession(),
-    loadPlaylist: (_window, playlistId) => getPlaylist(rowIdSchema.parse(playlistId)),
+    loadPlaylist: (_window, playlistId) => getPlaylist(databaseIdSchema.parse(playlistId)),
     openDataFolder: async () => {
       const errorMessage = await shell.openPath(options.userDataDirectory);
 
@@ -147,7 +142,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
       return currentLibraryRevision();
     },
     rescanSource: (_window, input) => {
-      scanInBackground(scanSource(rowIdSchema.parse(input)));
+      scanInBackground(scanSource(databaseIdSchema.parse(input)));
 
       return currentLibraryRevision();
     },
@@ -162,7 +157,7 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
     savePlaybackSession: (_window, session) => {
       savePlaybackSession(playbackSessionSchema.parse(session));
     },
-    setTracksLiked: (_window, input) => setTracksLiked(setTracksLikedSchema.parse(input)),
+    setTracksLiked: (_window, input) => setTracksLiked(setTracksLikedInputSchema.parse(input)),
   } satisfies LumeHandlers;
 
   for (const [method, channel] of Object.entries(lumeChannels)) {

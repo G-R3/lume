@@ -1,3 +1,6 @@
+import type { z } from "zod";
+import type { playlistDuplicatesSchema, setTracksLikedInputSchema } from "./schemas";
+
 export type TrackMetadata = {
   album: string | null;
   albumArtists: string[];
@@ -37,10 +40,7 @@ export type Track = TrackMetadata & {
   likedAt: number | null;
 };
 
-export type SetTracksLikedInput = {
-  liked: boolean;
-  trackIds: readonly Track["id"][];
-};
+export type SetTracksLikedInput = z.infer<typeof setTracksLikedInputSchema>;
 
 export type TrackLikeResult = {
   likedAt: Track["likedAt"];
@@ -112,13 +112,8 @@ export type PlaylistCreationInput = {
 };
 
 export type AddTracksToPlaylistInput = {
-  /**
-   * `check` writes nothing when any target is already in the playlist and reports the overlap.
-   * `allow` appends every target. `skip` appends each target not already there, once.
-   */
-  duplicates: "check" | "allow" | "skip";
+  duplicates: z.infer<typeof playlistDuplicatesSchema>;
   playlistId: number;
-  /** One entry per new membership, in order. A repeated ID adds that track again. */
   trackIds: readonly Track["id"][];
 };
 

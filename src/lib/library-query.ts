@@ -21,7 +21,7 @@ import {
   type TrackLikeResult,
 } from "@shared/library";
 import { parseLibrarySnapshot } from "@shared/library-json";
-import { z } from "zod";
+import { setTracksLikedInputSchema } from "@shared/schemas";
 import { type ScanFrames, receiveScanFrame, settleScanFrames } from "@/lib/scan-frames";
 import { withLikedAt } from "@/lib/liked-at";
 import { playlistEffects, type PlaylistSourceChange } from "@/lib/playlist-events";
@@ -66,11 +66,6 @@ const setTracksLikedKey = ["set-tracks-liked"];
 const likesInClickOrder = { id: "likes" };
 
 type PendingLike = { input: SetTracksLikedInput; submittedAt: number };
-
-const setTracksLikedInputSchema = z.object({
-  liked: z.boolean(),
-  trackIds: z.array(z.number()),
-}) satisfies z.ZodType<SetTracksLikedInput>;
 
 const pendingLikesOptions = {
   filters: { mutationKey: setTracksLikedKey, status: "pending" },

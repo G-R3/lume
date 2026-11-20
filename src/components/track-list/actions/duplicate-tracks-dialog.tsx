@@ -13,14 +13,14 @@ import { FieldError } from "@/components/ui/field";
 import {
   type ConfirmationPhase,
   describeDuplicates,
-  type DuplicateMode,
+  type DuplicateChoice,
 } from "@/components/track-list/actions/add-to-playlist-flow";
 
 type DuplicateTracksDialogProps = {
-  addingMode: DuplicateMode | null;
+  addingMode: DuplicateChoice | null;
   confirmation: ConfirmationPhase;
   error: string | null;
-  onChoose: (mode: DuplicateMode) => void;
+  onChoose: (mode: DuplicateChoice) => void;
   onDismiss: () => void;
   onExited: () => void;
   open: boolean;

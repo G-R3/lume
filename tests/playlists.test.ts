@@ -63,7 +63,7 @@ describe("playlist behavior", () => {
     );
 
     const addition = addTracksToPlaylist({
-      duplicates: "check",
+      duplicates: "reject",
       playlistId: playlist.id,
       trackIds: [secondTrack.id],
     });
@@ -176,7 +176,7 @@ describe("playlist behavior", () => {
 
     expect(
       addTracksToPlaylist({
-        duplicates: "check",
+        duplicates: "reject",
         playlistId: playlist.id,
         trackIds: [firstTrack.id],
       }),
@@ -191,7 +191,7 @@ describe("playlist behavior", () => {
     removePlaylistTracks({ playlistId: playlist.id, playlistTrackIds: [playlist.tracks[0].id] });
 
     addTracksToPlaylist({
-      duplicates: "check",
+      duplicates: "reject",
       playlistId: playlist.id,
       trackIds: [thirdTrack.id],
     });
@@ -242,7 +242,7 @@ describe("playlist behavior", () => {
     follow();
     addTracksToPlaylist({ duplicates: "allow", playlistId: playlist.id, trackIds: [second.id] });
     follow();
-    addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: [second.id] });
+    addTracksToPlaylist({ duplicates: "reject", playlistId: playlist.id, trackIds: [second.id] });
     follow();
     removePlaylistTracks({ playlistId: playlist.id, playlistTrackIds: [playlist.tracks[0].id] });
     follow();
@@ -289,7 +289,7 @@ describe("playlist behavior", () => {
     const playlist = createPlaylist({ description: null, title: "Mix", trackIds: [first.id] });
 
     const addition = addTracksToPlaylist({
-      duplicates: "check",
+      duplicates: "reject",
       playlistId: playlist.id,
       trackIds: [second.id, second.id],
     });
@@ -314,7 +314,7 @@ describe("playlist behavior", () => {
     const request = [second.id, first.id, first.id];
 
     expect(
-      addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: request }),
+      addTracksToPlaylist({ duplicates: "reject", playlistId: playlist.id, trackIds: request }),
     ).toEqual({ alreadyInPlaylist: 2, kind: "duplicate", newTrackCount: 1 });
     expect(getPlaylist(playlist.id).playlist?.tracks).toEqual(playlist.tracks);
 
@@ -341,7 +341,7 @@ describe("playlist behavior", () => {
     const request = [second.id, old.id, first.id, second.id, old.id];
 
     expect(
-      addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: request }),
+      addTracksToPlaylist({ duplicates: "reject", playlistId: playlist.id, trackIds: request }),
     ).toEqual({ alreadyInPlaylist: 2, kind: "duplicate", newTrackCount: 2 });
 
     const skipped = addTracksToPlaylist({
@@ -403,7 +403,7 @@ describe("playlist behavior", () => {
 
     expect(bulkIds).toHaveLength(2500);
     expect(
-      addTracksToPlaylist({ duplicates: "check", playlistId: playlist.id, trackIds: request }),
+      addTracksToPlaylist({ duplicates: "reject", playlistId: playlist.id, trackIds: request }),
     ).toEqual({ alreadyInPlaylist: 2500, kind: "duplicate", newTrackCount: 1250 });
 
     const skipped = addTracksToPlaylist({
@@ -439,7 +439,7 @@ describe("playlist behavior", () => {
       }),
     ).toThrow("Track does not exist");
     expect(() =>
-      addTracksToPlaylist({ duplicates: "check", playlistId: 999_999, trackIds: [track.id] }),
+      addTracksToPlaylist({ duplicates: "reject", playlistId: 999_999, trackIds: [track.id] }),
     ).toThrow("Playlist does not exist");
     expect(getPlaylist(playlist.id).playlist?.tracks).toEqual([]);
   });
@@ -451,7 +451,7 @@ describe("playlist behavior", () => {
     const occurrences = Array.from({ length: 33_000 }, () => track.id);
 
     const addition = addTracksToPlaylist({
-      duplicates: "check",
+      duplicates: "reject",
       playlistId: playlist.id,
       trackIds: occurrences,
     });
@@ -478,7 +478,7 @@ describe("playlist behavior", () => {
     const playlist = createPlaylist({ description: null, title: "Times", trackIds: [first.id] });
 
     const addition = addTracksToPlaylist({
-      duplicates: "check",
+      duplicates: "reject",
       playlistId: playlist.id,
       trackIds: [second.id],
     });

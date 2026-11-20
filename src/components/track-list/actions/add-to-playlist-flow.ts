@@ -1,10 +1,10 @@
-import type { AddTracksToPlaylistResult } from "@shared/library";
+import type { AddTracksToPlaylistInput, AddTracksToPlaylistResult } from "@shared/library";
 import { formatTrackCount } from "../../../lib/format-track-count";
 import type { ActionTarget } from "../selection/track-selection";
 
 export type Destination = { readonly playlistId: number; readonly title: string };
 
-export type DuplicateMode = "allow" | "skip";
+export type DuplicateChoice = Exclude<AddTracksToPlaylistInput["duplicates"], "reject">;
 
 export type DuplicateCounts = {
   readonly alreadyInPlaylist: number;
@@ -24,7 +24,7 @@ export type ConfirmationPhase = Origin & {
   readonly duplicates: DuplicateCounts;
 } & (
     | { readonly phase: "confirmingDuplicates"; readonly error: string | null }
-    | { readonly phase: "adding"; readonly mode: DuplicateMode }
+    | { readonly phase: "adding"; readonly mode: DuplicateChoice }
   );
 
 export type OpenPhase = PickerPhase | ConfirmationPhase;
@@ -39,7 +39,7 @@ export type AddToPlaylistEvent =
   | { type: "pick"; destination: Destination }
   | { type: "createInstead" }
   | { type: "queue" }
-  | { type: "choose"; mode: DuplicateMode }
+  | { type: "choose"; mode: DuplicateChoice }
   | { type: "settled"; result: AddTracksToPlaylistResult }
   | { type: "failed"; message: string }
   | { type: "dismiss" }
@@ -47,7 +47,7 @@ export type AddToPlaylistEvent =
 
 export type AddRequest = {
   readonly destination: Destination;
-  readonly duplicates: "check" | DuplicateMode;
+  readonly duplicates: AddTracksToPlaylistInput["duplicates"];
   readonly trackIds: readonly number[];
 };
 
@@ -138,7 +138,7 @@ export function requestOf(state: AddToPlaylistFlow): AddRequest | null {
   if (state.phase === "checking") {
     return {
       destination: state.destination,
-      duplicates: "check",
+      duplicates: "reject",
       trackIds: state.target.entries.map((entry) => entry.trackId),
     };
   }
