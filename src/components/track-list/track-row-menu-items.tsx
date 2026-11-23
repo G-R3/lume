@@ -17,7 +17,7 @@ import { ariaKeyShortcuts } from "@/lib/keyboard-shortcuts";
 import { SelectionMenuShortcut } from "@/components/track-list/selection/selection-menu-shortcut";
 import {
   type SelectionAction,
-  selectionChords,
+  SELECTION_CHORDS,
 } from "@/components/track-list/selection/selection-shortcuts";
 import type { TrackAction } from "@/components/track-list/actions/track-actions";
 import type { RowMenu } from "@/components/track-list/selection/track-selection";
@@ -39,7 +39,7 @@ export function TrackRowMenuItems({
   const likes = target.entries.some((entry) => !entry.liked);
 
   const keyShortcuts = (action: SelectionAction) =>
-    targetsSelection ? ariaKeyShortcuts(selectionChords[action]) : undefined;
+    targetsSelection ? ariaKeyShortcuts(SELECTION_CHORDS[action]) : undefined;
 
   const shortcut = (action: SelectionAction) =>
     targetsSelection && <SelectionMenuShortcut action={action} />;

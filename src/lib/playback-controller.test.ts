@@ -7,13 +7,13 @@ import { expect, it, vi } from "vite-plus/test";
 import { ZodError } from "zod";
 import type { LumeApi, SavedPlaybackSession } from "@shared/ipc";
 import type { MusicLibrary, PlaylistDetails, PlaylistRead, Track } from "@shared/library";
-import { createPlaybackController, noFailures } from "./playback-controller";
+import { createPlaybackController, NO_FAILURES } from "./playback-controller";
 import type { PlaybackRequest } from "./playback-media";
 import type { SessionSource } from "./queue/commands";
 import type { QueueState } from "./queue/model";
 import { parseQueueSession } from "./queue/persistence";
 import { libraryEntries, playlistEntries } from "./queue/source";
-import { defaultSort, trackSort } from "./track-sort";
+import { DEFAULT_SORT, trackSort } from "./track-sort";
 import { stepViewSort } from "./view-sort";
 
 it.each([
@@ -603,7 +603,7 @@ it("restarts the current shuffled row in place and ignores events from its old l
     reason: "rejected",
   });
   expect(playback.controller.getSnapshot()).toMatchObject({
-    failures: noFailures,
+    failures: NO_FAILURES,
     queue: { playback: { kind: "active", status: "playing", current: { trackId: 2 } } },
   });
   expect(playback.audioState.request).toMatchObject({
@@ -866,7 +866,7 @@ it.each([false, true])(
         { sourceEntryId: 12, trackId: 2 },
       ],
       filter: "a",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
     } satisfies SessionSource;
 
     playback.controller.playSourceEntry(view, 12);
@@ -894,7 +894,7 @@ it.each([false, true])(
       shuffled ? [2, 4] : [4, 2],
     );
     expect(playback.audioState.request).toMatchObject({ position: 0, shouldPlay: false });
-    expect(playback.controller.getSnapshot().failures).toEqual(noFailures);
+    expect(playback.controller.getSnapshot().failures).toEqual(NO_FAILURES);
   },
 );
 
@@ -1158,7 +1158,7 @@ it.each([
 
     expect(restored.controller.getSnapshot()).toMatchObject({
       queue: null,
-      failures: { ...noFailures, restore: input.restore },
+      failures: { ...NO_FAILURES, restore: input.restore },
     });
     expect(restored.requests).toEqual([]);
     expect(consoleError.mock.calls).toEqual(input.logs);
@@ -1340,14 +1340,14 @@ it("recovers from a failed restore with a restore failure and no queue, then pla
     ]);
     expect(playback.controller.getSnapshot()).toMatchObject({
       queue: null,
-      failures: { ...noFailures, restore: true },
+      failures: { ...NO_FAILURES, restore: true },
     });
     expect(playback.requests).toEqual([]);
 
     playback.controller.playSourceEntry(allTracks(playback.controller), 2);
 
     expect(playback.controller.getSnapshot()).toMatchObject({
-      failures: noFailures,
+      failures: NO_FAILURES,
       queue: { playback: { kind: "active", status: "playing", current: { trackId: 2 } } },
     });
     expect(playback.requests).toEqual([
@@ -1382,7 +1382,7 @@ it.each(["resolves", "resolves unreadable", "rejects"] as const)(
     }
 
     expect(playback.controller.getSnapshot()).toBe(closed);
-    expect(closed).toMatchObject({ isInitialized: false, queue: null, failures: noFailures });
+    expect(closed).toMatchObject({ isInitialized: false, queue: null, failures: NO_FAILURES });
     expect(playback.requests).toEqual([]);
     expect(playback.writes).toEqual([]);
     expect(playback.flushes).toEqual([]);
@@ -1446,7 +1446,7 @@ it("ignores audio events, positions, library syncs, playlist edits, and failures
 
   expect(playback.controller.getSnapshot()).toBe(closed);
   expect(closed.failures).toEqual({
-    ...noFailures,
+    ...NO_FAILURES,
     track: expect.objectContaining({ kind: "load", trackId: 1, file: "checking" }),
   });
   expect(playback.requests).toEqual([loaded]);
@@ -1496,7 +1496,7 @@ it("re-reads instead of failing when the playlist is edited during a failed queu
     .poll(() => selectPlaybackIntent(playback.controller.getSnapshot().queue))
     .toBe("paused");
   expect(playback.controller.getSnapshot()).toMatchObject({
-    failures: noFailures,
+    failures: NO_FAILURES,
     queue: { playback: { kind: "active", current: { trackId: 1 } } },
   });
   expect(trackIds(playback.controller.getSnapshot().queue?.sourceEntries)).toEqual([1, 2]);
@@ -1611,7 +1611,7 @@ it.each(["resolves", "rejects"] as const)(
     await settle();
 
     expect(playback.controller.getSnapshot()).toMatchObject({
-      failures: noFailures,
+      failures: NO_FAILURES,
       queue: {
         source: { kind: "all-tracks" },
         playback: { kind: "active", status: "playing", current: { trackId: 2 } },
@@ -1880,7 +1880,7 @@ it.each([
     await answer(answers[1]);
 
     expect(playback.controller.getSnapshot().failures).toEqual({
-      ...noFailures,
+      ...NO_FAILURES,
       track: expect.objectContaining({ ...current, file: "missing" }),
       save: true,
     });
@@ -1922,7 +1922,7 @@ it.each(["resolves", "rejects"] as const)(
 
     expect(playback.writes).toHaveLength(1);
     expect(playback.flushes).toHaveLength(1);
-    expect(playback.controller.getSnapshot().failures).toEqual(noFailures);
+    expect(playback.controller.getSnapshot().failures).toEqual(NO_FAILURES);
   },
 );
 
@@ -1991,7 +1991,7 @@ it("keeps a save failure through a track change until a later save succeeds", as
 
   playback.controller.next();
   expect(playback.controller.getSnapshot()).toMatchObject({
-    failures: { ...noFailures, save: true },
+    failures: { ...NO_FAILURES, save: true },
     queue: { playback: { kind: "active", current: { trackId: 2 } } },
   });
   await settle();
@@ -1999,7 +1999,7 @@ it("keeps a save failure through a track change until a later save succeeds", as
   failSave = false;
   playback.controller.onPosition(1);
   await settle();
-  expect(playback.controller.getSnapshot().failures).toEqual(noFailures);
+  expect(playback.controller.getSnapshot().failures).toEqual(NO_FAILURES);
 });
 
 it("keeps the loaded track playing through a rescan without reloading it", async () => {
@@ -2170,7 +2170,7 @@ function tracksView(ids: readonly number[], filter: string | null): SessionSourc
     source: { kind: "all-tracks" },
     entries: ids.map((id) => ({ sourceEntryId: id, trackId: id })),
     filter,
-    sort: defaultSort,
+    sort: DEFAULT_SORT,
   };
 }
 
@@ -2184,9 +2184,9 @@ function allTracks(
 
   return {
     source: { kind: "all-tracks" },
-    entries: libraryEntries(library, defaultSort),
+    entries: libraryEntries(library, DEFAULT_SORT),
     filter,
-    sort: defaultSort,
+    sort: DEFAULT_SORT,
   };
 }
 
@@ -2195,7 +2195,7 @@ function playlistView(playlist: PlaylistDetails, filter: string | null = null): 
     source: { kind: "playlist", playlistId: playlist.id, title: playlist.title },
     entries: playlist.tracks.map((entry) => ({ sourceEntryId: entry.id, trackId: entry.trackId })),
     filter,
-    sort: defaultSort,
+    sort: DEFAULT_SORT,
   };
 }
 

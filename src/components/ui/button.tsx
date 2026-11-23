@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-const pressScale = "motion-safe:active:not-data-disabled:scale-96";
+const PRESS_SCALE = "motion-safe:active:not-data-disabled:scale-96";
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 cursor-pointer items-center justify-center font-medium whitespace-nowrap transition-transform duration-150 ease-out select-none data-disabled:cursor-default data-disabled:opacity-disabled [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -61,7 +61,7 @@ function Button({
     <ButtonPrimitive
       aria-busy={busy || undefined}
       data-slot="button"
-      className={cn(buttonVariants({ variant, size }), !isStatic && pressScale, className)}
+      className={cn(buttonVariants({ variant, size }), !isStatic && PRESS_SCALE, className)}
       disabled={disabled || busy}
       focusableWhenDisabled={focusableWhenDisabled ?? busy}
       {...props}

@@ -14,37 +14,37 @@ export type OnboardingEvent =
   | { type: "list-ready"; list: HTMLElement | null }
   | { type: "reveal-ended" };
 
-const none = { phase: "none" } as const;
+const NONE = { phase: "none" } as const;
 
-const firstRun = { phase: "first-run" } as const;
+const FIRST_RUN = { phase: "first-run" } as const;
 
-const waitingForList = { phase: "waiting-for-list" } as const;
+const WAITING_FOR_LIST = { phase: "waiting-for-list" } as const;
 
-const fadingOut = { phase: "fading-out" } as const;
+const FADING_OUT = { phase: "fading-out" } as const;
 
 export function stepOnboarding(state: Onboarding, event: OnboardingEvent): Onboarding {
   switch (event.type) {
     case "library-shown":
-      if (event.stage === "first-run") return state.phase === "first-run" ? state : firstRun;
+      if (event.stage === "first-run") return state.phase === "first-run" ? state : FIRST_RUN;
 
       if (event.stage === undefined || event.stage === "scanning") return state;
 
-      if (state.phase === "first-run") return event.onTracksRoute ? waitingForList : fadingOut;
+      if (state.phase === "first-run") return event.onTracksRoute ? WAITING_FOR_LIST : FADING_OUT;
 
-      if (state.phase === "waiting-for-list" && !event.onTracksRoute) return fadingOut;
+      if (state.phase === "waiting-for-list" && !event.onTracksRoute) return FADING_OUT;
 
       return state;
     case "list-ready":
       if (state.phase !== "waiting-for-list") return state;
 
-      return event.list ? { phase: "revealing", list: event.list } : fadingOut;
+      return event.list ? { phase: "revealing", list: event.list } : FADING_OUT;
     case "reveal-ended":
-      return state.phase === "revealing" || state.phase === "fading-out" ? none : state;
+      return state.phase === "revealing" || state.phase === "fading-out" ? NONE : state;
   }
 }
 
 export function useOnboarding(stage: LibraryStage | undefined, onTracksRoute: boolean) {
-  const [onboarding, dispatch] = useReducer(stepOnboarding, none);
+  const [onboarding, dispatch] = useReducer(stepOnboarding, NONE);
   const shown = { type: "library-shown", stage, onTracksRoute } as const;
 
   if (stepOnboarding(onboarding, shown) !== onboarding) dispatch(shown);

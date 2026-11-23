@@ -18,7 +18,7 @@ type GlobalShortcut = {
   readonly yieldToOverlays?: true;
 };
 
-export const globalShortcuts = {
+export const GLOBAL_SHORTCUTS = {
   togglePlayback: { chord: { key: " " }, yieldToButtons: true },
   nextTrack: { chord: { key: "ArrowRight", mod: true } },
   previousTrack: { chord: { key: "ArrowLeft", mod: true } },
@@ -31,13 +31,13 @@ export const globalShortcuts = {
   focusFilterWithShift: { chord: { key: "/", shift: true }, yieldToOverlays: true },
 } satisfies Record<string, GlobalShortcut>;
 
-export type GlobalShortcutId = keyof typeof globalShortcuts;
+export type GlobalShortcutId = keyof typeof GLOBAL_SHORTCUTS;
 
 function isGlobalShortcutId(id: string): id is GlobalShortcutId {
-  return Object.hasOwn(globalShortcuts, id);
+  return Object.hasOwn(GLOBAL_SHORTCUTS, id);
 }
 
-export const dialogChords = {
+export const DIALOG_CHORDS = {
   confirmDelete: { key: "Backspace", mod: true },
   createFromSearch: { key: "Enter", mod: true },
   submitDescription: { key: "Enter", mod: true },
@@ -73,19 +73,19 @@ export function ariaKeyShortcuts(chord: PlatformChord, isMac = window.lume.isMac
     .join("+");
 }
 
-const editableSelector =
+const EDITABLE_SELECTOR =
   "input:not([type='range']), textarea, select, [contenteditable]:not([contenteditable='false'])";
 
-const buttonSelector = "button, [role='button']";
+const BUTTON_SELECTOR = "button, [role='button']";
 
-const overlaySelector = "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']";
+const OVERLAY_SELECTOR = "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']";
 
 export function isEditableElement(element: Element) {
-  return element.closest(editableSelector) !== null;
+  return element.closest(EDITABLE_SELECTOR) !== null;
 }
 
 export function isInOverlay(element: Element) {
-  return element.closest(overlaySelector) !== null;
+  return element.closest(OVERLAY_SELECTOR) !== null;
 }
 
 function isEligible(shortcut: GlobalShortcut, target: EventTarget | null) {
@@ -93,7 +93,7 @@ function isEligible(shortcut: GlobalShortcut, target: EventTarget | null) {
 
   return !(
     (!shortcut.allowInEditable && isEditableElement(target)) ||
-    (shortcut.yieldToButtons && target.closest(buttonSelector)) ||
+    (shortcut.yieldToButtons && target.closest(BUTTON_SELECTOR)) ||
     (shortcut.yieldToOverlays && isInOverlay(target))
   );
 }
@@ -107,7 +107,7 @@ export function useGlobalShortcuts(actions: Partial<Record<GlobalShortcutId, () 
       if (event.repeat || event.isComposing) return;
 
       for (const id of Object.keys(actionsRef.current).filter(isGlobalShortcutId)) {
-        const shortcut: GlobalShortcut = globalShortcuts[id];
+        const shortcut: GlobalShortcut = GLOBAL_SHORTCUTS[id];
         const action = actionsRef.current[id];
 
         if (

@@ -1,27 +1,27 @@
 import { animate, stagger, type AnimationPlaybackControls } from "motion";
-import { ease } from "@/lib/motion";
+import { EASE } from "@/lib/motion";
 
-const enterDuration = 0.25;
+const ENTER_DURATION = 0.25;
 
-const exitDuration = 0.15;
+const EXIT_DURATION = 0.15;
 
-const clearDelay = 0.08;
+const CLEAR_DELAY = 0.08;
 
-const clearDuration = 0.2;
+const CLEAR_DURATION = 0.2;
 
-export const headerDelay = clearDelay + enterDuration;
+export const HEADER_DELAY = CLEAR_DELAY + ENTER_DURATION;
 
-const rowStep = 0.04;
+const ROW_STEP = 0.04;
 
-const rowRise = 4;
+const ROW_RISE = 4;
 
-const rowBlur = 1.5;
+const ROW_BLUR = 1.5;
 
-const minimumLength = 0.8;
+const MINIMUM_LENGTH = 0.8;
 
-const easeCssDefault = [0.25, 0.1, 0.25, 1] as const;
+const EASE_CSS_DEFAULT = [0.25, 0.1, 0.25, 1] as const;
 
-const inlineStylesToClear = ["opacity", "transform", "filter", "background-color"];
+const INLINE_STYLES_TO_CLEAR = ["opacity", "transform", "filter", "background-color"];
 
 type Targets = Element | Element[] | null | undefined;
 
@@ -50,10 +50,10 @@ export function playFirstScan(
     animateElements(
       firstRunScreen,
       { opacity: [1, 0] },
-      { duration: exitDuration, ease: ease.out },
+      { duration: EXIT_DURATION, ease: EASE.out },
     );
 
-    return exitDuration;
+    return EXIT_DURATION;
   };
 
   const revealLibrary = (list: HTMLElement) => {
@@ -64,7 +64,7 @@ export function playFirstScan(
     animateElements(
       Array.from(firstRunScreen.querySelectorAll("[data-onboarding-part]")),
       { opacity: [1, 0], transform: ["translateY(0)", "translateY(-4px)"] },
-      { delay: stagger(0.03), duration: exitDuration, ease: ease.out },
+      { delay: stagger(0.03), duration: EXIT_DURATION, ease: EASE.out },
     );
 
     const shimmer = firstRunScreen.querySelector("[data-slot=scan-glyph-shimmer]");
@@ -78,49 +78,49 @@ export function playFirstScan(
         animateElements(
           dot,
           { opacity: [opacity, 1] },
-          { duration: exitDuration, ease: easeCssDefault },
+          { duration: EXIT_DURATION, ease: EASE_CSS_DEFAULT },
         );
       });
 
     animateElements(
       firstRunScreen.querySelector("[data-slot=scan-glyph]"),
       { opacity: [1, 0] },
-      { duration: exitDuration, ease: ease.out },
+      { duration: EXIT_DURATION, ease: EASE.out },
     );
     const pageColor = getComputedStyle(screenBackground).backgroundColor;
     animateElements(
       screenBackground,
       { backgroundColor: [pageColor, `color-mix(in oklab, ${pageColor} 0%, transparent)`] },
-      { delay: clearDelay, duration: clearDuration, ease: ease.out },
+      { delay: CLEAR_DELAY, duration: CLEAR_DURATION, ease: EASE.out },
     );
     animateElements(
       document.querySelector("[data-slot=sidebar-container][data-side=left]"),
       { opacity: [0, 1], transform: ["translateX(-12px)", "none"] },
-      { delay: clearDelay + 0.04, duration: enterDuration, ease: ease.out },
+      { delay: CLEAR_DELAY + 0.04, duration: ENTER_DURATION, ease: EASE.out },
     );
     animateElements(
       document.querySelector("header[aria-label=Player]"),
       { opacity: [0, 1], transform: ["translateY(-8px)", "none"] },
-      { delay: clearDelay + 0.1, duration: enterDuration, ease: ease.out },
+      { delay: CLEAR_DELAY + 0.1, duration: ENTER_DURATION, ease: EASE.out },
     );
 
     const riseIn = (targets: Targets, delay: number | ReturnType<typeof stagger>) =>
       animateElements(
         targets,
         { opacity: [0, 1], transform: ["translateY(4px)", "none"] },
-        { delay, duration: enterDuration, ease: ease.out },
+        { delay, duration: ENTER_DURATION, ease: EASE.out },
       );
 
-    riseIn(titleGroup?.querySelector("h1"), headerDelay - 0.14);
-    riseIn(titleGroup?.querySelector("p"), headerDelay - 0.1);
+    riseIn(titleGroup?.querySelector("h1"), HEADER_DELAY - 0.14);
+    riseIn(titleGroup?.querySelector("p"), HEADER_DELAY - 0.1);
     riseIn(
       Array.from(pageHeader?.children ?? []).slice(1),
-      stagger(0.05, { startDelay: headerDelay - 0.09 }),
+      stagger(0.05, { startDelay: HEADER_DELAY - 0.09 }),
     );
     animateElements(
       list.querySelector("thead"),
       { opacity: [0, 1] },
-      { delay: headerDelay - 0.06, duration: enterDuration, ease: ease.out },
+      { delay: HEADER_DELAY - 0.06, duration: ENTER_DURATION, ease: EASE.out },
     );
 
     const scrollerBottom = scroller?.getBoundingClientRect().bottom ?? Infinity;
@@ -133,19 +133,19 @@ export function playFirstScan(
       rowsOnScreen,
       {
         opacity: [0, 1],
-        transform: [`translateY(${rowRise}px)`, "none"],
-        filter: [`blur(${rowBlur}px)`, "none"],
+        transform: [`translateY(${ROW_RISE}px)`, "none"],
+        filter: [`blur(${ROW_BLUR}px)`, "none"],
       },
       {
-        delay: stagger(rowStep, { startDelay: headerDelay }),
-        duration: enterDuration,
-        ease: ease.out,
+        delay: stagger(ROW_STEP, { startDelay: HEADER_DELAY }),
+        duration: ENTER_DURATION,
+        ease: EASE.out,
       },
     );
 
     return Math.max(
-      headerDelay + (rowsOnScreen.length - 1) * rowStep + enterDuration,
-      headerDelay + minimumLength,
+      HEADER_DELAY + (rowsOnScreen.length - 1) * ROW_STEP + ENTER_DURATION,
+      HEADER_DELAY + MINIMUM_LENGTH,
     );
   };
 
@@ -159,7 +159,7 @@ export function playFirstScan(
     animations.forEach((animation) => animation.cancel());
     animatedElements.forEach((element) => {
       if (element instanceof HTMLElement || element instanceof SVGElement)
-        inlineStylesToClear.forEach((style) => element.style.removeProperty(style));
+        INLINE_STYLES_TO_CLEAR.forEach((style) => element.style.removeProperty(style));
     });
   };
 }

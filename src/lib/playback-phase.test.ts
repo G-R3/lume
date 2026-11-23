@@ -10,7 +10,7 @@ import {
 import type { QueueState } from "./queue/model";
 import { selectCurrentItem } from "./queue/selectors";
 import { transition } from "./queue/transition";
-import { defaultSort } from "./track-sort";
+import { DEFAULT_SORT } from "./track-sort";
 
 const context = queueContext([1]);
 
@@ -19,7 +19,7 @@ function startQueue(paused: boolean) {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source: { kind: "all-tracks" },
       entries: [{ sourceEntryId: 1, trackId: 1 }],

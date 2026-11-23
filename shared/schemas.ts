@@ -1,14 +1,14 @@
 import { z } from "zod";
 
-export const databaseIdSchema = z.number("Invalid database ID").int().positive().safe();
+export const DatabaseIdSchema = z.number("Invalid database ID").int().positive().safe();
 
-export const databaseIdsSchema = z.array(databaseIdSchema, "Invalid database IDs");
+export const DatabaseIdsSchema = z.array(DatabaseIdSchema, "Invalid database IDs");
 
-export const playbackPositionSchema = z.number().finite().nonnegative();
+export const PlaybackPositionSchema = z.number().finite().nonnegative();
 
-export const playlistDuplicatesSchema = z.enum(["allow", "skip", "reject"]);
+export const PlaylistDuplicatesSchema = z.enum(["allow", "skip", "reject"]);
 
-export const setTracksLikedInputSchema = z.object({
+export const SetTracksLikedInputSchema = z.object({
   liked: z.boolean("Invalid track like input"),
-  trackIds: databaseIdsSchema.min(1).readonly(),
+  trackIds: DatabaseIdsSchema.min(1).readonly(),
 });

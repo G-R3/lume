@@ -1,6 +1,6 @@
-export const playlistTitleMaxLength = 100;
+export const PLAYLIST_TITLE_MAX_LENGTH = 100;
 
-export const playlistDescriptionMaxLength = 300;
+export const PLAYLIST_DESCRIPTION_MAX_LENGTH = 300;
 
 export function normalizePlaylistText(text: { description: string | null; title: string }) {
   return {

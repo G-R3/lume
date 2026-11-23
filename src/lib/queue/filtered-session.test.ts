@@ -8,7 +8,7 @@ import { selectCurrentItem } from "./selectors";
 import { selectsWithinShuffledSession } from "./shuffle";
 import { transition } from "./transition";
 import { noRandom, queueContext } from "../../../tests/helpers/queue-context";
-import { defaultSort } from "../track-sort";
+import { DEFAULT_SORT } from "../track-sort";
 
 const allTracks = { kind: "all-tracks" } as const;
 
@@ -37,7 +37,7 @@ function start(
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       source,
       entries: entriesOf(ids),
       filter,

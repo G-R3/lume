@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, protocol, session, shell } from "electron";
-import { appScheme, packagedRendererUrl } from "@shared/app-urls";
+import { APP_SCHEME, PACKAGED_RENDERER_URL } from "@shared/app-urls";
 import { loadRenderer, registerProtocolHandler } from "./protocol";
 import { closeDatabase, initializeDatabase } from "./database";
 import { getLibraryDatabasePath } from "./database/location";
@@ -11,7 +11,7 @@ app.enableSandbox();
 
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: appScheme,
+    scheme: APP_SCHEME,
     privileges: {
       secure: true,
       standard: true,
@@ -21,12 +21,12 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-const rendererDirectory = join(__dirname, "../renderer");
+const RENDERER_DIRECTORY = join(__dirname, "../renderer");
 
 const rendererUrl =
   !app.isPackaged && process.env.ELECTRON_RENDERER_URL
     ? process.env.ELECTRON_RENDERER_URL
-    : packagedRendererUrl;
+    : PACKAGED_RENDERER_URL;
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -82,7 +82,7 @@ async function startApp() {
   registerIpc({ rendererUrl, userDataDirectory });
   scanInBackground(scanEnabledSources());
 
-  registerProtocolHandler(rendererDirectory);
+  registerProtocolHandler(RENDERER_DIRECTORY);
 
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>

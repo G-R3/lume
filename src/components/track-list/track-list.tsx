@@ -17,7 +17,7 @@ import { isListBackgroundPointerDown } from "@/components/track-list/list-backgr
 import { FloatingSelectionBar } from "@/components/track-list/selection/selection-bar";
 import {
   matchSelectionShortcut,
-  selectAllChord,
+  SELECT_ALL_CHORD,
   type SelectionAction,
 } from "@/components/track-list/selection/selection-shortcuts";
 import { useTrackActions } from "@/components/track-list/actions/track-actions";
@@ -43,7 +43,7 @@ type TrackListProps = {
   children?: ReactNode;
 };
 
-const navigationKeys: ReadonlySet<string> = new Set<NavigationKey>([
+const NAVIGATION_KEYS: ReadonlySet<string> = new Set<NavigationKey>([
   "ArrowDown",
   "ArrowUp",
   "End",
@@ -53,7 +53,7 @@ const navigationKeys: ReadonlySet<string> = new Set<NavigationKey>([
 ]);
 
 function isNavigationKey(key: string): key is NavigationKey {
-  return navigationKeys.has(key);
+  return NAVIGATION_KEYS.has(key);
 }
 
 function rowOf(target: EventTarget) {
@@ -177,7 +177,7 @@ export function TrackList({
 
     const hasNoModifiers = !event.metaKey && !event.ctrlKey && !event.altKey;
 
-    if (matchesChord(selectAllChord, event) && !isEditableElement(target)) {
+    if (matchesChord(SELECT_ALL_CHORD, event) && !isEditableElement(target)) {
       event.preventDefault();
       dispatchSelection({ type: "selectAll" });
 

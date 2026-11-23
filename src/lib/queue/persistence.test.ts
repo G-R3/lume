@@ -5,7 +5,7 @@ import type { QueueState } from "./model";
 import { parseQueueSession, serializeQueueSession } from "./persistence";
 import { transition } from "./transition";
 import { queueContext } from "../../../tests/helpers/queue-context";
-import { defaultSort } from "../track-sort";
+import { DEFAULT_SORT } from "../track-sort";
 
 const library = {
   kind: "library",
@@ -21,7 +21,7 @@ function playlistSession(sessionId: string, previous: QueueState | null, startAt
     previous,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       source: { kind: "playlist", playlistId: 1, title: "Mix" },
       entries: [1, 2, 3].map((id) => ({ sourceEntryId: id * 10, trackId: id })),
       filter: null,

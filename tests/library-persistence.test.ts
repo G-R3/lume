@@ -17,7 +17,11 @@ import {
   setTracksLiked,
 } from "../electron/library";
 import { createPlaylist, getPlaylist } from "../electron/playlists";
-import { scanAudioFiles, trackMetadataVersion, type ScannedTrack } from "../electron/library-files";
+import {
+  scanAudioFiles,
+  TRACK_METADATA_VERSION,
+  type ScannedTrack,
+} from "../electron/library-files";
 import { getArtworkUrl } from "@shared/app-urls";
 
 describe("library source persistence", () => {
@@ -369,7 +373,7 @@ describe("track persistence", () => {
         .get(path),
     ).toEqual({
       file_size: fileSize,
-      metadata_version: trackMetadataVersion,
+      metadata_version: TRACK_METADATA_VERSION,
       modified_at: modifiedAt,
     });
   });

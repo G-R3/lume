@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  emptyLifecycle,
+  EMPTY_LIFECYCLE,
   mediaTransition,
   mediaView,
   type ElementReport,
@@ -27,7 +27,7 @@ function request(id: string, shouldPlay = false): PlaybackRequest {
   };
 }
 
-function run(events: MediaEvent<Audio>[], from: MediaLifecycle<Audio> = emptyLifecycle) {
+function run(events: MediaEvent<Audio>[], from: MediaLifecycle<Audio> = EMPTY_LIFECYCLE) {
   const steps: MediaStep<Audio>[] = [];
   let lifecycle = from;
 

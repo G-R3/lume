@@ -10,29 +10,29 @@ import {
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
-import { playlistDescriptionMaxLength, playlistTitleMaxLength } from "@shared/playlist-text";
+import { PLAYLIST_DESCRIPTION_MAX_LENGTH, PLAYLIST_TITLE_MAX_LENGTH } from "@shared/playlist-text";
 
-const sourceStatuses = ["active", "off", "forgotten"] as const;
+const SOURCE_STATUSES = ["active", "off", "forgotten"] as const;
 
-const scanFailures = ["missing", "permission", "failed"] as const;
+const SCAN_FAILURES = ["missing", "permission", "failed"] as const;
 
-const scanOutcomes = ["unscanned", "ok", ...scanFailures] as const;
+const SCAN_OUTCOMES = ["unscanned", "ok", ...SCAN_FAILURES] as const;
 
-export type SourceStatusColumn = (typeof sourceStatuses)[number];
+export type SourceStatusColumn = (typeof SOURCE_STATUSES)[number];
 
-export type ScanOutcomeColumn = (typeof scanOutcomes)[number];
+export type ScanOutcomeColumn = (typeof SCAN_OUTCOMES)[number];
 
 function sqlList(values: readonly string[]) {
   return sql.raw(values.map((value) => `'${value}'`).join(", "));
 }
 
-export const librarySources = sqliteTable(
+export const LibrarySourcesTable = sqliteTable(
   "library_sources",
   {
     id: integer("id").primaryKey(),
     path: text("path").notNull().unique(),
-    status: text("status", { enum: sourceStatuses }).notNull(),
-    lastScanOutcome: text("last_scan_outcome", { enum: scanOutcomes })
+    status: text("status", { enum: SOURCE_STATUSES }).notNull(),
+    lastScanOutcome: text("last_scan_outcome", { enum: SCAN_OUTCOMES })
       .notNull()
       .default("unscanned"),
     lastScannedAt: integer("last_scanned_at"),
@@ -41,17 +41,17 @@ export const librarySources = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
-    check("library_sources_status_check", sql`${table.status} IN (${sqlList(sourceStatuses)})`),
+    check("library_sources_status_check", sql`${table.status} IN (${sqlList(SOURCE_STATUSES)})`),
     check(
       "library_sources_scan_check",
       sql`(${table.lastScanOutcome} = 'unscanned' AND ${table.lastScannedAt} IS NULL AND ${table.lastScanErrorMessage} IS NULL)
         OR (${table.lastScanOutcome} = 'ok' AND ${table.lastScannedAt} IS NOT NULL AND ${table.lastScanErrorMessage} IS NULL)
-        OR (${table.lastScanOutcome} IN (${sqlList(scanFailures)}) AND ${table.lastScanErrorMessage} IS NOT NULL)`,
+        OR (${table.lastScanOutcome} IN (${sqlList(SCAN_FAILURES)}) AND ${table.lastScanErrorMessage} IS NOT NULL)`,
     ),
   ],
 );
 
-export const artwork = sqliteTable(
+export const ArtworkTable = sqliteTable(
   "artwork",
   {
     id: text("id").notNull(),
@@ -61,13 +61,13 @@ export const artwork = sqliteTable(
   (table) => [primaryKey({ columns: [table.id] })],
 );
 
-export const tracks = sqliteTable(
+export const TracksTable = sqliteTable(
   "tracks",
   {
     id: integer("id").primaryKey(),
     sourceId: integer("source_id")
       .notNull()
-      .references(() => librarySources.id),
+      .references(() => LibrarySourcesTable.id),
     path: text("path").notNull().unique(),
     title: text("title").notNull(),
     duration: real("duration"),
@@ -80,7 +80,7 @@ export const tracks = sqliteTable(
     artists: text("artists", { mode: "json" }).$type<string[]>().notNull(),
     album: text("album"),
     albumArtists: text("album_artists", { mode: "json" }).$type<string[]>().notNull(),
-    artworkId: text("artwork_id").references(() => artwork.id),
+    artworkId: text("artwork_id").references(() => ArtworkTable.id),
     year: integer("year"),
     trackNumber: integer("track_number"),
     trackTotal: integer("track_total"),
@@ -106,18 +106,18 @@ export const tracks = sqliteTable(
   ],
 );
 
-export const trackState = sqliteTable(
+export const TrackStateTable = sqliteTable(
   "track_state",
   {
     trackId: integer("track_id")
       .notNull()
-      .references(() => tracks.id, { onDelete: "cascade" }),
+      .references(() => TracksTable.id, { onDelete: "cascade" }),
     likedAt: integer("liked_at"),
   },
   (table) => [primaryKey({ columns: [table.trackId] })],
 );
 
-export const playlists = sqliteTable(
+export const PlaylistsTable = sqliteTable(
   "playlists",
   {
     id: integer("id").primaryKey(),
@@ -130,25 +130,25 @@ export const playlists = sqliteTable(
     index("playlists_created_at").on(table.createdAt),
     check(
       "playlists_title_check",
-      sql`${table.title} = trim(${table.title}) AND length(${table.title}) BETWEEN 1 AND ${sql.raw(String(playlistTitleMaxLength))}`,
+      sql`${table.title} = trim(${table.title}) AND length(${table.title}) BETWEEN 1 AND ${sql.raw(String(PLAYLIST_TITLE_MAX_LENGTH))}`,
     ),
     check(
       "playlists_description_check",
-      sql`${table.description} IS NULL OR length(${table.description}) BETWEEN 1 AND ${sql.raw(String(playlistDescriptionMaxLength))}`,
+      sql`${table.description} IS NULL OR length(${table.description}) BETWEEN 1 AND ${sql.raw(String(PLAYLIST_DESCRIPTION_MAX_LENGTH))}`,
     ),
   ],
 );
 
-export const playlistTracks = sqliteTable(
+export const PlaylistTracksTable = sqliteTable(
   "playlist_entries",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     playlistId: integer("playlist_id")
       .notNull()
-      .references(() => playlists.id, { onDelete: "cascade" }),
+      .references(() => PlaylistsTable.id, { onDelete: "cascade" }),
     trackId: integer("track_id")
       .notNull()
-      .references(() => tracks.id),
+      .references(() => TracksTable.id),
     position: integer("position").notNull(),
     createdAt: integer("created_at").notNull(),
   },
@@ -159,7 +159,7 @@ export const playlistTracks = sqliteTable(
   ],
 );
 
-export const playbackSession = sqliteTable(
+export const PlaybackSessionTable = sqliteTable(
   "playback_session",
   {
     id: integer("id").primaryKey(),
@@ -172,7 +172,7 @@ export const playbackSession = sqliteTable(
   ],
 );
 
-export const appState = sqliteTable(
+export const AppStateTable = sqliteTable(
   "app_state",
   {
     id: integer("id").primaryKey(),

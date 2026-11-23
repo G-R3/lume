@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
 import { expect, it } from "vite-plus/test";
-import { lumeChannels } from "@shared/ipc";
+import { LUME_CHANNELS } from "@shared/ipc";
 import { holdReplies, launchWithLibrary } from "./launch";
 
 const letters = ["alpha", "bravo", "charlie"];
@@ -19,7 +19,7 @@ it("keeps the create dialog open while the playlist is being created", async () 
 
   await window.getByRole("button", { name: "Create playlist" }).click();
   await creation.getByLabel("Title").fill("Road");
-  await holdReplies(window, lumeChannels.createPlaylist);
+  await holdReplies(window, LUME_CHANNELS.createPlaylist);
   await window.keyboard.press("Enter");
 
   await expectStaysOpenWhileSaving(window, creation);
@@ -31,7 +31,7 @@ it("keeps the delete dialog open while the playlist is being deleted", async () 
 
   await window.getByRole("link", { name: "Mix" }).click({ button: "right" });
   await window.getByRole("menuitem", { name: "Delete playlist" }).click();
-  await holdReplies(window, lumeChannels.deletePlaylist);
+  await holdReplies(window, LUME_CHANNELS.deletePlaylist);
   await alert.getByRole("button", { name: /Delete playlist/ }).click();
 
   await expectStaysOpenWhileSaving(window, alert);
@@ -47,7 +47,7 @@ it("keeps the duplicates dialog open while the tracks are being added", async ()
   await window.keyboard.press("Meta+Shift+p");
   await picker.getByRole("option", { name: /Mix/ }).click();
   await alert.waitFor();
-  await holdReplies(window, lumeChannels.addTracksToPlaylist);
+  await holdReplies(window, LUME_CHANNELS.addTracksToPlaylist);
   await alert.getByRole("button", { name: "Add anyway" }).click();
 
   await expectStaysOpenWhileSaving(window, alert);

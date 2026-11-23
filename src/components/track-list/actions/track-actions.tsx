@@ -16,7 +16,7 @@ import {
   type AddToPlaylistEvent,
   type AddToPlaylistFlow,
   describeAddition,
-  idleFlow,
+  IDLE_FLOW,
   reduceAddToPlaylist,
   requestOf,
 } from "@/components/track-list/actions/add-to-playlist-flow";
@@ -31,7 +31,7 @@ export function useTrackActions(source: PlayableSource) {
   const { mutateAsync: removePlaylistTracks } = useRemovePlaylistTracksMutation();
   const { mutateAsync: addTracksToPlaylist } = useAddTracksToPlaylistMutation();
   const openPlaylistCreation = usePlaylistCreation();
-  const [flow, setFlow] = useState<AddToPlaylistFlow>(idleFlow);
+  const [flow, setFlow] = useState<AddToPlaylistFlow>(IDLE_FLOW);
   const flowRef = useRef(flow);
   const playlistTitle = source.kind === "playlist" ? source.title : null;
 

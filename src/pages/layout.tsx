@@ -10,7 +10,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { usePlayback } from "@/hooks/use-playback";
 import { PlaylistCreationProvider } from "@/hooks/use-playlist-creation";
 import { useMusicLibrary } from "@/hooks/use-music-library";
-import { ariaKeyShortcuts, globalShortcuts } from "@/lib/keyboard-shortcuts";
+import { ariaKeyShortcuts, GLOBAL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 export function AppLayout() {
@@ -58,8 +58,8 @@ export function AppLayout() {
             <SidebarTrigger
               className="pointer-events-auto [-webkit-app-region:no-drag]"
               shortcut={{
-                ariaKeyShortcuts: ariaKeyShortcuts(globalShortcuts.toggleSidebar.chord),
-                label: <ShortcutKeys chord={globalShortcuts.toggleSidebar.chord} />,
+                ariaKeyShortcuts: ariaKeyShortcuts(GLOBAL_SHORTCUTS.toggleSidebar.chord),
+                label: <ShortcutKeys chord={GLOBAL_SHORTCUTS.toggleSidebar.chord} />,
               }}
             />
           </div>

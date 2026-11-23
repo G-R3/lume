@@ -51,7 +51,7 @@ export type AddRequest = {
   readonly trackIds: readonly number[];
 };
 
-export const idleFlow: AddToPlaylistFlow = { phase: "idle" };
+export const IDLE_FLOW: AddToPlaylistFlow = { phase: "idle" };
 
 export function reduceAddToPlaylist(
   state: AddToPlaylistFlow,
@@ -130,7 +130,7 @@ export function reduceAddToPlaylist(
 
       return { last: state, phase: "closed" };
     case "exited":
-      return state.phase === "closed" ? idleFlow : state;
+      return state.phase === "closed" ? IDLE_FLOW : state;
   }
 }
 

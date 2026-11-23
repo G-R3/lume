@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { playlistDuplicatesSchema, setTracksLikedInputSchema } from "./schemas";
+import type { PlaylistDuplicatesSchema, SetTracksLikedInputSchema } from "./schemas";
 
 export type TrackMetadata = {
   album: string | null;
@@ -40,7 +40,7 @@ export type Track = TrackMetadata & {
   likedAt: number | null;
 };
 
-export type SetTracksLikedInput = z.infer<typeof setTracksLikedInputSchema>;
+export type SetTracksLikedInput = z.infer<typeof SetTracksLikedInputSchema>;
 
 export type TrackLikeResult = {
   likedAt: Track["likedAt"];
@@ -112,7 +112,7 @@ export type PlaylistCreationInput = {
 };
 
 export type AddTracksToPlaylistInput = {
-  duplicates: z.infer<typeof playlistDuplicatesSchema>;
+  duplicates: z.infer<typeof PlaylistDuplicatesSchema>;
   playlistId: number;
   trackIds: readonly Track["id"][];
 };

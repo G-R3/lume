@@ -1,4 +1,4 @@
-export const audioFormats = [
+export const AUDIO_FORMATS = [
   { label: "FLAC", contentType: "audio/flac", extensions: [".flac"] },
   { label: "M4A", contentType: "audio/mp4", extensions: [".m4a"] },
   { label: "MP3", contentType: "audio/mpeg", extensions: [".mp3"] },

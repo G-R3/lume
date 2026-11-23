@@ -1,9 +1,9 @@
-export const spring = {
+export const SPRING = {
   ui: { type: "spring", duration: 0.3, bounce: 0 },
   exit: { type: "spring", duration: 0.2, bounce: 0 },
 } as const;
 
-export const ease = {
+export const EASE = {
   out: [0.23, 1, 0.32, 1],
   inOut: [0.645, 0.045, 0.355, 1],
   crossfade: [0.2, 0, 0, 1],
@@ -11,14 +11,14 @@ export const ease = {
   sheet: [0.32, 0.72, 0, 1],
 } as const;
 
-export const duration = {
+export const DURATION = {
   fast: 0.15,
   exit: 0.1,
   enter: 0.25,
   move: 0.2,
 } as const;
 
-export const pressScale = 0.96;
+export const PRESS_SCALE = 0.96;
 
 type Curve = readonly [number, number, number, number];
 
@@ -62,8 +62,8 @@ export type LikeFeel = {
   } | null;
 };
 
-export const likeSparks: NonNullable<LikeFeel["sparks"]> = {
-  curve: ease.out,
+export const LIKE_SPARKS: NonNullable<LikeFeel["sparks"]> = {
+  curve: EASE.out,
   delay: 0.1,
   duration: 0.55,
   endScale: 0.4,
@@ -81,38 +81,38 @@ export const likeSparks: NonNullable<LikeFeel["sparks"]> = {
   trailOpacity: 0.6,
 };
 
-export const likeFeels = {
+export const LIKE_FEELS = {
   alive: {
-    outline: { curve: ease.out, duration: 0.1, scale: 0.4 },
+    outline: { curve: EASE.out, duration: 0.1, scale: 0.4 },
     fill: {
       blur: 3,
       delay: 0.03,
       scale: [0.2, 1],
       transition: { type: "spring", duration: 0.45, bounce: 0.4 },
     },
-    pulse: { curve: ease.outExpo, duration: 0.4, from: 0.3, peakOpacity: 0.12 },
-    rings: [{ curve: ease.outExpo, delay: 0.06, duration: 0.35, from: 0.5, peakOpacity: 0.25 }],
-    sparks: { ...likeSparks, curve: ease.outExpo, delay: 0.08 },
+    pulse: { curve: EASE.outExpo, duration: 0.4, from: 0.3, peakOpacity: 0.12 },
+    rings: [{ curve: EASE.outExpo, delay: 0.06, duration: 0.35, from: 0.5, peakOpacity: 0.25 }],
+    sparks: { ...LIKE_SPARKS, curve: EASE.outExpo, delay: 0.08 },
   },
   heartbeat: {
-    outline: { curve: ease.out, duration: 0.1, scale: 0.5 },
+    outline: { curve: EASE.out, duration: 0.1, scale: 0.5 },
     fill: {
       blur: 3,
       delay: 0.02,
       scale: [0.3, 1.14, 0.94, 1.07, 1],
       times: [0, 0.28, 0.5, 0.68, 1],
       reveal: 0.12,
-      transition: { curve: ease.inOut, duration: 0.5 },
+      transition: { curve: EASE.inOut, duration: 0.5 },
     },
-    pulse: { curve: ease.outExpo, duration: 0.35, from: 0.4, peakOpacity: 0.12 },
+    pulse: { curve: EASE.outExpo, duration: 0.35, from: 0.4, peakOpacity: 0.12 },
     rings: [
-      { curve: ease.outExpo, delay: 0.1, duration: 0.35, from: 0.6, peakOpacity: 0.22 },
-      { curve: ease.outExpo, delay: 0.32, duration: 0.35, from: 0.6, peakOpacity: 0.12 },
+      { curve: EASE.outExpo, delay: 0.1, duration: 0.35, from: 0.6, peakOpacity: 0.22 },
+      { curve: EASE.outExpo, delay: 0.32, duration: 0.35, from: 0.6, peakOpacity: 0.12 },
     ],
-    sparks: { ...likeSparks, curve: ease.outExpo, delay: 0.33, duration: 0.5 },
+    sparks: { ...LIKE_SPARKS, curve: EASE.outExpo, delay: 0.33, duration: 0.5 },
   },
   snappy: {
-    outline: { curve: ease.sheet, duration: 0.08, scale: 0.6 },
+    outline: { curve: EASE.sheet, duration: 0.08, scale: 0.6 },
     fill: {
       blur: 2,
       delay: 0.02,
@@ -120,13 +120,13 @@ export const likeFeels = {
       transition: { type: "spring", duration: 0.2, bounce: 0 },
     },
     pulse: null,
-    rings: [{ curve: ease.sheet, delay: 0.04, duration: 0.25, from: 0.6, peakOpacity: 0.22 }],
+    rings: [{ curve: EASE.sheet, delay: 0.04, duration: 0.25, from: 0.6, peakOpacity: 0.22 }],
     sparks: {
-      ...likeSparks,
-      curve: ease.sheet,
+      ...LIKE_SPARKS,
+      curve: EASE.sheet,
       delay: 0.05,
       duration: 0.33,
-      pairs: likeSparks.pairs.filter((_pair, index) => index % 2 === 0),
+      pairs: LIKE_SPARKS.pairs.filter((_pair, index) => index % 2 === 0),
     },
   },
 } satisfies Record<string, LikeFeel>;

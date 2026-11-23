@@ -6,7 +6,7 @@ import type { QueueState } from "./model";
 import { parseQueueSession, serializeQueueSession } from "./persistence";
 import { transition } from "./transition";
 import { noRandom, queueContext } from "../../../tests/helpers/queue-context";
-import { defaultSort } from "../track-sort";
+import { DEFAULT_SORT } from "../track-sort";
 
 const availableTrackIds = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -191,7 +191,7 @@ it("keeps a carried source item independent of the next session's occurrence", (
     moved,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries,
@@ -241,7 +241,7 @@ it("pulls one duplicate occurrence from the table but skips through a queue jump
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries: [
@@ -445,7 +445,7 @@ it("restores items from other sessions, anchors, repeat visits, and a deleted cu
     carried,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries,
@@ -516,7 +516,7 @@ function startPlaylist(startEntryId: number) {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries,

@@ -10,10 +10,10 @@ const searchKeys = new WeakMap<Track, string>();
 
 // Only the Latin combining block, then recomposed: kana voicing marks are combining marks too, and
 // left decomposed, "か" would match inside "が".
-const diacritics = /[\u0300-\u036f]/g;
+const DIACRITICS = /[\u0300-\u036f]/g;
 
 function normalize(text: string) {
-  return text.normalize("NFD").replace(diacritics, "").normalize("NFC").toLowerCase();
+  return text.normalize("NFD").replace(DIACRITICS, "").normalize("NFC").toLowerCase();
 }
 
 function searchKeyOf(track: Track) {

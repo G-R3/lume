@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { keyName, type PlatformChord, resolveChord } from "@/lib/keyboard-shortcuts";
 
-const keyIcons = new Map<string, Icon>([
+const KEY_ICONS = new Map<string, Icon>([
   ["Backspace", BackspaceIcon],
   ["Enter", ArrowElbowDownLeftIcon],
 ]);
@@ -25,7 +25,7 @@ export function ShortcutKeys({ chord }: { chord: PlatformChord }) {
     );
   }
 
-  const KeyIcon = keyIcons.get(key);
+  const KeyIcon = KEY_ICONS.get(key);
 
   return (
     <span aria-hidden="true" className="inline-flex items-center">

@@ -10,7 +10,7 @@ import type { SavedPlaybackSession } from "@shared/ipc";
 import { queueContext } from "../../tests/helpers/queue-context";
 import { serializeQueueSession } from "@/lib/queue/persistence";
 import { transition } from "@/lib/queue/transition";
-import { defaultSort } from "@/lib/track-sort";
+import { DEFAULT_SORT } from "@/lib/track-sort";
 import { PlaybackProvider, usePlayback } from "./use-playback";
 
 beforeEach(() => {
@@ -37,7 +37,7 @@ function pausedSessionOnFirstTrack(): SavedPlaybackSession {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source: { kind: "all-tracks" },
       entries: [

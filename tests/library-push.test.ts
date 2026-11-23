@@ -7,7 +7,7 @@ import { registerIpc } from "../electron/ipc";
 import { saveSource, scanSource } from "../electron/library";
 import { getLibraryState } from "../electron/library-events";
 import { type LibraryEvent, type LibraryRevision } from "@shared/library";
-import { lumeChannels, lumeEventChannels } from "@shared/ipc";
+import { LUME_CHANNELS, LUME_EVENT_CHANNELS } from "@shared/ipc";
 
 type IpcEvent = { sender: { mainFrame: { url: string } }; senderFrame: { url: string } };
 
@@ -46,7 +46,7 @@ it("pushes each commit and scan to the window", async () => {
 
   await scanSource((await saveSource(folder)).id);
 
-  expect(sent.every(([channel]) => channel === lumeEventChannels.libraryEvent)).toBe(true);
+  expect(sent.every(([channel]) => channel === LUME_EVENT_CHANNELS.libraryEvent)).toBe(true);
   expect(sent.filter(([, event]) => event.kind === "changed")).toHaveLength(2);
 
   const last = sent.at(-1)?.[1];
@@ -60,7 +60,7 @@ it("returns from a rescan before the scan ends and reports the folder as scannin
   const folder = await createTemporaryFolder("lume-push-");
   const source = await saveSource(folder);
 
-  const revision = handlers.get(lumeChannels.rescanSource)?.(ipcEvent, source.id);
+  const revision = handlers.get(LUME_CHANNELS.rescanSource)?.(ipcEvent, source.id);
 
   expect(revision).toBe(getLibraryState().revision);
   expect(getLibraryState().scans.scanning).toEqual([source.id]);

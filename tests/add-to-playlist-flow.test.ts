@@ -4,7 +4,7 @@ import {
   type AddToPlaylistFlow,
   describeAddition,
   describeDuplicates,
-  idleFlow,
+  IDLE_FLOW,
   reduceAddToPlaylist,
   requestOf,
 } from "../src/components/track-list/actions/add-to-playlist-flow";
@@ -39,7 +39,7 @@ const duplicate = (alreadyInPlaylist: number, newTrackCount: number) =>
 const added: AddToPlaylistEvent = { result: { kind: "added", tracks: [] }, type: "settled" };
 
 function run(...events: AddToPlaylistEvent[]) {
-  return events.reduce(reduceAddToPlaylist, idleFlow);
+  return events.reduce(reduceAddToPlaylist, IDLE_FLOW);
 }
 
 function send(state: AddToPlaylistFlow, ...events: AddToPlaylistEvent[]) {
@@ -142,7 +142,7 @@ it("closes the picker for the queue without a playlist request", () => {
   });
   expect(requestOf(state)).toBeNull();
   expect(run(open, pick(), { type: "queue" }).phase).toBe("checking");
-  expect(run({ type: "queue" })).toBe(idleFlow);
+  expect(run({ type: "queue" })).toBe(IDLE_FLOW);
 });
 
 it("shows a failed check in the picker and starts fresh on the next destination", () => {
@@ -181,7 +181,7 @@ it("keeps the duplicate question open after a failed add so it can be retried", 
 it("forgets the closed flow once its exit finishes and reopens from scratch", () => {
   const closed = run(open, pick(), duplicate(2, 2), { type: "dismiss" });
 
-  expect(send(closed, { type: "exited" })).toEqual(idleFlow);
+  expect(send(closed, { type: "exited" })).toEqual(IDLE_FLOW);
   expect(send(closed, open)).toMatchObject({ error: null, phase: "picking" });
   expect(run(open, open)).toEqual(run(open));
 });

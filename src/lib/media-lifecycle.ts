@@ -64,7 +64,7 @@ export type MediaView =
 
 type Requested<Element> = Extract<MediaLifecycle<Element>, { kind: "requested" }>;
 
-export const emptyLifecycle: MediaLifecycle<never> = {
+export const EMPTY_LIFECYCLE: MediaLifecycle<never> = {
   kind: "empty",
   attachment: { kind: "detached" },
   rejectableAttempt: 0,

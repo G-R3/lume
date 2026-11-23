@@ -5,14 +5,14 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
-  selectAllChord,
-  selectionChords,
+  SELECT_ALL_CHORD,
+  SELECTION_CHORDS,
 } from "@/components/track-list/selection/selection-shortcuts";
 import {
   ariaKeyShortcuts,
-  dialogChords,
+  DIALOG_CHORDS,
   type GlobalShortcutId,
-  globalShortcuts,
+  GLOBAL_SHORTCUTS,
   matchesChord,
   type PlatformChord,
   resolveChord,
@@ -264,10 +264,10 @@ describe("global shortcut event policy", () => {
 
 describe("aria-keyshortcuts", () => {
   it.each([
-    ["toggle sidebar", globalShortcuts.toggleSidebar.chord, "Meta+B", "Control+B"],
-    ["new playlist", globalShortcuts.newPlaylist.chord, "Meta+N", "Control+N"],
-    ["delete playlist", dialogChords.confirmDelete, "Meta+Backspace", "Control+Backspace"],
-    ["create from search", dialogChords.createFromSearch, "Meta+Enter", "Control+Enter"],
+    ["toggle sidebar", GLOBAL_SHORTCUTS.toggleSidebar.chord, "Meta+B", "Control+B"],
+    ["new playlist", GLOBAL_SHORTCUTS.newPlaylist.chord, "Meta+N", "Control+N"],
+    ["delete playlist", DIALOG_CHORDS.confirmDelete, "Meta+Backspace", "Control+Backspace"],
+    ["create from search", DIALOG_CHORDS.createFromSearch, "Meta+Enter", "Control+Enter"],
   ] as const)("%s announces %s on macOS and %s elsewhere", (_, chord, mac, other) => {
     expect(ariaKeyShortcuts(chord, true)).toBe(mac);
     expect(ariaKeyShortcuts(chord, false)).toBe(other);
@@ -297,11 +297,11 @@ function clashes(
 }
 
 const globalChords = Object.fromEntries(
-  Object.entries(globalShortcuts).map(([id, shortcut]) => [id, shortcut.chord]),
+  Object.entries(GLOBAL_SHORTCUTS).map(([id, shortcut]) => [id, shortcut.chord]),
 );
 
 const globalChordsInsideOverlays = Object.fromEntries(
-  Object.entries(globalShortcuts)
+  Object.entries(GLOBAL_SHORTCUTS)
     .filter(([, shortcut]) => !("yieldToOverlays" in shortcut))
     .map(([id, shortcut]) => [id, shortcut.chord]),
 );
@@ -315,12 +315,12 @@ describe.each([
   });
 
   it("keeps global shortcuts off the track list chords they would swallow", () => {
-    const listChords = { ...selectionChords, selectAll: selectAllChord };
+    const listChords = { ...SELECTION_CHORDS, selectAll: SELECT_ALL_CHORD };
 
     expect(clashes(globalChords, listChords, isMac)).toEqual([]);
   });
 
   it("keeps dialog chords off global shortcuts that fire inside dialogs", () => {
-    expect(clashes(dialogChords, globalChordsInsideOverlays, isMac)).toEqual([]);
+    expect(clashes(DIALOG_CHORDS, globalChordsInsideOverlays, isMac)).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { getArtworkUrl, getTrackUrl, packagedRendererUrl, parseAppUrl } from "@shared/app-urls";
+import { getArtworkUrl, getTrackUrl, PACKAGED_RENDERER_URL, parseAppUrl } from "@shared/app-urls";
 
 describe("app URLs", () => {
   it("round-trips a track URL", () => {
@@ -15,7 +15,7 @@ describe("app URLs", () => {
   });
 
   it("round-trips the packaged renderer URL as an app asset", () => {
-    expect(parseAppUrl(packagedRendererUrl)).toEqual({ kind: "asset", path: "/index.html" });
+    expect(parseAppUrl(PACKAGED_RENDERER_URL)).toEqual({ kind: "asset", path: "/index.html" });
     expect(parseAppUrl("lume://app/assets/a%20b.js")).toEqual({
       kind: "asset",
       path: "/assets/a b.js",

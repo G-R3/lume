@@ -9,16 +9,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   sortFieldInfo,
-  sortFields,
+  SORT_FIELDS,
   sortName,
   type SortField,
   type TrackSort,
 } from "@/lib/track-sort";
 
-const fieldLabels = sortFields.map(({ label }) => label);
+const FIELD_LABELS = SORT_FIELDS.map(({ label }) => label);
 
-const directionLabels = [
-  ...new Set(sortFields.flatMap(({ directions }) => [directions.asc, directions.desc])),
+const DIRECTION_LABELS = [
+  ...new Set(SORT_FIELDS.flatMap(({ directions }) => [directions.asc, directions.desc])),
 ];
 
 function WidestLabelSlot({ labels, shown }: { labels: readonly string[]; shown: string | null }) {
@@ -55,12 +55,12 @@ export function SortMenu({
           />
         }
       >
-        <WidestLabelSlot labels={fieldLabels} shown={sortFieldInfo(sort.field).label} />
+        <WidestLabelSlot labels={FIELD_LABELS} shown={sortFieldInfo(sort.field).label} />
         <SortArrow direction={sort.direction} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" finalFocus>
         <DropdownMenuRadioGroup value={sort.field}>
-          {sortFields.map((option) => {
+          {SORT_FIELDS.map((option) => {
             const isSorted = sort.field === option.field;
 
             return (
@@ -74,7 +74,7 @@ export function SortMenu({
                 {option.label}
                 <span className="ml-auto flex items-center gap-1 text-meta whitespace-nowrap text-secondary">
                   <WidestLabelSlot
-                    labels={directionLabels}
+                    labels={DIRECTION_LABELS}
                     shown={isSorted ? option.directions[sort.direction] : null}
                   />
                   <span className={isSorted ? "contents" : "invisible contents"}>
