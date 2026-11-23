@@ -1,85 +1,85 @@
 import { z } from "zod";
-import { databaseIdSchema } from "@shared/schemas";
-import { trackSortSchema } from "../track-sort";
+import { DatabaseIdSchema } from "@shared/schemas";
+import { TrackSortSchema } from "../track-sort";
 import { allQueueItems, listedItems } from "./items";
 import { sameSource } from "./source";
 
-const queueItemId = z.string().min(1);
+const QueueItemIdSchema = z.string().min(1);
 
-const sourceIdentitySchema = z.discriminatedUnion("kind", [
+const SourceIdentitySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all-tracks") }),
-  z.object({ kind: z.literal("playlist"), playlistId: databaseIdSchema }),
+  z.object({ kind: z.literal("playlist"), playlistId: DatabaseIdSchema }),
 ]);
 
-const queueSourceSchema = z.discriminatedUnion("kind", [
+const QueueSourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all-tracks") }),
-  z.object({ kind: z.literal("playlist"), playlistId: databaseIdSchema, title: z.string() }),
+  z.object({ kind: z.literal("playlist"), playlistId: DatabaseIdSchema, title: z.string() }),
   z.object({
     kind: z.literal("deleted-playlist"),
-    playlistId: databaseIdSchema,
+    playlistId: DatabaseIdSchema,
     title: z.string(),
   }),
 ]);
 
-const sourceTrackingSchema = z.discriminatedUnion("kind", [
+const SourceTrackingSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("follows-source") }),
   z.object({ kind: z.literal("frozen"), filter: z.string().min(1) }),
 ]);
 
-const sourceEntrySchema = z
-  .object({ sourceEntryId: databaseIdSchema, trackId: databaseIdSchema })
+const SourceEntrySchema = z
+  .object({ sourceEntryId: DatabaseIdSchema, trackId: DatabaseIdSchema })
   .readonly();
 
-const sourcePositionSchema = z
+const SourcePositionSchema = z
   .discriminatedUnion("kind", [
-    z.object({ kind: z.literal("entry"), sourceEntryId: databaseIdSchema }),
+    z.object({ kind: z.literal("entry"), sourceEntryId: DatabaseIdSchema }),
     z.object({ kind: z.literal("boundary"), index: z.number().int().nonnegative().safe() }),
   ])
   .nullable();
 
-const queueItemSchema = z.object({
-  queueItemId,
-  trackId: databaseIdSchema,
+const QueueItemSchema = z.object({
+  queueItemId: QueueItemIdSchema,
+  trackId: DatabaseIdSchema,
   origin: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("manual") }),
     z.object({
       kind: z.literal("source"),
-      sourceEntryId: databaseIdSchema,
-      source: sourceIdentitySchema,
-      sessionId: queueItemId,
+      sourceEntryId: DatabaseIdSchema,
+      source: SourceIdentitySchema,
+      sessionId: QueueItemIdSchema,
     }),
   ]),
   anchor: z
-    .object({ sourceEntryId: databaseIdSchema, side: z.enum(["before", "after"]) })
+    .object({ sourceEntryId: DatabaseIdSchema, side: z.enum(["before", "after"]) })
     .optional(),
 });
 
-const queuePlaybackSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("stopped"), lastPlayed: queueItemSchema }),
+const QueuePlaybackSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("stopped"), lastPlayed: QueueItemSchema }),
   z.object({
     kind: z.literal("active"),
-    current: queueItemSchema,
+    current: QueueItemSchema,
     status: z.enum(["playing", "paused"]),
     role: z.enum(["source-step", "standalone"]),
   }),
 ]);
 
-const queueStateObjectSchema = z.object({
-  sessionId: queueItemId,
-  source: queueSourceSchema,
-  tracking: sourceTrackingSchema,
-  sort: trackSortSchema,
-  sourceEntries: z.array(sourceEntrySchema).readonly(),
-  sourcePosition: sourcePositionSchema,
+const QueueStateObjectSchema = z.object({
+  sessionId: QueueItemIdSchema,
+  source: QueueSourceSchema,
+  tracking: SourceTrackingSchema,
+  sort: TrackSortSchema,
+  sourceEntries: z.array(SourceEntrySchema).readonly(),
+  sourcePosition: SourcePositionSchema,
   shuffleEnabled: z.boolean(),
-  playback: queuePlaybackSchema,
-  manualQueue: z.array(queueItemSchema),
-  sourceQueue: z.array(queueItemSchema),
-  previousSourceItems: z.array(queueItemSchema),
-  suppressedSourceEntryIds: z.array(databaseIdSchema),
+  playback: QueuePlaybackSchema,
+  manualQueue: z.array(QueueItemSchema),
+  sourceQueue: z.array(QueueItemSchema),
+  previousSourceItems: z.array(QueueItemSchema),
+  suppressedSourceEntryIds: z.array(DatabaseIdSchema),
 });
 
-export const queueStateSchema = queueStateObjectSchema.superRefine((state, context) => {
+export const QueueStateSchema = QueueStateObjectSchema.superRefine((state, context) => {
   const reject = (message: string) => context.addIssue({ code: "custom", message });
   const entriesById = new Map(state.sourceEntries.map((entry) => [entry.sourceEntryId, entry]));
   const position = state.sourcePosition;
@@ -145,26 +145,26 @@ function sameOrigin(left: QueueItem, right: QueueItem) {
   );
 }
 
-export type SourceIdentity = z.infer<typeof sourceIdentitySchema>;
+export type SourceIdentity = z.infer<typeof SourceIdentitySchema>;
 
-export type QueueSource = z.infer<typeof queueSourceSchema>;
+export type QueueSource = z.infer<typeof QueueSourceSchema>;
 
 export type PlayableSource = Exclude<QueueSource, { kind: "deleted-playlist" }>;
 
-export type SourceTracking = z.infer<typeof sourceTrackingSchema>;
+export type SourceTracking = z.infer<typeof SourceTrackingSchema>;
 
-export type SourcePosition = z.infer<typeof sourcePositionSchema>;
+export type SourcePosition = z.infer<typeof SourcePositionSchema>;
 
-export type SourceEntry = z.infer<typeof sourceEntrySchema>;
+export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
-export type QueueItem = z.infer<typeof queueItemSchema>;
+export type QueueItem = z.infer<typeof QueueItemSchema>;
 
-export type QueuePlayback = z.infer<typeof queuePlaybackSchema>;
+export type QueuePlayback = z.infer<typeof QueuePlaybackSchema>;
 
 export type ActivePlayback = Extract<QueuePlayback, { kind: "active" }>;
 
 export type CurrentRole = ActivePlayback["role"];
 
-export type QueueState = z.infer<typeof queueStateSchema>;
+export type QueueState = z.infer<typeof QueueStateSchema>;
 
 export type QueueLane = "manual" | "source";

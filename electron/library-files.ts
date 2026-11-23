@@ -2,17 +2,17 @@ import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { Readable } from "node:stream";
-import { audioFormats } from "@shared/audio-formats";
+import { AUDIO_FORMATS } from "@shared/audio-formats";
 import type { TrackMetadata } from "@shared/library";
-import type { tracks } from "./database/schema";
+import type { TracksTable } from "./database/schema";
 
-export const audioContentTypes: ReadonlyMap<string, string> = new Map(
-  audioFormats.flatMap(({ contentType, extensions }) =>
+export const AUDIO_CONTENT_TYPES: ReadonlyMap<string, string> = new Map(
+  AUDIO_FORMATS.flatMap(({ contentType, extensions }) =>
     extensions.map((extension) => [extension, contentType] as const),
   ),
 );
 
-const artworkMediaTypes: ReadonlyMap<string, string> = new Map([
+const ARTWORK_MEDIA_TYPES: ReadonlyMap<string, string> = new Map([
   ["image/jpeg", "image/jpeg"],
   ["image/jpg", "image/jpeg"],
   ["jpg", "image/jpeg"],
@@ -25,9 +25,9 @@ const artworkMediaTypes: ReadonlyMap<string, string> = new Map([
   ["bmp", "image/bmp"],
 ]);
 
-const maximumArtworkBytes = 20 * 1024 * 1024;
+const MAXIMUM_ARTWORK_BYTES = 20 * 1024 * 1024;
 
-export const trackMetadataVersion = 1;
+export const TRACK_METADATA_VERSION = 1;
 
 type ExtractedTrack = TrackMetadata & {
   artwork: { data: Uint8Array; id: string; mediaType: string } | null;
@@ -40,7 +40,7 @@ type ExtractedTrack = TrackMetadata & {
 export type ScannedTrack = ExtractedTrack | { kind: "unchanged"; path: string };
 
 export type StoredTrackFingerprint = Pick<
-  typeof tracks.$inferSelect,
+  typeof TracksTable.$inferSelect,
   "fileSize" | "metadataVersion" | "modifiedAt"
 >;
 
@@ -57,7 +57,7 @@ export async function scanAudioFiles(
   signal?.throwIfAborted();
 
   const audioPaths = entries
-    .filter((entry) => entry.isFile() && audioContentTypes.has(extname(entry.name).toLowerCase()))
+    .filter((entry) => entry.isFile() && AUDIO_CONTENT_TYPES.has(extname(entry.name).toLowerCase()))
     .map((file) => join(file.parentPath, file.name))
     .sort((left, right) => left.localeCompare(right));
 
@@ -93,7 +93,7 @@ async function scanTrack(
   if (
     storedTrack?.fileSize === file.size &&
     storedTrack.modifiedAt === modifiedAt &&
-    storedTrack.metadataVersion === trackMetadataVersion
+    storedTrack.metadataVersion === TRACK_METADATA_VERSION
   ) {
     return { kind: "unchanged", path };
   }
@@ -132,7 +132,7 @@ async function parseTrackMetadata(path: string, filename: string) {
 
         if (
           artwork.data.byteLength === 0 ||
-          artwork.data.byteLength > maximumArtworkBytes ||
+          artwork.data.byteLength > MAXIMUM_ARTWORK_BYTES ||
           mediaType === null
         ) {
           return [];
@@ -215,7 +215,7 @@ function positiveNumber(value: number | undefined) {
 }
 
 function normalizeArtworkMediaType(value: string) {
-  return artworkMediaTypes.get(value.trim().toLowerCase()) ?? null;
+  return ARTWORK_MEDIA_TYPES.get(value.trim().toLowerCase()) ?? null;
 }
 
 export type FolderReadFailure = {

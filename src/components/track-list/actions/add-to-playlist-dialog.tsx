@@ -12,12 +12,12 @@ import { ShortcutKeys } from "@/components/shortcut-keys";
 import { TrackArtwork } from "@/components/track-artwork";
 import { Dialog, DialogDescription, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { FieldError } from "@/components/ui/field";
-import { ariaKeyShortcuts, dialogChords, matchesChord } from "@/lib/keyboard-shortcuts";
+import { ariaKeyShortcuts, DIALOG_CHORDS, matchesChord } from "@/lib/keyboard-shortcuts";
 import { Kbd } from "@/components/ui/kbd";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import {
   matchSelectionShortcut,
-  selectionChords,
+  SELECTION_CHORDS,
 } from "@/components/track-list/selection/selection-shortcuts";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 import type { QueuePosition } from "@/lib/queue/commands";
@@ -31,15 +31,15 @@ type PaletteItem =
 
 type PaletteGroup = { items: PaletteItem[]; value: "playlists" | "queue" };
 
-const createItem: PaletteItem = { kind: "create" };
+const CREATE_ITEM: PaletteItem = { kind: "create" };
 
-const playNextItem: QueuePaletteItem = { kind: "queue", position: "start" };
+const PLAY_NEXT_ITEM: QueuePaletteItem = { kind: "queue", position: "start" };
 
-const addToQueueItem: QueuePaletteItem = { kind: "queue", position: "end" };
+const ADD_TO_QUEUE_ITEM: QueuePaletteItem = { kind: "queue", position: "end" };
 
-const queueItems = [playNextItem, addToQueueItem];
+const QUEUE_ITEMS = [PLAY_NEXT_ITEM, ADD_TO_QUEUE_ITEM];
 
-const queueGroup: PaletteGroup = { items: queueItems, value: "queue" };
+const QUEUE_GROUP: PaletteGroup = { items: QUEUE_ITEMS, value: "queue" };
 
 function queueLabel(item: QueuePaletteItem) {
   return item.position === "start" ? "Play next" : "Add to queue";
@@ -89,18 +89,21 @@ export function AddToPlaylistDialog({
     (playlist): PaletteItem => ({ kind: "playlist", playlist }),
   );
 
-  const playlistGroup: PaletteGroup = { items: [...playlistItems, createItem], value: "playlists" };
+  const playlistGroup: PaletteGroup = {
+    items: [...playlistItems, CREATE_ITEM],
+    value: "playlists",
+  };
 
   const searchFindsOnlyQueue =
     search.trim() !== "" &&
-    queueItems.some((item) => matchesQuery(item, search)) &&
+    QUEUE_ITEMS.some((item) => matchesQuery(item, search)) &&
     !playlistItems.some((item) => matchesQuery(item, search));
 
   const groups: PaletteGroup[] = !onQueue
     ? [playlistGroup]
     : searchFindsOnlyQueue
-      ? [queueGroup, playlistGroup]
-      : [playlistGroup, queueGroup];
+      ? [QUEUE_GROUP, playlistGroup]
+      : [playlistGroup, QUEUE_GROUP];
 
   const handleSelect = (item: PaletteItem) => {
     switch (item.kind) {
@@ -176,13 +179,13 @@ export function AddToPlaylistDialog({
                 <span className="truncate text-meta text-primary">{targetLabel}</span>
               </span>
               <Autocomplete.Input
-                aria-keyshortcuts={ariaKeyShortcuts(dialogChords.createFromSearch)}
+                aria-keyshortcuts={ariaKeyShortcuts(DIALOG_CHORDS.createFromSearch)}
                 aria-label="Find a playlist"
                 className="h-full min-w-0 flex-1 bg-transparent text-title font-normal tracking-normal text-primary caret-accent outline-none placeholder:text-placeholder"
                 onKeyDown={(event) => {
-                  if (matchesChord(dialogChords.createFromSearch, event)) {
+                  if (matchesChord(DIALOG_CHORDS.createFromSearch, event)) {
                     event.preventDefault();
-                    handleSelect(createItem);
+                    handleSelect(CREATE_ITEM);
 
                     return;
                   }
@@ -194,7 +197,7 @@ export function AddToPlaylistDialog({
 
                   if (shortcut === "addToQueue" || shortcut === "playNext") {
                     event.preventDefault();
-                    handleSelect(shortcut === "playNext" ? playNextItem : addToQueueItem);
+                    handleSelect(shortcut === "playNext" ? PLAY_NEXT_ITEM : ADD_TO_QUEUE_ITEM);
                   }
                 }}
                 placeholder={placeholder}
@@ -240,7 +243,7 @@ export function AddToPlaylistDialog({
               </span>
               {highlighted?.kind !== "create" && (
                 <span className="flex items-center gap-1">
-                  <ShortcutKeys chord={dialogChords.createFromSearch} />
+                  <ShortcutKeys chord={DIALOG_CHORDS.createFromSearch} />
                   create
                 </span>
               )}
@@ -300,13 +303,13 @@ function PaletteRow({
         </Kbd>
         {item.kind === "create" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
-            <ShortcutKeys chord={dialogChords.createFromSearch} />
+            <ShortcutKeys chord={DIALOG_CHORDS.createFromSearch} />
           </Kbd>
         )}
         {item.kind === "queue" && (
           <Kbd aria-hidden="true" className="group-data-highlighted/palette-row:hidden" size="lg">
             <ShortcutKeys
-              chord={selectionChords[item.position === "start" ? "playNext" : "addToQueue"]}
+              chord={SELECTION_CHORDS[item.position === "start" ? "playNext" : "addToQueue"]}
             />
           </Kbd>
         )}

@@ -1,14 +1,14 @@
 import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
-const columns = [
+const COLUMNS = [
   { cycle: "0.9s", delay: "0s", still: 2 },
   { cycle: "1.1s", delay: "-0.45s", still: 4 },
   { cycle: "1.3s", delay: "-0.9s", still: 1 },
   { cycle: "1s", delay: "-0.3s", still: 3 },
 ];
 
-const upperRows = [4, 3, 2];
+const UPPER_ROWS = [4, 3, 2];
 
 export function PlayingMeter({ playing }: { playing: boolean }) {
   const hidden = useSyncExternalStore(
@@ -28,7 +28,7 @@ export function PlayingMeter({ playing }: { playing: boolean }) {
           !playing && "opacity-0",
         )}
       >
-        {columns.map((column, index) => (
+        {COLUMNS.map((column, index) => (
           <span
             className="flex flex-col gap-0.5 motion-safe:animate-meter-column"
             key={index}
@@ -39,14 +39,14 @@ export function PlayingMeter({ playing }: { playing: boolean }) {
               transform: `translateY(${(4 - column.still) * 4}px)`,
             }}
           >
-            {upperRows.map((row) => (
+            {UPPER_ROWS.map((row) => (
               <span className="size-0.5 rounded-[0.5px] bg-accent" key={row} />
             ))}
           </span>
         ))}
       </span>
       <span className="absolute inset-x-0 bottom-0 grid grid-cols-4 gap-0.5">
-        {columns.map((_, index) => (
+        {COLUMNS.map((_, index) => (
           <span className="size-0.5 rounded-[0.5px] bg-accent" key={index} />
         ))}
       </span>

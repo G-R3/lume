@@ -21,13 +21,13 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDuration } from "@/lib/format-duration";
-import { duration as motionDuration, ease, spring } from "@/lib/motion";
+import { DURATION, EASE, SPRING } from "@/lib/motion";
 import { ariaKeyShortcuts } from "@/lib/keyboard-shortcuts";
 import { ShortcutKeys } from "@/components/shortcut-keys";
 import { SelectionMenuShortcut } from "@/components/track-list/selection/selection-menu-shortcut";
 import {
   type SelectionAction,
-  selectionChords,
+  SELECTION_CHORDS,
 } from "@/components/track-list/selection/selection-shortcuts";
 
 type SelectionBarProps = {
@@ -42,15 +42,15 @@ type SelectionBarProps = {
 
 type BarMotion = "instant" | "spring" | "reduced";
 
-const barFadeVariants: Variants = {
+const BAR_FADE_VARIANTS: Variants = {
   hidden: (mode: BarMotion) => ({
     opacity: 0,
     transition:
       mode === "instant"
         ? { duration: 0 }
         : mode === "reduced"
-          ? { duration: motionDuration.exit, ease: ease.out }
-          : spring.exit,
+          ? { duration: DURATION.exit, ease: EASE.out }
+          : SPRING.exit,
   }),
   shown: (mode: BarMotion) => ({
     opacity: 1,
@@ -58,19 +58,19 @@ const barFadeVariants: Variants = {
       mode === "instant"
         ? { duration: 0 }
         : mode === "reduced"
-          ? { duration: 0.14, ease: ease.out }
-          : spring.ui,
+          ? { duration: 0.14, ease: EASE.out }
+          : SPRING.ui,
   }),
 };
 
-const barRiseVariants: Variants = {
+const BAR_RISE_VARIANTS: Variants = {
   hidden: (mode: BarMotion) =>
     mode === "spring"
-      ? { scale: 0.975, transition: spring.exit, y: 8 }
+      ? { scale: 0.975, transition: SPRING.exit, y: 8 }
       : { scale: 1, transition: { duration: 0 }, y: 0 },
   shown: (mode: BarMotion) => ({
     scale: 1,
-    transition: mode === "spring" ? spring.ui : { duration: 0 },
+    transition: mode === "spring" ? SPRING.ui : { duration: 0 },
     y: 0,
   }),
 };
@@ -146,13 +146,13 @@ export function FloatingSelectionBar({
           exit="hidden"
           initial={barMotion === "instant" ? false : "hidden"}
           key="selection-bar"
-          variants={barFadeVariants}
+          variants={BAR_FADE_VARIANTS}
         >
           <motion.div
             className="pointer-events-auto origin-bottom"
             custom={barMotion}
             ref={observeBar}
-            variants={barRiseVariants}
+            variants={BAR_RISE_VARIANTS}
           >
             <SelectionBar {...barProps} />
           </motion.div>
@@ -285,7 +285,7 @@ function SelectionBar({
           <DropdownMenuContent align="end" className="max-w-none" side="top" sideOffset={8}>
             {canQueue && (
               <DropdownMenuItem
-                aria-keyshortcuts={ariaKeyShortcuts(selectionChords.playNext)}
+                aria-keyshortcuts={ariaKeyShortcuts(SELECTION_CHORDS.playNext)}
                 className="whitespace-nowrap"
                 onClick={() => onAction("playNext")}
               >
@@ -295,7 +295,7 @@ function SelectionBar({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              aria-keyshortcuts={ariaKeyShortcuts(selectionChords.createPlaylist)}
+              aria-keyshortcuts={ariaKeyShortcuts(SELECTION_CHORDS.createPlaylist)}
               className="whitespace-nowrap"
               onClick={() => onAction("createPlaylist")}
             >
@@ -349,7 +349,7 @@ function BarAction({
       }}
     >
       <TooltipTrigger
-        aria-keyshortcuts={ariaKeyShortcuts(selectionChords[action])}
+        aria-keyshortcuts={ariaKeyShortcuts(SELECTION_CHORDS[action])}
         data-bar-action={action}
         render={<Toolbar.Button render={render} />}
       >
@@ -358,7 +358,7 @@ function BarAction({
       <TooltipContent className="rounded-lg pr-1" sideOffset={8}>
         {label}
         <Kbd>
-          <ShortcutKeys chord={selectionChords[action]} />
+          <ShortcutKeys chord={SELECTION_CHORDS[action]} />
         </Kbd>
       </TooltipContent>
     </Tooltip>

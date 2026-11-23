@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { queueContext } from "../../tests/helpers/queue-context";
-import { noFailures, type PlaybackFailures } from "./playback-controller";
+import { NO_FAILURES, type PlaybackFailures } from "./playback-controller";
 import {
   derivePlaybackNotices,
   formatPlaybackNotice,
@@ -10,7 +10,7 @@ import type { PlaybackPhase } from "./playback-phase";
 import type { SessionSource } from "./queue/commands";
 import { selectCurrentItem } from "./queue/selectors";
 import { transition } from "./queue/transition";
-import { defaultSort } from "./track-sort";
+import { DEFAULT_SORT } from "./track-sort";
 
 const tracksById = new Map([
   [1, { title: "Alpha" }],
@@ -22,7 +22,7 @@ function startQueue(source: SessionSource["source"]) {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries: [
@@ -54,7 +54,7 @@ function notices(
   return derivePlaybackNotices({
     queue: forQueue,
     tracksById,
-    failures: { ...noFailures, ...failures },
+    failures: { ...NO_FAILURES, ...failures },
     phase,
   });
 }
@@ -123,7 +123,7 @@ describe("derivePlaybackNotices", () => {
       derivePlaybackNotices({
         queue: null,
         tracksById,
-        failures: { ...noFailures, restore: true },
+        failures: { ...NO_FAILURES, restore: true },
         phase: { kind: "stopped" },
       }),
     ).toEqual([{ kind: "restore" }]);

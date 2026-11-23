@@ -3,7 +3,7 @@ import { ariaKeyShortcuts } from "@/lib/keyboard-shortcuts";
 import {
   matchSelectionShortcut,
   type SelectionCapabilities,
-  selectionChords,
+  SELECTION_CHORDS,
 } from "@/components/track-list/selection/selection-shortcuts";
 
 type Press = { key: string; alt?: boolean; ctrl?: boolean; meta?: boolean; shift?: boolean };
@@ -121,7 +121,7 @@ describe("aria-keyshortcuts", () => {
     ["createPlaylist", "Meta+Shift+N", "Control+Shift+N"],
     ["removeFromPlaylist", "Meta+Backspace", "Delete"],
   ] as const)("%s announces %s on macOS and %s elsewhere", (action, mac, other) => {
-    expect(ariaKeyShortcuts(selectionChords[action], true)).toBe(mac);
-    expect(ariaKeyShortcuts(selectionChords[action], false)).toBe(other);
+    expect(ariaKeyShortcuts(SELECTION_CHORDS[action], true)).toBe(mac);
+    expect(ariaKeyShortcuts(SELECTION_CHORDS[action], false)).toBe(other);
   });
 });

@@ -1,6 +1,6 @@
 import { isEditableElement } from "@/lib/keyboard-shortcuts";
 
-const modifierKeys: ReadonlySet<string> = new Set([
+const MODIFIER_KEYS: ReadonlySet<string> = new Set([
   "Alt",
   "AltGraph",
   "CapsLock",
@@ -32,7 +32,7 @@ export function trackFocusModality(root = document.documentElement) {
   window.addEventListener(
     "keydown",
     (event) => {
-      if (modifierKeys.has(event.key)) return;
+      if (MODIFIER_KEYS.has(event.key)) return;
 
       lastInput = "keyboard";
       update();

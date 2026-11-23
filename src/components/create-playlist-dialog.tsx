@@ -15,12 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ariaKeyShortcuts, dialogChords, matchesChord } from "@/lib/keyboard-shortcuts";
+import { ariaKeyShortcuts, DIALOG_CHORDS, matchesChord } from "@/lib/keyboard-shortcuts";
 import { useCreatePlaylistMutation } from "@/lib/playlist-mutations";
 import {
   normalizePlaylistText,
-  playlistDescriptionMaxLength,
-  playlistTitleMaxLength,
+  PLAYLIST_DESCRIPTION_MAX_LENGTH,
+  PLAYLIST_TITLE_MAX_LENGTH,
 } from "@shared/playlist-text";
 import type { ActionTarget } from "@/components/track-list/selection/track-selection";
 
@@ -99,7 +99,7 @@ export function CreatePlaylistDialog({
   };
 
   const handleDescriptionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (matchesChord(dialogChords.submitDescription, event)) {
+    if (matchesChord(DIALOG_CHORDS.submitDescription, event)) {
       event.preventDefault();
       formRef.current?.requestSubmit();
     }
@@ -136,10 +136,10 @@ export function CreatePlaylistDialog({
                   defaultValue={
                     isGroup
                       ? "Playlist"
-                      : (entries[0]?.title.trim().slice(0, playlistTitleMaxLength) ?? "")
+                      : (entries[0]?.title.trim().slice(0, PLAYLIST_TITLE_MAX_LENGTH) ?? "")
                   }
                   id="title"
-                  maxLength={playlistTitleMaxLength}
+                  maxLength={PLAYLIST_TITLE_MAX_LENGTH}
                   name="title"
                   onChange={() => setTitleError(null)}
                   ref={titleRef}
@@ -157,10 +157,10 @@ export function CreatePlaylistDialog({
                 </Label>
                 <Textarea
                   id="description"
-                  maxLength={playlistDescriptionMaxLength}
+                  maxLength={PLAYLIST_DESCRIPTION_MAX_LENGTH}
                   name="description"
                   ref={descriptionRef}
-                  aria-keyshortcuts={ariaKeyShortcuts(dialogChords.submitDescription)}
+                  aria-keyshortcuts={ariaKeyShortcuts(DIALOG_CHORDS.submitDescription)}
                   onKeyDown={handleDescriptionKeyDown}
                   placeholder="What’s it for?"
                 />

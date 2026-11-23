@@ -4,7 +4,7 @@ import type { QueuePosition } from "./commands";
 import type { QueueState } from "./model";
 import { transition } from "./transition";
 import { queueContext } from "../../../tests/helpers/queue-context";
-import { defaultSort } from "../track-sort";
+import { DEFAULT_SORT } from "../track-sort";
 
 it("plays each manual addition before returning to the source", () => {
   const context = queueContext([1, 2, 3]);
@@ -15,7 +15,7 @@ it("plays each manual addition before returning to the source", () => {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries,
@@ -58,7 +58,7 @@ it("keeps a queue reorder when the playlist later moves one occurrence", () => {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries,
@@ -114,7 +114,7 @@ it("lets Previous visit source items skipped by a jump", () => {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source: { kind: "all-tracks" },
       entries,
@@ -152,7 +152,7 @@ it("skips unavailable source items after a manual jump and Previous", () => {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source: { kind: "all-tracks" },
       entries,
@@ -195,7 +195,7 @@ it("keeps a moved manual item when its source is rebuilt", () => {
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries,
@@ -219,7 +219,7 @@ it("keeps a moved manual item when its source is rebuilt", () => {
     moved,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source,
       entries,
@@ -341,7 +341,7 @@ function startedAt(sourceEntryId: number, context: ReturnType<typeof queueContex
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source: { kind: "all-tracks" },
       entries: [1, 2, 3, 4, 5, 6].map((trackId) => ({ sourceEntryId: trackId, trackId })),

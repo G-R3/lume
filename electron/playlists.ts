@@ -10,36 +10,36 @@ import type {
 } from "@shared/library";
 import {
   normalizePlaylistText,
-  playlistDescriptionMaxLength,
-  playlistTitleMaxLength,
+  PLAYLIST_DESCRIPTION_MAX_LENGTH,
+  PLAYLIST_TITLE_MAX_LENGTH,
 } from "@shared/playlist-text";
 import { getDatabase, parameterChunks, type LibraryTransaction } from "./database";
 import { commitLibrary, currentLibraryRevision } from "./library-events";
-import { playlistTracks, playlists, tracks } from "./database/schema";
+import { PlaylistTracksTable, PlaylistsTable, TracksTable } from "./database/schema";
 
-const playlistColumns = {
-  description: playlists.description,
-  id: playlists.id,
-  title: playlists.title,
+const PLAYLIST_COLUMNS = {
+  description: PlaylistsTable.description,
+  id: PlaylistsTable.id,
+  title: PlaylistsTable.title,
 };
 
-const playlistTrackColumns = {
-  addedAt: playlistTracks.createdAt,
-  id: playlistTracks.id,
-  position: playlistTracks.position,
-  trackId: playlistTracks.trackId,
+const PLAYLIST_TRACK_COLUMNS = {
+  addedAt: PlaylistTracksTable.createdAt,
+  id: PlaylistTracksTable.id,
+  position: PlaylistTracksTable.position,
+  trackId: PlaylistTracksTable.trackId,
 };
 
 export function getPlaylists(): PlaylistSummary[] {
   return getDatabase()
     .select({
-      ...playlistColumns,
-      trackCount: count(playlistTracks.id),
+      ...PLAYLIST_COLUMNS,
+      trackCount: count(PlaylistTracksTable.id),
     })
-    .from(playlists)
-    .leftJoin(playlistTracks, eq(playlistTracks.playlistId, playlists.id))
-    .groupBy(playlists.id)
-    .orderBy(playlists.createdAt, sql`${playlists}.rowid`)
+    .from(PlaylistsTable)
+    .leftJoin(PlaylistTracksTable, eq(PlaylistTracksTable.playlistId, PlaylistsTable.id))
+    .groupBy(PlaylistsTable.id)
+    .orderBy(PlaylistsTable.createdAt, sql`${PlaylistsTable}.rowid`)
     .all();
 }
 
@@ -47,9 +47,9 @@ export function getPlaylist(playlistId: number): PlaylistRead {
   const database = getDatabase();
 
   const playlist = database
-    .select(playlistColumns)
-    .from(playlists)
-    .where(eq(playlists.id, playlistId))
+    .select(PLAYLIST_COLUMNS)
+    .from(PlaylistsTable)
+    .where(eq(PlaylistsTable.id, playlistId))
     .get();
 
   return {
@@ -58,10 +58,10 @@ export function getPlaylist(playlistId: number): PlaylistRead {
       ? {
           ...playlist,
           tracks: database
-            .select(playlistTrackColumns)
-            .from(playlistTracks)
-            .where(eq(playlistTracks.playlistId, playlistId))
-            .orderBy(playlistTracks.position)
+            .select(PLAYLIST_TRACK_COLUMNS)
+            .from(PlaylistTracksTable)
+            .where(eq(PlaylistTracksTable.playlistId, playlistId))
+            .orderBy(PlaylistTracksTable.position)
             .all(),
         }
       : null,
@@ -71,15 +71,15 @@ export function getPlaylist(playlistId: number): PlaylistRead {
 export function createPlaylist(input: PlaylistCreationInput): PlaylistDetails {
   const { description, title } = normalizePlaylistText(input);
 
-  if (title.length === 0 || title.length > playlistTitleMaxLength) {
+  if (title.length === 0 || title.length > PLAYLIST_TITLE_MAX_LENGTH) {
     throw new Error(
-      `Playlist titles must contain between 1 and ${playlistTitleMaxLength} characters`,
+      `Playlist titles must contain between 1 and ${PLAYLIST_TITLE_MAX_LENGTH} characters`,
     );
   }
 
-  if (description !== null && description.length > playlistDescriptionMaxLength) {
+  if (description !== null && description.length > PLAYLIST_DESCRIPTION_MAX_LENGTH) {
     throw new Error(
-      `Playlist descriptions cannot exceed ${playlistDescriptionMaxLength} characters`,
+      `Playlist descriptions cannot exceed ${PLAYLIST_DESCRIPTION_MAX_LENGTH} characters`,
     );
   }
 
@@ -91,14 +91,14 @@ export function createPlaylist(input: PlaylistCreationInput): PlaylistDetails {
       const now = Date.now();
 
       const playlist = transaction
-        .insert(playlists)
+        .insert(PlaylistsTable)
         .values({
           createdAt: now,
           description,
           title,
           updatedAt: now,
         })
-        .returning(playlistColumns)
+        .returning(PLAYLIST_COLUMNS)
         .get();
 
       return {
@@ -115,9 +115,9 @@ export function deletePlaylist(playlistId: number) {
     getDatabase(),
     (transaction) => {
       const playlist = transaction
-        .delete(playlists)
-        .where(eq(playlists.id, playlistId))
-        .returning({ id: playlists.id })
+        .delete(PlaylistsTable)
+        .where(eq(PlaylistsTable.id, playlistId))
+        .returning({ id: PlaylistsTable.id })
         .get();
 
       if (!playlist) throw new Error("Playlist does not exist");
@@ -176,7 +176,7 @@ export function removePlaylistTracks(input: RemovePlaylistTracksInput) {
   const chunks = parameterChunks(playlistTrackIds);
 
   const inPlaylist = (ids: readonly number[]) =>
-    and(eq(playlistTracks.playlistId, input.playlistId), inArray(playlistTracks.id, ids));
+    and(eq(PlaylistTracksTable.playlistId, input.playlistId), inArray(PlaylistTracksTable.id, ids));
 
   commitLibrary(
     getDatabase(),
@@ -186,8 +186,11 @@ export function removePlaylistTracks(input: RemovePlaylistTracksInput) {
       const ownedCount = chunks.reduce(
         (total, ids) =>
           total +
-          (transaction.select({ count: count() }).from(playlistTracks).where(inPlaylist(ids)).get()
-            ?.count ?? 0),
+          (transaction
+            .select({ count: count() })
+            .from(PlaylistTracksTable)
+            .where(inPlaylist(ids))
+            .get()?.count ?? 0),
         0,
       );
 
@@ -195,7 +198,8 @@ export function removePlaylistTracks(input: RemovePlaylistTracksInput) {
         throw new Error("Playlist track does not exist in this playlist");
       }
 
-      for (const ids of chunks) transaction.delete(playlistTracks).where(inPlaylist(ids)).run();
+      for (const ids of chunks)
+        transaction.delete(PlaylistTracksTable).where(inPlaylist(ids)).run();
 
       touchPlaylist(transaction, input.playlistId, Date.now());
 
@@ -215,17 +219,17 @@ function playlistTrackCount(database: LibraryTransaction, playlistId: number) {
   return (
     database
       .select({ count: count() })
-      .from(playlistTracks)
-      .where(eq(playlistTracks.playlistId, playlistId))
+      .from(PlaylistTracksTable)
+      .where(eq(PlaylistTracksTable.playlistId, playlistId))
       .get()?.count ?? 0
   );
 }
 
 function requirePlaylist(database: LibraryTransaction, playlistId: number) {
   const playlist = database
-    .select({ id: playlists.id })
-    .from(playlists)
-    .where(eq(playlists.id, playlistId))
+    .select({ id: PlaylistsTable.id })
+    .from(PlaylistsTable)
+    .where(eq(PlaylistsTable.id, playlistId))
     .get();
 
   if (!playlist) throw new Error("Playlist does not exist");
@@ -237,8 +241,11 @@ export function requireTracks(database: LibraryTransaction, trackIds: readonly n
   const foundCount = parameterChunks(uniqueTrackIds).reduce(
     (total, ids) =>
       total +
-      (database.select({ count: count() }).from(tracks).where(inArray(tracks.id, ids)).get()
-        ?.count ?? 0),
+      (database
+        .select({ count: count() })
+        .from(TracksTable)
+        .where(inArray(TracksTable.id, ids))
+        .get()?.count ?? 0),
     0,
   );
 
@@ -253,9 +260,14 @@ function trackIdsInPlaylist(
   return new Set(
     parameterChunks([...new Set(trackIds)]).flatMap((ids) =>
       database
-        .selectDistinct({ trackId: playlistTracks.trackId })
-        .from(playlistTracks)
-        .where(and(eq(playlistTracks.playlistId, playlistId), inArray(playlistTracks.trackId, ids)))
+        .selectDistinct({ trackId: PlaylistTracksTable.trackId })
+        .from(PlaylistTracksTable)
+        .where(
+          and(
+            eq(PlaylistTracksTable.playlistId, playlistId),
+            inArray(PlaylistTracksTable.trackId, ids),
+          ),
+        )
         .all()
         .map((row) => row.trackId),
     ),
@@ -272,9 +284,9 @@ function appendPlaylistTracks(
 
   const basePosition =
     database
-      .select({ position: sql<number | null>`MAX(${playlistTracks.position}) + 1` })
-      .from(playlistTracks)
-      .where(eq(playlistTracks.playlistId, playlistId))
+      .select({ position: sql<number | null>`MAX(${PlaylistTracksTable.position}) + 1` })
+      .from(PlaylistTracksTable)
+      .where(eq(PlaylistTracksTable.playlistId, playlistId))
       .get()?.position ?? 0;
 
   const rows = trackIds.map((trackId, index) => ({
@@ -285,7 +297,7 @@ function appendPlaylistTracks(
   }));
 
   const inserted = parameterChunks(rows, Object.keys(rows[0]).length).flatMap((chunk) =>
-    database.insert(playlistTracks).values(chunk).returning(playlistTrackColumns).all(),
+    database.insert(PlaylistTracksTable).values(chunk).returning(PLAYLIST_TRACK_COLUMNS).all(),
   );
 
   touchPlaylist(database, playlistId, now);
@@ -294,5 +306,9 @@ function appendPlaylistTracks(
 }
 
 function touchPlaylist(database: LibraryTransaction, playlistId: number, now: number) {
-  database.update(playlists).set({ updatedAt: now }).where(eq(playlists.id, playlistId)).run();
+  database
+    .update(PlaylistsTable)
+    .set({ updatedAt: now })
+    .where(eq(PlaylistsTable.id, playlistId))
+    .run();
 }

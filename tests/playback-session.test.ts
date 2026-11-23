@@ -12,7 +12,7 @@ import {
   savePlaybackSession,
 } from "../electron/playback-session";
 import { queueContext } from "./helpers/queue-context";
-import { defaultSort } from "../src/lib/track-sort";
+import { DEFAULT_SORT } from "../src/lib/track-sort";
 
 it("restores a saved queue paused at its position after its playlist is deleted", async () => {
   const folder = await createTemporaryFolder("lume-queue-session-");
@@ -26,7 +26,7 @@ it("restores a saved queue paused at its position after its playlist is deleted"
     null,
     {
       type: "startSession",
-      sort: defaultSort,
+      sort: DEFAULT_SORT,
       filter: null,
       source: { kind: "playlist", playlistId: 1, title: "Deleted playlist" },
       entries: [1, 2, 3].map((trackId) => ({ sourceEntryId: trackId, trackId })),

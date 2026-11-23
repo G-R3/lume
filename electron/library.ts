@@ -22,8 +22,8 @@ import {
   type TrackTuple,
   type TrackTupleKey,
   albumArtistsIfDifferent,
-  trackTuplePositions,
-  trackTupleKeys,
+  TRACK_TUPLE_POSITIONS,
+  TRACK_TUPLE_KEYS,
   toTrackTuple,
   stringifyLibrary,
   stringifyFirstRunLibrary,
@@ -36,11 +36,17 @@ import {
   type LibraryDatabase,
   type LibraryTransaction,
 } from "./database";
-import { appState, artwork, librarySources, tracks, trackState } from "./database/schema";
+import {
+  AppStateTable,
+  ArtworkTable,
+  LibrarySourcesTable,
+  TracksTable,
+  TrackStateTable,
+} from "./database/schema";
 import {
   classifyFolderReadError,
   scanAudioFiles,
-  trackMetadataVersion,
+  TRACK_METADATA_VERSION,
   type FolderReadFailure,
   type ScannedTrack,
 } from "./library-files";
@@ -108,35 +114,35 @@ function displayAlbumArtists(albumArtists: string[], artists: string[]) {
   return albumArtists.length > 0 ? albumArtists : artists;
 }
 
-const trackTupleSourceColumns = {
-  addedAt: tracks.createdAt,
-  album: tracks.album,
-  albumArtists: tracks.albumArtists,
-  artists: tracks.artists,
-  artworkUrl: tracks.artworkId,
-  unavailableReason: tracks.missingSince,
-  bitrate: tracks.bitrate,
-  bitsPerSample: tracks.bitsPerSample,
-  channelCount: tracks.channelCount,
-  codec: tracks.codec,
-  discNumber: tracks.discNumber,
-  discTotal: tracks.discTotal,
-  duration: tracks.duration,
-  format: tracks.format,
-  genres: tracks.genres,
-  id: tracks.id,
-  likedAt: trackState.likedAt,
-  lossless: tracks.lossless,
-  title: tracks.title,
-  sampleRate: tracks.sampleRate,
-  trackNumber: tracks.trackNumber,
-  trackTotal: tracks.trackTotal,
-  year: tracks.year,
+const TRACK_TUPLE_SOURCE_COLUMNS = {
+  addedAt: TracksTable.createdAt,
+  album: TracksTable.album,
+  albumArtists: TracksTable.albumArtists,
+  artists: TracksTable.artists,
+  artworkUrl: TracksTable.artworkId,
+  unavailableReason: TracksTable.missingSince,
+  bitrate: TracksTable.bitrate,
+  bitsPerSample: TracksTable.bitsPerSample,
+  channelCount: TracksTable.channelCount,
+  codec: TracksTable.codec,
+  discNumber: TracksTable.discNumber,
+  discTotal: TracksTable.discTotal,
+  duration: TracksTable.duration,
+  format: TracksTable.format,
+  genres: TracksTable.genres,
+  id: TracksTable.id,
+  likedAt: TrackStateTable.likedAt,
+  lossless: TracksTable.lossless,
+  title: TracksTable.title,
+  sampleRate: TracksTable.sampleRate,
+  trackNumber: TracksTable.trackNumber,
+  trackTotal: TracksTable.trackTotal,
+  year: TracksTable.year,
 } satisfies Record<TrackTupleKey, SQLiteColumn>;
 
-const storedTrackRowColumns = {
-  ...Object.fromEntries(trackTupleKeys.map((key) => [key, trackTupleSourceColumns[key]])),
-  sourceId: tracks.sourceId,
+const STORED_TRACK_ROW_COLUMNS = {
+  ...Object.fromEntries(TRACK_TUPLE_KEYS.map((key) => [key, TRACK_TUPLE_SOURCE_COLUMNS[key]])),
+  sourceId: TracksTable.sourceId,
 };
 
 type StoredValue<Column extends SQLiteColumn> =
@@ -144,12 +150,12 @@ type StoredValue<Column extends SQLiteColumn> =
   | (Column["_"]["notNull"] extends true ? never : null);
 
 type StoredValues<Keys extends readonly TrackTupleKey[]> = {
-  -readonly [Index in keyof Keys]: StoredValue<(typeof trackTupleSourceColumns)[Keys[Index]]>;
+  -readonly [Index in keyof Keys]: StoredValue<(typeof TRACK_TUPLE_SOURCE_COLUMNS)[Keys[Index]]>;
 };
 
 type StoredTrackRow = [
-  ...StoredValues<typeof trackTupleKeys>,
-  sourceId: StoredValue<typeof tracks.sourceId>,
+  ...StoredValues<typeof TRACK_TUPLE_KEYS>,
+  sourceId: StoredValue<typeof TracksTable.sourceId>,
 ];
 
 // Returns the library as JSON, with each track as a tuple ([addedAt, album, ...]) instead of an object
@@ -164,9 +170,9 @@ export function getLibrarySnapshotJson() {
   // Each row holds the raw SQLite values of `storedTrackRowColumns`, in that order.
   // tests/library-json.test.ts checks every position.
   const rows = database
-    .select(storedTrackRowColumns)
-    .from(tracks)
-    .leftJoin(trackState, eq(trackState.trackId, tracks.id))
+    .select(STORED_TRACK_ROW_COLUMNS)
+    .from(TracksTable)
+    .leftJoin(TrackStateTable, eq(TrackStateTable.trackId, TracksTable.id))
     .values() as StoredTrackRow[];
 
   return stringifyLibrary(
@@ -181,11 +187,11 @@ function getSourceGates(database: LibraryDatabase) {
   return new Map(
     database
       .select({
-        id: librarySources.id,
-        lastScanOutcome: librarySources.lastScanOutcome,
-        status: librarySources.status,
+        id: LibrarySourcesTable.id,
+        lastScanOutcome: LibrarySourcesTable.lastScanOutcome,
+        status: LibrarySourcesTable.status,
       })
-      .from(librarySources)
+      .from(LibrarySourcesTable)
       .all()
       .map((source) => [source.id, sourceGate(source.status, source.lastScanOutcome)] as const),
   );
@@ -195,16 +201,16 @@ function trackTupleFromRow(
   row: StoredTrackRow,
   gates: ReadonlyMap<number, SourceGate>,
 ): TrackTuple {
-  const at = trackTuplePositions;
-  const sourceId = row[trackTupleKeys.length];
+  const at = TRACK_TUPLE_POSITIONS;
+  const sourceId = row[TRACK_TUPLE_KEYS.length];
   const gate = gates.get(sourceId);
 
   if (!gate) throw new Error(`Track ${row[at.id]} belongs to unknown library source ${sourceId}`);
 
-  const artists = tracks.artists.mapFromDriverValue(row[at.artists]);
+  const artists = TracksTable.artists.mapFromDriverValue(row[at.artists]);
 
   const albumArtists = displayAlbumArtists(
-    tracks.albumArtists.mapFromDriverValue(row[at.albumArtists]),
+    TracksTable.albumArtists.mapFromDriverValue(row[at.albumArtists]),
     artists,
   );
 
@@ -226,10 +232,10 @@ function trackTupleFromRow(
     discTotal: row[at.discTotal],
     duration: row[at.duration],
     format: row[at.format],
-    genres: tracks.genres.mapFromDriverValue(row[at.genres]),
+    genres: TracksTable.genres.mapFromDriverValue(row[at.genres]),
     id: row[at.id],
     likedAt: row[at.likedAt],
-    lossless: lossless === null ? null : tracks.lossless.mapFromDriverValue(lossless),
+    lossless: lossless === null ? null : TracksTable.lossless.mapFromDriverValue(lossless),
     title: row[at.title],
     sampleRate: row[at.sampleRate],
     trackNumber: row[at.trackNumber],
@@ -251,17 +257,17 @@ export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
       if (likedAt === null) {
         for (const ids of parameterChunks(trackIds)) {
           transaction
-            .update(trackState)
+            .update(TrackStateTable)
             .set({ likedAt })
-            .where(inArray(trackState.trackId, ids))
+            .where(inArray(TrackStateTable.trackId, ids))
             .run();
         }
       } else {
         for (const ids of parameterChunks(trackIds, 2)) {
           transaction
-            .insert(trackState)
+            .insert(TrackStateTable)
             .values(ids.map((trackId) => ({ likedAt, trackId })))
-            .onConflictDoUpdate({ set: { likedAt }, target: trackState.trackId })
+            .onConflictDoUpdate({ set: { likedAt }, target: TrackStateTable.trackId })
             .run();
         }
       }
@@ -274,24 +280,24 @@ export function setTracksLiked(input: SetTracksLikedInput): TracksLikedResult {
   return { likes, revision: currentLibraryRevision() };
 }
 
-const notForgottenSource = ne(librarySources.status, "forgotten");
+const NOT_FORGOTTEN_SOURCE = ne(LibrarySourcesTable.status, "forgotten");
 
-const enabledSource = eq(librarySources.status, "active");
+const ENABLED_SOURCE = eq(LibrarySourcesTable.status, "active");
 
 export function getSources() {
-  return selectSources(notForgottenSource).map(sourceFromRow);
+  return selectSources(NOT_FORGOTTEN_SOURCE).map(sourceFromRow);
 }
 
 function getEnabledSources() {
-  return selectSources(enabledSource);
+  return selectSources(ENABLED_SOURCE);
 }
 
 function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
   return (
     database
-      .select({ path: librarySources.path })
-      .from(librarySources)
-      .where(and(eq(librarySources.id, sourceId), enabledSource))
+      .select({ path: LibrarySourcesTable.path })
+      .from(LibrarySourcesTable)
+      .where(and(eq(LibrarySourcesTable.id, sourceId), ENABLED_SOURCE))
       .get()?.path ?? null
   );
 }
@@ -299,19 +305,22 @@ function getEnabledSourcePath(database: LibraryDatabase, sourceId: number) {
 function selectSources(condition: SQL) {
   return getDatabase()
     .select({
-      id: librarySources.id,
-      lastScanErrorMessage: librarySources.lastScanErrorMessage,
-      lastScanOutcome: librarySources.lastScanOutcome,
-      lastScannedAt: librarySources.lastScannedAt,
-      path: librarySources.path,
-      status: librarySources.status,
-      trackCount: count(tracks.id),
+      id: LibrarySourcesTable.id,
+      lastScanErrorMessage: LibrarySourcesTable.lastScanErrorMessage,
+      lastScanOutcome: LibrarySourcesTable.lastScanOutcome,
+      lastScannedAt: LibrarySourcesTable.lastScannedAt,
+      path: LibrarySourcesTable.path,
+      status: LibrarySourcesTable.status,
+      trackCount: count(TracksTable.id),
     })
-    .from(librarySources)
-    .leftJoin(tracks, and(eq(tracks.sourceId, librarySources.id), isNull(tracks.missingSince)))
+    .from(LibrarySourcesTable)
+    .leftJoin(
+      TracksTable,
+      and(eq(TracksTable.sourceId, LibrarySourcesTable.id), isNull(TracksTable.missingSince)),
+    )
     .where(condition)
-    .groupBy(librarySources.id)
-    .orderBy(librarySources.createdAt)
+    .groupBy(LibrarySourcesTable.id)
+    .orderBy(LibrarySourcesTable.createdAt)
     .all();
 }
 
@@ -350,7 +359,7 @@ function sourceStatusFromRow(row: SourceRow): SourceStatus {
 }
 
 function isOnboarded() {
-  return getDatabase().select({ id: appState.id }).from(appState).get() !== undefined;
+  return getDatabase().select({ id: AppStateTable.id }).from(AppStateTable).get() !== undefined;
 }
 
 export async function saveSource(selectedPath: string) {
@@ -365,16 +374,20 @@ export async function saveSource(selectedPath: string) {
     const now = Date.now();
 
     const source = transaction
-      .insert(librarySources)
+      .insert(LibrarySourcesTable)
       .values({ createdAt: now, path, status: "active", updatedAt: now })
       .onConflictDoUpdate({
-        target: librarySources.path,
+        target: LibrarySourcesTable.path,
         set: { status: "active", updatedAt: updatedAtUnless("active", now) },
       })
-      .returning({ id: librarySources.id })
+      .returning({ id: LibrarySourcesTable.id })
       .get();
 
-    transaction.insert(appState).values({ id: 1, onboardedAt: now }).onConflictDoNothing().run();
+    transaction
+      .insert(AppStateTable)
+      .values({ id: 1, onboardedAt: now })
+      .onConflictDoNothing()
+      .run();
 
     return { id: source.id, path };
   });
@@ -399,14 +412,14 @@ export function forgetSource(sourceId: number) {
 function setSourceStatus(sourceId: number, status: SourceRow["status"]) {
   commitLibrary(getDatabase(), (transaction) => {
     const source = transaction
-      .update(librarySources)
+      .update(LibrarySourcesTable)
       .set({ status, updatedAt: updatedAtUnless(status, Date.now()) })
       .where(
         status === "forgotten"
-          ? eq(librarySources.id, sourceId)
-          : and(eq(librarySources.id, sourceId), notForgottenSource),
+          ? eq(LibrarySourcesTable.id, sourceId)
+          : and(eq(LibrarySourcesTable.id, sourceId), NOT_FORGOTTEN_SOURCE),
       )
-      .returning({ id: librarySources.id })
+      .returning({ id: LibrarySourcesTable.id })
       .get();
 
     if (!source) throw new Error(`Library source ${sourceId} does not exist`);
@@ -491,22 +504,22 @@ function commitScanFailure(
 ) {
   commitLibrary(database, (transaction) => {
     transaction
-      .update(librarySources)
+      .update(LibrarySourcesTable)
       .set({
         lastScanErrorMessage: failure.errorMessage,
         lastScanOutcome: failure.kind,
         updatedAt: Date.now(),
       })
-      .where(eq(librarySources.id, sourceId))
+      .where(eq(LibrarySourcesTable.id, sourceId))
       .run();
   });
 }
 
 export function getArtworkData(artworkId: string): ArtworkData | null {
   const storedArtwork = getDatabase()
-    .select({ data: artwork.data, mediaType: artwork.mediaType })
-    .from(artwork)
-    .where(eq(artwork.id, artworkId))
+    .select({ data: ArtworkTable.data, mediaType: ArtworkTable.mediaType })
+    .from(ArtworkTable)
+    .where(eq(ArtworkTable.id, artworkId))
     .get();
 
   if (!storedArtwork) return null;
@@ -519,8 +532,11 @@ export function getArtworkData(artworkId: string): ArtworkData | null {
 
 export function getTrackPath(trackId: number) {
   return (
-    getDatabase().select({ path: tracks.path }).from(tracks).where(eq(tracks.id, trackId)).get()
-      ?.path ?? null
+    getDatabase()
+      .select({ path: TracksTable.path })
+      .from(TracksTable)
+      .where(eq(TracksTable.id, trackId))
+      .get()?.path ?? null
   );
 }
 
@@ -540,13 +556,13 @@ function getStoredTrackFingerprints(database: LibraryDatabase, sourceId: number)
   return new Map(
     database
       .select({
-        fileSize: tracks.fileSize,
-        metadataVersion: tracks.metadataVersion,
-        modifiedAt: tracks.modifiedAt,
-        path: tracks.path,
+        fileSize: TracksTable.fileSize,
+        metadataVersion: TracksTable.metadataVersion,
+        modifiedAt: TracksTable.modifiedAt,
+        path: TracksTable.path,
       })
-      .from(tracks)
-      .where(eq(tracks.sourceId, sourceId))
+      .from(TracksTable)
+      .where(eq(TracksTable.sourceId, sourceId))
       .all()
       .map(
         (track) =>
@@ -572,27 +588,31 @@ function commitSourceScan(
   commitLibrary(database, (transaction) => {
     const unseenTracks = new Map(
       transaction
-        .select({ id: tracks.id, missingSince: tracks.missingSince, path: tracks.path })
-        .from(tracks)
-        .where(eq(tracks.sourceId, sourceId))
+        .select({
+          id: TracksTable.id,
+          missingSince: TracksTable.missingSince,
+          path: TracksTable.path,
+        })
+        .from(TracksTable)
+        .where(eq(TracksTable.sourceId, sourceId))
         .all()
         .map((track) => [track.path, track] as const),
     );
 
     const setMissingSince = transaction
-      .update(tracks)
+      .update(TracksTable)
       .set({ missingSince: sql.placeholder("missingSince"), updatedAt: now })
-      .where(eq(tracks.id, sql.placeholder("id")))
+      .where(eq(TracksTable.id, sql.placeholder("id")))
       .prepare();
 
     const saveArtwork = transaction
-      .insert(artwork)
+      .insert(ArtworkTable)
       .values({
         data: sql.placeholder("data"),
         id: sql.placeholder("id"),
         mediaType: sql.placeholder("mediaType"),
       })
-      .onConflictDoNothing({ target: artwork.id })
+      .onConflictDoNothing({ target: ArtworkTable.id })
       .prepare();
 
     const scannedTrackValues = {
@@ -612,7 +632,7 @@ function commitSourceScan(
       format: sql.placeholder("format"),
       genres: sql.placeholder("genres"),
       lossless: sql.placeholder("lossless"),
-      metadataVersion: trackMetadataVersion,
+      metadataVersion: TRACK_METADATA_VERSION,
       modifiedAt: sql.placeholder("modifiedAt"),
       path: sql.placeholder("path"),
       sampleRate: sql.placeholder("sampleRate"),
@@ -622,16 +642,16 @@ function commitSourceScan(
       trackTotal: sql.placeholder("trackTotal"),
       updatedAt: now,
       year: sql.placeholder("year"),
-    } satisfies Required<Omit<SQLiteInsertValue<typeof tracks>, "id" | "missingSince">>;
+    } satisfies Required<Omit<SQLiteInsertValue<typeof TracksTable>, "id" | "missingSince">>;
 
     const saveTrack = transaction
-      .insert(tracks)
+      .insert(TracksTable)
       .values(scannedTrackValues)
       .onConflictDoUpdate({
-        target: tracks.path,
+        target: TracksTable.path,
         set: {
           ...Object.fromEntries(
-            Object.entries(getColumns(tracks))
+            Object.entries(getColumns(TracksTable))
               .filter(([key]) => key in scannedTrackValues && key !== "createdAt" && key !== "path")
               .map(([key, column]) => [key, sql`excluded.${sql.identifier(column.name)}`]),
           ),
@@ -671,40 +691,40 @@ function commitSourceScan(
 
     if (savedTracks) {
       transaction
-        .delete(artwork)
+        .delete(ArtworkTable)
         .where(
           notExists(
             transaction
-              .select({ id: tracks.id })
-              .from(tracks)
-              .where(eq(tracks.artworkId, artwork.id)),
+              .select({ id: TracksTable.id })
+              .from(TracksTable)
+              .where(eq(TracksTable.artworkId, ArtworkTable.id)),
           ),
         )
         .run();
     }
 
     transaction
-      .update(librarySources)
+      .update(LibrarySourcesTable)
       .set({
         lastScanErrorMessage: null,
         lastScanOutcome: "ok",
         lastScannedAt: now,
         updatedAt: now,
       })
-      .where(eq(librarySources.id, sourceId))
+      .where(eq(LibrarySourcesTable.id, sourceId))
       .run();
   });
 }
 
 function updatedAtUnless(status: SourceRow["status"], now: number) {
-  return sql`CASE WHEN ${librarySources.status} = ${status} THEN ${librarySources.updatedAt} ELSE ${now} END`;
+  return sql`CASE WHEN ${LibrarySourcesTable.status} = ${status} THEN ${LibrarySourcesTable.updatedAt} ELSE ${now} END`;
 }
 
 function rejectSourceOverlap(database: LibraryTransaction, path: string) {
   const overlappingPath = database
-    .select({ path: librarySources.path })
-    .from(librarySources)
-    .where(notForgottenSource)
+    .select({ path: LibrarySourcesTable.path })
+    .from(LibrarySourcesTable)
+    .where(NOT_FORGOTTEN_SOURCE)
     .all()
     .find((source) => source.path !== path && pathsOverlap(source.path, path));
 

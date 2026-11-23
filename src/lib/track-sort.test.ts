@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { PlaylistDetails, Track } from "@shared/library";
 import {
-  defaultSort,
+  DEFAULT_SORT,
   formatTrackSort,
   libraryRows,
   nextSort,
   parseTrackSort,
   playlistRows,
-  sortFields,
+  SORT_FIELDS,
   sortName,
   sortRows,
   trackSort,
@@ -69,26 +69,26 @@ function bothOrders(tracks: Track[], field: SortField) {
 }
 
 describe("nextSort", () => {
-  const fields = sortFields.map(({ field }) => field);
+  const fields = SORT_FIELDS.map(({ field }) => field);
 
   it.each(fields.filter((field) => field !== "added"))(
     "steps %s through asc, desc, then the default",
     (field) => {
-      const first = nextSort(defaultSort, field);
+      const first = nextSort(DEFAULT_SORT, field);
       const second = nextSort(first, field);
 
       expect([first, second, nextSort(second, field)]).toEqual([
         trackSort(field, "asc"),
         trackSort(field, "desc"),
-        defaultSort,
+        DEFAULT_SORT,
       ]);
     },
   );
 
   it("toggles recently added between oldest and newest first", () => {
-    const newest = nextSort(defaultSort, "added");
+    const newest = nextSort(DEFAULT_SORT, "added");
 
-    expect([newest, nextSort(newest, "added")]).toEqual([trackSort("added", "desc"), defaultSort]);
+    expect([newest, nextSort(newest, "added")]).toEqual([trackSort("added", "desc"), DEFAULT_SORT]);
   });
 
   it.each(fields.flatMap((from) => fields.filter((to) => to !== from).map((to) => [from, to])))(
@@ -100,13 +100,13 @@ describe("nextSort", () => {
   );
 
   it("defaults to recently added, oldest first", () => {
-    expect(defaultSort).toEqual({ field: "added", direction: "asc" });
+    expect(DEFAULT_SORT).toEqual({ field: "added", direction: "asc" });
   });
 });
 
 describe("parse and format", () => {
   it("round-trips every field and direction to the same value", () => {
-    for (const { field } of sortFields) {
+    for (const { field } of SORT_FIELDS) {
       for (const direction of ["asc", "desc"] as const) {
         const sort = trackSort(field, direction);
 
@@ -118,16 +118,16 @@ describe("parse and format", () => {
   it.each([null, "", "added", "title", "title:up", "genre:asc", "title:asc:x", "toString"])(
     "reads %j as the default",
     (raw) => {
-      expect(parseTrackSort(raw)).toBe(defaultSort);
+      expect(parseTrackSort(raw)).toBe(DEFAULT_SORT);
     },
   );
 });
 
 describe("sortName", () => {
   it("names the field, and its direction when sorted by it", () => {
-    expect(sortName(defaultSort, "duration")).toBe("Duration");
+    expect(sortName(DEFAULT_SORT, "duration")).toBe("Duration");
     expect(sortName(trackSort("duration", "asc"), "duration")).toBe("Duration, shortest first");
-    expect(sortName(defaultSort, "added")).toBe("Recently added, oldest first");
+    expect(sortName(DEFAULT_SORT, "added")).toBe("Recently added, oldest first");
     expect(sortName(trackSort("title", "desc"), "title")).toBe("Title, z to a");
   });
 });
@@ -257,7 +257,7 @@ describe("sortRows", () => {
     const rows = playlistRows(playlist, new Map([early, late].map((track) => [track.id, track])));
 
     expect(
-      sortRows(freshView(), rows, defaultSort).map((row) => [row.track.title, row.addedToListAt]),
+      sortRows(freshView(), rows, DEFAULT_SORT).map((row) => [row.track.title, row.addedToListAt]),
     ).toEqual([
       ["Imported last", 100],
       ["Imported first", 200],

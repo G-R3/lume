@@ -102,9 +102,9 @@ export function removeSourceEntries(
   };
 }
 
-const currentSlot = { kind: "current-slot" } as const;
+const CURRENT_SLOT = { kind: "current-slot" } as const;
 
-type PathItem = QueueItem | typeof currentSlot;
+type PathItem = QueueItem | typeof CURRENT_SLOT;
 
 export function moveSourceEntry(
   state: QueueState,
@@ -147,7 +147,7 @@ export function moveSourceEntry(
 
   if (state.shuffleEnabled) return state;
 
-  const current = sourceStepItem(state) ?? currentSlot;
+  const current = sourceStepItem(state) ?? CURRENT_SLOT;
 
   const path: PathItem[] = [...state.previousSourceItems, current, ...state.sourceQueue];
   const movedItem = path[visitIndexesByEntry(state, path).get(command.sourceEntryId) ?? -1];
@@ -283,5 +283,5 @@ function visitIndexesByEntry(state: QueueState, path: readonly PathItem[]) {
 }
 
 function isQueueItem(item: PathItem): item is QueueItem {
-  return item !== currentSlot;
+  return item !== CURRENT_SLOT;
 }

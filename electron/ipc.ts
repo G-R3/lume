@@ -8,8 +8,8 @@ import {
 } from "electron";
 import { z } from "zod";
 import {
-  lumeChannels,
-  lumeEventChannels,
+  LUME_CHANNELS,
+  LUME_EVENT_CHANNELS,
   type LumeInvokeApi,
   type SavedPlaybackSession,
 } from "@shared/ipc";
@@ -19,11 +19,11 @@ import {
   type RemovePlaylistTracksInput,
 } from "@shared/library";
 import {
-  databaseIdSchema,
-  databaseIdsSchema,
-  playbackPositionSchema,
-  playlistDuplicatesSchema,
-  setTracksLikedInputSchema,
+  DatabaseIdSchema,
+  DatabaseIdsSchema,
+  PlaybackPositionSchema,
+  PlaylistDuplicatesSchema,
+  SetTracksLikedInputSchema,
 } from "@shared/schemas";
 import {
   disableSource,
@@ -49,29 +49,29 @@ import {
 import { loadPlaybackSession, savePlaybackPosition, savePlaybackSession } from "./playback-session";
 import { isTrustedRendererEvent } from "./protocol";
 
-const playlistCreationSchema = z.object(
+const PlaylistCreationSchema = z.object(
   {
     description: z.string("Invalid playlist creation input").nullable(),
     title: z.string("Invalid playlist creation input"),
-    trackIds: databaseIdsSchema,
+    trackIds: DatabaseIdsSchema,
   },
   "Invalid playlist creation input",
 ) satisfies z.ZodType<PlaylistCreationInput>;
 
-const addTracksToPlaylistSchema = z.object({
-  duplicates: playlistDuplicatesSchema,
-  playlistId: databaseIdSchema,
-  trackIds: databaseIdsSchema.min(1),
+const AddTracksToPlaylistSchema = z.object({
+  duplicates: PlaylistDuplicatesSchema,
+  playlistId: DatabaseIdSchema,
+  trackIds: DatabaseIdsSchema.min(1),
 }) satisfies z.ZodType<AddTracksToPlaylistInput>;
 
-const removePlaylistTracksSchema = z.object({
-  playlistTrackIds: databaseIdsSchema.min(1),
-  playlistId: databaseIdSchema,
+const RemovePlaylistTracksSchema = z.object({
+  playlistTrackIds: DatabaseIdsSchema.min(1),
+  playlistId: DatabaseIdSchema,
 }) satisfies z.ZodType<RemovePlaylistTracksInput>;
 
-const playbackSessionSchema = z.object({
+const PlaybackSessionSchema = z.object({
   payload: z.string(),
-  position: playbackPositionSchema,
+  position: PlaybackPositionSchema,
 }) satisfies z.ZodType<SavedPlaybackSession>;
 
 type LumeHandlers = {
@@ -98,51 +98,51 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
       return currentLibraryRevision();
     },
     addTracksToPlaylist: (_window, input) => ({
-      ...addTracksToPlaylist(addTracksToPlaylistSchema.parse(input)),
+      ...addTracksToPlaylist(AddTracksToPlaylistSchema.parse(input)),
       revision: currentLibraryRevision(),
     }),
     createPlaylist: (_window, input) => {
-      const playlist = createPlaylist(playlistCreationSchema.parse(input));
+      const playlist = createPlaylist(PlaylistCreationSchema.parse(input));
 
       return { playlist, revision: currentLibraryRevision() };
     },
     deletePlaylist: (_window, playlistId) => {
-      deletePlaylist(databaseIdSchema.parse(playlistId));
+      deletePlaylist(DatabaseIdSchema.parse(playlistId));
 
       return currentLibraryRevision();
     },
     disableSource: (_window, input) => {
-      disableSource(databaseIdSchema.parse(input));
+      disableSource(DatabaseIdSchema.parse(input));
 
       return currentLibraryRevision();
     },
     enableSource: (_window, input) => {
-      scanInBackground(enableSource(databaseIdSchema.parse(input)));
+      scanInBackground(enableSource(DatabaseIdSchema.parse(input)));
 
       return currentLibraryRevision();
     },
     forgetSource: (_window, input) => {
-      forgetSource(databaseIdSchema.parse(input));
+      forgetSource(DatabaseIdSchema.parse(input));
 
       return currentLibraryRevision();
     },
-    hasTrackFile: (_window, trackId) => hasTrackFile(databaseIdSchema.parse(trackId)),
+    hasTrackFile: (_window, trackId) => hasTrackFile(DatabaseIdSchema.parse(trackId)),
     loadLibrary: () => getLibrarySnapshotJson(),
     loadLibraryState: () => getLibraryState(),
     loadPlaybackSession: () => loadPlaybackSession(),
-    loadPlaylist: (_window, playlistId) => getPlaylist(databaseIdSchema.parse(playlistId)),
+    loadPlaylist: (_window, playlistId) => getPlaylist(DatabaseIdSchema.parse(playlistId)),
     openDataFolder: async () => {
       const errorMessage = await shell.openPath(options.userDataDirectory);
 
       if (errorMessage) throw new Error(errorMessage);
     },
     removePlaylistTracks: (_window, input) => {
-      removePlaylistTracks(removePlaylistTracksSchema.parse(input));
+      removePlaylistTracks(RemovePlaylistTracksSchema.parse(input));
 
       return currentLibraryRevision();
     },
     rescanSource: (_window, input) => {
-      scanInBackground(scanSource(databaseIdSchema.parse(input)));
+      scanInBackground(scanSource(DatabaseIdSchema.parse(input)));
 
       return currentLibraryRevision();
     },
@@ -152,16 +152,16 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
       return currentLibraryRevision();
     },
     savePlaybackPosition: (_window, position) => {
-      savePlaybackPosition(playbackPositionSchema.parse(position));
+      savePlaybackPosition(PlaybackPositionSchema.parse(position));
     },
     savePlaybackSession: (_window, session) => {
-      savePlaybackSession(playbackSessionSchema.parse(session));
+      savePlaybackSession(PlaybackSessionSchema.parse(session));
     },
-    setTracksLiked: (_window, input) => setTracksLiked(setTracksLikedInputSchema.parse(input)),
+    setTracksLiked: (_window, input) => setTracksLiked(SetTracksLikedInputSchema.parse(input)),
   } satisfies LumeHandlers;
 
-  for (const [method, channel] of Object.entries(lumeChannels)) {
-    // SAFETY: `lumeChannels` and `handlers` both have exactly the keys of `LumeInvokeApi`.
+  for (const [method, channel] of Object.entries(LUME_CHANNELS)) {
+    // SAFETY: `LUME_CHANNELS` and `handlers` both have exactly the keys of `LumeInvokeApi`.
     const handler = handlers[method as keyof LumeInvokeApi] as LumeHandlers[keyof LumeInvokeApi];
 
     ipcMain.handle(channel, (event, ...args) =>
@@ -171,14 +171,14 @@ export function registerIpc(options: { rendererUrl: string; userDataDirectory: s
 
   onLibraryEvent((event) => {
     for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed()) window.webContents.send(lumeEventChannels.libraryEvent, event);
+      if (!window.isDestroyed()) window.webContents.send(LUME_EVENT_CHANNELS.libraryEvent, event);
     }
   });
 
-  ipcMain.on(lumeEventChannels.flushPlaybackSession, (event, session) => {
+  ipcMain.on(LUME_EVENT_CHANNELS.flushPlaybackSession, (event, session) => {
     try {
       requireTrustedWindow(event, options.rendererUrl);
-      savePlaybackSession(playbackSessionSchema.parse(session));
+      savePlaybackSession(PlaybackSessionSchema.parse(session));
       event.returnValue = true;
     } catch (error) {
       event.returnValue = error instanceof Error ? error.message : "Could not save playback";

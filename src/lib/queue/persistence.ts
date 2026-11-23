@@ -1,7 +1,7 @@
 import type { MusicLibrary } from "@shared/library";
 import type { SavedPlaybackSession } from "@shared/ipc";
-import { playbackPositionSchema } from "@shared/schemas";
-import { queueStateSchema, type QueueState } from "./model";
+import { PlaybackPositionSchema } from "@shared/schemas";
+import { QueueStateSchema, type QueueState } from "./model";
 
 export function serializeQueueSession(state: QueueState) {
   return JSON.stringify(state);
@@ -10,8 +10,8 @@ export function serializeQueueSession(state: QueueState) {
 export function parseQueueSession(saved: SavedPlaybackSession | null, library: MusicLibrary) {
   if (!saved) return null;
 
-  const position = playbackPositionSchema.parse(saved.position);
-  const state = queueStateSchema.parse(JSON.parse(saved.payload));
+  const position = PlaybackPositionSchema.parse(saved.position);
+  const state = QueueStateSchema.parse(JSON.parse(saved.payload));
   const { source, playback } = state;
 
   const deleted =

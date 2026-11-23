@@ -67,10 +67,10 @@ export type LibraryDatabase = Awaited<ReturnType<typeof openLibraryDatabase>>;
 export type LibraryTransaction = Parameters<Parameters<LibraryDatabase["transaction"]>[0]>[0];
 
 // Far below SQLite's 32766-variable limit, so a statement can bind its own parameters beside a chunk.
-const maxBoundParameters = 999;
+const MAX_BOUND_PARAMETERS = 999;
 
 export function parameterChunks<Value>(values: readonly Value[], parametersPerValue = 1) {
-  const size = Math.floor(maxBoundParameters / parametersPerValue);
+  const size = Math.floor(MAX_BOUND_PARAMETERS / parametersPerValue);
 
   return Array.from({ length: Math.ceil(values.length / size) }, (_, index) =>
     values.slice(index * size, (index + 1) * size),

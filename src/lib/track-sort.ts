@@ -3,7 +3,7 @@ import type { PlaylistDetails, Track } from "@shared/library";
 import { joinArtists } from "./format-artist";
 import type { SourceIdentity } from "./queue/model";
 
-export const sortFields = [
+export const SORT_FIELDS = [
   {
     field: "added",
     label: "Recently added",
@@ -19,40 +19,40 @@ export const sortFields = [
   },
 ] as const;
 
-export type SortField = (typeof sortFields)[number]["field"];
+export type SortField = (typeof SORT_FIELDS)[number]["field"];
 
 export type SortDirection = "asc" | "desc";
 
 export type TrackSort = Readonly<{ field: SortField; direction: SortDirection }>;
 
-const sortDirections = ["asc", "desc"] as const satisfies readonly SortDirection[];
+const SORT_DIRECTIONS = ["asc", "desc"] as const satisfies readonly SortDirection[];
 
-const internedSorts = new Map<string, TrackSort>(
-  sortFields.flatMap(({ field }) =>
-    sortDirections.map((direction) => [`${field}:${direction}`, { field, direction }] as const),
+const INTERNED_SORTS = new Map<string, TrackSort>(
+  SORT_FIELDS.flatMap(({ field }) =>
+    SORT_DIRECTIONS.map((direction) => [`${field}:${direction}`, { field, direction }] as const),
   ),
 );
 
 /** The same field and direction always return the same object. */
 export function trackSort(field: SortField, direction: SortDirection): TrackSort {
-  const sort = internedSorts.get(`${field}:${direction}`);
+  const sort = INTERNED_SORTS.get(`${field}:${direction}`);
 
   if (!sort) throw new Error(`Unknown sort ${field}:${direction}`);
 
   return sort;
 }
 
-export const defaultSort = trackSort("added", "asc");
+export const DEFAULT_SORT = trackSort("added", "asc");
 
-export const trackSortSchema = z
+export const TrackSortSchema = z
   .object({
-    field: z.enum(sortFields.map(({ field }) => field)),
-    direction: z.enum(sortDirections),
+    field: z.enum(SORT_FIELDS.map(({ field }) => field)),
+    direction: z.enum(SORT_DIRECTIONS),
   })
   .transform(({ field, direction }) => trackSort(field, direction));
 
 export function sortFieldInfo(field: SortField) {
-  const info = sortFields.find((candidate) => candidate.field === field);
+  const info = SORT_FIELDS.find((candidate) => candidate.field === field);
 
   if (!info) throw new Error(`Unknown sort field ${field}`);
 
@@ -62,7 +62,7 @@ export function sortFieldInfo(field: SortField) {
 export function nextSort(current: TrackSort, field: SortField): TrackSort {
   if (current.field !== field) return trackSort(field, "asc");
 
-  return current.direction === "asc" ? trackSort(field, "desc") : defaultSort;
+  return current.direction === "asc" ? trackSort(field, "desc") : DEFAULT_SORT;
 }
 
 export function formatTrackSort(sort: TrackSort): `${SortField}:${SortDirection}` {
@@ -70,7 +70,7 @@ export function formatTrackSort(sort: TrackSort): `${SortField}:${SortDirection}
 }
 
 export function parseTrackSort(raw: string | null): TrackSort {
-  return (raw !== null && internedSorts.get(raw)) || defaultSort;
+  return (raw !== null && INTERNED_SORTS.get(raw)) || DEFAULT_SORT;
 }
 
 export function sortName(sort: TrackSort, field: SortField) {
@@ -164,7 +164,7 @@ const compareAlbumOrder = (left: SortKeys, right: SortKeys) =>
 
 const noOrder = () => 0;
 
-const fieldOrders: Record<
+const FIELD_ORDERS: Record<
   SortField,
   {
     compare: (left: SortKeys, right: SortKeys) => number;
@@ -200,7 +200,7 @@ const fieldOrders: Record<
 };
 
 function totalRowOrder(sort: TrackSort) {
-  const order = fieldOrders[sort.field];
+  const order = FIELD_ORDERS[sort.field];
   const sign = sort.direction === "asc" ? 1 : -1;
 
   return (left: SortKeys, right: SortKeys) =>

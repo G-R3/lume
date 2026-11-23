@@ -1,7 +1,7 @@
 import type { TrackSort } from "@/lib/track-sort";
 import { TrackListHead } from "@/components/track-list/track-list-head";
 
-const skeletonRows = [
+const SKELETON_ROWS = [
   [144, 88, 120, 1],
   [112, 64, 160, 0.8],
   [176, 104, 88, 0.6],
@@ -16,7 +16,7 @@ export function TrackListSkeleton({ isPlaylist, sort }: { isPlaylist: boolean; s
       <table className="w-full table-fixed border-separate border-spacing-0 px-2 select-none">
         <TrackListHead isPlaylist={isPlaylist} sort={sort} />
         <tbody className="before:table-row before:h-1">
-          {skeletonRows.map(([title, artist, album, opacity], index) => (
+          {SKELETON_ROWS.map(([title, artist, album, opacity], index) => (
             <tr className="*:h-10" key={index} style={{ opacity }}>
               {isPlaylist && <td />}
               <td className="pl-4">

@@ -4,12 +4,12 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { net, protocol, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
-import { appScheme, parseAppUrl } from "@shared/app-urls";
+import { APP_SCHEME, parseAppUrl } from "@shared/app-urls";
 import { getArtworkData, getTrackPath, type ArtworkData } from "./library";
-import { audioContentTypes } from "./library-files";
+import { AUDIO_CONTENT_TYPES } from "./library-files";
 
 export function registerProtocolHandler(rendererDirectory: string) {
-  protocol.handle(appScheme, async (request) => {
+  protocol.handle(APP_SCHEME, async (request) => {
     const appUrl = parseAppUrl(request.url);
 
     if (appUrl?.kind === "track") {
@@ -64,7 +64,7 @@ export async function createTrackResponse(path: string, request: Request) {
   const headers = new Headers({
     "Accept-Ranges": "bytes",
     "Content-Type":
-      audioContentTypes.get(extname(path).toLowerCase()) ?? "application/octet-stream",
+      AUDIO_CONTENT_TYPES.get(extname(path).toLowerCase()) ?? "application/octet-stream",
   });
 
   const rangeHeader = request.headers.get("range");

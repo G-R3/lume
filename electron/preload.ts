@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { lumeChannels, lumeEventChannels, type LumeApi, type LumeInvokeApi } from "@shared/ipc";
+import { LUME_CHANNELS, LUME_EVENT_CHANNELS, type LumeApi, type LumeInvokeApi } from "@shared/ipc";
 import { type LibraryEvent } from "@shared/library";
 
 // Forward only the first argument: TanStack calls a `mutationFn` with a second `context` argument.
-// SAFETY: one entry per `lumeChannels` key, and `lumeChannels` has exactly the keys of `LumeInvokeApi`.
+// SAFETY: one entry per `LUME_CHANNELS` key, and `LUME_CHANNELS` has exactly the keys of `LumeInvokeApi`.
 const invokeApi = Object.fromEntries(
-  Object.entries(lumeChannels).map(([method, channel]) => [
+  Object.entries(LUME_CHANNELS).map(([method, channel]) => [
     method,
     (...args: unknown[]) => ipcRenderer.invoke(channel, args[0]),
   ]),
@@ -17,7 +17,10 @@ const lumeApi = {
   ...methods,
   playbackSession: {
     flush: (session) => {
-      const result: unknown = ipcRenderer.sendSync(lumeEventChannels.flushPlaybackSession, session);
+      const result: unknown = ipcRenderer.sendSync(
+        LUME_EVENT_CHANNELS.flushPlaybackSession,
+        session,
+      );
 
       if (result !== true) throw new Error("Could not save playback");
     },
@@ -30,10 +33,10 @@ const lumeApi = {
     const forward = (_event: IpcRendererEvent, libraryEvent: LibraryEvent) =>
       listener(libraryEvent);
 
-    ipcRenderer.on(lumeEventChannels.libraryEvent, forward);
+    ipcRenderer.on(LUME_EVENT_CHANNELS.libraryEvent, forward);
 
     return () => {
-      ipcRenderer.removeListener(lumeEventChannels.libraryEvent, forward);
+      ipcRenderer.removeListener(LUME_EVENT_CHANNELS.libraryEvent, forward);
     };
   },
 } satisfies LumeApi;

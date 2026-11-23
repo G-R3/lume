@@ -18,11 +18,11 @@ import { useViewSort } from "@/lib/view-sort";
 import { LibraryStatus } from "@/pages/tracks/library-status";
 import { TrackList } from "@/components/track-list/track-list";
 
-const allTracks = { kind: "all-tracks" } as const;
+const ALL_TRACKS = { kind: "all-tracks" } as const;
 
 export function TracksPage() {
   const library = useMusicLibrary();
-  const [sort, stepSort] = useViewSort(allTracks);
+  const [sort, stepSort] = useViewSort(ALL_TRACKS);
   const reveal = useLibraryReveal();
   const onListReady = reveal.onListReady;
   const [filterText, setFilterText] = useState("");
@@ -37,7 +37,7 @@ export function TracksPage() {
 
   if (sources.empty.kind !== "hidden") return <EmptyLibrary empty={sources.empty} />;
 
-  const sorted = sortRows(allTracks, listed, sort);
+  const sorted = sortRows(ALL_TRACKS, listed, sort);
   const items = filter ? sorted.filter((row) => matchesTrackFilter(row.track, filter)) : sorted;
   const unavailableCount = items.filter((row) => !row.track.available).length;
   const totalDurationText = formatTotalDuration(items.map((row) => row.track));
@@ -91,7 +91,7 @@ export function TracksPage() {
           onReady={onListReady}
           onStepSort={stepSort}
           sort={sort}
-          source={allTracks}
+          source={ALL_TRACKS}
         >
           {filter && items.length === 0 && (
             <FilterNoResults filterText={filter.text} onClear={clearFilter} />

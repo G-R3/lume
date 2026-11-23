@@ -1,7 +1,7 @@
 import { animate, type AnimationPlaybackControls } from "motion";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
-import { headerDelay } from "@/lib/first-scan";
-import { ease } from "@/lib/motion";
+import { HEADER_DELAY } from "@/lib/first-scan";
+import { EASE } from "@/lib/motion";
 
 export function TrackCount({
   total,
@@ -48,14 +48,14 @@ export function TrackCount({
       glide = animate(
         stats,
         { transform: [`translateX(${startX}px)`, "none"] },
-        { duration: 0.15, ease: ease.inOut },
+        { duration: 0.15, ease: EASE.inOut },
       );
     };
 
     showCount("00");
 
     const animation = animate(0, total, {
-      delay: headerDelay,
+      delay: HEADER_DELAY,
       duration: Math.min(0.8, 0.25 + total * 0.004),
       ease: [0.33, 1, 0.68, 1],
       onUpdate: (value) => {

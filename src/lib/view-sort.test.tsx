@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
-import { defaultSort, trackSort, type SortField, type TrackSort } from "./track-sort";
+import { DEFAULT_SORT, trackSort, type SortField, type TrackSort } from "./track-sort";
 
 const allTracks = { kind: "all-tracks" } as const;
 
@@ -62,7 +62,7 @@ describe("view sorts", () => {
       relaunched.getViewSort(allTracks),
       relaunched.getViewSort(playlist(1)),
       relaunched.getViewSort(playlist(2)),
-    ]).toEqual([trackSort("title", "asc"), trackSort("duration", "desc"), defaultSort]);
+    ]).toEqual([trackSort("title", "asc"), trackSort("duration", "desc"), DEFAULT_SORT]);
   });
 
   it("stores nothing for the default sort", async () => {
@@ -73,7 +73,7 @@ describe("view sorts", () => {
     store.stepViewSort(allTracks, "album");
     store.stepViewSort(allTracks, "album");
 
-    expect(store.getViewSort(allTracks)).toEqual(defaultSort);
+    expect(store.getViewSort(allTracks)).toEqual(DEFAULT_SORT);
     expect(localStorage.length).toBe(0);
   });
 
@@ -92,7 +92,7 @@ describe("view sorts", () => {
     async (raw) => {
       localStorage.setItem("lume:sort:playlist:4", raw);
 
-      expect((await freshStore()).getViewSort(playlist(4))).toEqual(defaultSort);
+      expect((await freshStore()).getViewSort(playlist(4))).toEqual(DEFAULT_SORT);
     },
   );
 
@@ -102,9 +102,9 @@ describe("view sorts", () => {
     store.forgetViewSort(playlist(3));
     store.forgetViewSort(playlist(3));
 
-    expect(store.getViewSort(playlist(3))).toEqual(defaultSort);
+    expect(store.getViewSort(playlist(3))).toEqual(DEFAULT_SORT);
     expect(localStorage.getItem("lume:sort:playlist:3")).toBeNull();
-    expect((await freshStore()).getViewSort(playlist(3))).toEqual(defaultSort);
+    expect((await freshStore()).getViewSort(playlist(3))).toEqual(DEFAULT_SORT);
   });
 
   it("drops the old global sort key", async () => {

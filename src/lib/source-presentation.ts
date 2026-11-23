@@ -1,9 +1,9 @@
-import { audioFormats } from "@shared/audio-formats";
+import { AUDIO_FORMATS } from "@shared/audio-formats";
 import type { LibrarySource, MusicLibrary, TrackUnavailableReason } from "@shared/library";
 import { formatDayMonth, formatShortDate } from "./format-short-date";
 import { libraryRows } from "./track-sort";
 
-export const trackUnavailableLabels: Record<TrackUnavailableReason, string> = {
+export const TRACK_UNAVAILABLE_LABELS: Record<TrackUnavailableReason, string> = {
   "file-missing": "File missing",
   "source-forgotten": "Folder removed",
   "source-missing": "Not connected",
@@ -12,7 +12,7 @@ export const trackUnavailableLabels: Record<TrackUnavailableReason, string> = {
   "source-unreadable": "Can’t read folder",
 };
 
-const permissionDetail =
+const PERMISSION_DETAIL =
   "Lume does not have permission to read this folder. Allow access in System Settings, then try again.";
 
 export type FolderPresentation = {
@@ -163,7 +163,7 @@ function displayDetail(status: {
   kind: "missing" | "permission" | "failed";
   errorMessage: string;
 }) {
-  if (status.kind === "permission") return permissionDetail;
+  if (status.kind === "permission") return PERMISSION_DETAIL;
 
   return status.errorMessage || "Unknown scan error.";
 }
@@ -242,9 +242,9 @@ function presentFooter(facts: readonly FolderFacts[], now: number) {
   return { text: detail ? `${name} · ${detail}` : name, tooltip };
 }
 
-const audioFormatLabels = audioFormats.map(({ label }) => label);
+const AUDIO_FORMAT_LABELS = AUDIO_FORMATS.map(({ label }) => label);
 
-const audioFormatsText = `${audioFormatLabels.slice(0, -1).join(", ")} and ${audioFormatLabels.at(-1)}`;
+const AUDIO_FORMATS_TEXT = `${AUDIO_FORMAT_LABELS.slice(0, -1).join(", ")} and ${AUDIO_FORMAT_LABELS.at(-1)}`;
 
 function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): SourceEmpty {
   if (
@@ -269,7 +269,7 @@ function presentEmpty(library: MusicLibrary, facts: readonly FolderFacts[]): Sou
 
   return {
     chooseLabel: "Choose another folder",
-    description: `Lume plays ${audioFormatsText} files.`,
+    description: `Lume plays ${AUDIO_FORMATS_TEXT} files.`,
     kind: "no-audio",
     scanning,
     sourceId: scanned.folder.id,

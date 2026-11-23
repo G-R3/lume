@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { SourceIdentity } from "./queue/model";
 import {
-  defaultSort,
+  DEFAULT_SORT,
   dropSortSlots,
   formatTrackSort,
   nextSort,
@@ -46,7 +46,7 @@ function writeSort(key: string, sort: TrackSort) {
   sortsInMemory.set(key, sort);
 
   try {
-    if (sort === defaultSort) globalThis.localStorage?.removeItem(key);
+    if (sort === DEFAULT_SORT) globalThis.localStorage?.removeItem(key);
     else globalThis.localStorage?.setItem(key, formatTrackSort(sort));
   } catch {}
 
@@ -76,7 +76,7 @@ function stepSort(key: string, field: SortField) {
 }
 
 export function forgetViewSort(view: SourceIdentity) {
-  writeSort(storageKey(view), defaultSort);
+  writeSort(storageKey(view), DEFAULT_SORT);
   dropSortSlots(view);
 }
 

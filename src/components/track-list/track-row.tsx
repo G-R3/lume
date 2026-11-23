@@ -14,7 +14,7 @@ import { formatArtists } from "@/lib/format-artist";
 import { formatAddedDate } from "@/lib/format-added-date";
 import { formatDuration } from "@/lib/format-duration";
 import type { PlaybackPhase } from "@/lib/playback-phase";
-import { trackUnavailableLabels } from "@/lib/source-presentation";
+import { TRACK_UNAVAILABLE_LABELS } from "@/lib/source-presentation";
 import { cn } from "@/lib/utils";
 import type { TrackAction } from "@/components/track-list/actions/track-actions";
 import { TrackRowMenuItems } from "@/components/track-list/track-row-menu-items";
@@ -140,7 +140,7 @@ export const TrackRow = memo(function TrackRow({
             </div>
             {track.unavailableReason && (
               <span className="shrink-0 text-meta text-secondary">
-                {trackUnavailableLabels[track.unavailableReason]}
+                {TRACK_UNAVAILABLE_LABELS[track.unavailableReason]}
               </span>
             )}
             <div

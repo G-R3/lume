@@ -2,12 +2,12 @@ import type { CSSProperties, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const glyphColumns = [
+const GLYPH_COLUMNS = [
   1, 2, 3, 3, 3, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 2, 2, 1, 1, 1, 2, 2, 3, 2, 2, 2, 2, 2, 1,
   2, 2, 3, 3, 3, 2, 1,
 ];
 
-const glyphRows = [[], [10], [8, 13], [5, 10, 15]];
+const GLYPH_ROWS = [[], [10], [8, 13], [5, 10, 15]];
 
 function hash(column: number, y: number, salt: number) {
   const value = Math.sin(column * 12.9898 + y * 78.233 + salt * 37.719) * 43758.5453;
@@ -55,8 +55,8 @@ function GlyphDots({ className, shimmer }: { className: string; shimmer?: "pause
       viewBox="0 0 198 24"
       width="198"
     >
-      {glyphColumns.flatMap((dots, column) =>
-        (glyphRows[dots] ?? []).map((y) => (
+      {GLYPH_COLUMNS.flatMap((dots, column) =>
+        (GLYPH_ROWS[dots] ?? []).map((y) => (
           <rect
             className={cn(
               shimmer && "motion-safe:animate-glyph-twinkle",

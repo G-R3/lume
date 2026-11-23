@@ -54,7 +54,7 @@ export type LumeApi = Omit<LumeInvokeApi, PlaybackSessionMethod> & {
 };
 
 // Electron includes the channel name in the error text the renderer shows for a failed call.
-export const lumeChannels = {
+export const LUME_CHANNELS = {
   addSource: "lume:add-source",
   addTracksToPlaylist: "lume:add-tracks-to-playlist",
   createPlaylist: "lume:create-playlist",
@@ -76,7 +76,7 @@ export const lumeChannels = {
   setTracksLiked: "lume:set-tracks-liked",
 } as const satisfies Record<keyof LumeInvokeApi, `lume:${string}`>;
 
-export const lumeEventChannels = {
+export const LUME_EVENT_CHANNELS = {
   flushPlaybackSession: "lume:flush-playback-session",
   libraryEvent: "lume:library-event",
 } as const;

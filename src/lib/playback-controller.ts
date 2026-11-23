@@ -1,6 +1,6 @@
 import type { LibraryRevision, MusicLibrary, PlaylistRead, Track } from "@shared/library";
 import type { LumeApi, SavedPlaybackSession } from "@shared/ipc";
-import { playbackPositionSchema } from "@shared/schemas";
+import { PlaybackPositionSchema } from "@shared/schemas";
 import { createCoalescingWriter } from "@/lib/coalescing-writer";
 import type { AudioEvent, PlaybackRequest } from "@/lib/playback-media";
 import { shuffleEntries } from "@/lib/fisher-yates";
@@ -12,7 +12,7 @@ import { selectsWithinShuffledSession } from "@/lib/queue/shuffle";
 import { libraryEntries, playlistEntries } from "@/lib/queue/source";
 import type { FailedTrack } from "@/lib/playback-phase";
 import { getTracksById } from "@/lib/tracks-by-id";
-import { defaultSort, type TrackSort } from "@/lib/track-sort";
+import { DEFAULT_SORT, type TrackSort } from "@/lib/track-sort";
 import { transition } from "@/lib/queue/transition";
 
 type Snapshot = {
@@ -31,7 +31,7 @@ export type PlaybackFailures = {
   sourceReload: boolean;
 };
 
-export const noFailures: PlaybackFailures = {
+export const NO_FAILURES: PlaybackFailures = {
   track: null,
   save: false,
   restore: false,
@@ -53,7 +53,7 @@ type Ready = { kind: "ready"; load: Load };
 
 type Lifecycle = "awaiting-library" | "restoring" | Ready | "closed";
 
-const unloaded: Load = { kind: "unloaded" };
+const UNLOADED: Load = { kind: "unloaded" };
 
 const isReady = (lifecycle: Lifecycle): lifecycle is Ready =>
   lifecycle !== "awaiting-library" && lifecycle !== "restoring" && lifecycle !== "closed";
@@ -86,7 +86,7 @@ function readSavedSession(
 }
 
 function savedPosition(position: number) {
-  return playbackPositionSchema.catch(0).parse(position);
+  return PlaybackPositionSchema.catch(0).parse(position);
 }
 
 export function createPlaybackController(dependencies: {
@@ -113,7 +113,7 @@ export function createPlaybackController(dependencies: {
     tracksById: new Map(),
     availableTrackIds: new Set(),
     isInitialized: false,
-    failures: noFailures,
+    failures: NO_FAILURES,
   };
 
   let lifecycle: Lifecycle = "awaiting-library";
@@ -165,7 +165,7 @@ export function createPlaybackController(dependencies: {
     const track = current ? snapshot.tracksById.get(current.trackId) : undefined;
     const requestId = current && track?.available ? crypto.randomUUID() : null;
 
-    lifecycle = { kind: "ready", load: requestId ? { kind: "loaded", requestId } : unloaded };
+    lifecycle = { kind: "ready", load: requestId ? { kind: "loaded", requestId } : UNLOADED };
 
     dependencies.audio.load(
       requestId && current && track
@@ -395,7 +395,7 @@ export function createPlaybackController(dependencies: {
     if (lifecycle !== "awaiting-library") {
       dispatch({
         type: "libraryRescanned",
-        entries: libraryEntries(library, snapshot.queue?.sort ?? defaultSort),
+        entries: libraryEntries(library, snapshot.queue?.sort ?? DEFAULT_SORT),
       });
 
       const current = selectCurrentItem(snapshot.queue);
@@ -411,7 +411,7 @@ export function createPlaybackController(dependencies: {
       .load()
       .then((raw) => {
         if (lifecycle === "closed") return;
-        lifecycle = { kind: "ready", load: unloaded };
+        lifecycle = { kind: "ready", load: UNLOADED };
         const latestLibrary = snapshot.library ?? library;
         const restored = readSavedSession(raw, latestLibrary);
 
@@ -438,7 +438,7 @@ export function createPlaybackController(dependencies: {
       .catch((error) => {
         if (lifecycle === "closed") return;
         console.error("Could not load the saved playback session", error);
-        lifecycle = { kind: "ready", load: unloaded };
+        lifecycle = { kind: "ready", load: UNLOADED };
         publish({
           ...snapshot,
           isInitialized: true,
@@ -486,7 +486,7 @@ export function createPlaybackController(dependencies: {
     }
 
     // A failed element never recovers, so Play must load the track again.
-    lifecycle = { kind: "ready", load: unloaded };
+    lifecycle = { kind: "ready", load: UNLOADED };
     failedTrackIds.add(trackId);
 
     if (selectPlaybackIntent(snapshot.queue) === "playing") advance();

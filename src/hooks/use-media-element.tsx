@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "r
 import { z } from "zod";
 import {
   currentElement,
-  emptyLifecycle,
+  EMPTY_LIFECYCLE,
   mediaTransition,
   mediaView,
   type ElementReport,
@@ -21,11 +21,11 @@ export function useMediaElement(options: {
   onEvent: (event: AudioEvent) => void;
   onPosition: (position: number) => void;
 }) {
-  const lifecycleRef = useRef<MediaLifecycle<HTMLAudioElement>>(emptyLifecycle);
+  const lifecycleRef = useRef<MediaLifecycle<HTMLAudioElement>>(EMPTY_LIFECYCLE);
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
 
-  const [view, setView] = useState<MediaView>(() => mediaView(emptyLifecycle));
+  const [view, setView] = useState<MediaView>(() => mediaView(EMPTY_LIFECYCLE));
   const request = view.kind === "requested" ? view.request : null;
   const [audioPreferences, setAudioPreferences] = useState(loadAudioPreferences);
   const [timeStore] = useState(createAudioTimeStore);

@@ -27,8 +27,8 @@ import {
 import { useMinuteClock } from "@/hooks/use-minute-clock";
 import { useMusicLibrary } from "@/hooks/use-music-library";
 import { usePlaylistCreation } from "@/hooks/use-playlist-creation";
-import { ariaKeyShortcuts, globalShortcuts } from "@/lib/keyboard-shortcuts";
-import { duration, ease } from "@/lib/motion";
+import { ariaKeyShortcuts, GLOBAL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
+import { DURATION, EASE } from "@/lib/motion";
 import { useScanningSources } from "@/lib/library-query";
 import { presentLibrarySources } from "@/lib/source-presentation";
 import { libraryRows } from "@/lib/track-sort";
@@ -70,7 +70,7 @@ export function AppSidebar() {
           <div className="flex items-center justify-between pr-1">
             <SidebarGroupLabel render={<h2 />}>Playlists</SidebarGroupLabel>
             <Button
-              aria-keyshortcuts={ariaKeyShortcuts(globalShortcuts.newPlaylist.chord)}
+              aria-keyshortcuts={ariaKeyShortcuts(GLOBAL_SHORTCUTS.newPlaylist.chord)}
               aria-label="Create playlist"
               onClick={() => openPlaylistCreation({ finalFocus: createTriggerRef, target: null })}
               ref={createTriggerRef}
@@ -153,14 +153,14 @@ function PlaylistSidebarItem({
   return (
     <MotionSidebarMenuItem
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, transition: { duration: duration.fast, ease: ease.out }, y: -4 }}
+      exit={{ opacity: 0, transition: { duration: DURATION.fast, ease: EASE.out }, y: -4 }}
       initial={{ opacity: 0, y: -4 }}
       layout="position"
       ref={ref}
       transition={{
-        duration: duration.enter,
-        ease: ease.out,
-        layout: { duration: duration.move, ease: ease.inOut },
+        duration: DURATION.enter,
+        ease: EASE.out,
+        layout: { duration: DURATION.move, ease: EASE.inOut },
       }}
     >
       <ContextMenu.Root>

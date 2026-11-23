@@ -2,12 +2,12 @@ import { HeartIcon } from "@phosphor-icons/react";
 import { motion, useReducedMotionConfig } from "motion/react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ease, likeFeels, type LikeFeel } from "@/lib/motion";
+import { EASE, LIKE_FEELS, type LikeFeel } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 export function LikeButton({
   className,
-  feel = likeFeels.heartbeat,
+  feel = LIKE_FEELS.heartbeat,
   label,
   liked,
   onToggle,
@@ -152,7 +152,7 @@ export function LikeButton({
               reduceMotion
                 ? fillTransition
                 : {
-                    ...(fill.reveal ? { duration: fill.reveal, ease: ease.out } : fillTransition),
+                    ...(fill.reveal ? { duration: fill.reveal, ease: EASE.out } : fillTransition),
                     delay: fillDelay,
                     transform: { ...fillTransition, delay: fillDelay, times: fill.times },
                   }

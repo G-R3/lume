@@ -8,11 +8,11 @@ import {
   useState,
 } from "react";
 
-const rowHeight = 40;
+const ROW_HEIGHT = 40;
 
-const headerHeight = 32;
+const HEADER_HEIGHT = 32;
 
-const listInset = 4;
+const LIST_INSET = 4;
 
 export type TrackListBodyHandle = {
   focusRow: (index: number, sourceEntryId: number) => void;
@@ -61,10 +61,10 @@ export function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: T
   const virtualizer = useVirtualizer({
     count,
     enabled: Boolean(scrollContainer),
-    estimateSize: () => rowHeight,
+    estimateSize: () => ROW_HEIGHT,
     getScrollElement: () => scrollContainer,
     overscan: 8,
-    paddingStart: headerHeight + listInset,
+    paddingStart: HEADER_HEIGHT + LIST_INSET,
     rangeExtractor: (range) => {
       const indexes = defaultRangeExtractor(range);
 
@@ -73,7 +73,7 @@ export function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: T
         : [...indexes, pinnedIndex].sort((left, right) => left - right);
     },
     scrollMargin,
-    scrollPaddingStart: headerHeight + listInset,
+    scrollPaddingStart: HEADER_HEIGHT + LIST_INSET,
   });
 
   const mountedIndexes = scrollContainer
@@ -102,7 +102,7 @@ export function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: T
       row.scrollIntoView({ block: "nearest" });
     },
     rowsPerPage: () =>
-      Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / rowHeight) - 1),
+      Math.max(1, Math.floor((scrollContainer?.clientHeight ?? 0) / ROW_HEIGHT) - 1),
     scrollToTop: () => scrollContainer?.scrollTo({ top: 0 }),
   }));
 
@@ -114,7 +114,7 @@ export function TrackListBody({ count, onReady, pinnedIndex, ref, renderRow }: T
 
     bodyRows.push(
       <tr aria-hidden="true" key={`spacer-${nextUnmountedIndex}`}>
-        <td style={{ height: (untilIndex - nextUnmountedIndex) * rowHeight }} />
+        <td style={{ height: (untilIndex - nextUnmountedIndex) * ROW_HEIGHT }} />
       </tr>,
     );
   };

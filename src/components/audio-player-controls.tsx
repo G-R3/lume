@@ -21,7 +21,7 @@ import { formatArtists } from "@/lib/format-artist";
 import { formatDuration } from "@/lib/format-duration";
 import { cn } from "@/lib/utils";
 
-const waveform = [
+const WAVEFORM = [
   1, 1, 2, 2, 3, 3, 2, 3, 2, 3, 2, 2, 2, 2, 1, 2, 2, 3, 2, 2, 3, 2, 3, 3, 2, 2, 2, 2, 1, 2, 2, 2, 2,
   1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 3, 2, 3, 1, 2, 2, 1, 1, 1, 2, 2, 2, 3, 2, 3, 3, 3, 3,
   4, 4, 3, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3, 2, 2, 2, 2, 1,
@@ -397,7 +397,7 @@ function PlayerWaveform({
   const ref = useRef<SVGSVGElement>(null);
   const id = useId();
   const [width, setWidth] = useState(340);
-  const columns = Math.max(0, Math.min(waveform.length, Math.floor(width / 4)));
+  const columns = Math.max(0, Math.min(WAVEFORM.length, Math.floor(width / 4)));
   const playedEnd = Math.min(progress, hoverProgress ?? progress) * width;
   const hoverEnd = Math.max(progress, hoverProgress ?? progress) * width;
 
@@ -434,20 +434,18 @@ function PlayerWaveform({
           <rect height="12" width={Math.max(0, width - hoverEnd)} x={hoverEnd} />
         </clipPath>
         <g id={`${id}-dots`}>
-          {waveform
-            .slice(0, columns)
-            .flatMap((level, column) =>
-              Array.from({ length: idle ? 1 : level }, (_, row) => (
-                <rect
-                  height="2"
-                  key={`${column}-${row}`}
-                  rx="0.5"
-                  width="2"
-                  x={column * 4 + 1}
-                  y={idle ? 5 : Math.floor((12 - (level * 3 - 1)) / 2) + row * 3}
-                />
-              )),
-            )}
+          {WAVEFORM.slice(0, columns).flatMap((level, column) =>
+            Array.from({ length: idle ? 1 : level }, (_, row) => (
+              <rect
+                height="2"
+                key={`${column}-${row}`}
+                rx="0.5"
+                width="2"
+                x={column * 4 + 1}
+                y={idle ? 5 : Math.floor((12 - (level * 3 - 1)) / 2) + row * 3}
+              />
+            )),
+          )}
         </g>
       </defs>
       <use className="fill-accent" clipPath={`url(#${id}-played)`} href={`#${id}-dots`} />
